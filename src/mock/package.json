@@ -1,0 +1,19 @@
+{
+  "name": "@youbao/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "C 端 PC + H5 共享层：仅类型 + mock 数据 + 工具，零 runtime UI 依赖",
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./constants": "./constants.ts",
+    "./api": "./api/index.ts",
+    "./api/*": "./api/*.ts",
+    "./mock/data/*": "./mock/data/*.ts",
+    "./enums/*": "./enums/*.ts",
+    "./utils/*": "./utils/*.ts",
+    "./typings/*": "./typings/*.d.ts"
+  }
+}

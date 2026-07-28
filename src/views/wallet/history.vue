@@ -1,0 +1,204 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { walletApi } from '@shared';
+import TxnRow from '@/components/wallet/txn-row.vue';
+import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import { useUserStore } from '@/stores';
+
+const route = useRoute();
+const userStore = useUserStore();
+
+const list = ref<Api.Wallet.Txn[]>([]);
+const total = ref(0);
+const current = ref(1);
+const size = ref(20);
+const loading = ref(false);
+const drawerTxn = ref<Api.Wallet.Txn>();
+const drawerOpen = ref(false);
+
+const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
+  { label: '链上', types: ['DEPOSIT_IN', 'WITHDRAW_OUT'] },
+  { label: '内部', types: ['INTERNAL_PAY', 'INTERNAL_RECEIVE', 'INTERNAL_REFUND'] },
+  { label: '小金库', types: ['FINANCE_LOCK', 'FINANCE_UNLOCK', 'INTEREST_ACCRUE'] },
+  { label: '押金', types: ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT'] },
+  { label: '订单', types: ['ORDER_FREEZE', 'ORDER_SETTLE'] },
+  { label: '风控', types: ['RISK_FREEZE', 'RISK_UNFREEZE'] },
+  { label: '调整', types: ['ADJUST_PLUS', 'ADJUST_MINUS', 'FEE_DEDUCT'] }
+];
+
+const BUCKET_OPTIONS: { value?: Api.Wallet.Bucket; label: string }[] = [
+  { value: undefined, label: '全部桶' },
+  { value: 'available', label: '可用余额' },
+  { value: 'nonWithdrawable', label: '不可提现' },
+  { value: 'lockedFinance', label: '小金库锁仓' },
+  { value: 'frozenOrder', label: '订单冻结' },
+  { value: 'frozenRisk', label: '风控冻结' },
+  { value: 'depositAvailable', label: '可担保押金' },
+  { value: 'depositGuaranteed', label: '已担保押金' }
+];
+
+const filter = reactive<{
+  types: Api.Wallet.TxnType[];
+  bucket?: Api.Wallet.Bucket;
+  dateRange?: string[];
+  keyword: string;
+}>({ types: [], keyword: '' });
+
+function applyQueryParams() {
+  const bucket = route.query.bucket as Api.Wallet.Bucket | undefined;
+  const t = route.query.type as Api.Wallet.TxnType | undefined;
+  if (bucket) filter.bucket = bucket;
+  if (t) filter.types = [t];
+}
+
+async function load() {
+  if (!userStore.currentUser) return;
+  loading.value = true;
+  try {
+    const r = await walletApi.fetchMyTxns({
+      userId: userStore.currentUser.id,
+      current: current.value,
+      size: size.value,
+      types: filter.types.length ? filter.types : undefined,
+      bucket: filter.bucket,
+      fromAt: filter.dateRange?.[0],
+      toAt: filter.dateRange?.[1]
+    });
+    let records = r.records;
+    if (filter.keyword) {
+      const kw = filter.keyword.toLowerCase();
+      records = records.filter(
+        t =>
+          (t.remark || '').toLowerCase().includes(kw) ||
+          (t.refId || '').toLowerCase().includes(kw) ||
+          (t.chainTxHash || '').toLowerCase().includes(kw)
+      );
+    }
+    list.value = records;
+    total.value = r.total;
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(() => {
+  applyQueryParams();
+  load();
+});
+
+watch(
+  () => userStore.currentAudience,
+  () => {
+    current.value = 1;
+    load();
+  }
+);
+
+function reset() {
+  filter.types = [];
+  filter.bucket = undefined;
+  filter.dateRange = undefined;
+  filter.keyword = '';
+  current.value = 1;
+  load();
+}
+
+function openDetail(t: Api.Wallet.Txn) {
+  drawerTxn.value = t;
+  drawerOpen.value = true;
+}
+</script>
+
+<template>
+  <div class="history-page shop-container">
+    <h1 class="page-title">资金流水</h1>
+
+    <a-card class="filter-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
+      <a-form :model="filter" layout="vertical">
+        <a-row :gutter="16">
+          <a-col :span="9">
+            <a-form-item label="类型">
+              <a-select v-model="filter.types" placeholder="全部类型" multiple allow-clear>
+                <a-optgroup v-for="g in TYPE_GROUPS" :key="g.label" :label="g.label">
+                  <a-option v-for="t in g.types" :key="t" :value="t">{{ t }}</a-option>
+                </a-optgroup>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="5">
+            <a-form-item label="资产桶">
+              <a-select v-model="filter.bucket" placeholder="全部" allow-clear>
+                <a-option v-for="b in BUCKET_OPTIONS" :key="String(b.value)" :value="b.value">{{ b.label }}</a-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="6">
+            <a-form-item label="日期">
+              <a-range-picker v-model="filter.dateRange" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="4">
+            <a-form-item label="关键字">
+              <a-input v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" allow-clear />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <div class="filter-actions">
+          <a-button type="primary" @click="(() => { current = 1; load(); })()">查询</a-button>
+          <a-button @click="reset">重置</a-button>
+          <a-button disabled>导出 CSV · Phase 4</a-button>
+        </div>
+      </a-form>
+    </a-card>
+
+    <a-card :body-style="{ padding: 0 }" :bordered="false" class="list-card">
+      <a-spin :loading="loading" style="width: 100%">
+        <template v-if="list.length">
+          <TxnRow v-for="t in list" :key="t.id" :txn="t" @detail="openDetail" />
+        </template>
+        <EmptyState v-else title="暂无符合条件的流水" description="试试调整筛选条件" />
+      </a-spin>
+    </a-card>
+
+    <div v-if="total > size" class="pagination-bar">
+      <a-pagination
+        :total="total"
+        :current="current"
+        :page-size="size"
+        show-total
+        @change="(p: number) => { current = p; load(); }"
+      />
+    </div>
+
+    <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
+  </div>
+</template>
+
+<style scoped>
+.history-page {
+  padding-top: 16px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: #1d2129;
+}
+.filter-card,
+.list-card {
+  background: #fff;
+  border-radius: var(--bw-card-radius);
+  margin-bottom: 16px;
+}
+.filter-actions {
+  display: flex;
+  gap: 8px;
+}
+.pagination-bar {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+</style>

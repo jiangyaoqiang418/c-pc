@@ -1,0 +1,433 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { Message, Modal } from '@arco-design/web-vue';
+import { enums, formatAmount, orderApi, walletApi } from '@shared';
+import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
+import InfoTooltip from '@/components/common/info-tooltip.vue';
+import AddressSelector from '@/components/common/address-selector.vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import { useCartStore, useUserStore } from '@/stores';
+
+const router = useRouter();
+const userStore = useUserStore();
+const cart = useCartStore();
+
+const addressId = ref<number>();
+const selectedAddr = ref<{ receiverName: string; receiverPhone: string; province: string; city: string; district: string; detail: string }>();
+const wallet = ref<Api.User.WalletSummary>();
+const agreed = ref(false);
+const submitting = ref(false);
+const payMode = ref<'wallet' | 'okx'>('wallet');
+
+const items = computed(() => cart.selectedItems);
+const overseasItems = computed(() => items.value.filter(i => i.product?.overseasCustoms));
+const subTotal = computed(() => cart.subTotal);
+const shippingFeeTotal = computed(() => cart.shippingFeeTotal);
+const taxTotal = computed(() => cart.taxTotal);
+const grandTotal = computed(() => cart.grandTotal);
+
+const availableBalance = computed(() => Number(wallet.value?.available || 0));
+const balanceEnough = computed(() => availableBalance.value >= Number(grandTotal.value));
+
+onMounted(async () => {
+  if (!userStore.currentUser) {
+    router.replace({ name: 'login', query: { redirect: '/checkout' } });
+    return;
+  }
+  if (items.value.length === 0) {
+    Message.warning('请先选择要结算的商品');
+    router.replace('/cart');
+    return;
+  }
+  wallet.value = await walletApi.fetchMyWallet(userStore.currentUser.id);
+});
+
+async function submit() {
+  if (!agreed.value) {
+    Message.warning('请阅读并同意协议');
+    return;
+  }
+  if (!selectedAddr.value) {
+    Message.warning('请选择收货地址');
+    return;
+  }
+  if (payMode.value === 'wallet' && !balanceEnough.value) {
+    Message.error({
+      content: '钱包余额不足，请前往钱包链上充值',
+      duration: 3500
+    });
+    setTimeout(() => router.push('/wallet/deposit'), 600);
+    return;
+  }
+  if (overseasItems.value.length > 0) {
+    const confirmed = await new Promise<boolean>(resolve => {
+      Modal.confirm({
+        title: '海外直邮商品提醒',
+        content: `订单包含 ${overseasItems.value.length} 件海外直邮商品，过关后不支持退换，请确认。`,
+        okText: '确认提交',
+        cancelText: '取消',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false)
+      });
+    });
+    if (!confirmed) return;
+  }
+  await doSubmit();
+}
+
+async function doSubmit() {
+  submitting.value = true;
+  try {
+    const userId = userStore.currentUser!.id;
+    const addr = selectedAddr.value!;
+    let firstOrderId: number | undefined;
+    for (const item of items.value) {
+      if (!item.product) continue;
+      const order = await orderApi.createOrderMock({
+        customerId: userId,
+        productId: item.productId,
+        shopperId: item.product.sellerId,
+        productTitle: item.product.title,
+        productCover: item.product.images?.[0]?.url,
+        price: (Number(item.product.price) * item.qty).toFixed(2),
+        shippingFee: item.product.shippingFee,
+        tax: item.product.tax,
+        receiverName: addr.receiverName,
+        receiverPhone: addr.receiverPhone,
+        shippingAddress: `${addr.province}${addr.city}${addr.district}${addr.detail}`,
+        aftersaleType: item.product.aftersaleType
+      });
+      const payResult = await orderApi.payOrderMock(order.id);
+      if (!payResult.ok) {
+        Message.error(payResult.message || '支付失败');
+        return;
+      }
+      if (firstOrderId == null) firstOrderId = order.id;
+      cart.remove(item.productId);
+    }
+    Message.success('支付成功');
+    if (firstOrderId) router.push({ name: 'checkout-success', params: { orderId: String(firstOrderId) } });
+  } finally {
+    submitting.value = false;
+  }
+}
+</script>
+
+<template>
+  <div class="checkout-page">
+    <div v-if="items.length" class="container">
+      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
+        <div class="step-title">1. 收货信息</div>
+        <AddressSelector
+          v-if="userStore.currentUser"
+          v-model="addressId"
+          :user-id="userStore.currentUser.id"
+          @changed="(a) => (selectedAddr = a)"
+        />
+      </a-card>
+
+      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
+        <div class="step-title">2. 商品清单 <span class="muted">· {{ items.length }} 种 {{ cart.selectedQty }} 件</span></div>
+        <div v-if="overseasItems.length" class="overseas-warn">
+          🌏 以下 {{ overseasItems.length }} 件商品来自海外直邮，过关后不可退货退款
+        </div>
+        <div class="goods-list">
+          <div v-for="item in items" :key="item.productId" class="goods-row">
+            <img :src="item.product?.images?.[0]?.url || `https://picsum.photos/seed/${item.productId}/80/80`" class="cover" />
+            <div class="info">
+              <div class="title">{{ item.product?.title }}</div>
+              <div class="tags">
+                <a-tag v-if="item.product" :color="enums.AFTERSALE_TYPE_META[item.product.aftersaleType].color" size="small">
+                  {{ enums.AFTERSALE_TYPE_META[item.product.aftersaleType].label }}
+                </a-tag>
+                <a-tag v-if="item.product?.overseasCustoms" color="orange" size="small">海外直邮</a-tag>
+                <span class="seller">买手 · {{ item.product?.sellerName }}</span>
+              </div>
+            </div>
+            <div class="qty">×{{ item.qty }}</div>
+            <div class="amount">
+              <span class="amount-cny">{{ formatUsdt(item.lineTotal) }}</span>
+              <span class="amount-usdt">≈ {{ formatCny(item.lineTotal) }}</span>
+            </div>
+          </div>
+        </div>
+      </a-card>
+
+      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
+        <div class="step-title">3. 金额明细</div>
+        <div class="amount-list">
+          <div class="am-row">
+            <span class="am-label">商品合计</span>
+            <span class="am-val">
+              <span class="cny">{{ formatUsdt(subTotal) }}</span>
+              <span class="usdt">≈ {{ formatCny(subTotal) }}</span>
+            </span>
+          </div>
+          <div class="am-row">
+            <span class="am-label">运费合计</span>
+            <span class="am-val">
+              <span class="cny">{{ formatUsdt(shippingFeeTotal) }}</span>
+              <span class="usdt">≈ {{ formatCny(shippingFeeTotal) }}</span>
+            </span>
+          </div>
+          <div class="am-row">
+            <span class="am-label">
+              税费合计
+              <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="12" />
+            </span>
+            <span class="am-val">
+              <span class="cny">{{ formatUsdt(taxTotal) }}</span>
+              <span class="usdt">≈ {{ formatCny(taxTotal) }}</span>
+            </span>
+          </div>
+          <div class="am-row total">
+            <span class="am-label">应付总额</span>
+            <span class="am-val">
+              <span class="cny total-cny">{{ formatUsdt(grandTotal) }}</span>
+              <span class="usdt">≈ {{ formatCny(grandTotal) }} · {{ priceSet(grandTotal).rateLabel }}</span>
+            </span>
+          </div>
+        </div>
+      </a-card>
+
+      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
+        <div class="step-title">4. 支付</div>
+        <a-radio-group v-model="payMode" direction="vertical">
+          <a-radio value="wallet">
+            <div class="pay-row">
+              <span class="pay-name">使用钱包余额支付</span>
+              <span class="pay-meta" :class="{ insufficient: !balanceEnough }">
+                可用 U {{ formatAmount(availableBalance) }} {{ balanceEnough ? '' : '· 余额不足' }}
+              </span>
+            </div>
+          </a-radio>
+          <a-radio value="okx">
+            <div class="pay-row">
+              <span class="pay-name">OKX 快速支付</span>
+              <span class="pay-meta">原型阶段仅模拟，实际不会唤起 OKX</span>
+            </div>
+          </a-radio>
+        </a-radio-group>
+
+        <a-divider />
+
+        <div class="agree-row">
+          <a-checkbox v-model="agreed">
+            我已阅读并同意
+            <a-link>《用户协议》</a-link>
+            <a-link>《隐私政策》</a-link>
+          </a-checkbox>
+        </div>
+
+        <div class="submit-row">
+          <div class="submit-meta">
+            <span class="muted">应付：</span>
+            <span class="grand">{{ formatUsdt(grandTotal) }}</span>
+            <span class="grand-usdt">≈ {{ formatCny(grandTotal) }}</span>
+          </div>
+          <a-button type="primary" size="large" :loading="submitting" :disabled="!agreed" @click="submit">
+            提交订单
+          </a-button>
+        </div>
+      </a-card>
+    </div>
+
+    <EmptyState v-else title="没有选中要结算的商品" action-text="回到购物车" @action="router.push('/cart')" />
+  </div>
+</template>
+
+<style scoped>
+.checkout-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.step-card {
+  background: #fff;
+  border-radius: var(--bw-card-radius);
+}
+.step-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d2129;
+  margin-bottom: 16px;
+  padding-left: 8px;
+  border-left: 3px solid var(--bw-brand-primary);
+}
+.overseas-warn {
+  background: #fff7e6;
+  color: #ff7d00;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  border-left: 3px solid #ff7d00;
+}
+.goods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.goods-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 80px 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed #f2f3f5;
+}
+.cover {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #f7f8fa;
+}
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d2129;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.seller {
+  font-size: 11px;
+  color: #86909c;
+}
+.qty {
+  text-align: center;
+  color: #4e5969;
+}
+.amount {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.amount-cny {
+  color: var(--yb-ink);
+  font-weight: 700;
+  font-family: var(--yb-font-mono);
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.amount-usdt {
+  font-size: 11px;
+  color: var(--yb-muted);
+  font-family: var(--yb-font-mono);
+  margin-top: 2px;
+}
+
+/* Amount list */
+.amount-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.am-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--yb-hairline);
+}
+.am-row:last-child { border-bottom: none; }
+.am-row.total {
+  border-top: 1px solid var(--yb-hairline);
+  border-bottom: none;
+  padding-top: 14px;
+  margin-top: 4px;
+}
+.am-label {
+  color: var(--yb-muted);
+  font-size: 13px;
+}
+.am-val {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.am-val .cny {
+  color: var(--yb-ink);
+  font-family: var(--yb-font-mono);
+  font-weight: 600;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.am-val .usdt {
+  font-size: 11px;
+  color: var(--yb-muted);
+  font-family: var(--yb-font-mono);
+  margin-top: 2px;
+}
+.total-cny {
+  font-size: 26px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+.pay-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.pay-name {
+  font-weight: 500;
+  color: #1d2129;
+}
+.pay-meta {
+  font-size: 12px;
+  color: #86909c;
+}
+.pay-meta.insufficient {
+  color: #f53f3f;
+}
+.agree-row {
+  margin: 12px 0;
+}
+.submit-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 24px;
+}
+.submit-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.grand {
+  font-family: var(--yb-font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--yb-ink);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.grand-usdt {
+  font-family: var(--yb-font-mono);
+  font-size: 12px;
+  color: var(--yb-muted);
+  margin-left: 4px;
+}
+.muted {
+  color: #86909c;
+  font-size: 13px;
+}
+</style>

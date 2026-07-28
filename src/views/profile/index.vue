@@ -1,0 +1,366 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { Message } from '@arco-design/web-vue';
+import { cmsApi, enums, formatAmount, formatPoints, orderApi, vipApi, walletApi } from '@shared';
+import VipBadge from '@/components/common/vip-badge.vue';
+import { useUserStore } from '@/stores';
+
+const router = useRouter();
+const userStore = useUserStore();
+
+const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const totalAssets = ref<{ total: string; account?: Api.Wallet.InternalAccount }>();
+const orderCounts = ref<Record<string, number>>({});
+const announcements = ref<Api.Cms.Announcement[]>([]);
+
+const user = computed(() => userStore.currentUser);
+const kycMeta = computed(() => (user.value ? enums.KYC_STATUS_META[user.value.kycStatus] : undefined));
+
+onMounted(async () => {
+  if (!user.value) return;
+  const uid = user.value.id;
+  const [vip, assets, counts, anns] = await Promise.all([
+    vipApi.fetchMyVipStatus(uid),
+    walletApi.fetchTotalAssetsOfUser(uid),
+    orderApi.countMyOrdersByStatus(uid),
+    cmsApi.fetchAnnouncements({ size: 3 })
+  ]);
+  vipStatus.value = vip;
+  totalAssets.value = assets;
+  orderCounts.value = counts;
+  announcements.value = anns.records.slice(0, 3);
+});
+
+interface QuickEntry {
+  key: string;
+  label: string;
+  emoji: string;
+  go: () => void;
+  disabled?: boolean;
+  phase?: number;
+}
+
+const quickEntries = computed<QuickEntry[]>(() => [
+  { key: 'orders', label: '我的订单', emoji: '📦', go: () => router.push('/order') },
+  { key: 'cart', label: '购物车', emoji: '🛒', go: () => router.push('/cart') },
+  { key: 'wallet', label: '我的钱包', emoji: '💰', go: () => router.push('/wallet') },
+  { key: 'finance', label: '小金库', emoji: '📈', go: () => router.push('/finance') },
+  { key: 'kyc', label: 'KYC 认证', emoji: '🪪', go: () => router.push('/kyc') },
+  { key: 'vip', label: 'VIP 特权', emoji: '👑', go: () => router.push('/vip') },
+  { key: 'address', label: '地址管理', emoji: '📍', go: () => router.push('/address') },
+  { key: 'purchase', label: '我的求购', emoji: '🔍', go: () => router.push('/purchase') },
+  { key: 'aftersale', label: '我的售后', emoji: '🔧', go: () => router.push('/aftersale') },
+  { key: 'review', label: '我的评价', emoji: '⭐', go: () => router.push('/review') },
+  { key: 'points', label: '我的积分', emoji: '🎯', go: () => router.push('/points') },
+  {
+    key: 'buyer',
+    label: user.value?.isBuyer ? '买手中心' : '成为买手',
+    emoji: '🤝',
+    go: () => {
+      if (user.value?.isBuyer) {
+        router.push('/buyer/dashboard');
+      } else {
+        Message.info('请先完成 KYC 认证后申请成为买手');
+        router.push('/kyc');
+      }
+    }
+  }
+]);
+
+const orderTabsMeta = computed(() => [
+  { label: '待付款', count: orderCounts.value['PENDING_PAYMENT'] || 0, status: 'PENDING_PAYMENT' },
+  { label: '待发货', count: (orderCounts.value['PROCURING'] || 0) + (orderCounts.value['PROCURED'] || 0) },
+  { label: '待收货', count: (orderCounts.value['IN_TRANSIT'] || 0) + (orderCounts.value['AFTERSALE_CONFIRM'] || 0) },
+  { label: '已完成', count: (orderCounts.value['COMPLETED'] || 0) + (orderCounts.value['WARRANTY'] || 0) },
+  { label: '售后中', count: orderCounts.value['IN_AFTERSALE'] || 0 }
+]);
+</script>
+
+<template>
+  <div class="profile-page shop-container">
+    <div v-if="user" class="layout">
+      <section class="left">
+        <a-card class="user-card" :body-style="{ padding: '24px' }">
+          <div class="user-head">
+            <div class="avatar">{{ user.nickname.slice(0, 1) }}</div>
+            <div class="info">
+              <div class="name-row">
+                <span class="name">{{ user.nickname }}</span>
+                <VipBadge :level="user.vipLevel" />
+                <a-tag v-if="kycMeta" :color="kycMeta.color" size="small">KYC：{{ kycMeta.label }}</a-tag>
+                <a-tag v-if="user.isBuyer" color="orange" size="small">已是买手</a-tag>
+              </div>
+              <div class="meta">
+                <span>{{ user.email }}</span>
+                <span class="dot">·</span>
+                <span>积分 {{ formatPoints(user.points) }}</span>
+                <span class="dot">·</span>
+                <span>注册于 {{ new Date(user.registeredAt).toLocaleDateString() }}</span>
+              </div>
+              <div v-if="vipStatus?.nextThreshold" class="vip-progress">
+                距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分
+                <a-progress
+                  :percent="(user.points / vipStatus.nextThreshold) * 100"
+                  size="mini"
+                  color="#722ed1"
+                  style="width: 220px"
+                />
+              </div>
+            </div>
+          </div>
+        </a-card>
+
+        <a-card class="order-stat-card" :body-style="{ padding: '20px 24px' }">
+          <div class="card-head">
+            <div class="card-title">订单概况</div>
+            <a-link @click="router.push('/order')">查看全部 ›</a-link>
+          </div>
+          <div class="order-stats">
+            <div v-for="o in orderTabsMeta" :key="o.label" class="stat" @click="router.push('/order')">
+              <div class="stat-num">{{ o.count }}</div>
+              <div class="stat-label">{{ o.label }}</div>
+            </div>
+          </div>
+        </a-card>
+
+        <a-card class="quick-card" :body-style="{ padding: '20px 24px' }">
+          <div class="card-title">快捷入口</div>
+          <div class="quick-grid">
+            <div
+              v-for="q in quickEntries"
+              :key="q.key"
+              class="quick-cell"
+              :class="{ disabled: q.phase }"
+              @click="q.go()"
+            >
+              <span class="emoji">{{ q.emoji }}</span>
+              <span class="label">{{ q.label }}</span>
+              <span v-if="q.phase" class="phase-chip">P{{ q.phase }}</span>
+            </div>
+          </div>
+        </a-card>
+      </section>
+
+      <aside class="right">
+        <a-card class="asset-card" :body-style="{ padding: '20px 24px' }">
+          <div class="card-title">我的资产</div>
+          <div class="asset-amount">U {{ formatAmount(totalAssets?.total || '0') }}</div>
+          <div class="asset-sub">
+            可用 U {{ formatAmount(totalAssets?.account?.available || '0') }}
+            <br />
+            锁仓 U {{ formatAmount(totalAssets?.account?.lockedFinance || '0') }}
+          </div>
+          <a-button long type="primary" class="asset-btn" @click="router.push('/wallet')">进入钱包 ›</a-button>
+        </a-card>
+
+        <a-card class="ann-card" :body-style="{ padding: '20px 24px' }">
+          <div class="card-head">
+            <div class="card-title">平台公告</div>
+            <a-link disabled>公告中心 · Phase 3</a-link>
+          </div>
+          <div v-for="a in announcements" :key="a.id" class="ann-row">
+            <div class="ann-title">📢 {{ a.title }}</div>
+            <div class="ann-summary">{{ a.summary }}</div>
+          </div>
+        </a-card>
+      </aside>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.profile-page {
+  padding-top: 16px;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 8fr 4fr;
+  gap: 16px;
+}
+.left, .right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.user-card {
+  background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+  border-radius: var(--bw-card-radius);
+}
+.user-head {
+  display: flex;
+  gap: 16px;
+}
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--bw-brand-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.info {
+  flex: 1;
+}
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.name {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1d2129;
+}
+.meta {
+  color: #4e5969;
+  font-size: 13px;
+}
+.dot {
+  margin: 0 8px;
+  color: #c9cdd4;
+}
+.vip-progress {
+  margin-top: 10px;
+  color: #4e5969;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.order-stat-card,
+.quick-card,
+.asset-card,
+.ann-card {
+  background: #fff;
+  border-radius: var(--bw-card-radius);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+  padding-left: 8px;
+  border-left: 3px solid var(--bw-brand-primary);
+  margin-bottom: 14px;
+}
+.card-head .card-title {
+  margin: 0;
+}
+.order-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.stat {
+  text-align: center;
+  padding: 14px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.stat:hover {
+  background: #f3f7ff;
+}
+.stat-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1d2129;
+}
+.stat-label {
+  font-size: 12px;
+  color: #86909c;
+  margin-top: 4px;
+}
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.quick-cell {
+  position: relative;
+  text-align: center;
+  padding: 16px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.quick-cell:hover {
+  background: #f3f7ff;
+}
+.quick-cell.disabled {
+  opacity: 0.7;
+}
+.quick-cell .emoji {
+  font-size: 24px;
+  display: block;
+  margin-bottom: 4px;
+}
+.quick-cell .label {
+  font-size: 12px;
+  color: #4e5969;
+}
+.phase-chip {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: #f7f8fa;
+  color: #86909c;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.asset-amount {
+  font-size: 28px;
+  font-weight: 700;
+  color: #722ed1;
+  font-family: ui-monospace, monospace;
+}
+.asset-sub {
+  font-size: 12px;
+  color: #4e5969;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.asset-btn {
+  margin-top: 16px;
+}
+/* 兜底：Arco primary → 品牌粉（token 覆盖若未生效由此保底） */
+.asset-btn.arco-btn-primary {
+  background-color: var(--yb-brand-pink) !important;
+  border-color: var(--yb-brand-pink) !important;
+  color: #fff !important;
+}
+.asset-btn.arco-btn-primary:hover {
+  background-color: var(--yb-brand-pink-2) !important;
+  border-color: var(--yb-brand-pink-2) !important;
+}
+.ann-row {
+  padding: 10px 0;
+  border-bottom: 1px dashed #f2f3f5;
+}
+.ann-row:last-child {
+  border-bottom: none;
+}
+.ann-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d2129;
+}
+.ann-summary {
+  font-size: 12px;
+  color: #86909c;
+  margin-top: 4px;
+}
+</style>

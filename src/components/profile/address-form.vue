@@ -1,0 +1,99 @@
+<script setup lang="ts">
+import { computed, reactive, watch } from 'vue';
+import { Message } from '@arco-design/web-vue';
+import type { AddressRecord } from '@shared/api/address';
+
+interface Props {
+  modelValue?: Partial<AddressRecord>;
+  submitting?: boolean;
+}
+const props = defineProps<Props>();
+const emit = defineEmits<{
+  (e: 'submit', form: Omit<AddressRecord, 'id' | 'userId' | 'createdAt'>): void;
+}>();
+
+const form = reactive({
+  receiverName: '',
+  receiverPhone: '',
+  province: '',
+  city: '',
+  district: '',
+  detail: '',
+  isDefault: false
+});
+
+function sync() {
+  if (props.modelValue) {
+    form.receiverName = props.modelValue.receiverName || '';
+    form.receiverPhone = props.modelValue.receiverPhone || '';
+    form.province = props.modelValue.province || '';
+    form.city = props.modelValue.city || '';
+    form.district = props.modelValue.district || '';
+    form.detail = props.modelValue.detail || '';
+    form.isDefault = !!props.modelValue.isDefault;
+  }
+}
+watch(() => props.modelValue, sync, { immediate: true });
+
+const canSubmit = computed(
+  () => form.receiverName && form.receiverPhone && form.province && form.detail
+);
+
+function submit() {
+  if (!canSubmit.value) {
+    Message.warning('请完善必填信息');
+    return;
+  }
+  emit('submit', { ...form });
+}
+</script>
+
+<template>
+  <a-form :model="form" layout="vertical">
+    <a-row :gutter="12">
+      <a-col :span="12">
+        <a-form-item label="收货人" required>
+          <a-input v-model="form.receiverName" placeholder="姓名" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="12">
+        <a-form-item label="手机号" required>
+          <a-input v-model="form.receiverPhone" placeholder="11 位手机号" max-length="11" />
+        </a-form-item>
+      </a-col>
+    </a-row>
+    <a-row :gutter="12">
+      <a-col :span="8">
+        <a-form-item label="省" required>
+          <a-input v-model="form.province" placeholder="如 北京市" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="市">
+          <a-input v-model="form.city" placeholder="如 北京市" />
+        </a-form-item>
+      </a-col>
+      <a-col :span="8">
+        <a-form-item label="区/县">
+          <a-input v-model="form.district" placeholder="如 朝阳区" />
+        </a-form-item>
+      </a-col>
+    </a-row>
+    <a-form-item label="详细地址" required>
+      <a-textarea v-model="form.detail" :rows="2" placeholder="街道、门牌号、楼层" />
+    </a-form-item>
+    <a-form-item>
+      <a-checkbox v-model="form.isDefault">设为默认地址</a-checkbox>
+    </a-form-item>
+    <div class="actions">
+      <a-button type="primary" :disabled="!canSubmit" :loading="submitting" @click="submit">保存</a-button>
+    </div>
+  </a-form>
+</template>
+
+<style scoped>
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

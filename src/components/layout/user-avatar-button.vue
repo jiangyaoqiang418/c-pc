@@ -1,0 +1,85 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUserStore } from '@/stores';
+import VipBadge from '@/components/common/vip-badge.vue';
+
+const router = useRouter();
+const userStore = useUserStore();
+
+const avatarInitial = computed(() => userStore.displayName.slice(0, 1).toUpperCase() || '?');
+
+function goLogin() {
+  router.push({ name: 'login' });
+}
+function goRegister() {
+  router.push({ name: 'register' });
+}
+function goProfile() {
+  router.push({ name: 'profile' });
+}
+</script>
+
+<template>
+  <div class="user-avatar-btn">
+    <template v-if="userStore.isLoggedIn">
+      <a-tooltip content="点击进入个人中心" position="bl" mini>
+        <div class="trigger" @click="goProfile">
+          <div class="avatar">{{ avatarInitial }}</div>
+          <div class="meta">
+            <div class="name">{{ userStore.displayName }}</div>
+            <VipBadge v-if="userStore.currentUser" :level="userStore.currentUser.vipLevel" size="sm" />
+          </div>
+        </div>
+      </a-tooltip>
+    </template>
+    <template v-else>
+      <a-space>
+        <a-button type="text" size="small" @click="goLogin">登录</a-button>
+        <a-button type="outline" size="small" @click="goRegister">注册</a-button>
+      </a-space>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.user-avatar-btn {
+  display: flex;
+  align-items: center;
+}
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.trigger:hover {
+  background: var(--yb-bg);
+}
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--yb-brand-pink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+.name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--yb-ink);
+}
+</style>

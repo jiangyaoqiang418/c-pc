@@ -1,0 +1,45 @@
+/**
+ * Tailwind v4 主入口。
+ * @theme inline 让 Tailwind 直接使用 tokens.scss 里定义的 CSS 变量。
+ * 详见 https://tailwindcss.com/docs/v4-beta#css-first-configuration
+ */
+@import 'tailwindcss';
+
+@theme inline {
+  /* colors */
+  --color-yb-bg: var(--yb-bg);
+  --color-yb-surface: var(--yb-surface);
+  --color-yb-hairline: var(--yb-hairline);
+  --color-yb-ink: var(--yb-ink);
+  --color-yb-ink-2: var(--yb-ink-2);
+  --color-yb-muted: var(--yb-muted);
+  --color-yb-faint: var(--yb-faint);
+  --color-yb-primary: var(--yb-primary);
+  --color-yb-primary-2: var(--yb-primary-2);
+  --color-yb-gold: var(--yb-gold);
+  --color-yb-gold-2: var(--yb-gold-2);
+  --color-yb-champagne: var(--yb-champagne);
+  --color-yb-success: var(--yb-success);
+  --color-yb-danger: var(--yb-danger);
+  --color-yb-warning: var(--yb-warning);
+  --color-yb-deep: var(--yb-deep);
+  --color-yb-deep-2: var(--yb-deep-2);
+
+  /* radius */
+  --radius-card: 20px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+
+  /* shadow */
+  --shadow-1: 0 1px 3px rgba(15, 17, 26, 0.04), 0 8px 24px rgba(15, 17, 26, 0.04);
+  --shadow-2: 0 4px 12px rgba(15, 17, 26, 0.06), 0 24px 48px rgba(15, 17, 26, 0.08);
+  --shadow-glow: 0 0 40px rgba(91, 92, 231, 0.10), 0 24px 48px rgba(15, 17, 26, 0.08);
+
+  /* font */
+  --font-display: 'Inter', 'PingFang SC', ui-sans-serif;
+  --font-body: 'Inter', 'PingFang SC', ui-sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Tailwind utilities work: bg-yb-primary, rounded-card, shadow-glow, font-mono, etc. */

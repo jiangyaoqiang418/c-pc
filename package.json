@@ -1,0 +1,36 @@
+{
+  "name": "@youbao/pc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "油宝 PC 端：Vue3 + Vite + Arco Design 原型 UI",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --port 5174",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@arco-design/web-vue": "^2.56.3",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@iconify-json/lucide": "^1.2.115",
+    "@iconify-json/tabler": "^1.2.35",
+    "@iconify/vue": "^5.0.1",
+    "@tailwindcss/vite": "^4.3.2",
+    "@vueuse/motion": "^3.0.3",
+    "echarts": "^6.1.0",
+    "pinia": "^2.2.6",
+    "tailwindcss": "^4.3.2",
+    "vue": "^3.5.13",
+    "vue-echarts": "^8.0.1",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "sass": "^1.83.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vue-tsc": "^2.1.10"
+  }
+}

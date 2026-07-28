@@ -1,0 +1,165 @@
+/**
+ * 全局设计 tokens v2 —— 油宝品牌视觉系统
+ * 「全亮色高级感 + 科技细节点缀」
+ *
+ * 新变量前缀 `--yb-*` (Youbao)
+ * 旧 `--bw-*` 变量作 alias 保留（避免破坏其他 40+ 页）
+ */
+
+:root {
+  /* ==================== 基础层 (Layer 0-2) ==================== */
+  --yb-bg:            #FAFAF7;   /* 象牙白 页面 background */
+  --yb-surface:       #FFFFFF;   /* 卡片 surface */
+  --yb-elevated:      #FFFFFF;   /* 浮层 (带 backdrop-blur) */
+  --yb-hairline:      #EDECE6;   /* 细线 border */
+  --yb-hairline-2:    #E4E2DA;   /* 稍深的细线 */
+
+  /* ==================== 文字层 ==================== */
+  --yb-ink:           #0F111A;   /* 主标题 / 强调 CTA */
+  --yb-ink-2:         #1D2129;   /* 正文 */
+  --yb-muted:         #6B7385;   /* 二级文字 */
+  --yb-faint:         #A8ADB8;   /* placeholder / 三级文字 */
+
+  /* ==================== 品牌 accent ==================== */
+  --yb-primary:       #5B5CE7;   /* 电光紫 (科技 accent / 链接 / 焦点) */
+  --yb-primary-2:     #7C5CFC;   /* 紫 gradient 终点 */
+  --yb-primary-soft:  rgba(91, 92, 231, 0.08);
+  --yb-gold:          #B8935A;   /* 低饱和金 (VIP / luxury) */
+  --yb-gold-2:        #D4A574;
+  --yb-champagne:     #F6EFE4;   /* 香槟浅金背景 */
+
+  /* ==================== 语义色（低饱和，克制）==================== */
+  --yb-success:       #00A88A;
+  --yb-success-soft:  rgba(0, 168, 138, 0.08);
+  --yb-danger:        #E74C3C;
+  --yb-danger-soft:   rgba(231, 76, 60, 0.08);
+  --yb-warning:       #D4A574;
+  --yb-info:          #5B5CE7;
+
+  /* ==================== 品牌粉（Apple Music 深粉）—— 全站主 CTA 背景 ==================== */
+  --yb-brand-pink:      #FA243C;
+  --yb-brand-pink-2:    #E01F35;   /* hover 深一档 */
+  --yb-brand-pink-soft: rgba(250, 36, 60, 0.08);
+
+  /* ==================== 深色 accent（仅 dashboard hero 用）==================== */
+  --yb-deep:          #0F1B36;   /* 深墨蓝 */
+  --yb-deep-2:        #1E1F3A;
+
+  /* ==================== Radius ==================== */
+  --yb-radius-card:   20px;
+  --yb-radius-md:     12px;
+  --yb-radius-sm:     8px;
+  --yb-radius-pill:   999px;
+
+  /* ==================== Shadow (light theme) ==================== */
+  --yb-shadow-1: 0 1px 3px rgba(15, 17, 26, 0.04), 0 8px 24px rgba(15, 17, 26, 0.04);
+  --yb-shadow-2: 0 4px 12px rgba(15, 17, 26, 0.06), 0 24px 48px rgba(15, 17, 26, 0.08);
+  --yb-shadow-glow: 0 0 40px rgba(91, 92, 231, 0.10), 0 24px 48px rgba(15, 17, 26, 0.08);
+  --yb-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* ==================== Typography ==================== */
+  --yb-font-display: 'Inter', 'PingFang SC', -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif;
+  --yb-font-body:    'Inter', 'PingFang SC', -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif;
+  --yb-font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* ==================== 布局 ==================== */
+  --yb-page-max-width: 1320px;
+  --yb-page-padding:   16px;
+
+  /* ==================== 旧变量 alias (向后兼容) ==================== */
+  --bw-brand-primary:  var(--yb-brand-pink);   /* 主 CTA 由深墨 → 品牌粉 */
+  --bw-brand-success:  var(--yb-success);
+  --bw-brand-warning:  var(--yb-warning);
+  --bw-brand-danger:   var(--yb-danger);
+  --bw-card-radius:    var(--yb-radius-card);
+  --bw-page-max-width: var(--yb-page-max-width);
+  --bw-page-padding:   var(--yb-page-padding);
+
+  /* ==================== Arco Design 主色完整覆盖 (10 shades) ==================== */
+  --primary-1: 254, 233, 236;
+  --primary-2: 253, 199, 208;
+  --primary-3: 252, 165, 179;
+  --primary-4: 251, 130, 150;
+  --primary-5: 251, 89, 116;
+  --primary-6: 250, 36, 60;       /* main #FA243C */
+  --primary-7: 218, 20, 43;
+  --primary-8: 187, 8, 28;
+  --primary-9: 156, 0, 17;
+  --primary-10: 125, 0, 12;
+  /* 少量组件用 arcoblue-* 命名 */
+  --arcoblue-1: 254, 233, 236;
+  --arcoblue-2: 253, 199, 208;
+  --arcoblue-3: 252, 165, 179;
+  --arcoblue-4: 251, 130, 150;
+  --arcoblue-5: 251, 89, 116;
+  --arcoblue-6: 250, 36, 60;
+  --arcoblue-7: 218, 20, 43;
+  --arcoblue-8: 187, 8, 28;
+  --arcoblue-9: 156, 0, 17;
+  --arcoblue-10: 125, 0, 12;
+}
+
+/* ==================== base reset ==================== */
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--yb-bg);
+  font-family: var(--yb-font-body);
+  color: var(--yb-ink-2);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ==================== 全局 helper class ==================== */
+.bw-page {
+  max-width: var(--yb-page-max-width);
+  margin: 0 auto;
+  padding: var(--yb-page-padding);
+}
+
+/* 数字字体 helper */
+.yb-mono {
+  font-family: var(--yb-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* 标题字体 helper */
+.yb-display {
+  font-family: var(--yb-font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* Arco 组件微调 (克制) */
+.arco-btn {
+  border-radius: var(--yb-radius-md);
+  font-weight: 500;
+}
+.arco-btn-primary {
+  background: var(--yb-ink) !important;
+}
+.arco-btn-primary:hover {
+  background: var(--yb-ink-2) !important;
+}
+.arco-card {
+  border-radius: var(--yb-radius-card);
+}
+.arco-tag {
+  border-radius: var(--yb-radius-pill);
+}
