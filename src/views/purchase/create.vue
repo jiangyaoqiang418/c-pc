@@ -3,8 +3,10 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
-import { formatAmount, productApi, purchaseApi } from '@shared';
+import { formatAmount } from '@shared';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import { fetchCategoryTree } from '@/service/api/category';
+import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 
 const route = useRoute();
@@ -12,7 +14,7 @@ const router = useRouter();
 const userStore = useUserStore();
 
 interface CategoryNode {
-  id: number;
+  id: string | number;
   name: string;
   children?: CategoryNode[];
 }
@@ -20,7 +22,7 @@ interface CategoryNode {
 const form = reactive<{
   productTitle: string;
   productDescription: string;
-  categoryPath: number[];
+  categoryPath: Array<string | number>;
   budgetAmount: number;
   expectedDays: number;
   overseasCustoms: boolean;
@@ -30,7 +32,7 @@ const form = reactive<{
 }>({
   productTitle: (route.query.productHint as string) || '',
   productDescription: '',
-  categoryPath: route.query.categoryId ? [Number(route.query.categoryId)] : [],
+  categoryPath: route.query.categoryId ? [String(route.query.categoryId)] : [],
   budgetAmount: 500,
   expectedDays: 14,
   overseasCustoms: false,
@@ -41,7 +43,7 @@ const form = reactive<{
 
 const submitting = ref(false);
 
-function mapToCascader(nodes: CategoryNode[]): { value: number; label: string; children?: any[] }[] {
+function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
     value: n.id,
     label: n.name,
@@ -51,7 +53,7 @@ function mapToCascader(nodes: CategoryNode[]): { value: number; label: string; c
 
 const cascaderOptions = ref<any[]>([]);
 onMounted(async () => {
-  const tree = (await productApi.fetchCategoryTree()) as CategoryNode[];
+  const tree = (await fetchCategoryTree()) as CategoryNode[];
   cascaderOptions.value = mapToCascader(tree);
 });
 
@@ -79,8 +81,7 @@ async function submit() {
     async onOk() {
       submitting.value = true;
       try {
-        const r = await purchaseApi.createPurchaseMock({
-          customerId: userStore.currentUser!.id,
+        const r = await purchaseApi.createPurchase({
           productTitle: form.productTitle.trim(),
           productDescription: form.productDescription.trim() || form.appeal.trim(),
           categoryId: form.categoryPath[form.categoryPath.length - 1],

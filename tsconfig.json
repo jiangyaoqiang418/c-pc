@@ -27,6 +27,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
+    "src/typings/**/*.d.ts",
     "src/mock/typings/**/*.d.ts",
     "src/mock/**/*.ts"
   ],

@@ -1,0 +1,99 @@
+import { realAdminRequest, realUserRequest } from '@/service/request';
+
+const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.Vip.BuyerBenefits> = {
+  interestRateBonus: 'interestRateBonus',
+  purchaseConcurrent: 'purchaseConcurrent',
+  purchasePriority: 'purchasePriority',
+  aftersaleResponse: 'aftersaleResponse',
+  withdrawFeeDiscount: 'withdrawFeeDiscount',
+  pushIntervalMinutes: 'pushIntervalMinutes',
+  transactionFeeDiscount: 'transactionFeeDiscount',
+  productSlotsMax: 'productSlotsMax'
+};
+
+function normalizeAudience(role?: string): Api.Vip.Audience {
+  return role?.toUpperCase() === 'BUYER' ? 'buyer' : 'customer';
+}
+
+function normalizeLevel(level?: string): Api.Vip.Level {
+  if (level === 'VIP1' || level === 'VIP2') return level;
+  return 'VIP0';
+}
+
+function emptyCustomerBenefits(): Api.Vip.CustomerBenefits {
+  return {
+    interestRateBonus: 0,
+    purchaseConcurrent: 0,
+    purchasePriority: 0,
+    aftersaleResponse: 0,
+    withdrawFeeDiscount: 0
+  };
+}
+
+function emptyBuyerBenefits(): Api.Vip.BuyerBenefits {
+  return {
+    pushIntervalMinutes: 0,
+    transactionFeeDiscount: 0,
+    productSlotsMax: 0
+  };
+}
+
+function toConfig(role: Api.RealVip.VipRoleGridVO, row: Api.RealVip.VipLevelRowVO): Api.Vip.LevelConfig {
+  const audience = normalizeAudience(role.role);
+  const benefits = row.benefits || {};
+  const target = audience === 'buyer' ? emptyBuyerBenefits() : emptyCustomerBenefits();
+
+  Object.entries(benefits).forEach(([code, value]) => {
+    const key = benefitCodeMap[code];
+    if (key && key in target) {
+      (target as Record<string, number>)[key] = Number(value || 0);
+    }
+  });
+
+  return {
+    audience,
+    level: normalizeLevel(row.level),
+    label: normalizeLevel(row.level),
+    threshold: Number(row.threshold || 0),
+    customerBenefits: audience === 'customer' ? target as Api.Vip.CustomerBenefits : undefined,
+    buyerBenefits: audience === 'buyer' ? target as Api.Vip.BuyerBenefits : undefined
+  };
+}
+
+function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vip.Audience = 'customer') {
+  const target = audience === 'buyer' ? emptyBuyerBenefits() : emptyCustomerBenefits();
+  info?.benefits?.forEach(item => {
+    const key = benefitCodeMap[item.code];
+    if (key && key in target) {
+      (target as Record<string, number>)[key] = Number(item.value || 0);
+    }
+  });
+  return target;
+}
+
+export async function fetchVipConfigs() {
+  const config = await realAdminRequest.get<Api.RealVip.VipConfigVO>('/vip-configs/get');
+  return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig(role, row)));
+}
+
+export async function fetchMyVipStatus(userId: number | string) {
+  const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account');
+  const customer = account.customer;
+  const buyer = account.buyer;
+  const audience: Api.Vip.Audience = buyer ? 'buyer' : 'customer';
+  const current = audience === 'buyer' ? buyer : customer;
+  const nextThreshold = current?.nextThreshold == null ? undefined : Number(current.nextThreshold);
+  const points = Number(account.points || 0);
+
+  return {
+    userId: (account.userId || userId) as unknown as number,
+    audience,
+    level: normalizeLevel(current?.level),
+    vipLevel: normalizeLevel(current?.level),
+    points,
+    nextThreshold,
+    pointsToNext: nextThreshold != null ? Math.max(0, nextThreshold - points) : 0,
+    benefits: roleInfoToBenefits(current, audience),
+    config: undefined
+  };
+}

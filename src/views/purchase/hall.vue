@@ -3,9 +3,10 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
-import { formatAmount, purchaseApi } from '@shared';
+import { formatAmount } from '@shared';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -52,9 +53,9 @@ async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
     router.push({ name: 'login', query: { redirect: '/purchase/hall' } });
     return;
   }
-  const r = await purchaseApi.claimRequestMock(req.id, userStore.currentUser.id);
+  const r = await purchaseApi.claimRequest(req.id);
   if (r.ok) {
-    Message.success('接单成功，订单将在 12h 内自动生成（mock）');
+    Message.success('接单成功');
     load();
     router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
   } else {

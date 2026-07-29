@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { productApi } from '@shared';
+import * as categoryApi from '@/service/api/category';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 
 interface CategoryNode {
-  id: number;
+  id: string | number;
   name: string;
   level: number;
   children?: CategoryNode[];
@@ -37,10 +38,10 @@ function mapTree(nodes: CategoryNode[]): TreeData[] {
   }));
 }
 
-function findNode(nodes: CategoryNode[], id: number, path: string[] = []): { node: CategoryNode; path: string[] } | undefined {
+function findNode(nodes: CategoryNode[], id: string, path: string[] = []): { node: CategoryNode; path: string[] } | undefined {
   for (const n of nodes) {
     const next = [...path, n.name];
-    if (n.id === id) return { node: n, path: next };
+    if (String(n.id) === id) return { node: n, path: next };
     if (n.children) {
       const f = findNode(n.children, id, next);
       if (f) return f;
@@ -50,7 +51,7 @@ function findNode(nodes: CategoryNode[], id: number, path: string[] = []): { nod
 }
 
 onMounted(async () => {
-  tree.value = (await productApi.fetchCategoryTree()) as CategoryNode[];
+  tree.value = (await categoryApi.fetchCategoryTree()) as CategoryNode[];
   if (tree.value.length) {
     expandedKeys.value = [String(tree.value[0].id)];
     // 只设 selectedKeys，让 watcher 一次性接管 fetch —— 避免 onMounted 直接 pick 触发 watcher 重入
@@ -58,8 +59,8 @@ onMounted(async () => {
   }
 });
 
-let lastPickedId = -1;
-async function pick(id: number) {
+let lastPickedId = '';
+async function pick(id: string) {
   // 同 id 且不在 loading 中，跳过重复请求
   if (id === lastPickedId && !loading.value) return;
   lastPickedId = id;
@@ -67,7 +68,10 @@ async function pick(id: number) {
   breadcrumb.value = found ? found.path.join(' / ') : '';
   loading.value = true;
   try {
-    const r = await productApi.fetchProductList({ categoryId: id, size: 24 });
+    const numericId = Number(id);
+    const r = Number.isSafeInteger(numericId)
+      ? await productApi.fetchProductList({ categoryId: numericId, size: 24 })
+      : await productApi.fetchProductList({ size: 24 });
     products.value = r.records;
     total.value = r.total;
   } finally {
@@ -76,7 +80,7 @@ async function pick(id: number) {
 }
 
 watch(selectedKeys, keys => {
-  const id = Number(keys[0]);
+  const id = keys[0];
   if (id) pick(id);
 });
 </script>

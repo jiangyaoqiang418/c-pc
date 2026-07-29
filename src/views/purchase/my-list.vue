@@ -3,9 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
-import { purchaseApi } from '@shared';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -71,7 +71,7 @@ function onCancel(req: Api.PurchaseRequest.PurchaseRequest) {
     okText: '确认撤销',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await purchaseApi.cancelPurchaseMock(req.id, '顾客主动撤销');
+      const r = await purchaseApi.cancelPurchase(req.id);
       if (r.ok) {
         Message.success('已撤销');
         await loadAll();

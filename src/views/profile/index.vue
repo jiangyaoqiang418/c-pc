@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { cmsApi, enums, formatAmount, formatPoints, orderApi, vipApi, walletApi } from '@shared';
+import { cmsApi, enums, formatAmount, formatPoints, orderApi } from '@shared';
+import * as vipApi from '@/service/api/vip';
+import * as realWalletApi from '@/service/api/wallet';
 import VipBadge from '@/components/common/vip-badge.vue';
 import { useUserStore } from '@/stores';
 
@@ -22,12 +24,12 @@ onMounted(async () => {
   const uid = user.value.id;
   const [vip, assets, counts, anns] = await Promise.all([
     vipApi.fetchMyVipStatus(uid),
-    walletApi.fetchTotalAssetsOfUser(uid),
+    realWalletApi.fetchWalletOverview(uid),
     orderApi.countMyOrdersByStatus(uid),
     cmsApi.fetchAnnouncements({ size: 3 })
   ]);
   vipStatus.value = vip;
-  totalAssets.value = assets;
+  totalAssets.value = { total: assets.total, account: assets.account };
   orderCounts.value = counts;
   announcements.value = anns.records.slice(0, 3);
 });

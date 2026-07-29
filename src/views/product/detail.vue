@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
-import { enums, productApi, reviewApi } from '@shared';
+import { enums } from '@shared';
 import { avatarUrl } from '@shared/utils/image';
 import { formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import ProductImageGallery from '@/components/product/product-image-gallery.vue';
@@ -12,11 +12,10 @@ import VipBadge from '@/components/common/vip-badge.vue';
 import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
-import { useCartStore } from '@/stores';
+import * as productApi from '@/service/api/product';
 
 const route = useRoute();
 const router = useRouter();
-const cart = useCartStore();
 
 const product = ref<Api.Product.ProductRecord>();
 const reviews = ref<Api.Review.ReviewRecord[]>([]);
@@ -26,7 +25,7 @@ const qty = ref(1);
 const loading = ref(false);
 const activeTab = ref<'desc' | 'spec' | 'review' | 'sameshop'>('desc');
 
-const id = computed(() => Number(route.params.id));
+const id = computed(() => String(route.params.id || ''));
 const aftersaleMeta = computed(() => product.value ? enums.AFTERSALE_TYPE_META[product.value.aftersaleType] : undefined);
 const canBuy = computed(() => product.value && product.value.status === 'NORMAL' && product.value.shelfStatus === 'on-shelf' && product.value.stock > 0);
 const sellerAvatar = computed(() => product.value ? avatarUrl(product.value.sellerId) : '');
@@ -37,14 +36,9 @@ async function load() {
   try {
     product.value = await productApi.fetchProductDetail(id.value);
     if (product.value) {
-      const [rev, summary, shop] = await Promise.all([
-        productApi.fetchProductReviews(product.value.id, 1, 8),
-        reviewApi.fetchUserScoreSummary(product.value.sellerId),
-        productApi.fetchShopProducts(product.value.sellerId)
-      ]);
-      reviews.value = rev.records;
-      sellerScore.value = summary;
-      sameShop.value = (shop || []).filter(p => p.id !== product.value!.id).slice(0, 8);
+      reviews.value = [];
+      sellerScore.value = undefined;
+      sameShop.value = [];
     }
   } finally {
     loading.value = false;
@@ -56,13 +50,11 @@ watch(() => route.params.id, load);
 
 function addToCart() {
   if (!product.value) return;
-  cart.add(product.value.id, qty.value);
-  Message.success('已加入购物车');
+  Message.warning('真实商品购物车/结算链路将在 P3 接入');
 }
 function buyNow() {
   if (!product.value) return;
-  cart.add(product.value.id, qty.value);
-  router.push('/checkout');
+  Message.warning('真实商品下单链路将在 P3 接入');
 }
 function startPurchase() {
   if (!product.value) return;

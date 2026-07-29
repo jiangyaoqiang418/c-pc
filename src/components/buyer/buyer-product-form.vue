@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { productApi } from '@shared';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import { fetchCategoryTree } from '@/service/api/category';
 
 interface FormState {
   title: string;
-  categoryPath: number[];
+  categoryPath: Array<string | number>;
   price: number;
   shippingFee: number;
   tax: number;
@@ -25,7 +25,7 @@ defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', form: FormState): void }>();
 
 interface CategoryNode {
-  id: number;
+  id: string | number;
   name: string;
   children?: CategoryNode[];
 }
@@ -46,7 +46,7 @@ const form = reactive<FormState>({
   images: []
 });
 
-function mapToCascader(nodes: CategoryNode[]): { value: number; label: string; children?: any[] }[] {
+function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
     value: n.id,
     label: n.name,
@@ -55,7 +55,7 @@ function mapToCascader(nodes: CategoryNode[]): { value: number; label: string; c
 }
 
 onMounted(async () => {
-  const tree = (await productApi.fetchCategoryTree()) as CategoryNode[];
+  const tree = (await fetchCategoryTree()) as CategoryNode[];
   cascaderOptions.value = mapToCascader(tree);
 });
 

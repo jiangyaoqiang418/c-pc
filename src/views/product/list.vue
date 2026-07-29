@@ -10,7 +10,7 @@ const route = useRoute();
 
 const filter = reactive({
   keyword: '',
-  categoryId: undefined as number | undefined,
+  categoryId: undefined as string | undefined,
   aftersaleType: undefined as Api.Product.AftersaleType | undefined,
   overseasCustoms: undefined as boolean | undefined,
   minPrice: undefined as number | undefined,
@@ -42,7 +42,7 @@ const aftersaleOptions = [
 
 function syncFromQuery() {
   filter.keyword = (route.query.keyword as string) || '';
-  filter.categoryId = route.query.categoryId ? Number(route.query.categoryId) : undefined;
+  filter.categoryId = (route.query.categoryId as string) || undefined;
   filter.aftersaleType = (route.query.aftersaleType as Api.Product.AftersaleType) || undefined;
   filter.overseasCustoms = route.query.overseas === '1' ? true : undefined;
   filter.minPrice = route.query.minPrice ? Number(route.query.minPrice) : undefined;
@@ -54,11 +54,12 @@ function syncFromQuery() {
 async function load() {
   loading.value = true;
   try {
+    const numericCategoryId = filter.categoryId ? Number(filter.categoryId) : undefined;
     const r = await productApi.fetchProductList({
       current: current.value,
       size: size.value,
       keyword: filter.keyword || undefined,
-      categoryId: filter.categoryId,
+      categoryId: Number.isSafeInteger(numericCategoryId) ? numericCategoryId : undefined,
       aftersaleType: filter.aftersaleType,
       overseasCustoms: filter.overseasCustoms,
       minPrice: filter.minPrice,

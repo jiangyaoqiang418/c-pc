@@ -2,10 +2,10 @@
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { productApi } from '@shared';
+import * as categoryApi from '@/service/api/category';
 
 interface CategoryNode {
-  id: number;
+  id: string | number;
   name: string;
   level: 1 | 2 | 3;
   children?: CategoryNode[];
@@ -14,13 +14,13 @@ interface CategoryNode {
 const router = useRouter();
 const route = useRoute();
 const categories = ref<CategoryNode[]>([]);
-const hovered = ref<number | undefined>();
-const subHovered = ref<number | undefined>();
+const hovered = ref<string | number | undefined>();
+const subHovered = ref<string | number | undefined>();
 
 const subMenuOpen = ref(false);
 
 onMounted(async () => {
-  categories.value = (await productApi.fetchCategoryTree()) as CategoryNode[];
+  categories.value = (await categoryApi.fetchCategoryTree()) as CategoryNode[];
 });
 
 interface NavItem {
@@ -52,7 +52,7 @@ function isActive(item: { path: string; name: string }) {
   return route.name === item.name || route.path === item.path;
 }
 
-function gotoCategory(rootId?: number, subId?: number, brandId?: number) {
+function gotoCategory(rootId?: string | number, subId?: string | number, brandId?: string | number) {
   const id = brandId || subId || rootId;
   router.push({ name: 'product-list', query: { categoryId: id ? String(id) : undefined } });
   subMenuOpen.value = false;

@@ -2,8 +2,10 @@
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
+import { useUserStore } from '@/stores';
 
 const router = useRouter();
+const userStore = useUserStore();
 
 const form = reactive({ email: '', nickname: '', password: '', confirm: '' });
 const submitting = ref(false);
@@ -18,18 +20,25 @@ async function submit() {
     return;
   }
   submitting.value = true;
-  setTimeout(() => {
-    submitting.value = false;
-    Message.warning('原型阶段不支持新建用户，请使用登录页的演示账号一键登录');
+  try {
+    await userStore.register({
+      email: form.email,
+      nickname: form.nickname,
+      password: form.password,
+      roles: ['CUSTOMER']
+    });
+    Message.success('注册成功，请登录');
     router.push('/auth/login');
-  }, 600);
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
 
 <template>
   <div class="register-page">
     <h2 class="title">注册</h2>
-    <p class="hint">原型阶段不接受新用户。请前往登录页选择演示账号体验。</p>
+    <p class="hint">使用邮箱注册平台账号，注册后返回登录页完成登录。</p>
 
     <a-form :model="form" layout="vertical" @submit-success="submit">
       <a-form-item label="邮箱">

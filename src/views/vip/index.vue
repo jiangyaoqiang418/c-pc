@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { formatPoints, pointApi, vipApi } from '@shared';
+import { formatPoints } from '@shared';
+import * as pointApi from '@/service/api/point';
+import * as vipApi from '@/service/api/vip';
 import VipBadge from '@/components/common/vip-badge.vue';
 import VipBenefitsTable from '@/components/vip/vip-benefits-table.vue';
 import { useUserStore } from '@/stores';

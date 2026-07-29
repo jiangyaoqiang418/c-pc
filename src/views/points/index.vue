@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { Message, Modal } from '@arco-design/web-vue';
-import { formatPoints, pointApi, vipApi } from '@shared';
+import { formatPoints } from '@shared';
+import * as pointApi from '@/service/api/point';
+import * as vipApi from '@/service/api/vip';
 import PointBehaviorTag from '@/components/profile/point-behavior-tag.vue';
 import PointLogRow from '@/components/profile/point-log-row.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -78,7 +80,7 @@ async function appeal(log: Api.Point.LogEntry) {
     Message.warning('原因至少 10 字');
     return;
   }
-  const r = await pointApi.appealPointLogMock({ logId: log.id, reason: reason.trim() });
+  const r = await pointApi.appealPointLog({ logId: log.id, reason: reason.trim() });
   if (r.ok) {
     Message.success('申诉已提交');
     loadLogs();

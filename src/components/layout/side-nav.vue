@@ -2,25 +2,25 @@
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { productApi } from '@shared';
+import * as categoryApi from '@/service/api/category';
 
 const router = useRouter();
 
 interface CategoryNode {
-  id: number;
+  id: string | number;
   name: string;
   level: number;
   children?: CategoryNode[];
 }
 
 const categories = ref<CategoryNode[]>([]);
-const hoveredCatId = ref<number | null>(null);
+const hoveredCatId = ref<string | number | null>(null);
 
 onMounted(async () => {
-  categories.value = ((await productApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
+  categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
 });
 
-function goCategory(id: number) {
+function goCategory(id: string | number) {
   router.push({ name: 'product-list', query: { categoryId: String(id) } });
   hoveredCatId.value = null;
 }

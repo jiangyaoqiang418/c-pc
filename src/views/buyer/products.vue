@@ -2,9 +2,9 @@
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { buyerApi } from '@shared';
 import BuyerProductCard from '@/components/buyer/buyer-product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as productApi from '@/service/api/product';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -35,7 +35,7 @@ async function load() {
   loading.value = true;
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const r = await buyerApi.fetchMyProducts(userStore.currentUser.id, tab?.status);
+    const r = await productApi.fetchMyProducts({ status: tab?.status });
     let list = r.records;
     if (tab?.shelf) list = list.filter(p => p.shelfStatus === tab.shelf);
     products.value = list;
@@ -47,16 +47,16 @@ async function load() {
 onMounted(load);
 watch(activeKey, load);
 
-function toggleShelf(p: Api.Product.ProductRecord) {
-  p.shelfStatus = p.shelfStatus === 'on-shelf' ? 'off-shelf' : 'on-shelf';
-  Message.success(p.shelfStatus === 'on-shelf' ? '已上架' : '已下架');
-  load();
+async function toggleShelf(p: Api.Product.ProductRecord) {
+  const nextOnShelf = p.shelfStatus !== 'on-shelf';
+  await productApi.toggleProductShelf(p.id, nextOnShelf);
+  Message.success(nextOnShelf ? '已上架' : '已下架');
+  await load();
 }
 
 function onDelete(p: Api.Product.ProductRecord) {
-  p.status = 'DELETED';
-  Message.success('已删除');
-  load();
+  void p;
+  Message.warning('当前真实接口暂不支持买手删除商品');
 }
 </script>
 

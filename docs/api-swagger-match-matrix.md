@@ -127,3 +127,37 @@
 - 本文只表示 Swagger 契约匹配，不表示真实 API 已封装、页面已调用或浏览器已验证。
 - 所有 Long ID 必须保持原始值；Swagger 中 `int64` 不得在页面层随意转为 `number`。
 - 字段差异后续优先在 API adapter 处理；涉及交互缺失时先与后端或用户确认。
+
+## 2026-07-29 P0/P1 页面调用状态
+
+| 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
+|---|---|---|---|---|
+| P0 | 请求层、token、响应解包、错误提示 | 真实响应 `{ code, message, data, success }`、成功码 `1`、`X-Access-Token` | 已建立 `src/service/request/` 和 dev proxy，尚未运行验证 | 登录失效码和弹窗失效码需真实请求确认 |
+| P1 | 注册 | `POST /user/auth/register` | API 已封装，注册页已调用 | 注册后是否自动登录当前按“返回登录页”处理 |
+| P1 | 登录/当前用户 | `POST /user/auth/login`、`GET /user/auth/me` | API 已封装，登录页和 Store 已调用 | 真实账号、角色与 KYC 枚举需回归确认 |
+| P1 | 分类树 | `GET /order/categories/tree` | API 已封装，公共分类导航和分类页已调用 | 商品列表仍为 Mock，公开商品分页在 P2 处理 |
+| P1 | 积分账户/VIP 当前权益 | `GET /user/points/account` | API 已封装，用户初始化、积分页、VIP 页已调用 | 买手/顾客双身份等级展示需真实账号验证 |
+| P1 | 积分流水/申诉 | `POST /user/points/ledger/page`、`POST /user/points/appeals/submit` | API 已封装，积分页已调用 | 日期、多行为筛选部分仍在前端侧适配 |
+| P1 | 积分规则 | `GET /admin/point-rules/list` | API 已封装，积分页/VIP 页已调用 | 需确认普通 C 端 token 是否允许访问 admin 分组 |
+| P1 | VIP 全量配置 | `GET /admin/vip-configs/get` | API 已封装，VIP 页已调用 | 需确认普通 C 端 token 是否允许访问 admin 分组 |
+| P1 | 钱包总览 | `GET /user/wallet/overview` | API 已封装，钱包 Store、钱包首页资产卡、个人中心资产卡已调用 | 最近交易仍为 Mock，钱包流水在 P4 处理 |
+
+> 本节状态只表示“API 已封装 + 页面已调用”；本轮未执行 `pnpm dev`、`pnpm typecheck`、`pnpm build` 或浏览器回归，不能标记为“真实接口已验证”。
+
+## 2026-07-29 P2-A 页面调用状态
+
+| 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
+|---|---|---|---|---|
+| P2-A | 商品详情 | `GET /order/storefront/product/detail?id=` | API 已封装，商品详情页已调用 | 评价、同店推荐无接口；购物车/立即购买属于 P3，当前只提示 |
+| P2-A | 买手商品列表 | `POST /order/products/my/page` | API 已封装，买手商品管理页已调用 | 状态映射需真实数据确认；删除商品无接口 |
+| P2-A | 买手创建商品 | `POST /order/products/create`、`GET /order/products/detail?id=` | API 已封装，创建商品页已调用 | 图片上传组件仍需治理为 `bucket/filePath` 结构 |
+| P2-A | 买手上下架 | `PUT /order/products/shelf` | API 已封装，商品卡片上下架已调用 | `ON_SALE/OFF_SHELF` 与前端 shelf/status 拆分需真实返回确认 |
+| P2-A | 文件上传 | `POST /order/files/upload?dir=product` | API 已封装，请求层已支持 `FormData` | 当前页面上传组件未直接改为真实上传闭环 |
+| P2-A | 发起求购 | `POST /order/demands/create` | API 已封装，发起求购页已调用 | 取消原因、审核字段和图片结构仍需后续补齐 |
+| P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
+| P2-A | 我的求购 | `POST /order/demands/my/page` | API 已封装，我的求购页已调用 | 后端 VO 未返回 customerId，页面侧按当前用户注入用于撤销判断 |
+| P2-A | 求购详情 | `GET /order/demands/detail?id=` | API 已封装，求购详情页已调用 | pushLogs、推送批次、客户/买手名称和审核信息缺失 |
+| P2-A | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | API 已封装，大厅/详情/我的求购页已调用 | 抢单权限依赖真实买手账号、KYC 和后端鉴权 |
+| P2-A | 手动推下一批 | 无 | 页面已改为真实接口暂不支持提示 | 需要后端补推送接口后再接入 |
+
+> P2-A 状态只表示“API 已封装 + 页面已调用”；本轮未执行 `pnpm dev`、`pnpm typecheck`、`pnpm build` 或浏览器回归，不能标记为“真实接口已验证”。

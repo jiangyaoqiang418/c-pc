@@ -1,7 +1,8 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { enums, walletApi } from '@shared';
+import { enums } from '@shared';
 import type { BucketKey } from '@shared/enums/wallet';
+import * as realWalletApi from '@/service/api/wallet';
 import { useUserStore } from './user';
 
 export interface BucketView {
@@ -25,16 +26,11 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     if (!userId) return;
     loading.value = true;
     try {
-      const userStore = useUserStore();
-      const [s, ba, total] = await Promise.all([
-        walletApi.fetchMyWallet(userId),
-        userStore.isBuyerActive ? walletApi.fetchMyBuyerWallet(userId) : Promise.resolve(undefined),
-        walletApi.fetchTotalAssetsOfUser(userId)
-      ]);
-      summary.value = s;
-      buyerWallet.value = ba;
-      totalAssets.value = total.total;
-      account.value = 'account' in total ? (total.account as Api.Wallet.InternalAccount) : undefined;
+      const overview = await realWalletApi.fetchWalletOverview(userId);
+      summary.value = overview.summary;
+      buyerWallet.value = undefined;
+      totalAssets.value = overview.total;
+      account.value = overview.account;
       lastFetchedAt.value = Date.now();
     } finally {
       loading.value = false;

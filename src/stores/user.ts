@@ -1,6 +1,8 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { type Audience, MOCK_USERS, STORAGE_KEY, authApi } from '@shared';
+import * as realAuthApi from '@/service/api/auth';
+import { getAccessToken } from '@/service/request';
 
 export const useUserStore = defineStore('bw-user', () => {
   const currentUser = ref<Api.User.UserRecord | undefined>();
@@ -14,6 +16,17 @@ export const useUserStore = defineStore('bw-user', () => {
 
   async function init() {
     if (initialized.value) return;
+    if (getAccessToken()) {
+      try {
+        currentUser.value = await realAuthApi.fetchCurrentUser();
+        currentAudience.value =
+          currentUser.value.isBuyer && currentUser.value.kycStatus === 'approved' ? loadAudienceFromStorage() : 'customer';
+        initialized.value = true;
+        return;
+      } catch {
+        realAuthApi.logoutLocal();
+      }
+    }
     const raw = localStorage.getItem(STORAGE_KEY.currentUserId);
     let userId = raw ? Number(raw) : undefined;
     // 迁移：老会话可能存了 MOCK_USERS 池外的旧 id（如 12 周维一——曾被误标为张丽琳）
@@ -34,6 +47,7 @@ export const useUserStore = defineStore('bw-user', () => {
   }
 
   async function login(userId: number) {
+    realAuthApi.logoutLocal();
     const result = await authApi.switchCurrentUser(userId);
     if (!result || 'error' in result) throw new Error((result as { error: string })?.error || '登录失败');
     currentUser.value = result;
@@ -42,9 +56,22 @@ export const useUserStore = defineStore('bw-user', () => {
     localStorage.setItem(STORAGE_KEY.currentAudience, 'customer');
   }
 
+  async function loginWithPassword(params: Api.RealAuth.LoginParams) {
+    const result = await realAuthApi.login(params);
+    currentUser.value = result.user;
+    currentAudience.value = result.user.isBuyer && result.user.kycStatus === 'approved' ? loadAudienceFromStorage() : 'customer';
+    localStorage.removeItem(STORAGE_KEY.currentUserId);
+    localStorage.setItem(STORAGE_KEY.currentAudience, currentAudience.value);
+  }
+
+  async function register(params: Api.RealAuth.RegisterParams) {
+    return realAuthApi.register(params);
+  }
+
   function logout() {
     currentUser.value = undefined;
     currentAudience.value = 'customer';
+    realAuthApi.logoutLocal();
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.removeItem(STORAGE_KEY.currentAudience);
   }
@@ -78,6 +105,8 @@ export const useUserStore = defineStore('bw-user', () => {
     demoUserList,
     init,
     login,
+    loginWithPassword,
+    register,
     logout,
     switchDemoUser,
     setAudience

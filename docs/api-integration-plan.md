@@ -37,10 +37,13 @@
 
 ### 建议推进顺序
 
-1. 先接注册/登录/当前用户、积分账户、钱包总览、提现、分类树，建立 PC 请求层和 token 闭环。
-2. 再接买手商品、求购创建/取消/抢单等已有核心接口的模块。
-3. 商品列表、订单、充值、钱包流水、买手发货等 C 类模块先确认字段与交互缺口，再实施页面适配。
-4. 地址、KYC、理财、评价、IM/通知、CMS、AI 和完整售后等待后端补齐，不用 Mock fallback 掩盖缺口。
+后台管理端第一、二梯队已基本完成，主要表示 admin 基础管理、分类、系统配置、消息模板、积分/VIP 配置等能力可作为 C 端可消费数据源；不等同于 C 端交易链路、地址、订单、物流、售后等能力已经完整。PC 端仍需按用户侧真实交互逐模块接入。
+
+1. 先接请求层、注册/登录/当前用户、分类树、积分账户、VIP 权益和钱包总览，建立 PC 请求层、token 和基础展示闭环。
+2. 再接商品详情、买手商品、求购创建/取消/抢单等已有部分 Swagger 能力的核心业务模块。
+3. 地址、购物车结算、下单、订单详情、支付、确认收货等交易链路必须先确认地址、金额拆分、物流、订单状态和售后字段缺口，再实施页面适配。
+4. 钱包流水、充值、提现、积分流水可穿插推进，但金额精度、链信息、支付密码和 KYC 前置规则需按真实接口确认。
+5. KYC、理财、评价、IM/通知、CMS、AI 和完整售后等待后端按专题补齐，不用 Mock fallback 掩盖缺口。
 
 ## 当前基线（2026-07-28）
 
@@ -65,6 +68,54 @@ view / store
 ```
 
 该链路没有 HTTP 请求，不能直接复用后台项目仅作用于 Axios 实例的 browser Mock adapter。
+
+## 2026-07-29 P0/P1 接入进度
+
+### 已完成
+
+- P0 联调地基：已新增 `src/service/request/`，使用原生 `fetch` 建立真实请求实例；统一处理 baseURL、`X-Access-Token`、成功码 `1`、业务错误、登录失效和响应 `data` 解包。
+- P0 环境与代理：已新增 `.env.development` 中的真实服务 baseURL/target 配置，并在 `vite.config.ts` 增加 `/api/admin`、`/api/user`、`/api/order`、`/api/notify` 的 Vite dev proxy。
+- P1 账号：登录页邮箱密码登录已调用 `POST /user/auth/login`，登录后调用 `GET /user/auth/me` 初始化当前用户；注册页已调用 `POST /user/auth/register`。演示账号一键登录继续保留 Mock。
+- P1 当前用户：用户 Store 登录态初始化优先使用真实 token 调用当前用户接口；登出和演示账号登录会清理真实 token。
+- P1 分类树：公共分类展示入口已调用 `GET /order/categories/tree`，包括顶部分类导航、菜单分类、侧边分类和分类页分类树；商品列表真实化仍属于 P2，当前不描述为商品列表已对接。
+- P1 积分/VIP：积分页和 VIP 页已封装并调用 `GET /user/points/account`、`POST /user/points/ledger/page`、`POST /user/points/appeals/submit`、`GET /admin/point-rules/list`、`GET /admin/vip-configs/get`。
+- P1 钱包总览：钱包 Store、钱包首页资产卡和个人中心资产卡已调用 `GET /user/wallet/overview`；钱包流水、充值、提现仍属于 P4。
+- Long ID 边界：真实接口返回的 `userId`、分类 `id/parentId`、积分流水 `id/userId` 在 adapter 边界原值透传；现有 Mock 类型仍有 `number` 历史约束，后续模块正式对接时继续治理。
+
+### 待验证 / 待确认
+
+- 本轮未按用户指令执行 `pnpm dev`、`pnpm typecheck`、`pnpm build` 或浏览器回归；当前状态不能描述为“真实接口已验证”。
+- `admin` 分组的积分规则和 VIP 全量配置已被 P1 页面调用，但是否允许普通 C 端 token 访问仍需真实环境确认；若后端不开放，应补 C 端公开配置接口。
+- 分类树已接真实数据，但商品列表仍是 Mock；真实分类 ID 与 Mock 商品分类 ID 不保证一致，公开商品分页应在 P2 单独接入。
+- 钱包首页的最近交易仍走 Mock 流水；真实钱包流水筛选和详情在 P4 处理。
+- 买手商品创建和发起求购表单仍使用 Mock 分类树，避免 P1 提前把真实 Long 分类 ID 写入 P2 Mock 写操作。
+
+## 2026-07-29 P2-A 接入进度
+
+### 已完成
+
+- P2 商品 API：已新增 `src/service/api/product.ts` 和 `src/typings/api/product.d.ts`，封装 `GET /order/storefront/product/detail`、`GET /order/products/detail`、`POST /order/products/my/page`、`POST /order/products/create`、`PUT /order/products/shelf`、`POST /order/files/upload`。
+- P2 求购 API：已新增 `src/service/api/purchase.ts` 和 `src/typings/api/purchase.d.ts`，封装 `POST /order/demands/create`、`POST /order/demands/cancel`、`POST /order/demands/grab`、`POST /order/demands/hall/page`、`POST /order/demands/my/page`、`GET /order/demands/detail`。
+- 商品详情：`views/product/detail.vue` 已调用真实公开详情；评价、同店推荐、购物车和立即购买仍保持空态或提示，避免提前混入 P3/P5 未完成链路。
+- 买手商品：`views/buyer/products.vue` 已调用真实我的商品分页和上下架；删除商品因 Swagger 暂无接口，页面改为明确提示。
+- 买手创建商品：`views/buyer/product-create.vue` 与 `components/buyer/buyer-product-form.vue` 已调用真实创建商品和 P1 分类树；创建后使用买手商品详情接口回读，避免审核中商品走公开详情查不到。
+- 求购创建/大厅/我的/详情：`views/purchase/create.vue`、`views/purchase/hall.vue`、`views/purchase/my-list.vue`、`views/purchase/detail.vue` 已调用真实创建、分页、详情、取消和抢单接口。
+- 文件上传：请求层已支持 `FormData`，并已封装 `/order/files/upload?dir=product`；当前通用上传组件仍返回 URL，商品创建以 `filePath=url` 做兼容。
+- Long ID 边界：P2 页面路由参数和分类 query 不再使用 `Number()` 强转；受历史 Mock 类型限制，adapter 内对 `ProductRecord/PurchaseRequest` 的 `id` 仅做类型兼容，不做数值转换。
+
+### 暂缓 / 缺口
+
+- 公开商品分页搜索、指定卖家店铺商品、商品评价和评分摘要当前 Swagger 不满足，商品列表页、首页商品聚合、同店推荐和评价页仍不在本轮真实接入范围。
+- 商品图片上传交互还未完全治理为后端 `bucket/filePath` 结构；后续应将通用上传组件或业务表单改为保存真实上传结果。
+- 求购大厅的预算区间、期望天数筛选当前为前端侧二次过滤；Swagger 分页参数仅支持 `pageNo/pageSize/categoryId/keyword`。
+- 求购详情的推送日志、推送批次、手动推下一批、客户/买手名称、审核信息和取消原因仍缺接口或字段；手动推送按钮当前只提示“真实接口暂不支持”。
+- 商品详情的加入购物车、立即购买属于 P3 交易链路；当前不把真实商品 ID 写入 Mock 购物车。
+
+### 待验证 / 待确认
+
+- 本轮未按用户指令执行 `pnpm dev`、`pnpm typecheck`、`pnpm build` 或浏览器回归；当前状态不能描述为“真实接口已验证”。
+- 买手商品、求购创建和抢单都依赖真实登录态、角色和 KYC；需要用户提供真实账号或明确回归指令后再验证权限闭环。
+- 后端商品状态 `REJECTED/OFF_SHELF` 与前端历史枚举不完全一致，目前在 adapter 做保守映射，后续应补前端状态枚举或后端状态说明。
 
 ## 对齐边界
 
@@ -116,8 +167,9 @@ view / store
 3. 标记状态：Swagger 接口存在、API 已封装、页面已调用、真实接口已验证。
 4. 确定最小改法：只改 API/类型，或因字段缺失轻改页面；交互冲突先等待确认。
 5. 只迁移本次模块；其他页面继续使用 `@shared` Mock。
-6. 用户要求验证时，再检查请求、响应、分页、回显、写操作、错误提示和 token 失效。
-7. 更新本计划和 `api-swagger-match-matrix.md`，记录已完成项、缺口和待确认问题。
+6. 本次明确任务范围全部完成后，再统一更新 `docs/` 记录进度、已完成项、缺口和待确认问题；不在每个小步骤完成后立即补文档。
+7. 只有用户明确要求验证/回归/启动/构建时，才检查请求、响应、分页、回显、写操作、错误提示和 token 失效。
+8. 需要更新匹配口径时，同步维护本计划和 `api-swagger-match-matrix.md`。
 
 ## 状态口径
 
@@ -132,13 +184,14 @@ view / store
 
 ## 建议模块顺序
 
-| 梯队 | 模块 | 目标 |
-|---|---|---|
-| 第一梯队 | 登录/当前用户、商品/分类 | 建立 token、基础读取、分页和详情闭环 |
-| 第二梯队 | 地址、购物车结算、订单、支付相关 | 打通 C 端核心交易链路 |
-| 第三梯队 | 钱包、资金流水、充值/提现 | 处理金额精度、状态和写操作 |
-| 第四梯队 | KYC、VIP、积分、理财 | 对齐枚举、规则、审核和收益数据 |
-| 第五梯队 | 售后、求购、评价、IM、CMS、买手、AI | 按页面入口逐模块迁移 |
+| 梯队 | C 端 PC 模块 | 后台/后端配合要求 | 目标 |
+|---|---|---|---|
+| P0 联调地基 | 请求层、token、Long ID、响应解包、错误提示 | 已建立 `src/service/request/`、真实服务 baseURL 环境变量和 Vite dev proxy；待用户要求时做真实请求验证 | 后续模块能稳定切真实接口 |
+| P1 基础资料 | 注册/登录/当前用户、分类树、积分账户、VIP 权益、钱包总览 | API 已封装并有页面/Store 调用；`admin` 配置接口的 C 端访问权限待验证 | 打通 C 端身份、基础展示和可消费配置 |
+| P2 商品与求购 | 商品详情、买手商品、求购创建/取消/抢单 | P2-A API 已封装并有页面调用；公开商品分页、评价、同店推荐、推送日志和手动推送仍缺口；未运行验证 | 先跑通“看商品/发求购/买手接单”核心业务 |
+| P3 交易闭环 | 地址、购物车结算、下单、支付、买家订单、订单详情、确认收货 | 补齐地址 CRUD、订单地址、金额拆分、物流、售后和状态字段 | 打通 C 端核心交易链路 |
+| P4 资金与会员 | 钱包流水、充值、提现、积分流水 | 确认金额精度、链信息、支付密码、KYC 前置和审核状态 | 打通资产、积分、会员展示和操作 |
+| P5 复杂专题 | KYC、理财、售后、评价、IM/通知、CMS、AI | 当前 Swagger 覆盖弱，需后端按专题补接口包 | 独立联调，不混入主交易链路 |
 
 实际顺序以用户明确任务和后端可用接口为准。
 
@@ -155,5 +208,6 @@ view / store
 ## 开发检查
 
 - 默认不运行 `pnpm dev`、`pnpm typecheck` 或 `pnpm build`。
-- 用户明确要求验证时，优先使用已运行应用的终端和控制台；未启动时再使用项目现有命令。
+- 用户明确要求验证、回归、启动或构建时，才执行对应命令；优先使用已运行应用的终端和控制台，未启动时再使用项目现有命令。
+- 本次明确任务范围全部完成后默认统一更新文档记录进度，不主动做浏览器回归。
 - 不处理与当前接口模块无关的历史错误或警告。

@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { MOCK_USERS, authApi } from '@shared';
+import { MOCK_USERS } from '@shared';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -20,13 +20,8 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    const result = await authApi.mockLogin(form);
-    if ('error' in result) {
-      Message.error(result.error);
-      return;
-    }
-    await userStore.login(result.user.id);
-    Message.success(`欢迎回来，${result.user.nickname}`);
+    await userStore.loginWithPassword(form);
+    Message.success(`欢迎回来，${userStore.displayName}`);
     router.push(redirect);
   } finally {
     submitting.value = false;
@@ -55,7 +50,7 @@ async function oneClick(userId: number) {
         <a-input v-model="form.email" placeholder="如 wangxiaomei@bw-shop.com" size="large" />
       </a-form-item>
       <a-form-item label="密码">
-        <a-input-password v-model="form.password" placeholder="原型阶段，任意密码即可" size="large" />
+        <a-input-password v-model="form.password" placeholder="请输入登录密码" size="large" />
       </a-form-item>
       <a-button type="primary" long :loading="submitting" size="large" @click="submit">登 录</a-button>
     </a-form>

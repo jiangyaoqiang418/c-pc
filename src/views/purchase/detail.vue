@@ -2,17 +2,18 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { enums, formatAmount, purchaseApi } from '@shared';
+import { enums, formatAmount } from '@shared';
 import PushTierBadge from '@/components/purchase/push-tier-badge.vue';
 import PurchaseStatusTimeline from '@/components/purchase/purchase-status-timeline.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
-const id = computed(() => Number(route.params.id));
+const id = computed(() => String(route.params.id || ''));
 const request = ref<Api.PurchaseRequest.PurchaseRequest>();
 const pushLogs = ref<Api.PurchaseRequest.PushLog[]>([]);
 const loading = ref(false);
@@ -42,18 +43,12 @@ const canClaim = computed(() => {
 
 async function pushNext() {
   if (!request.value) return;
-  const r = await purchaseApi.pushNextBatchMock(request.value.id);
-  if (r.ok) {
-    Message.success(`已推送下一批，新增 ${r.pushed} 个买手`);
-    load();
-  } else {
-    Message.warning('已是最低批次或当前不可推送');
-  }
+  Message.warning('当前真实接口暂不支持手动推送下一批');
 }
 
 async function claim() {
   if (!request.value || !userStore.currentUser) return;
-  const r = await purchaseApi.claimRequestMock(request.value.id, userStore.currentUser.id);
+  const r = await purchaseApi.claimRequest(request.value.id);
   if (r.ok) {
     Message.success('接单成功');
     load();
@@ -69,7 +64,7 @@ function cancel() {
     content: '撤销后不可恢复',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await purchaseApi.cancelPurchaseMock(request.value!.id, '顾客撤销');
+      const r = await purchaseApi.cancelPurchase(request.value!.id);
       if (r.ok) {
         Message.success('已撤销');
         load();

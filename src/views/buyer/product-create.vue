@@ -2,8 +2,8 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { buyerApi } from '@shared';
 import BuyerProductForm from '@/components/buyer/buyer-product-form.vue';
+import * as productApi from '@/service/api/product';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -12,7 +12,7 @@ const submitting = ref(false);
 
 async function onSubmit(form: {
   title: string;
-  categoryPath: number[];
+  categoryPath: Array<string | number>;
   price: number;
   shippingFee: number;
   tax: number;
@@ -30,8 +30,7 @@ async function onSubmit(form: {
     async onOk() {
       submitting.value = true;
       try {
-        const product = await buyerApi.createProductMock({
-          sellerId: userStore.currentUser!.id,
+        const product = await productApi.createProduct({
           title: form.title.trim(),
           summary: form.summary.trim() || form.title.trim(),
           description: form.description.trim() || '—',
