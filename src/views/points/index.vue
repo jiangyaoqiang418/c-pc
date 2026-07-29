@@ -51,15 +51,30 @@ async function loadLogs() {
 }
 
 async function loadRules() {
-  rules.value = await pointApi.fetchPointRules();
+  try {
+    rules.value = await pointApi.fetchPointRules();
+  } catch {
+    rules.value = [];
+  }
 }
 
-onMounted(async () => {
-  if (userStore.currentUser) {
-    vipStatus.value = await vipApi.fetchMyVipStatus(userStore.currentUser.id);
+async function loadInitial() {
+  const uid = userStore.currentUser?.id;
+  if (!uid) return;
+  try {
+    vipStatus.value = await vipApi.fetchMyVipStatus(uid);
+  } catch {
+    vipStatus.value = undefined;
   }
   await loadLogs();
   await loadRules();
+}
+
+onMounted(loadInitial);
+
+watch(() => userStore.currentUser?.id, () => {
+  current.value = 1;
+  loadInitial();
 });
 
 watch(activeTab, t => {

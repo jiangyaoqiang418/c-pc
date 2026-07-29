@@ -72,7 +72,10 @@ function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vi
 }
 
 export async function fetchVipConfigs() {
-  const config = await realAdminRequest.get<Api.RealVip.VipConfigVO>('/vip-configs/get');
+  const config = await realAdminRequest.get<Api.RealVip.VipConfigVO>('/vip-configs/get', {
+    showError: false,
+    skipAuthRedirect: true
+  });
   return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig(role, row)));
 }
 

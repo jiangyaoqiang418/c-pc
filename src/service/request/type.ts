@@ -16,6 +16,7 @@ export interface RequestOptions<TData = unknown> {
   headers?: HeadersInit;
   signal?: AbortSignal;
   showError?: boolean;
+  skipAuthRedirect?: boolean;
 }
 
 export interface RequestConfig {

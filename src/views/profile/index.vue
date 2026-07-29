@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { cmsApi, enums, formatAmount, formatPoints, orderApi } from '@shared';
@@ -18,10 +18,15 @@ const announcements = ref<Api.Cms.Announcement[]>([]);
 
 const user = computed(() => userStore.currentUser);
 const kycMeta = computed(() => (user.value ? enums.KYC_STATUS_META[user.value.kycStatus] : undefined));
+const registeredDate = computed(() => {
+  if (!user.value?.registeredAt) return '—';
+  const date = new Date(user.value.registeredAt);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+});
 
-onMounted(async () => {
-  if (!user.value) return;
-  const uid = user.value.id;
+async function loadProfile() {
+  const uid = user.value?.id;
+  if (!uid) return;
   const [vip, assets, counts, anns] = await Promise.all([
     vipApi.fetchMyVipStatus(uid),
     realWalletApi.fetchWalletOverview(uid),
@@ -32,7 +37,10 @@ onMounted(async () => {
   totalAssets.value = { total: assets.total, account: assets.account };
   orderCounts.value = counts;
   announcements.value = anns.records.slice(0, 3);
-});
+}
+
+onMounted(loadProfile);
+watch(() => userStore.currentUser?.id, loadProfile);
 
 interface QuickEntry {
   key: string;
@@ -98,7 +106,7 @@ const orderTabsMeta = computed(() => [
                 <span class="dot">·</span>
                 <span>积分 {{ formatPoints(user.points) }}</span>
                 <span class="dot">·</span>
-                <span>注册于 {{ new Date(user.registeredAt).toLocaleDateString() }}</span>
+                <span>注册于 {{ registeredDate }}</span>
               </div>
               <div v-if="vipStatus?.nextThreshold" class="vip-progress">
                 距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分

@@ -55,7 +55,10 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.Point.LogEntry {
 }
 
 export async function fetchPointRules() {
-  const list = await realAdminRequest.get<Api.RealPoint.PointRuleVO[]>('/point-rules/list');
+  const list = await realAdminRequest.get<Api.RealPoint.PointRuleVO[]>('/point-rules/list', {
+    showError: false,
+    skipAuthRedirect: true
+  });
   return list.map(toPointRule).sort((a, b) => a.code.localeCompare(b.code));
 }
 

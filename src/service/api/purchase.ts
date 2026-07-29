@@ -19,6 +19,7 @@ function fromAfterSaleType(value: Api.Product.AftersaleType): Api.RealProduct.Af
 
 function toStatus(value?: string): Api.PurchaseRequest.RequestStatus {
   const key = value?.toUpperCase();
+  if (key === 'OPEN') return 'pushing';
   if (key === 'PENDING_AUDIT' || key === 'PENDING' || key === 'REVIEWING') return 'pending_audit';
   if (key === 'REJECTED') return 'rejected';
   if (key === 'CLAIMED' || key === 'TAKEN') return 'claimed';
@@ -55,7 +56,7 @@ async function getCategoryPath(id?: string) {
 async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promise<Api.PurchaseRequest.PurchaseRequest> {
   const id = dto.id as unknown as number;
   const categoryId = dto.categoryId as unknown as number;
-  const buyerId = dto.takenBy || dto.buyerId;
+  const claimedBuyerId = dto.takenBy;
 
   return {
     id,
@@ -73,9 +74,9 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     evidenceUrls: dto.images || [],
     appeal: dto.demandNote || dto.description || '',
     status: toStatus(dto.status),
-    pushedToBuyerIds: buyerId ? [buyerId as unknown as number] : [],
-    claimedBy: buyerId as unknown as number | undefined,
-    claimedByName: buyerId ? `买手 ${buyerId}` : undefined,
+    pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId as unknown as number] : [],
+    claimedBy: claimedBuyerId as unknown as number | undefined,
+    claimedByName: claimedBuyerId ? `买手 ${claimedBuyerId}` : undefined,
     claimedAt: toIso(dto.takenAt),
     relatedOrderId: dto.orderId as unknown as number | undefined,
     relatedOrderCode: dto.orderId ? String(dto.orderId) : undefined,

@@ -32,24 +32,32 @@ const loading = ref(false);
 const allList = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
 
 async function loadAll() {
+  await userStore.init();
   if (!userStore.currentUser) return;
   const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id);
   allList.value = r.records;
 }
 
 async function load() {
+  await userStore.init();
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
     const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id, tab?.statuses);
     list.value = r.records;
+  } catch {
+    list.value = [];
   } finally {
     loading.value = false;
   }
 }
 
 onMounted(async () => {
+  await loadAll();
+  await load();
+});
+watch(() => userStore.currentUser?.id, async () => {
   await loadAll();
   await load();
 });

@@ -29,6 +29,7 @@ async function loadAll() {
 
 onMounted(loadAll);
 watch(() => userStore.currentAudience, loadAll);
+watch(() => userStore.currentUser?.id, loadAll);
 
 import { getUsdtCnyRate } from '@shared/utils/currency';
 const cnyRate = getUsdtCnyRate();

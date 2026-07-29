@@ -41,6 +41,9 @@ async function load() {
     if (expDaysFilter.value != null) records = records.filter(x => x.expectedDays <= expDaysFilter.value!);
     list.value = records;
     total.value = r.total;
+  } catch {
+    list.value = [];
+    total.value = 0;
   } finally {
     loading.value = false;
   }

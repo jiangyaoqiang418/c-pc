@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { formatPoints } from '@shared';
 import * as pointApi from '@/service/api/point';
 import * as vipApi from '@/service/api/vip';
@@ -21,10 +21,10 @@ async function load() {
   if (!user.value) return;
   loading.value = true;
   try {
-    const [vip, cfgs, rules] = await Promise.all([
-      vipApi.fetchMyVipStatus(user.value.id),
-      vipApi.fetchVipConfigs(),
-      pointApi.fetchPointRules()
+    const vip = await vipApi.fetchMyVipStatus(user.value.id);
+    const [cfgs, rules] = await Promise.all([
+      vipApi.fetchVipConfigs().catch(() => []),
+      pointApi.fetchPointRules().catch(() => [])
     ]);
     vipStatus.value = vip;
     configs.value = cfgs;
@@ -35,6 +35,7 @@ async function load() {
   }
 }
 onMounted(load);
+watch(() => userStore.currentUser?.id, load);
 
 const progressPct = computed(() => {
   if (!user.value || !vipStatus.value?.nextThreshold) return 100;

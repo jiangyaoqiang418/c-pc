@@ -132,17 +132,17 @@
 
 | 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
 |---|---|---|---|---|
-| P0 | 请求层、token、响应解包、错误提示 | 真实响应 `{ code, message, data, success }`、成功码 `1`、`X-Access-Token` | 已建立 `src/service/request/` 和 dev proxy，尚未运行验证 | 登录失效码和弹窗失效码需真实请求确认 |
+| P0 | 请求层、token、响应解包、错误提示 | 真实响应 `{ code, message, data, success }`、成功码 `1`、`X-Access-Token` | 已建立 `src/service/request/` 和 dev/prod env；真实登录回归通过 | admin 借用接口失败时使用 `skipAuthRedirect` 避免清 C 端登录态 |
 | P1 | 注册 | `POST /user/auth/register` | API 已封装，注册页已调用 | 注册后是否自动登录当前按“返回登录页”处理 |
 | P1 | 登录/当前用户 | `POST /user/auth/login`、`GET /user/auth/me` | API 已封装，登录页和 Store 已调用 | 真实账号、角色与 KYC 枚举需回归确认 |
 | P1 | 分类树 | `GET /order/categories/tree` | API 已封装，公共分类导航和分类页已调用 | 商品列表仍为 Mock，公开商品分页在 P2 处理 |
 | P1 | 积分账户/VIP 当前权益 | `GET /user/points/account` | API 已封装，用户初始化、积分页、VIP 页已调用 | 买手/顾客双身份等级展示需真实账号验证 |
 | P1 | 积分流水/申诉 | `POST /user/points/ledger/page`、`POST /user/points/appeals/submit` | API 已封装，积分页已调用 | 日期、多行为筛选部分仍在前端侧适配 |
-| P1 | 积分规则 | `GET /admin/point-rules/list` | API 已封装，积分页/VIP 页已调用 | 需确认普通 C 端 token 是否允许访问 admin 分组 |
-| P1 | VIP 全量配置 | `GET /admin/vip-configs/get` | API 已封装，VIP 页已调用 | 需确认普通 C 端 token 是否允许访问 admin 分组 |
+| P1 | 积分规则 | `GET /admin/point-rules/list` | API 已封装，积分页/VIP 页已调用；普通 C 端 token 返回 `-200` 时前端降级展示 | 需后端补 C 端公开规则接口 |
+| P1 | VIP 全量配置 | `GET /admin/vip-configs/get` | API 已封装，VIP 页已调用；普通 C 端 token 返回 `-200` 时前端降级展示 | 需后端补 C 端公开 VIP 配置接口 |
 | P1 | 钱包总览 | `GET /user/wallet/overview` | API 已封装，钱包 Store、钱包首页资产卡、个人中心资产卡已调用 | 最近交易仍为 Mock，钱包流水在 P4 处理 |
 
-> 本节状态只表示“API 已封装 + 页面已调用”；本轮未执行 `pnpm dev`、`pnpm typecheck`、`pnpm build` 或浏览器回归，不能标记为“真实接口已验证”。
+> 已使用真实账号完成 P1 主要页面回归；本轮未执行 `pnpm typecheck` 或 `pnpm build`。
 
 ## 2026-07-29 P2-A 页面调用状态
 
@@ -154,10 +154,27 @@
 | P2-A | 买手上下架 | `PUT /order/products/shelf` | API 已封装，商品卡片上下架已调用 | `ON_SALE/OFF_SHELF` 与前端 shelf/status 拆分需真实返回确认 |
 | P2-A | 文件上传 | `POST /order/files/upload?dir=product` | API 已封装，请求层已支持 `FormData` | 当前页面上传组件未直接改为真实上传闭环 |
 | P2-A | 发起求购 | `POST /order/demands/create` | API 已封装，发起求购页已调用 | 取消原因、审核字段和图片结构仍需后续补齐 |
-| P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
-| P2-A | 我的求购 | `POST /order/demands/my/page` | API 已封装，我的求购页已调用 | 后端 VO 未返回 customerId，页面侧按当前用户注入用于撤销判断 |
-| P2-A | 求购详情 | `GET /order/demands/detail?id=` | API 已封装，求购详情页已调用 | pushLogs、推送批次、客户/买手名称和审核信息缺失 |
+| P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用；普通顾客账号返回无买手权限时页面降级为空态 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
+| P2-A | 我的求购 | `POST /order/demands/my/page` | API 已封装，我的求购页已调用；真实账号 total=1 回归通过 | 后端 VO 未返回 customerId，页面侧按当前用户注入用于撤销判断 |
+| P2-A | 求购详情 | `GET /order/demands/detail?id=` | API 已封装，求购详情页已调用；测试求购 `2082306670605197313` 回归通过 | pushLogs、推送批次、客户/买手名称和审核信息缺失 |
 | P2-A | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | API 已封装，大厅/详情/我的求购页已调用 | 抢单权限依赖真实买手账号、KYC 和后端鉴权 |
 | P2-A | 手动推下一批 | 无 | 页面已改为真实接口暂不支持提示 | 需要后端补推送接口后再接入 |
 
-> P2-A 状态只表示“API 已封装 + 页面已调用”；本轮未执行 `pnpm dev`、`pnpm typecheck`、`pnpm build` 或浏览器回归，不能标记为“真实接口已验证”。
+> 已使用真实账号完成求购创建、我的求购和求购详情回归；商品详情缺真实商品数据，买手能力缺买手账号 + KYC。
+
+## 2026-07-29 真实联调结果
+
+| 梯队 | 能力 | 接口结果 | 页面结果 | 结论 |
+|---|---|---|---|---|
+| P0 | 登录 | `/user/auth/login` 成功，返回 token、`userId=2082303088212398081`、昵称 `john` | 首页显示 `john / VIP0 / 0积分` | 通过 |
+| P1 | 当前用户 | `/user/auth/me` 成功，角色 `CUSTOMER`、KYC `UNSUBMITTED` | 个人中心显示 john、邮箱、KYC 未提交、注册于 `—` | 通过 |
+| P1 | 积分/VIP 当前状态 | `/user/points/account` 成功，points=0、VIP0 | 积分页/VIP 页展示一致 | 通过 |
+| P1 | 钱包总览 | `/user/wallet/overview` 成功，total=0 | 钱包页显示 `U 0.00`、资产分布和暂无交易 | 通过 |
+| P1 | 分类树 | `/order/categories/tree` 成功 | 首页展示真实分类 | 通过 |
+| P1 | admin 配置借用 | `/admin/point-rules/list`、`/admin/vip-configs/get` 对 C 端 token 返回 `-200` | 前端已降级，不清登录态 | 待后端补公开接口 |
+| P2-A | 发起求购 | `/order/demands/create` 成功，生成 `2082306670605197313` | 后端写入成功 | 通过 |
+| P2-A | 我的求购 | `/order/demands/my/page` 成功，total=1 | 页面显示测试求购、金额 `U199.00`、撤销入口 | 通过 |
+| P2-A | 求购详情 | `/order/demands/detail` 成功，状态 `OPEN` | 前端映射为“推送中” | 通过 |
+| P2-A | 求购大厅 | 普通账号调用返回“请先申请成为买手” | 页面降级为空态，无未捕获错误 | 符合普通账号权限 |
+| P2-A | 商品榜单 | 公开榜单接口成功但 total=0 | 无真实商品可回显 | 待商品数据 |
+| P2-A | 买手能力 | 未测 | 当前账号非买手 | 待买手账号 |
