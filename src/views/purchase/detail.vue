@@ -28,7 +28,10 @@ async function load() {
     loading.value = false;
   }
 }
-onMounted(load);
+onMounted(async () => {
+  await userStore.init();
+  await load();
+});
 watch(() => route.params.id, load);
 
 const statusMeta = computed(() => (request.value ? enums.PURCHASE_STATUS_META[request.value.status] : undefined));

@@ -1,22 +1,39 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { Message } from '@arco-design/web-vue';
+import { uploadFile } from '@/service/api/product';
 
 interface Props {
   modelValue?: string[];
   max?: number;
+  dir?: string;
 }
-const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [] });
+const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [], dir: 'evidence' });
 const emit = defineEmits<{ (e: 'update:modelValue', v: string[]): void }>();
 
 const uploading = ref(false);
+const inputRef = ref<HTMLInputElement>();
 
-async function addOne() {
+function pickFile() {
   if (props.modelValue.length >= props.max) return;
+  inputRef.value?.click();
+}
+
+async function onFileChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+
+  const available = props.max - props.modelValue.length;
+  const picked = files.slice(0, available);
   uploading.value = true;
   try {
-    await new Promise(r => setTimeout(r, 700));
-    const url = `https://picsum.photos/seed/ev-${Date.now()}-${props.modelValue.length}/320/240`;
-    emit('update:modelValue', [...props.modelValue, url]);
+    const uploaded = await Promise.all(picked.map(file => uploadFile(file, props.dir)));
+    emit('update:modelValue', [...props.modelValue, ...uploaded.map(item => item.url || item.filePath)]);
+    Message.success(picked.length > 1 ? `已上传 ${picked.length} 张图片` : '图片已上传');
+  } catch {
+    Message.error('图片上传失败');
   } finally {
     uploading.value = false;
   }
@@ -31,18 +48,22 @@ function remove(i: number) {
 
 <template>
   <div class="evidence">
+    <input ref="inputRef" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
     <div v-for="(u, i) in modelValue" :key="u" class="cell">
       <img :src="u" />
       <button class="remove" @click="remove(i)">✕</button>
     </div>
-    <button v-if="modelValue.length < max" class="add" :disabled="uploading" @click="addOne">
+    <button v-if="modelValue.length < max" class="add" :disabled="uploading" @click="pickFile">
       {{ uploading ? '上传中…' : '+ 添加图片' }}
     </button>
-    <div class="hint">最多 {{ max }} 张 · 原型模式自动生成占位图</div>
+    <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</div>
   </div>
 </template>
 
 <style scoped>
+.file-input {
+  display: none;
+}
 .evidence {
   display: flex;
   flex-wrap: wrap;

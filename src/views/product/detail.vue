@@ -23,6 +23,7 @@ const sellerScore = ref<Api.Review.UserScoreSummary>();
 const sameShop = ref<Api.Product.ProductRecord[]>([]);
 const qty = ref(1);
 const loading = ref(false);
+const favoriting = ref(false);
 const activeTab = ref<'desc' | 'spec' | 'review' | 'sameshop'>('desc');
 
 const id = computed(() => String(route.params.id || ''));
@@ -36,6 +37,8 @@ async function load() {
   try {
     product.value = await productApi.fetchProductDetail(id.value);
     if (product.value) {
+      productApi.trackProductBrowse(id.value).catch(() => undefined);
+      productApi.trackProductView(id.value).catch(() => undefined);
       reviews.value = [];
       sellerScore.value = undefined;
       sameShop.value = [];
@@ -62,6 +65,18 @@ function startPurchase() {
     name: 'purchase-create',
     query: { productHint: product.value.title, categoryId: String(product.value.categoryId) }
   });
+}
+
+async function favorite() {
+  if (!product.value) return;
+  favoriting.value = true;
+  try {
+    await productApi.toggleProductFavorite(product.value.id);
+    product.value.favoriteCount = Number(product.value.favoriteCount || 0) + 1;
+    Message.success('收藏状态已更新');
+  } finally {
+    favoriting.value = false;
+  }
 }
 </script>
 
@@ -179,6 +194,9 @@ function startPurchase() {
             </button>
             <button class="btn outline" @click="startPurchase">
               <Icon icon="lucide:sparkles" width="16" /> 发起求购
+            </button>
+            <button class="btn ghost" :disabled="favoriting" @click="favorite">
+              <Icon icon="lucide:bookmark-plus" width="16" /> 收藏
             </button>
           </div>
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { orderApi } from '@shared';
 import OrderCard from '@/components/order/order-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as orderApi from '@/service/api/order';
 
 const userStore = useUserStore();
 
@@ -39,7 +39,7 @@ async function load() {
   loading.value = true;
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const params: Parameters<typeof orderApi.fetchMyOrders>[0] = {
+    const params: Api.Order.ListQuery = {
       current: current.value,
       size: size.value,
       statuses: tab?.statuses
@@ -57,7 +57,7 @@ async function load() {
 async function loadCounts() {
   if (!userStore.currentUser) return;
   if (role.value === 'shopper') return;
-  counts.value = await orderApi.countMyOrdersByStatus(userStore.currentUser.id);
+  counts.value = await orderApi.countMyOrdersByStatus();
 }
 
 onMounted(async () => {

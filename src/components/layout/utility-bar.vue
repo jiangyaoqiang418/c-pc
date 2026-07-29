@@ -19,7 +19,7 @@ function go(name: string) {
       <div class="ub-right">
         <a class="ub-link" @click="go('order-list')">我的订单</a>
         <span class="ub-sep">·</span>
-        <a class="ub-link" @click="go('review-list')">收藏夹</a>
+        <a class="ub-link" @click="go('favorites')">收藏夹</a>
         <span class="ub-sep">·</span>
         <a class="ub-link" @click="go('help')">帮助中心</a>
       </div>

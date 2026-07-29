@@ -30,6 +30,7 @@ function toStatus(value?: string): Api.PurchaseRequest.RequestStatus {
 function toIso(value?: string | number) {
   if (!value) return '';
   if (typeof value === 'number') return new Date(value).toISOString();
+  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
   return value;
 }
 
@@ -156,10 +157,10 @@ export async function createPurchase(p: {
 
 export async function cancelPurchase(id: string | number) {
   await realOrderRequest.post<string, { id: string | number }>('/demands/cancel', { id });
-  return { ok: true };
+  return { ok: true, message: '' };
 }
 
 export async function claimRequest(id: string | number) {
   await realOrderRequest.post<string, { id: string | number }>('/demands/grab', { id });
-  return { ok: true };
+  return { ok: true, message: '' };
 }

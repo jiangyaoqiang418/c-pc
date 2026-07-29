@@ -2,10 +2,10 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { orderApi } from '@shared';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';
+import * as orderApi from '@/service/api/order';
 
 interface Props {
   order: Api.Order.OrderRecord;
@@ -21,7 +21,7 @@ function goDetail() {
 }
 
 async function pay() {
-  const r = await orderApi.payOrderMock(props.order.id);
+  const r = await orderApi.payOrder(props.order.id);
   if (r.ok) {
     Message.success('支付成功');
     emit('changed');
@@ -37,7 +37,7 @@ function cancel() {
     okText: '确认取消',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await orderApi.cancelOrderMock(props.order.id, '顾客主动取消');
+      const r = await orderApi.cancelOrder(props.order.id);
       if (r.ok) {
         Message.success('订单已取消');
         emit('changed');
@@ -51,7 +51,7 @@ async function confirm() {
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
     async onOk() {
-      const r = await orderApi.confirmReceiptMock(props.order.id);
+      const r = await orderApi.confirmReceipt(props.order.id);
       if (r.ok) {
         Message.success('已确认收货');
         emit('changed');

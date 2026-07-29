@@ -6,6 +6,7 @@ import { BRAND } from '@shared';
 import { useCartStore } from '@/stores';
 import SearchBar from '@/components/layout/search-bar.vue';
 import UtilityBar from '@/components/layout/utility-bar.vue';
+import UserAvatarButton from '@/components/layout/user-avatar-button.vue';
 
 const router = useRouter();
 const cart = useCartStore();
@@ -34,6 +35,7 @@ const cartCount = computed(() => cart.count);
             <span>购物车</span>
             <span v-if="cartCount > 0" class="cart-badge">{{ cartCount > 99 ? '99+' : cartCount }}</span>
           </button>
+          <UserAvatarButton />
         </div>
       </div>
     </header>
@@ -81,7 +83,7 @@ const cartCount = computed(() => cart.count);
   margin: 0 auto;
   padding: 0 24px 0 20px;
   display: grid;
-  grid-template-columns: 200px 1fr 200px;
+  grid-template-columns: 200px 1fr 280px;
   align-items: center;
   gap: 24px;
   box-sizing: border-box;

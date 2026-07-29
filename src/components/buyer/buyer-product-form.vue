@@ -144,7 +144,7 @@ function submit() {
     </a-form-item>
 
     <a-form-item label="商品图片（至少 1 张，最多 6 张）" required>
-      <AftersaleEvidenceUploader v-model="form.images" :max="6" />
+      <AftersaleEvidenceUploader v-model="form.images" :max="6" dir="product" />
     </a-form-item>
 
     <div class="actions">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { Message } from '@arco-design/web-vue';
+import { Icon } from '@iconify/vue';
 import { useUserStore } from '@/stores';
 import VipBadge from '@/components/common/vip-badge.vue';
 
@@ -18,20 +20,35 @@ function goRegister() {
 function goProfile() {
   router.push({ name: 'profile' });
 }
+function logout() {
+  userStore.logout();
+  Message.success('已退出登录');
+  router.push({ name: 'login' });
+}
 </script>
 
 <template>
   <div class="user-avatar-btn">
     <template v-if="userStore.isLoggedIn">
-      <a-tooltip content="点击进入个人中心" position="bl" mini>
-        <div class="trigger" @click="goProfile">
+      <a-dropdown position="br" trigger="click">
+        <div class="trigger">
           <div class="avatar">{{ avatarInitial }}</div>
           <div class="meta">
             <div class="name">{{ userStore.displayName }}</div>
             <VipBadge v-if="userStore.currentUser" :level="userStore.currentUser.vipLevel" size="sm" />
           </div>
         </div>
-      </a-tooltip>
+        <template #content>
+          <a-doption @click="goProfile">
+            <template #icon><Icon icon="lucide:user" width="14" /></template>
+            个人中心
+          </a-doption>
+          <a-doption @click="logout">
+            <template #icon><Icon icon="lucide:log-out" width="14" /></template>
+            退出登录
+          </a-doption>
+        </template>
+      </a-dropdown>
     </template>
     <template v-else>
       <a-space>

@@ -103,5 +103,5 @@ export async function appealPointLog(p: { logId: number | string; reason: string
     ledgerId: p.logId,
     reason: p.reason
   });
-  return { ok: true };
+  return { ok: true, message: '' };
 }

@@ -39,6 +39,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '商品详情' }
   },
   {
+    path: '/favorites',
+    name: 'favorites',
+    component: () => import('@/views/product/favorites.vue'),
+    meta: { layout: 'default', title: '我的收藏', requiresAuth: true }
+  },
+  {
     path: '/cart',
     name: 'cart',
     component: () => import('@/views/cart/index.vue'),

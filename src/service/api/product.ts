@@ -28,6 +28,7 @@ function toShelfStatus(status?: string): Api.Product.ShelfStatus {
 function toIso(value?: string | number) {
   if (!value) return '';
   if (typeof value === 'number') return new Date(value).toISOString();
+  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
   return value;
 }
 
@@ -71,6 +72,37 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.Product.Pr
 export async function fetchProductDetail(id: string | number) {
   const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/storefront/product/detail', { params: { id } });
   return toProductRecord(dto);
+}
+
+export async function trackProductBrowse(id: string | number) {
+  await realOrderRequest.post<boolean, Api.RealProduct.ProductIdParams>('/storefront/browse', { id }, { showError: false });
+  return { ok: true };
+}
+
+export async function trackProductView(id: string | number) {
+  await realOrderRequest.post<boolean, Api.RealProduct.ProductIdParams>('/products/view', { id }, { showError: false });
+  return { ok: true };
+}
+
+export async function toggleProductFavorite(id: string | number) {
+  await realOrderRequest.post<boolean, Api.RealProduct.ProductIdParams>('/products/favorite', { id });
+  return { ok: true };
+}
+
+export async function fetchMyFavorites(q: { current?: number; size?: number } = {}) {
+  const page = await realOrderRequest.post<
+    Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO> & { pageNo?: number; pageSize?: number },
+    Api.RealProduct.FavoritePageQuery
+  >('/products/favorites/page', {
+    pageNo: q.current || 1,
+    pageSize: q.size || 20
+  });
+  return {
+    current: page.current || page.pageNo || q.current || 1,
+    size: page.size || page.pageSize || q.size || 20,
+    total: page.total,
+    records: page.records.map(toProductRecord)
+  };
 }
 
 export async function fetchSellerProductDetail(id: string | number) {

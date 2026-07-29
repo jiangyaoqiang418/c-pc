@@ -74,7 +74,7 @@ class RealRequest {
     const response = await fetch(url, {
       method,
       headers,
-      body: options.data === undefined ? undefined : isFormData ? options.data : JSON.stringify(options.data),
+      body: options.data === undefined ? undefined : isFormData ? (options.data as BodyInit) : JSON.stringify(options.data),
       signal: options.signal
     });
 

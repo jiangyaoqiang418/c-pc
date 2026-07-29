@@ -1,0 +1,92 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue';
+import ProductCard from '@/components/product/product-card.vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import * as productApi from '@/service/api/product';
+
+const list = ref<Api.Product.ProductRecord[]>([]);
+const total = ref(0);
+const current = ref(1);
+const size = ref(12);
+const loading = ref(false);
+
+async function load() {
+  loading.value = true;
+  try {
+    const r = await productApi.fetchMyFavorites({ current: current.value, size: size.value });
+    list.value = r.records;
+    total.value = r.total;
+  } catch {
+    list.value = [];
+    total.value = 0;
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(load);
+</script>
+
+<template>
+  <div class="favorites-page shop-container">
+    <div class="page-head">
+      <h1 class="page-title">我的收藏</h1>
+      <span class="page-sub">已收藏商品会同步到真实收藏接口</span>
+    </div>
+
+    <a-spin :loading="loading" style="width: 100%">
+      <div v-if="list.length" class="product-grid">
+        <ProductCard v-for="p in list" :key="p.id" :product="p" />
+      </div>
+      <EmptyState v-else title="暂无收藏商品" description="在商品详情页点击收藏后会出现在这里" />
+    </a-spin>
+
+    <div v-if="total > size" class="pagination-bar">
+      <a-pagination
+        :total="total"
+        :current="current"
+        :page-size="size"
+        show-total
+        @change="(p: number) => { current = p; load(); }"
+      />
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.favorites-page {
+  padding-top: 16px;
+  padding-bottom: 40px;
+}
+.page-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.page-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--yb-ink);
+}
+.page-sub {
+  color: var(--yb-muted);
+  font-size: 12px;
+}
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.pagination-bar {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+@media (max-width: 1100px) {
+  .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+</style>

@@ -2,20 +2,21 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { enums, formatAmount, orderApi } from '@shared';
+import { enums } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import OrderTimeline from '@/components/order/order-timeline.vue';
 import OrderActions from '@/components/order/order-actions.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as orderApi from '@/service/api/order';
 
 const route = useRoute();
 const router = useRouter();
 const order = ref<Api.Order.OrderRecord>();
 const loading = ref(false);
 
-const id = computed(() => Number(route.params.id));
+const id = computed(() => String(route.params.id || ''));
 
 async function load() {
   loading.value = true;
@@ -63,7 +64,7 @@ const trackEvents = computed<TrackEvent[]>(() => {
 
 async function pay() {
   if (!order.value) return;
-  const r = await orderApi.payOrderMock(order.value.id);
+  const r = await orderApi.payOrder(order.value.id);
   if (r.ok) {
     Message.success('支付成功');
     load();
@@ -79,7 +80,7 @@ function cancel() {
     content: '取消后订单将不可恢复',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await orderApi.cancelOrderMock(order.value!.id, '顾客主动取消');
+      const r = await orderApi.cancelOrder(order.value!.id);
       if (r.ok) {
         Message.success('订单已取消');
         load();
@@ -94,7 +95,7 @@ function confirm() {
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
     async onOk() {
-      const r = await orderApi.confirmReceiptMock(order.value!.id);
+      const r = await orderApi.confirmReceipt(order.value!.id);
       if (r.ok) {
         Message.success('已确认收货');
         load();

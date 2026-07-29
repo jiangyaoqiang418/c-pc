@@ -211,7 +211,7 @@ async function submit() {
           />
         </a-form-item>
         <a-form-item label="参考图片（可选）">
-          <AftersaleEvidenceUploader v-model="form.evidenceUrls" :max="4" />
+          <AftersaleEvidenceUploader v-model="form.evidenceUrls" :max="4" dir="demand" />
         </a-form-item>
       </div>
 

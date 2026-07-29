@@ -178,3 +178,23 @@
 | P2-A | 求购大厅 | 普通账号调用返回“请先申请成为买手” | 页面降级为空态，无未捕获错误 | 符合普通账号权限 |
 | P2-A | 商品榜单 | 公开榜单接口成功但 total=0 | 无真实商品可回显 | 待商品数据 |
 | P2-A | 买手能力 | 未测 | 当前账号非买手 | 待买手账号 |
+
+## 2026-07-29 补充接口满足度与页面调用
+
+| 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
+|---|---|---|---|---|
+| P2-B | 文件上传 | `POST /order/files/upload?dir=` | API 已封装，求购/买手商品上传组件已调用；接口真实返回 MinIO 未配置 | 后端配置对象存储后再验证成功上传和图片回显 |
+| P2-B | 商品浏览打点 | `POST /order/storefront/browse`、`POST /order/products/view` | 商品详情页已调用；使用静默错误避免打点失败影响详情浏览 | 需真实商品 ID 验证浏览量变化 |
+| P2-B | 收藏/我的收藏 | `POST /order/products/favorite`、`POST /order/products/favorites/page` | 商品详情收藏按钮和 `/favorites` 页面已调用；当前账号收藏 total=0 | 需真实商品数据验证收藏后列表回显 |
+| P3 | 买家订单列表/详情 | `POST /order/orders/bought/page`、`GET /order/orders/detail` | API 已封装，订单列表/详情已调用；当前账号订单 total=0 | 后端缺地址、物流、售后、时间线等详情字段 |
+| P3 | 订单基础操作 | `POST /order/orders/pay`、`POST /order/orders/cancel`、`POST /order/orders/confirm` | API 已封装，订单卡片/详情操作按钮已调用 | 当前账号无订单，未验证写操作成功路径 |
+| P4 | 钱包流水 | `POST /user/wallet/ledger/page` | API 已封装，资金流水页已调用；当前账号流水 total=0 | 后端仅支持 `bizGroup/bizType`，页面桶/日期/多类型为前端侧过滤 |
+
+本轮后 C 端 PC 已有接口对接估算：
+
+| 口径 | 进度 |
+|---|---:|
+| 已封装接口进度 | 约 38% |
+| 已页面接入进度 | 约 35% |
+| 真实回归通过进度 | 约 25% |
+| C 端 PC 整体交付进度 | 约 32% |

@@ -232,3 +232,33 @@ view / store
 - 用户明确要求验证、回归、启动或构建时，才执行对应命令；优先使用已运行应用的终端和控制台，未启动时再使用项目现有命令。
 - 本次明确任务范围全部完成后默认统一更新文档记录进度，不主动做浏览器回归。
 - 不处理与当前接口模块无关的历史错误或警告。
+
+## 2026-07-29 P2-B/P3/P4 补充推进
+
+### 已完成
+
+- 退出登录入口：默认布局顶部购物车右侧已挂载用户头像下拉，提供“个人中心 / 退出登录”；退出后清理真实 token 和本地用户态。
+- 文件上传组件：`components/aftersale/aftersale-evidence-uploader.vue` 已从占位图生成改为真实文件选择和 `POST /order/files/upload?dir=` 上传；求购图片使用 `dir=demand`，买手商品图片使用 `dir=product`。
+- 商品收藏与浏览：商品详情页进入后调用 `/order/storefront/browse` 和 `/order/products/view` 做浏览打点；“收藏”按钮调用 `/order/products/favorite`；新增 `/favorites` 我的收藏页，调用 `/order/products/favorites/page`。
+- 钱包流水：资金流水页已从 `@shared` Mock 切到 `POST /user/wallet/ledger/page`，在 adapter 中映射 `bizType/bizGroup/fromType/toType` 到现有 17 类流水和资产桶；当前后端不支持的日期、桶、多类型筛选继续在前端侧过滤。
+- 买家订单只读与基础操作：订单列表/详情已从 `@shared` Mock 切到 `POST /order/orders/bought/page`、`GET /order/orders/detail`；支付、取消、确认收货分别调用 `/order/orders/pay`、`/order/orders/cancel`、`/order/orders/confirm`。
+- 时间戳适配：`purchase/product/wallet/order` adapter 已兼容后端毫秒时间戳数字和数字字符串，避免页面出现 `Invalid Date`。
+
+### 待确认 / 缺口
+
+- 上传接口已命中真实服务，但测试环境返回“对象存储(MinIO)未配置，无法上传”，需后端配置 MinIO 后再做完整 UI 上传回归。
+- Chrome 扩展当前未开启本地文件 URL 访问，UI 文件选择器可触发，但自动化无法把本地测试图片塞入浏览器；已用真实 token 直接验证上传接口返回。
+- 当前真实收藏、钱包流水、买家订单测试账号均为 `total=0`，页面以空态通过；收藏状态切换需要真实商品数据后再验证收藏后列表回显。
+- 订单详情缺收货地址、收件人、物流、售后和完整时间线字段，当前按 Swagger 可得字段做只读适配，缺失字段展示默认值。
+
+### 本轮验证
+
+| 模块 | 接口结果 | 页面结果 | 控制台 | 结论 |
+|---|---|---|---|---|
+| 退出入口 | 本地状态操作 | 顶部头像下拉显示“个人中心 / 退出登录” | 无错误 | 通过 |
+| 我的收藏 | `/order/products/favorites/page` 返回 `code=1,total=0` | `/favorites` 展示“暂无收藏商品” | 无错误 | 通过，待商品数据验证回显 |
+| 钱包流水 | `/user/wallet/ledger/page` 返回 `code=1,total=0` | `/wallet/history` 展示“暂无符合条件的流水” | 无错误 | 通过 |
+| 买家订单 | `/order/orders/bought/page` 返回 `code=1,total=0` | `/order` 展示订单 Tab 和空态 | 无错误 | 通过 |
+| 我的求购 | `/order/demands/my/page` 返回 `code=1,total=1` | `/purchase` 展示测试求购和撤销入口 | 无错误 | 通过 |
+| 求购详情 | `/order/demands/detail?id=2082306670605197313` 成功 | `/purchase/2082306670605197313` 展示标题、`U 199.00`、推送中、创建时间正常 | 无错误 | 通过 |
+| 文件上传 | `/order/files/upload?dir=demand` 返回 `code=-1`，MinIO 未配置 | 上传按钮可触发文件选择；接口错误会提示上传失败 | 无错误 | 阻塞于后端对象存储配置 |

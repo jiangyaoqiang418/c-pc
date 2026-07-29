@@ -46,7 +46,7 @@ function toConfig(role: Api.RealVip.VipRoleGridVO, row: Api.RealVip.VipLevelRowV
   Object.entries(benefits).forEach(([code, value]) => {
     const key = benefitCodeMap[code];
     if (key && key in target) {
-      (target as Record<string, number>)[key] = Number(value || 0);
+      (target as unknown as Record<string, number>)[key] = Number(value || 0);
     }
   });
 
@@ -65,7 +65,7 @@ function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vi
   info?.benefits?.forEach(item => {
     const key = benefitCodeMap[item.code];
     if (key && key in target) {
-      (target as Record<string, number>)[key] = Number(item.value || 0);
+      (target as unknown as Record<string, number>)[key] = Number(item.value || 0);
     }
   });
   return target;

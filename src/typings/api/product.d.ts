@@ -58,6 +58,15 @@ declare namespace Api.RealProduct {
     onShelf: boolean;
   }
 
+  interface ProductIdParams {
+    id: string | number;
+  }
+
+  interface FavoritePageQuery {
+    pageNo?: number;
+    pageSize?: number;
+  }
+
   interface FileUploadResult {
     id: string;
     bucket: string;

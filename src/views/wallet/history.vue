@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { walletApi } from '@shared';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as walletApi from '@/service/api/wallet';
 
 const route = useRoute();
 const userStore = useUserStore();
@@ -57,16 +57,15 @@ async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
-    const r = await walletApi.fetchMyTxns({
-      userId: userStore.currentUser.id,
+    const r = await walletApi.fetchWalletLedger({
       current: current.value,
       size: size.value,
-      types: filter.types.length ? filter.types : undefined,
-      bucket: filter.bucket,
-      fromAt: filter.dateRange?.[0],
-      toAt: filter.dateRange?.[1]
+      types: filter.types.length ? filter.types : undefined
     });
     let records = r.records;
+    if (filter.bucket) records = records.filter(t => t.bucketFrom === filter.bucket || t.bucketTo === filter.bucket);
+    if (filter.dateRange?.[0]) records = records.filter(t => t.createdAt >= filter.dateRange![0]);
+    if (filter.dateRange?.[1]) records = records.filter(t => t.createdAt <= filter.dateRange![1]);
     if (filter.keyword) {
       const kw = filter.keyword.toLowerCase();
       records = records.filter(
