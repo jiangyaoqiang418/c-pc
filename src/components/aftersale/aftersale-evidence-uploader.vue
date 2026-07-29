@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { uploadFile } from '@/service/api/product';
+import { RequestError } from '@/service/request';
 
 interface Props {
   modelValue?: string[];
@@ -32,8 +33,13 @@ async function onFileChange(e: Event) {
     const uploaded = await Promise.all(picked.map(file => uploadFile(file, props.dir)));
     emit('update:modelValue', [...props.modelValue, ...uploaded.map(item => item.url || item.filePath)]);
     Message.success(picked.length > 1 ? `已上传 ${picked.length} 张图片` : '图片已上传');
-  } catch {
-    Message.error('图片上传失败');
+  } catch (error) {
+    const message = error instanceof RequestError ? error.message : '';
+    if (message.includes('MinIO') || message.includes('对象存储')) {
+      Message.error('对象存储暂未配置，当前无法上传图片');
+    } else {
+      Message.error(message || '图片上传失败，请稍后重试');
+    }
   } finally {
     uploading.value = false;
   }
@@ -56,7 +62,7 @@ function remove(i: number) {
     <button v-if="modelValue.length < max" class="add" :disabled="uploading" @click="pickFile">
       {{ uploading ? '上传中…' : '+ 添加图片' }}
     </button>
-    <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</div>
+    <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP · 上传失败不会保留本地占位图</div>
   </div>
 </template>
 

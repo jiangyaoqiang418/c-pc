@@ -34,6 +34,15 @@ const aftersaleMeta = computed(() => (order.value ? enums.AFTERSALE_TYPE_META[or
 const carrierMeta = computed(() =>
   order.value?.shippingCarrier ? enums.CARRIER_META[order.value.shippingCarrier] : undefined
 );
+const backendMissingFields = computed(() => {
+  if (!order.value) return [];
+  const fields: string[] = [];
+  if (order.value.shippingAddress === '后端暂未返回收货地址') fields.push('收货地址');
+  if (!order.value.trackingNumber) fields.push('物流信息');
+  if (!order.value.purchaseScreenshotUrl) fields.push('采购凭证');
+  if (!order.value.shippingScreenshotUrl) fields.push('发货凭证');
+  return fields;
+});
 
 interface TrackEvent {
   time: string;
@@ -136,6 +145,14 @@ function goAftersale() {
 
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">订单进度</div>
+          <a-alert
+            v-if="backendMissingFields.length"
+            class="contract-alert"
+            type="warning"
+            :show-icon="false"
+          >
+            后端当前未返回：{{ backendMissingFields.join('、') }}，页面已按默认值降级展示。
+          </a-alert>
           <OrderTimeline :order="order" />
         </a-card>
 
@@ -286,6 +303,9 @@ function goAftersale() {
   margin-bottom: 12px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
+}
+.contract-alert {
+  margin-bottom: 12px;
 }
 .logistics-meta {
   display: flex;

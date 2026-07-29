@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import OrderCard from '@/components/order/order-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -7,6 +8,7 @@ import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 
 const userStore = useUserStore();
+const router = useRouter();
 
 interface TabDef {
   key: string;
@@ -113,7 +115,13 @@ function onChanged() {
         <div v-if="orders.length">
           <OrderCard v-for="o in orders" :key="o.id" :order="o" @changed="onChanged" />
         </div>
-        <EmptyState v-else title="该状态下没有订单" description="去首页看看吧" />
+        <EmptyState
+          v-else
+          title="该状态下没有订单"
+          description="直接购买或求购成交后会生成真实订单"
+          action-text="发起求购"
+          @action="router.push('/purchase/create')"
+        />
       </a-spin>
     </div>
 

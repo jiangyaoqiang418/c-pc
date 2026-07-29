@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -8,6 +8,7 @@ import { useUserStore } from '@/stores';
 import * as walletApi from '@/service/api/wallet';
 
 const route = useRoute();
+const router = useRouter();
 const userStore = useUserStore();
 
 const list = ref<Api.Wallet.Txn[]>([]);
@@ -147,7 +148,9 @@ function openDetail(t: Api.Wallet.Txn) {
         <div class="filter-actions">
           <a-button type="primary" @click="(() => { current = 1; load(); })()">查询</a-button>
           <a-button @click="reset">重置</a-button>
-          <a-button disabled>导出 CSV · Phase 4</a-button>
+          <a-tooltip content="后端导出接口暂未提供">
+            <a-button disabled>导出 CSV</a-button>
+          </a-tooltip>
         </div>
       </a-form>
     </a-card>
@@ -157,7 +160,13 @@ function openDetail(t: Api.Wallet.Txn) {
         <template v-if="list.length">
           <TxnRow v-for="t in list" :key="t.id" :txn="t" @detail="openDetail" />
         </template>
-        <EmptyState v-else title="暂无符合条件的流水" description="试试调整筛选条件" />
+        <EmptyState
+          v-else
+          title="暂无符合条件的流水"
+          description="充值、提现、订单支付或退款后会生成资金流水"
+          action-text="查看钱包"
+          @action="router.push('/wallet')"
+        />
       </a-spin>
     </a-card>
 

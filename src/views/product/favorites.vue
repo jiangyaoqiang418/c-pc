@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
 
+const router = useRouter();
 const list = ref<Api.Product.ProductRecord[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -38,7 +40,13 @@ onMounted(load);
       <div v-if="list.length" class="product-grid">
         <ProductCard v-for="p in list" :key="p.id" :product="p" />
       </div>
-      <EmptyState v-else title="暂无收藏商品" description="在商品详情页点击收藏后会出现在这里" />
+      <EmptyState
+        v-else
+        title="暂无收藏商品"
+        description="在商品详情页点击收藏后会出现在这里"
+        action-text="去浏览商品"
+        @action="router.push('/product/list')"
+      />
     </a-spin>
 
     <div v-if="total > size" class="pagination-bar">

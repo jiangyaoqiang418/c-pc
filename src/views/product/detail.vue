@@ -43,6 +43,11 @@ async function load() {
       sellerScore.value = undefined;
       sameShop.value = [];
     }
+  } catch {
+    product.value = undefined;
+    reviews.value = [];
+    sellerScore.value = undefined;
+    sameShop.value = [];
   } finally {
     loading.value = false;
   }
