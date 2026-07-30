@@ -76,4 +76,30 @@ declare namespace Api.RealProduct {
     contentType?: string;
     size?: number;
   }
+
+  interface FlashSaleItemVO {
+    productId: string;
+    title: string;
+    image?: string;
+    price?: string | number;
+    flashPrice?: string | number;
+    flashStock?: number;
+    stock?: number;
+    salesCount?: string | number;
+    sessionId?: string;
+    sessionEndTime?: string | number;
+  }
+
+  interface BannerDTO {
+    id: string;
+    image: string;
+    title: string;
+    subtitle?: string;
+    tag?: string;
+    pathTo?: string;
+    sortOrder?: number;
+    enabled?: boolean;
+    createdAt?: string | number;
+    updatedAt?: string | number;
+  }
 }

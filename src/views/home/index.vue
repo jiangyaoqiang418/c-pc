@@ -1,32 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { productApi } from '@shared';
-import { avatarUrl, bannerImage } from '@shared/utils/image';
+import { Message } from '@arco-design/web-vue';
+import { bannerImage } from '@shared/utils/image';
 import ProductCard from '@/components/product/product-card.vue';
-import VipBadge from '@/components/common/vip-badge.vue';
 import SideNav from '@/components/layout/side-nav.vue';
 import RightPanel from '@/components/layout/right-panel.vue';
+import * as realProductApi from '@/service/api/product';
 
 const router = useRouter();
 
 const hot = ref<Api.Product.ProductRecord[]>([]);
 const newest = ref<Api.Product.ProductRecord[]>([]);
 const flash = ref<Api.Product.ProductRecord[]>([]);
-const topSellers = ref<Api.Product.SellerDist[]>([]);
-const flashCountdown = ref('02:14:38');
+const recommendations = ref<Api.Product.ProductRecord[]>([]);
+const banners = ref<Api.RealProduct.BannerDTO[]>([]);
+const flashEndAt = ref<string | number>();
+const now = ref(Date.now());
+let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
-// 单张主 hero（taomall 骨架：不做自动轮播）
-const heroBanner = {
-  eyebrow: 'SUMMER TECH',
-  title: '数码焕新季',
-  titleAlt: '每件都值得',
-  sub: '买手精选 100+ 人气新品 · 至高立减 800 元',
-  cta: '立即逛逛',
-  image: bannerImage(1, 1400),
-  path: '/product/list?categoryId=2'
-};
+const heroBanner = computed(() => banners.value[0]);
 
 // 频道广场 6 卡组合
 const channelCards = [
@@ -39,41 +33,59 @@ const channelCards = [
 ];
 
 onMounted(async () => {
-  const recs = await productApi.fetchHomeRecommends();
-  hot.value = recs.hot;
-  newest.value = recs.newest;
-  flash.value = recs.flash;
-  topSellers.value = recs.topSellers;
-});
+  const [bannersResult, recommendationsResult, hotResult, newestResult, flashResult] = await Promise.allSettled([
+    realProductApi.fetchHomeBanners(),
+    realProductApi.fetchHomeRecommendations(),
+    realProductApi.fetchBestSellers(),
+    realProductApi.fetchNewArrivals(),
+    realProductApi.fetchFlashSale()
+  ]);
 
-// BUYER'S PICK 今日值得逛：从 hot 里取前 4 张
-const buyersPick = computed(() => hot.value.slice(0, 4));
-
-function goCategory(id: number) {
-  router.push({ name: 'product-list', query: { categoryId: String(id) } });
-}
-function goSeller(sellerId: number) {
-  router.push({ name: 'product-list', query: { sellerId: String(sellerId) } });
-}
-
-const buyersWithMeta = computed(() =>
-  topSellers.value.slice(0, 6).map((s, i) => ({
-    ...s,
-    avatar: avatarUrl(s.sellerId),
-    rank: i + 1
-  }))
-);
-
-// 为你推荐：hot + newest 混合
-const recommendations = computed(() => {
-  const mix: Api.Product.ProductRecord[] = [];
-  const max = Math.max(hot.value.length, newest.value.length);
-  for (let i = 0; i < max; i++) {
-    if (hot.value[i]) mix.push(hot.value[i]);
-    if (newest.value[i]) mix.push(newest.value[i]);
+  if (bannersResult.status === 'fulfilled') banners.value = bannersResult.value;
+  if (recommendationsResult.status === 'fulfilled') recommendations.value = recommendationsResult.value;
+  if (hotResult.status === 'fulfilled') hot.value = hotResult.value;
+  if (newestResult.status === 'fulfilled') newest.value = newestResult.value;
+  if (flashResult.status === 'fulfilled') {
+    flash.value = flashResult.value.map(item => item.product);
+    flashEndAt.value = flashResult.value.find(item => item.sessionEndTime)?.sessionEndTime;
   }
-  return mix.slice(0, 20);
+
+  countdownTimer = window.setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
 });
+
+onUnmounted(() => {
+  if (countdownTimer) window.clearInterval(countdownTimer);
+});
+
+const buyersPick = computed(() => recommendations.value.slice(0, 4));
+const flashCountdown = computed(() => {
+  if (!flashEndAt.value) return '进行中';
+  const endAt = typeof flashEndAt.value === 'number' ? flashEndAt.value : Number(flashEndAt.value);
+  const seconds = Math.max(0, Math.floor((endAt - now.value) / 1000));
+  return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
+    .map(value => String(value).padStart(2, '0'))
+    .join(':');
+});
+
+function goBanner(path?: string) {
+  if (!path) return;
+  const productDetail = path.match(/^\/product\/([^/?#]+)$/);
+  if (productDetail) {
+    router.push({ name: 'product-detail', params: { id: productDetail[1] } });
+    return;
+  }
+  if (/^https?:\/\//.test(path)) {
+    window.location.assign(path);
+    return;
+  }
+  Message.info('活动页面暂未开放');
+}
+
+function showUnavailableProductList() {
+  Message.info('公开商品列表暂未开放');
+}
 </script>
 
 <template>
@@ -85,21 +97,22 @@ const recommendations = computed(() => {
 
       <div class="hb-center">
         <div
+          v-if="heroBanner"
           class="hero-single"
           :style="{ backgroundImage: `url(${heroBanner.image})` }"
-          @click="router.push(heroBanner.path)"
+          @click="goBanner(heroBanner.pathTo)"
         >
           <div class="hero-overlay" />
           <div class="hero-content">
-            <div class="hero-tag">{{ heroBanner.eyebrow }}</div>
+            <div v-if="heroBanner.tag" class="hero-tag">{{ heroBanner.tag }}</div>
             <h2 class="hero-title">{{ heroBanner.title }}</h2>
-            <h2 class="hero-title alt">{{ heroBanner.titleAlt }}</h2>
-            <p class="hero-sub">{{ heroBanner.sub }}</p>
-            <button class="hero-cta" @click.stop="router.push(heroBanner.path)">
-              {{ heroBanner.cta }} <Icon icon="lucide:arrow-right" width="13" />
+            <p v-if="heroBanner.subtitle" class="hero-sub">{{ heroBanner.subtitle }}</p>
+            <button v-if="heroBanner.pathTo" class="hero-cta" @click.stop="goBanner(heroBanner.pathTo)">
+              立即查看 <Icon icon="lucide:arrow-right" width="13" />
             </button>
           </div>
         </div>
+        <div v-else class="hero-unavailable">暂无首页活动</div>
       </div>
 
       <RightPanel class="hb-right" />
@@ -110,7 +123,7 @@ const recommendations = computed(() => {
       <div class="pick-head">
         <div class="pick-eyebrow">BUYER'S PICK</div>
         <h3 class="pick-title">今日值得逛</h3>
-        <button class="pick-more" @click="router.push({ name: 'product-list', query: { sort: 'sales' } })">
+        <button class="pick-more" @click="showUnavailableProductList">
           更多精选 <Icon icon="lucide:arrow-up-right" width="12" />
         </button>
       </div>
@@ -155,7 +168,7 @@ const recommendations = computed(() => {
           <h3 class="sec-title">限时秒杀</h3>
           <div class="countdown"><Icon icon="lucide:clock" width="12" /> 距结束 <span class="yb-mono">{{ flashCountdown }}</span></div>
         </div>
-        <button class="text-link" @click="router.push({ name: 'product-list', query: { sort: 'flash' } })">
+        <button class="text-link" @click="showUnavailableProductList">
           查看全部 <Icon icon="lucide:arrow-right" width="12" />
         </button>
       </div>
@@ -171,7 +184,7 @@ const recommendations = computed(() => {
           <div class="sec-tag hot"><Icon icon="lucide:trending-up" width="12" /> HOT</div>
           <h3 class="sec-title">热销榜</h3>
         </div>
-        <button class="text-link" @click="router.push({ name: 'product-list', query: { sort: 'sales' } })">
+        <button class="text-link" @click="showUnavailableProductList">
           查看全部 <Icon icon="lucide:arrow-right" width="12" />
         </button>
       </div>
@@ -187,7 +200,7 @@ const recommendations = computed(() => {
           <div class="sec-tag new"><Icon icon="lucide:sparkles" width="12" /> NEW</div>
           <h3 class="sec-title">新品直邮</h3>
         </div>
-        <button class="text-link" @click="router.push({ name: 'product-list', query: { sort: 'newest' } })">
+        <button class="text-link" @click="showUnavailableProductList">
           查看全部 <Icon icon="lucide:arrow-right" width="12" />
         </button>
       </div>
@@ -196,30 +209,8 @@ const recommendations = computed(() => {
       </div>
     </section>
 
-    <!-- ============ 买手榜 ============ -->
-    <section v-if="buyersWithMeta.length" class="dense-section">
-      <div class="sec-bar">
-        <div class="sec-title-row">
-          <div class="sec-tag gold"><Icon icon="lucide:crown" width="12" /> TOP</div>
-          <h3 class="sec-title">买手风云榜</h3>
-        </div>
-      </div>
-      <div class="seller-grid">
-        <div v-for="(s, i) in buyersWithMeta" :key="s.sellerId" class="seller-card" @click="goSeller(s.sellerId)">
-          <div class="rank" :class="{ top: s.rank <= 3 }">No.{{ s.rank }}</div>
-          <img :src="s.avatar" :alt="s.sellerName" class="seller-avatar" />
-          <div class="seller-name">{{ s.sellerName }}</div>
-          <VipBadge :level="i < 2 ? 'VIP2' : 'VIP1'" size="sm" />
-          <div class="seller-meta">
-            <Icon icon="lucide:package" width="10" />
-            <span class="yb-mono">{{ s.count }} 在售</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- ============ 分区装饰：为你推荐 ============ -->
-    <div class="deco-title-wrap">
+    <div v-if="recommendations.length" class="deco-title-wrap">
       <div class="deco-title">
         <span class="deco-mark">◆</span>
         <span class="deco-line" />
@@ -230,7 +221,7 @@ const recommendations = computed(() => {
     </div>
 
     <!-- 为你推荐密集流 -->
-    <section class="dense-section">
+    <section v-if="recommendations.length" class="dense-section">
       <div class="grid-4">
         <ProductCard v-for="p in recommendations" :key="p.id" :product="p" />
       </div>
@@ -286,6 +277,17 @@ const recommendations = computed(() => {
   background-size: cover;
   background-position: center;
   cursor: pointer;
+}
+.hero-unavailable {
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--yb-hairline);
+  border-radius: 14px;
+  background: var(--yb-surface);
+  color: var(--yb-muted);
+  font-size: 14px;
 }
 .hero-overlay {
   position: absolute;
@@ -570,67 +572,11 @@ const recommendations = computed(() => {
   gap: 12px;
 }
 
-/* Seller */
-.seller-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
-}
-.seller-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 14px 8px;
-  background: var(--yb-bg);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-}
-.seller-card:hover {
-  transform: translateY(-3px);
-  border-color: var(--yb-gold);
-  box-shadow: 0 8px 24px rgba(184, 147, 90, 0.16);
-}
-.rank {
-  font-family: var(--yb-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--yb-muted);
-}
-.rank.top { color: var(--yb-gold); }
-.seller-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--yb-champagne);
-  border: 2px solid var(--yb-surface);
-}
-.seller-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.seller-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 10px;
-  color: var(--yb-muted);
-}
-
 @media (max-width: 1439px) {
   .grid-4 { grid-template-columns: repeat(5, 1fr); }
 }
 @media (max-width: 1200px) {
   .grid-4 { grid-template-columns: repeat(4, 1fr); }
   .channel-grid { grid-template-columns: 1.4fr 1.4fr 1fr 1fr; }
-  .seller-grid { grid-template-columns: repeat(4, 1fr); }
 }
 </style>

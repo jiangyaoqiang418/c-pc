@@ -140,7 +140,7 @@
 | P1 | 积分流水/申诉 | `POST /user/points/ledger/page`、`POST /user/points/appeals/submit` | API 已封装，积分页已调用 | 日期、多行为筛选部分仍在前端侧适配 |
 | P1 | 积分规则 | `GET /admin/point-rules/list` | API 已封装，积分页/VIP 页已调用；普通 C 端 token 返回 `-200` 时前端降级展示 | 需后端补 C 端公开规则接口 |
 | P1 | VIP 全量配置 | `GET /admin/vip-configs/get` | API 已封装，VIP 页已调用；普通 C 端 token 返回 `-200` 时前端降级展示 | 需后端补 C 端公开 VIP 配置接口 |
-| P1 | 钱包总览 | `GET /user/wallet/overview` | API 已封装，钱包 Store、钱包首页资产卡、个人中心资产卡已调用 | 最近交易仍为 Mock，钱包流水在 P4 处理 |
+| P1 | 钱包总览 | `GET /user/wallet/overview` | API 已封装，钱包 Store、钱包首页资产卡、个人中心资产卡已调用 | 最近交易已在 P4 调用真实钱包流水 |
 
 > 已使用真实账号完成 P1 主要页面回归；本轮未执行 `pnpm typecheck` 或 `pnpm build`。
 
@@ -205,12 +205,13 @@
 |---|---|---|---|---|
 | P3 | 个人中心订单概况 | `POST /order/orders/bought/page` | 已按后端七种状态派生统计；同一后端状态只请求一次，避免前端别名重复计数 | 当前账号订单均为 `0`，需订单测试数据验证非零统计 |
 | P4 | 钱包首页今日收支与最近交易 | `GET /user/wallet/overview`、`POST /user/wallet/ledger/page` | 页面已调用真实总览和流水，不再读取钱包 Mock | 当前账号资产与流水均为 `0`，需资金流水验证非零回显 |
+| P2-B | 首页真实内容聚合 | `GET /order/banners/list`、`GET /order/storefront/recommend`、`POST /order/storefront/best-sellers/page`、`POST /order/storefront/new-arrivals/page`、`GET /order/storefront/flash-sale` | API 已封装，首页各区块已独立调用；无数据不回退 Mock | 缺 Banner、在售商品、有效秒杀场次；买手榜、公开商品分页仍无接口 |
 
 本轮后 C 端 PC 已有接口对接估算：
 
 | 口径 | 进度 |
 |---|---:|
-| 已封装接口进度 | 约 45% |
-| 已页面接入进度 | 约 42% |
-| 真实回归通过进度 | 约 32% |
-| C 端 PC 整体交付进度 | 约 38% |
+| 已封装接口进度 | 约 50% |
+| 已页面接入进度 | 约 46% |
+| 真实回归通过进度 | 约 34% |
+| C 端 PC 整体交付进度 | 约 40% |

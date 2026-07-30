@@ -74,6 +74,68 @@ export async function fetchProductDetail(id: string | number) {
   return toProductRecord(dto);
 }
 
+async function fetchStorefrontPage(url: string, pageSize = 20) {
+  const page = await realOrderRequest.post<Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO>, { pageNo: number; pageSize: number }>(
+    url,
+    { pageNo: 1, pageSize }
+  );
+  return page.records.map(toProductRecord);
+}
+
+function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.Product.ProductRecord {
+  const createdAt = toIso(dto.sessionEndTime);
+  return {
+    id: dto.productId as unknown as number,
+    code: String(dto.productId || ''),
+    title: dto.title,
+    sellerId: 0,
+    sellerName: '',
+    categoryId: 0,
+    categoryPath: '限时秒杀',
+    price: String(dto.flashPrice ?? dto.price ?? 0),
+    stock: dto.stock ?? dto.flashStock ?? 0,
+    shippingFee: '0',
+    tax: '0',
+    images: dto.image ? [{ url: dto.image, name: '商品图', type: 'image', sort: 0 }] : [],
+    summary: '',
+    description: '',
+    aftersaleType: '7day-no-reason',
+    overseasCustoms: false,
+    status: 'NORMAL',
+    shelfStatus: 'on-shelf',
+    salesCount: Number(dto.salesCount || 0),
+    viewCount: 0,
+    favoriteCount: 0,
+    createdAt,
+    submittedAt: createdAt,
+    publishedAt: createdAt || undefined,
+    updatedAt: createdAt
+  };
+}
+
+export function fetchHomeRecommendations(limit = 20) {
+  return realOrderRequest
+    .get<Api.RealProduct.ProductDTO[]>('/storefront/recommend', { params: { limit } })
+    .then(records => records.map(toProductRecord));
+}
+
+export function fetchBestSellers(pageSize = 20) {
+  return fetchStorefrontPage('/storefront/best-sellers/page', pageSize);
+}
+
+export function fetchNewArrivals(pageSize = 20) {
+  return fetchStorefrontPage('/storefront/new-arrivals/page', pageSize);
+}
+
+export async function fetchFlashSale(limit = 20) {
+  const records = await realOrderRequest.get<Api.RealProduct.FlashSaleItemVO[]>('/storefront/flash-sale', { params: { limit } });
+  return records.map(item => ({ product: toFlashSaleProduct(item), sessionEndTime: item.sessionEndTime }));
+}
+
+export function fetchHomeBanners() {
+  return realOrderRequest.get<Api.RealProduct.BannerDTO[]>('/banners/list');
+}
+
 export async function trackProductBrowse(id: string | number) {
   await realOrderRequest.post<boolean, Api.RealProduct.ProductIdParams>('/storefront/browse', { id }, { showError: false });
   return { ok: true };

@@ -79,7 +79,7 @@ view / store
 - P1 当前用户：用户 Store 登录态初始化优先使用真实 token 调用当前用户接口；登出和演示账号登录会清理真实 token。
 - P1 分类树：公共分类展示入口已调用 `GET /order/categories/tree`，包括顶部分类导航、菜单分类、侧边分类和分类页分类树；商品列表真实化仍属于 P2，当前不描述为商品列表已对接。
 - P1 积分/VIP：积分页和 VIP 页已封装并调用 `GET /user/points/account`、`POST /user/points/ledger/page`、`POST /user/points/appeals/submit`、`GET /admin/point-rules/list`、`GET /admin/vip-configs/get`。
-- P1 钱包总览：钱包 Store、钱包首页资产卡和个人中心资产卡已调用 `GET /user/wallet/overview`；钱包流水、充值、提现仍属于 P4。
+- P1 钱包总览：钱包 Store、钱包首页资产卡和个人中心资产卡已调用 `GET /user/wallet/overview`；钱包首页今日收支已复用总览返回，最近交易和资金流水属于 P4 真实接口。
 - Long ID 边界：真实接口返回的 `userId`、分类 `id/parentId`、积分流水 `id/userId` 在 adapter 边界原值透传；现有 Mock 类型仍有 `number` 历史约束，后续模块正式对接时继续治理。
 
 ### 待验证 / 待确认
@@ -87,7 +87,7 @@ view / store
 - 已使用真实账号 `jiangyaoqiang418@gmail.com` 完成登录、当前用户、积分账户、积分流水、钱包总览、分类树、个人中心、积分页、VIP 页和钱包页回归；未执行 `pnpm typecheck` 或 `pnpm build`。
 - `admin` 分组的积分规则和 VIP 全量配置已确认普通 C 端 token 访问返回 `-200`；前端已改为不触发登录失效并降级展示，后端仍应补 C 端公开配置接口。
 - 分类树已接真实数据，但商品列表仍是 Mock；真实分类 ID 与 Mock 商品分类 ID 不保证一致，公开商品分页应在 P2 单独接入。
-- 钱包首页的最近交易仍走 Mock 流水；真实钱包流水筛选和详情在 P4 处理。
+- 钱包首页的最近交易已调用真实钱包流水；资金流水复杂筛选和详情继续在 P4 处理。
 - 买手商品创建和发起求购表单仍使用 Mock 分类树，避免 P1 提前把真实 Long 分类 ID 写入 P2 Mock 写操作。
 
 ## 2026-07-29 P2-A 接入进度
@@ -326,3 +326,29 @@ view / store
 - 测试记录：使用真实账号创建回归测试求购 `2082649312807444481`，标题为“[回归测试] 求购撤销闭环商品”；详情页成功展示分类、预算、说明和 `OPEN -> 推送中` 状态。
 - 撤销结果：通过详情页调用 `POST /order/demands/cancel` 成功，详情重新加载后状态为 `CANCELED -> 已取消`，控制台无错误。
 - 联调阻塞：同一账号调用 `POST /order/demands/my/page` 未返回这条已创建/已取消记录，`/purchase` 只能展示空态；详情接口可正常读取该 ID。需后端核对“我的求购”查询的用户归属、状态过滤与测试环境数据可见性。
+
+## 2026-07-30 首页真实内容聚合
+
+### 已完成
+
+- 首页 `Banner`、为你推荐、热销榜、新品直邮、限时秒杀已分别调用 `GET /order/banners/list`、`GET /order/storefront/recommend`、`POST /order/storefront/best-sellers/page`、`POST /order/storefront/new-arrivals/page`、`GET /order/storefront/flash-sale`。
+- 真实商品和秒杀商品均在 API adapter 层映射为既有 `ProductCard` 数据结构；业务 Long ID 保留原始值，不写入 Mock。
+- 每个首页区块独立加载，单个接口失败不会阻断其他区块；未获得 Banner 或商品数据时展示空态，不回退首页 Mock。
+- 移除无真实数据源的买手榜；各“查看更多”入口不再跳入 Mock 商品列表，明确提示公开商品分页待接口支持。
+
+### 本轮验证
+
+| 模块 | Chrome 页面结果 | 控制台 | 结论 |
+|---|---|---|---|
+| 首页真实内容聚合 | 当前环境未返回 Banner、推荐、热销、新品或秒杀商品；页面显示“暂无首页活动”，不展示旧 Mock 商品 | 无 warning/error | 真实读取与空态通过 |
+
+> 已执行 `pnpm typecheck` 并通过。需要后端准备至少一条已启用 Banner、一条在售商品和一条有效秒杀场次，才能验证图片、商品卡、倒计时和 Banner 跳转的非空回显。
+
+本轮后 C 端 PC 已有接口对接估算：
+
+| 口径 | 进度 |
+|---|---:|
+| 已封装接口进度 | 约 50% |
+| 已页面接入进度 | 约 46% |
+| 真实回归通过进度 | 约 34% |
+| C 端 PC 整体交付进度 | 约 40% |
