@@ -22,7 +22,10 @@ async function load() {
   loading.value = true;
   try {
     const r = await purchaseApi.fetchPurchaseDetail(id.value);
-    request.value = r.request;
+    request.value = {
+      ...r.request,
+      customerId: userStore.currentUser?.id || r.request.customerId
+    };
     pushLogs.value = r.pushLogs;
   } finally {
     loading.value = false;

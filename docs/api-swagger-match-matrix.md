@@ -157,7 +157,7 @@
 | P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用；普通顾客账号返回无买手权限时页面降级为空态 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
 | P2-A | 我的求购 | `POST /order/demands/my/page` | API 已封装，我的求购页已调用；真实账号 total=1 回归通过 | 后端 VO 未返回 customerId，页面侧按当前用户注入用于撤销判断 |
 | P2-A | 求购详情 | `GET /order/demands/detail?id=` | API 已封装，求购详情页已调用；测试求购 `2082306670605197313` 回归通过 | pushLogs、推送批次、客户/买手名称和审核信息缺失 |
-| P2-A | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | API 已封装，大厅/详情/我的求购页已调用 | 抢单权限依赖真实买手账号、KYC 和后端鉴权 |
+| P2-A | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | API 已封装；2026-07-30 已真实创建并在详情页撤销求购 `2082649312807444481` | `demands/my/page` 未回显该记录，待后端核对；抢单仍依赖真实买手账号、KYC 和后端鉴权 |
 | P2-A | 手动推下一批 | 无 | 页面已改为真实接口暂不支持提示 | 需要后端补推送接口后再接入 |
 
 > 已使用真实账号完成求购创建、我的求购和求购详情回归；商品详情缺真实商品数据，买手能力缺买手账号 + KYC。
