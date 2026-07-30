@@ -67,6 +67,11 @@ export async function fetchCurrentUser(fallback?: Partial<Api.RealAuth.LoginVO>)
   return toUserRecord(profile, fallback, pointAccount);
 }
 
+export async function updateProfile(params: Api.RealAuth.ProfileUpdateParams) {
+  await realUserRequest.put<void, Api.RealAuth.ProfileUpdateParams>('/auth/profile', params);
+  return fetchCurrentUser();
+}
+
 export function logoutLocal() {
   clearAccessToken();
 }

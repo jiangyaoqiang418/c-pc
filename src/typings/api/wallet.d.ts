@@ -37,4 +37,66 @@ declare namespace Api.RealWallet {
     bizGroup?: string;
     bizType?: string;
   }
+
+  type RechargeStatus = 'PENDING' | 'CONFIRMED' | 'CANCELED' | string;
+  type WithdrawStatus = 'REVIEWING' | 'APPROVED' | 'SUCCESS' | 'REJECTED' | string;
+
+  interface RechargeCreateParams {
+    chain: 'ETH' | 'TRON' | 'BSC';
+    amount: number;
+  }
+
+  interface RechargePageQuery {
+    pageNo?: number;
+    pageSize?: number;
+    status?: RechargeStatus;
+  }
+
+  interface RechargeVO {
+    id: string | number;
+    chain: string;
+    amount: string | number;
+    depositAddress?: string;
+    memo?: string;
+    txHash?: string;
+    status?: RechargeStatus;
+    statusText?: string;
+    confirmedAt?: string | number;
+    createdAt?: string | number;
+  }
+
+  interface WithdrawCreateParams {
+    chain: 'ETH' | 'TRON' | 'BSC';
+    toAddress: string;
+    amount: number;
+  }
+
+  interface WithdrawPageQuery {
+    pageNo?: number;
+    pageSize?: number;
+    status?: WithdrawStatus;
+  }
+
+  interface WithdrawVO {
+    id: string | number;
+    chain: string;
+    toAddress: string;
+    amount: string | number;
+    txHash?: string;
+    status?: WithdrawStatus;
+    statusText?: string;
+    reviewComment?: string;
+    failReason?: string;
+    confirmedAt?: string | number;
+    createdAt?: string | number;
+  }
+
+  interface PageResult<T> {
+    current?: number;
+    size?: number;
+    total: number;
+    records: T[];
+    pageNo?: number;
+    pageSize?: number;
+  }
 }

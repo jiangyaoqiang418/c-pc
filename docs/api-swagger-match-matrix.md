@@ -64,9 +64,9 @@
 | 钱包总览 | `GET /user/wallet/overview` | B | total/todayIn/todayOut/distribution 可适配；固定桶、买手押金和钱包地址需确认 distribution 类型 |
 | 总资产 | `GET /user/wallet/overview` 的 `total` | A | API 层应转换为字符串展示，避免浮点运算 |
 | 钱包流水与筛选 | `POST /user/wallet/ledger/page` | C | 缺链上 hash、地址、refType/refId、费用拆分；没有日期、方向、bucket、keyword 等当前完整筛选 |
-| 发起充值 | `POST /user/recharge/create` + `GET /user/recharge/detail` | C | 可创建并返回 depositAddress/txHash/status；当前页面先选平台链钱包并模拟入账，流程不同 |
-| 平台链钱包列表 | 无 C 端接口 | D | 页面需要按 TRON/ETH/BSC 展示收款地址和链上余额 |
-| 发起提现 | `POST /user/withdraw/create` | B | chain/toAddress/amount 匹配；页面支付密码和 KYC 前置规则未体现在 Swagger |
+| 发起充值 | `POST /user/recharge/create`、`GET /user/recharge/detail`、`POST /user/recharge/page` | B | 页面已按“创建订单→读取收款地址→展示记录”接入；真实写入与到账确认待充值测试资金 |
+| 平台链钱包列表 | 无 C 端接口 | 不适用 | 页面不再预取平台静态链钱包，收款地址改由充值订单详情返回 |
+| 发起提现 | `POST /user/withdraw/create`、`GET /user/withdraw/detail`、`POST /user/withdraw/page` | B | 页面已按当前 `chain/toAddress/amount` 契约接入；支付密码/手续费不在 Swagger 中，已移除模拟计算 |
 
 ## 积分与 VIP
 

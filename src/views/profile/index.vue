@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { cmsApi, enums, formatAmount, formatPoints, orderApi } from '@shared';
 import * as vipApi from '@/service/api/vip';
+import * as realAuthApi from '@/service/api/auth';
 import * as realWalletApi from '@/service/api/wallet';
 import VipBadge from '@/components/common/vip-badge.vue';
 import { useUserStore } from '@/stores';
@@ -15,6 +16,13 @@ const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
 const totalAssets = ref<{ total: string; account?: Api.Wallet.InternalAccount }>();
 const orderCounts = ref<Record<string, number>>({});
 const announcements = ref<Api.Cms.Announcement[]>([]);
+const editVisible = ref(false);
+const savingProfile = ref(false);
+const editForm = reactive<Api.RealAuth.ProfileUpdateParams>({
+  nickname: '',
+  phone: '',
+  avatar: ''
+});
 
 const user = computed(() => userStore.currentUser);
 const kycMeta = computed(() => (user.value ? enums.KYC_STATUS_META[user.value.kycStatus] : undefined));
@@ -41,6 +49,34 @@ async function loadProfile() {
 
 onMounted(loadProfile);
 watch(() => userStore.currentUser?.id, loadProfile);
+
+function openEditProfile() {
+  if (!user.value) return;
+  editForm.nickname = user.value.nickname;
+  editForm.phone = user.value.phone || '';
+  editForm.avatar = user.value.avatar || '';
+  editVisible.value = true;
+}
+
+async function saveProfile() {
+  if (!editForm.nickname?.trim()) {
+    Message.warning('请输入昵称');
+    return;
+  }
+  savingProfile.value = true;
+  try {
+    await realAuthApi.updateProfile({
+      nickname: editForm.nickname.trim(),
+      phone: editForm.phone?.trim() || undefined,
+      avatar: editForm.avatar?.trim() || undefined
+    });
+    await userStore.refreshCurrentUser();
+    editVisible.value = false;
+    Message.success('资料已更新');
+  } finally {
+    savingProfile.value = false;
+  }
+}
 
 interface QuickEntry {
   key: string;
@@ -71,8 +107,7 @@ const quickEntries = computed<QuickEntry[]>(() => [
       if (user.value?.isBuyer) {
         router.push('/buyer/dashboard');
       } else {
-        Message.info('请先完成 KYC 认证后申请成为买手');
-        router.push('/kyc');
+        router.push('/buyer/apply');
       }
     }
   }
@@ -108,6 +143,7 @@ const orderTabsMeta = computed(() => [
                 <span class="dot">·</span>
                 <span>注册于 {{ registeredDate }}</span>
               </div>
+              <a-button type="text" size="mini" class="edit-profile" @click="openEditProfile">编辑资料</a-button>
               <div v-if="vipStatus?.nextThreshold" class="vip-progress">
                 距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分
                 <a-progress
@@ -176,6 +212,20 @@ const orderTabsMeta = computed(() => [
         </a-card>
       </aside>
     </div>
+
+    <a-modal v-model:visible="editVisible" title="编辑资料" :ok-loading="savingProfile" @ok="saveProfile">
+      <a-form :model="editForm" layout="vertical">
+        <a-form-item label="昵称" required>
+          <a-input v-model="editForm.nickname" :max-length="64" show-word-limit placeholder="请输入昵称" />
+        </a-form-item>
+        <a-form-item label="手机号">
+          <a-input v-model="editForm.phone" :max-length="32" placeholder="请输入手机号" />
+        </a-form-item>
+        <a-form-item label="头像地址">
+          <a-input v-model="editForm.avatar" :max-length="512" placeholder="请输入头像图片 URL" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -231,6 +281,10 @@ const orderTabsMeta = computed(() => [
 .meta {
   color: #4e5969;
   font-size: 13px;
+}
+.edit-profile {
+  margin-top: 8px;
+  padding: 0;
 }
 .dot {
   margin: 0 8px;

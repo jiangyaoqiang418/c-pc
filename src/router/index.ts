@@ -198,6 +198,8 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '地址管理', requiresAuth: true } },
   { path: '/points', name: 'points', component: () => import('@/views/points/index.vue'),
     meta: { layout: 'default', title: '我的积分', requiresAuth: true } },
+  { path: '/buyer/apply', name: 'buyer-apply', component: () => import('@/views/buyer/apply.vue'),
+    meta: { layout: 'default', title: '申请成为买手', requiresAuth: true } },
   // 买手 (requiresAuth + requiresBuyer)
   { path: '/buyer/dashboard', name: 'buyer-dashboard', component: () => import('@/views/buyer/dashboard.vue'),
     meta: { layout: 'default', title: '买手仪表盘', requiresAuth: true, requiresBuyer: true } },

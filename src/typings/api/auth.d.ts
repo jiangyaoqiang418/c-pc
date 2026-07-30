@@ -32,4 +32,10 @@ declare namespace Api.RealAuth {
     roles?: UserRole[];
     kycStatus?: string;
   }
+
+  interface ProfileUpdateParams {
+    nickname?: string;
+    avatar?: string;
+    phone?: string;
+  }
 }

@@ -175,3 +175,51 @@ export async function fetchWalletLedger(q: {
     records
   };
 }
+
+export function createRecharge(params: Api.RealWallet.RechargeCreateParams) {
+  return realUserRequest.post<Api.RealWallet.RechargeVO | string | number, Api.RealWallet.RechargeCreateParams>(
+    '/recharge/create',
+    params
+  );
+}
+
+export function fetchRechargeDetail(id: string | number) {
+  return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { params: { id } });
+}
+
+export async function fetchRechargePage(params: Api.RealWallet.RechargePageQuery = {}) {
+  const page = await realUserRequest.post<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
+    '/recharge/page',
+    params
+  );
+  return {
+    current: page.current || page.pageNo || params.pageNo || 1,
+    size: page.size || page.pageSize || params.pageSize || 10,
+    total: page.total || 0,
+    records: page.records || []
+  };
+}
+
+export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams) {
+  return realUserRequest.post<Api.RealWallet.WithdrawVO | string | number, Api.RealWallet.WithdrawCreateParams>(
+    '/withdraw/create',
+    params
+  );
+}
+
+export function fetchWithdrawDetail(id: string | number) {
+  return realUserRequest.get<Api.RealWallet.WithdrawVO>('/withdraw/detail', { params: { id } });
+}
+
+export async function fetchWithdrawPage(params: Api.RealWallet.WithdrawPageQuery = {}) {
+  const page = await realUserRequest.post<Api.RealWallet.PageResult<Api.RealWallet.WithdrawVO>, Api.RealWallet.WithdrawPageQuery>(
+    '/withdraw/page',
+    params
+  );
+  return {
+    current: page.current || page.pageNo || params.pageNo || 1,
+    size: page.size || page.pageSize || params.pageSize || 10,
+    total: page.total || 0,
+    records: page.records || []
+  };
+}

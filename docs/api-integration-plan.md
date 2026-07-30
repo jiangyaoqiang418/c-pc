@@ -263,3 +263,32 @@ view / store
 | 我的求购 | `/order/demands/my/page` 返回 `code=1,total=1` | `/purchase` 展示测试求购和撤销入口 | 无错误 | 通过 |
 | 求购详情 | `/order/demands/detail?id=2082306670605197313` 成功 | `/purchase/2082306670605197313` 展示标题、`U 199.00`、推送中、创建时间正常 | 无错误 | 通过 |
 | 文件上传 | `/order/files/upload?dir=demand` 返回 `code=-1`，MinIO 未配置 | 上传按钮可触发文件选择；接口错误会提示上传失败 | 无错误 | 阻塞于后端对象存储配置 |
+
+## 2026-07-30 资料、买手申请与资金操作推进
+
+### 已完成
+
+- 个人资料：新增 `PUT /user/auth/profile`，个人中心提供昵称、手机号、头像 URL 编辑弹窗；保存后重新读取 `/user/auth/me` 刷新 Store。
+- 买手申请：新增独立路由 `/buyer/apply`，调用 `GET /user/buyer/application` 读取申请状态，调用 `POST /user/buyer/apply` 提交真实姓名、联系方式和申请说明；个人中心“成为买手”入口已切换到该页。
+- 链上充值：充值页从 `@shared` Mock 改为 `POST /user/recharge/create`、`GET /user/recharge/detail`、`POST /user/recharge/page`；收款地址与 Memo 仅展示后端订单详情返回值。
+- 钱包转出：转出页从 `withdrawMock` 改为 `POST /user/withdraw/create`、`GET /user/withdraw/detail`、`POST /user/withdraw/page`；移除 Swagger 未声明的支付密码、固定手续费和模拟扣款逻辑。
+
+### 本轮验证
+
+| 模块 | 真实读取/页面结果 | 控制台 | 写操作验证 | 结论 |
+|---|---|---|---|---|
+| 个人资料 | `/profile` 展示真实账号 `john`，编辑弹窗回显当前昵称 | 无错误 | 未提交，避免修改测试账号资料 | 读取与表单通过 |
+| 买手申请 | `/buyer/apply` 正常展示申请表单和状态读取结果 | 无错误 | 未提交，避免创建真实申请记录 | 读取与表单通过 |
+| 链上充值 | `/wallet/deposit` 显示创建订单表单与空充值记录 | 无错误 | 未创建，避免产生真实充值订单 | 读取与空态通过 |
+| 钱包转出 | `/wallet/withdraw` 显示真实可用余额 `U 0.00`、空记录和 KYC 提示 | 无错误 | 余额不足，提交按钮按规则禁用 | 读取与拦截通过 |
+
+> 已执行 `pnpm typecheck` 并通过。本轮未执行资料修改、买手申请、充值创建和提现创建等有外部写入影响的操作；这些成功路径需要可用测试资金、可撤销测试申请或用户明确授权后再回归。
+
+本轮后 C 端 PC 已有接口对接估算：
+
+| 口径 | 进度 |
+|---|---:|
+| 已封装接口进度 | 约 45% |
+| 已页面接入进度 | 约 40% |
+| 真实回归通过进度 | 约 30% |
+| C 端 PC 整体交付进度 | 约 36% |

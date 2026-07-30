@@ -68,6 +68,11 @@ export const useUserStore = defineStore('bw-user', () => {
     return realAuthApi.register(params);
   }
 
+  async function refreshCurrentUser() {
+    if (!getAccessToken()) return;
+    currentUser.value = await realAuthApi.fetchCurrentUser();
+  }
+
   function logout() {
     currentUser.value = undefined;
     currentAudience.value = 'customer';
@@ -107,6 +112,7 @@ export const useUserStore = defineStore('bw-user', () => {
     login,
     loginWithPassword,
     register,
+    refreshCurrentUser,
     logout,
     switchDemoUser,
     setAudience
