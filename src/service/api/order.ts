@@ -73,42 +73,39 @@ function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.Order.OrderRecord {
   };
 }
 
-function mapPage(
-  page: Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
-  q: { current?: number; size?: number }
-) {
-  return {
-    current: page.current || page.pageNo || q.current || 1,
-    size: page.size || page.pageSize || q.size || 10,
-    total: toTotal(page.total),
-    records: page.records.map(toOrderRecord)
-  };
-}
-
 export async function fetchMyOrders(q: Api.Order.ListQuery) {
-  const statuses = q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] | undefined;
-  const status = statuses?.[0];
-  const page = await realOrderRequest.post<
+  const statuses = [...new Set(q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] || [])];
+  const url = q.shopperId ? '/orders/sold/page' : '/orders/bought/page';
+  const requestPage = (status?: Api.RealOrder.OrderStatus) => realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
     Api.RealOrder.OrderPageQuery
-  >(q.shopperId ? '/orders/sold/page' : '/orders/bought/page', {
+  >(url, {
     pageNo: q.current || 1,
     pageSize: q.size || 10,
     status
   });
-  const mapped = mapPage(page, q);
-  if (statuses && statuses.length > 1) {
-    mapped.records = mapped.records.filter(item => q.statuses!.includes(item.status));
-  }
-  return mapped;
+  const pages = statuses.length > 1
+    ? await Promise.all(statuses.map(status => requestPage(status)))
+    : [await requestPage(statuses[0])];
+  const recordsById = new Map<string, Api.Order.OrderRecord>();
+  pages.forEach(page => {
+    page.records.map(toOrderRecord).forEach(record => {
+      if (!q.statuses?.length || q.statuses.includes(record.status)) recordsById.set(String(record.id), record);
+    });
+  });
+  const records = [...recordsById.values()]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, q.size || 10);
+
+  return {
+    current: q.current || 1,
+    size: q.size || 10,
+    total: pages.reduce((sum, page) => sum + toTotal(page.total), 0),
+    records
+  };
 }
 
-export async function fetchOrderDetail(id: string | number) {
-  const dto = await realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id } });
-  return toOrderRecord(dto);
-}
-
-export async function countMyOrdersByStatus() {
+async function countOrdersByStatus(url: '/orders/bought/page' | '/orders/sold/page') {
   const counts = Object.fromEntries(
     Object.keys(reverseStatusMap).map(status => [status, 0])
   ) as Record<Api.Order.OrderStatus, number>;
@@ -126,7 +123,7 @@ export async function countMyOrdersByStatus() {
       const page = await realOrderRequest.post<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
-      >('/orders/bought/page', { pageNo: 1, pageSize: 1, status: realStatus });
+      >(url, { pageNo: 1, pageSize: 1, status: realStatus });
       return [frontStatus, toTotal(page.total)] as const;
     })
   );
@@ -134,6 +131,19 @@ export async function countMyOrdersByStatus() {
     counts[status] = count;
   });
   return counts;
+}
+
+export function countMyOrdersByStatus() {
+  return countOrdersByStatus('/orders/bought/page');
+}
+
+export function countMySoldOrdersByStatus() {
+  return countOrdersByStatus('/orders/sold/page');
+}
+
+export async function fetchOrderDetail(id: string | number) {
+  const dto = await realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id } });
+  return toOrderRecord(dto);
 }
 
 export async function payOrder(id: string | number) {

@@ -2,101 +2,86 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import VChart from 'vue-echarts';
-import { use } from 'echarts/core';
-import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
-import { SVGRenderer } from 'echarts/renderers';
-import { buyerApi, formatAmount } from '@shared';
+import { Message } from '@arco-design/web-vue';
+import { formatAmount } from '@shared';
 import { avatarUrl } from '@shared/utils/image';
-import BuyerKpiCard from '@/components/buyer/buyer-kpi-card.vue';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import VipBadge from '@/components/common/vip-badge.vue';
 import EmptyState from '@/components/common/empty-state.vue';
-import { useUserStore } from '@/stores';
-
-use([LineChart, GridComponent, TooltipComponent, LegendComponent, SVGRenderer]);
+import { useUserStore, useWalletStore } from '@/stores';
+import * as realOrderApi from '@/service/api/order';
+import * as realPurchaseApi from '@/service/api/purchase';
 
 const router = useRouter();
 const userStore = useUserStore();
+const walletStore = useWalletStore();
 
-const profile = ref<Api.Buyer.BuyerProfile>();
-const wallet = ref<Api.Buyer.Wallet>();
 const pendingOrders = ref<Api.Order.OrderRecord[]>([]);
 const claimable = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const orderCounts = ref<Record<string, number>>({});
+const claimableTotal = ref(0);
 const loading = ref(false);
 
 const user = computed(() => userStore.currentUser);
 const userAvatar = computed(() => (user.value ? avatarUrl(user.value.id) : ''));
+const account = computed(() => walletStore.account);
+const dashboardReady = computed(() => !!user.value && !!account.value);
 
 async function loadAll() {
   if (!user.value) return;
   loading.value = true;
   try {
-    const [summary, ordersRes, claimableRes] = await Promise.all([
-      buyerApi.fetchBuyerDepositSummary(user.value.id),
-      buyerApi.fetchBuyerOrders(user.value.id, ['PROCURING', 'PROCURED', 'IN_TRANSIT']),
-      buyerApi.fetchClaimableRequests(user.value.id)
+    await walletStore.fetchWallet(user.value.id);
+    const [ordersRes, countsRes, claimableRes] = await Promise.all([
+      realOrderApi.fetchMyOrders({
+        shopperId: user.value.id,
+        current: 1,
+        size: 5,
+        statuses: ['PROCURING', 'PROCURED', 'IN_TRANSIT']
+      }),
+      realOrderApi.countMySoldOrdersByStatus(),
+      realPurchaseApi.fetchHall({ current: 1, size: 6 })
     ]);
-    profile.value = summary.profile;
-    wallet.value = summary.wallet;
-    pendingOrders.value = ordersRes.records.slice(0, 5);
+    pendingOrders.value = ordersRes.records;
+    orderCounts.value = countsRes;
     claimable.value = claimableRes.records.slice(0, 6);
+    claimableTotal.value = Number(claimableRes.total || 0);
   } finally {
     loading.value = false;
   }
 }
 onMounted(loadAll);
 
-// 30 天 mock 销售 / 收入曲线
-const chartOption = computed(() => {
-  const days = Array.from({ length: 30 }, (_, i) => `${i + 1}日`);
-  const sales = Array.from({ length: 30 }, (_, i) => Math.round(3 + Math.sin(i * 0.32) * 2 + Math.random() * 2 + i * 0.05));
-  const revenue = sales.map(v => v * 260 + Math.random() * 200);
-  return {
-    grid: { top: 20, left: 40, right: 40, bottom: 30 },
-    tooltip: { trigger: 'axis', backgroundColor: '#0F111A', borderWidth: 0, textStyle: { color: '#fff', fontSize: 12 } },
-    legend: { data: ['成交单数', '收入 (U)'], right: 20, top: 0, textStyle: { fontSize: 11, color: '#6B7385' }, icon: 'circle', itemWidth: 8 },
-    xAxis: { type: 'category', data: days, axisLine: { lineStyle: { color: '#EDECE6' } }, axisTick: { show: false }, axisLabel: { color: '#A8ADB8', fontSize: 10, interval: 4 } },
-    yAxis: [
-      { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: '#EDECE6', type: 'dashed' } }, axisLabel: { color: '#A8ADB8', fontSize: 10 } },
-      { type: 'value', axisLine: { show: false }, splitLine: { show: false }, axisLabel: { color: '#A8ADB8', fontSize: 10 } }
-    ],
-    series: [
-      {
-        name: '成交单数', type: 'line', smooth: true, data: sales, symbol: 'circle', symbolSize: 5,
-        lineStyle: { color: '#5B5CE7', width: 2 },
-        itemStyle: { color: '#5B5CE7', borderColor: '#fff', borderWidth: 2 },
-        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(91,92,231,0.24)' }, { offset: 1, color: 'rgba(91,92,231,0)' }] } }
-      },
-      {
-        name: '收入 (U)', type: 'line', smooth: true, yAxisIndex: 1, data: revenue, symbol: 'circle', symbolSize: 5,
-        lineStyle: { color: '#B8935A', width: 2 },
-        itemStyle: { color: '#B8935A', borderColor: '#fff', borderWidth: 2 }
-      }
-    ]
-  };
-});
-
-// 押金 donut
 const depositPct = computed(() => {
-  if (!wallet.value) return 0;
-  const total = Number(wallet.value.depositAvailable) + Number(wallet.value.depositGuaranteed);
-  return total > 0 ? (Number(wallet.value.depositGuaranteed) / total) * 100 : 0;
+  const total = Number(account.value?.depositAvailable || 0) + Number(account.value?.depositGuaranteed || 0);
+  return total > 0 ? (Number(account.value?.depositGuaranteed || 0) / total) * 100 : 0;
 });
 const depositTotal = computed(() => {
-  if (!wallet.value) return '0.00';
-  return formatAmount(Number(wallet.value.depositAvailable) + Number(wallet.value.depositGuaranteed));
+  return formatAmount(Number(account.value?.depositAvailable || 0) + Number(account.value?.depositGuaranteed || 0));
 });
 
-// KPI sparkline mock
-const spark = (base: number, n = 12) => Array.from({ length: n }, (_, i) => Math.max(0, base * (0.7 + Math.sin(i * 0.7 + base) * 0.22 + i * 0.02)));
+function orderCount(status: string) {
+  return Number(orderCounts.value[status] || 0);
+}
+
+const pendingOrderCount = computed(() => orderCount('PROCURING') + orderCount('PROCURED') + orderCount('IN_TRANSIT'));
+const completedOrderCount = computed(() => orderCount('COMPLETED'));
+const kpis = computed(() => [
+  { label: '待发货', value: orderCount('PROCURED'), icon: 'lucide:package', color: '#B8935A' },
+  { label: '采购中', value: orderCount('PROCURING'), icon: 'lucide:shopping-cart', color: '#5B5CE7' },
+  { label: '运输中', value: orderCount('IN_TRANSIT'), icon: 'lucide:truck', color: '#7C5CFC' },
+  { label: '已完成', value: completedOrderCount.value, icon: 'lucide:badge-check', color: '#00A88A' }
+]);
+
+function showDepositUnavailable() {
+  Message.info('买手押金划转接口暂未提供');
+}
 </script>
 
 <template>
   <div class="dashboard-page shop-container">
-    <template v-if="profile && wallet && user">
+    <template v-if="dashboardReady && user">
       <!-- ============ Hero (深色 accent) ============ -->
       <section class="hero" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
         <div class="hero-glow"></div>
@@ -110,72 +95,37 @@ const spark = (base: number, n = 12) => Array.from({ length: n }, (_, i) => Math
             </div>
             <div class="welcome-sub">
               <Icon icon="lucide:check-circle" width="12" />
-              累计完成 <span class="yb-mono strong">{{ profile.stats.orderCompleted }}</span> 笔订单
+              累计完成 <span class="yb-mono strong">{{ completedOrderCount }}</span> 笔订单
             </div>
           </div>
         </div>
         <div class="hero-stats">
           <div class="stat">
-            <div class="stat-label">月销</div>
-            <div class="stat-val"><span class="num yb-mono">{{ profile.stats.orderTotal }}</span><span class="unit">单</span></div>
+            <div class="stat-label">进行中</div>
+            <div class="stat-val"><span class="num yb-mono">{{ pendingOrderCount }}</span><span class="unit">单</span></div>
           </div>
           <div class="stat">
-            <div class="stat-label">好评率</div>
-            <div class="stat-val"><span class="num yb-mono">{{ Number(profile.stats.goodReviewRate).toFixed(1) }}</span><span class="unit">%</span></div>
+            <div class="stat-label">可接求购</div>
+            <div class="stat-val"><span class="num yb-mono">{{ claimableTotal }}</span><span class="unit">单</span></div>
           </div>
           <div class="stat">
-            <div class="stat-label">客诉率</div>
-            <div class="stat-val"><span class="num yb-mono">{{ Number(profile.stats.complaintRate).toFixed(1) }}</span><span class="unit">%</span></div>
+            <div class="stat-label">可用余额</div>
+            <div class="stat-val"><span class="num yb-mono">{{ formatAmount(account?.available || '0') }}</span><span class="unit">U</span></div>
           </div>
           <div class="stat">
-            <div class="stat-label">发货时长</div>
-            <div class="stat-val"><span class="num yb-mono">{{ profile.stats.avgShipHours }}</span><span class="unit">h</span></div>
+            <div class="stat-label">已担保</div>
+            <div class="stat-val"><span class="num yb-mono">{{ formatAmount(account?.depositGuaranteed || '0') }}</span><span class="unit">U</span></div>
           </div>
         </div>
       </section>
 
       <!-- ============ KPI grid ============ -->
       <section class="kpi-grid">
-        <BuyerKpiCard
-          v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500, delay: 0 } }"
-          label="待发货" :value="pendingOrders.filter(o => o.status === 'PROCURED').length" unit="单"
-          icon="lucide:package" color="#B8935A" :delta="8.4" :sparkline="spark(4)"
-        />
-        <BuyerKpiCard
-          v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500, delay: 80 } }"
-          label="采购中" :value="pendingOrders.filter(o => o.status === 'PROCURING').length" unit="单"
-          icon="lucide:shopping-cart" color="#5B5CE7" :delta="12.6" :sparkline="spark(6)"
-        />
-        <BuyerKpiCard
-          v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500, delay: 160 } }"
-          label="运输中" :value="pendingOrders.filter(o => o.status === 'IN_TRANSIT').length" unit="单"
-          icon="lucide:truck" color="#7C5CFC" :delta="-2.1" :sparkline="spark(5)"
-        />
-        <BuyerKpiCard
-          v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500, delay: 240 } }"
-          label="好评率" :value="profile.stats.goodReviewRate" unit="%"
-          icon="lucide:star" color="#00A88A" :delta="3.4" :sparkline="spark(95)"
-        />
-        <BuyerKpiCard
-          v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500, delay: 320 } }"
-          label="平均发货" :value="profile.stats.avgShipHours" unit="h"
-          icon="lucide:clock" color="#E74C3C" :delta="-8.2" :sparkline="spark(24)"
-        />
-      </section>
-
-      <!-- ============ 主图表 ============ -->
-      <section class="chart-card" v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500 } }">
-        <div class="chart-head">
-          <div>
-            <div class="chart-eyebrow">30 DAY OVERVIEW</div>
-            <h2 class="chart-title">销售 &amp; 收入趋势</h2>
-          </div>
-          <div class="chart-legend">
-            <span class="legend-dot" style="background:#5B5CE7"></span> 成交单数
-            <span class="legend-dot" style="background:#B8935A; margin-left:16px"></span> 收入 (U)
-          </div>
+        <div v-for="metric in kpis" :key="metric.label" class="real-kpi" :style="{ '--accent': metric.color }">
+          <div class="kpi-icon"><Icon :icon="metric.icon" width="18" /></div>
+          <div class="kpi-value yb-mono">{{ metric.value }}<span>单</span></div>
+          <div class="kpi-label">{{ metric.label }}</div>
         </div>
-        <VChart :option="chartOption" autoresize class="chart" />
       </section>
 
       <!-- ============ 双栏：订单 + 求购 ============ -->
@@ -198,7 +148,7 @@ const spark = (base: number, n = 12) => Array.from({ length: n }, (_, i) => Math
           <div class="split-head">
             <div class="split-title-group">
               <div class="sec-tag gold"><Icon icon="lucide:sparkles" width="12" /> CLAIMABLE</div>
-              <h3 class="split-title">可接求购 <span class="count yb-mono">{{ claimable.length }}</span></h3>
+              <h3 class="split-title">可接求购 <span class="count yb-mono">{{ claimableTotal }}</span></h3>
             </div>
             <button class="text-link" @click="router.push('/buyer/claimable')">前往大厅 <Icon icon="lucide:arrow-right" width="13" /></button>
           </div>
@@ -230,21 +180,21 @@ const spark = (base: number, n = 12) => Array.from({ length: n }, (_, i) => Math
           <div class="deposit-detail">
             <div class="dd-row">
               <div class="dd-key"><span class="dd-dot avail"></span> 可用押金</div>
-              <div class="dd-val yb-mono">U {{ formatAmount(wallet.depositAvailable) }}</div>
+              <div class="dd-val yb-mono">U {{ formatAmount(account?.depositAvailable || '0') }}</div>
             </div>
             <div class="dd-row">
               <div class="dd-key"><span class="dd-dot lock"></span> 已担保</div>
-              <div class="dd-val yb-mono">U {{ formatAmount(wallet.depositGuaranteed) }}</div>
+              <div class="dd-val yb-mono">U {{ formatAmount(account?.depositGuaranteed || '0') }}</div>
             </div>
             <div class="dd-row">
               <div class="dd-key">担保占比</div>
               <div class="dd-val yb-mono">{{ depositPct.toFixed(1) }}%</div>
             </div>
             <div class="deposit-actions">
-              <button class="btn primary sm" @click="router.push('/buyer/deposit')">
+              <button class="btn primary sm" @click="showDepositUnavailable">
                 <Icon icon="lucide:arrow-down-to-line" width="14" /> 充值
               </button>
-              <button class="btn ghost sm" @click="router.push('/buyer/deposit')">
+              <button class="btn ghost sm" @click="showDepositUnavailable">
                 <Icon icon="lucide:arrow-up-from-line" width="14" /> 转出
               </button>
               <button class="btn ghost sm" @click="router.push('/wallet')">
@@ -369,56 +319,51 @@ const spark = (base: number, n = 12) => Array.from({ length: n }, (_, i) => Math
 /* ========== KPI grid ========== */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin-bottom: 20px;
 }
-
-/* ========== Chart card ========== */
-.chart-card {
+.real-kpi {
   background: var(--yb-surface);
   border: 1px solid var(--yb-hairline);
   border-radius: var(--yb-radius-card);
-  padding: 24px 28px;
-  margin-bottom: 20px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
 }
-.chart-head {
+.real-kpi::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+.kpi-icon {
+  width: 34px;
+  height: 34px;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 16px;
-}
-.chart-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--yb-muted);
-  margin-bottom: 6px;
-}
-.chart-title {
-  font-family: var(--yb-font-display);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0;
-  color: var(--yb-ink);
-}
-.chart-legend {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--yb-surface));
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--yb-ink);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-value span {
   font-size: 12px;
   color: var(--yb-muted);
+  margin-left: 4px;
 }
-.legend-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.chart {
-  width: 100%;
-  height: 260px;
+.kpi-label {
+  font-size: 12px;
+  color: var(--yb-muted);
+  margin-top: 4px;
 }
 
 /* ========== Split section ========== */

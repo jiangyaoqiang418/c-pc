@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatAmount, orderApi, productApi } from '@shared';
+import { formatAmount, orderApi } from '@shared';
 import ProductCard from '@/components/product/product-card.vue';
+import * as realProductApi from '@/service/api/product';
 
 const route = useRoute();
 const router = useRouter();
@@ -16,8 +17,7 @@ onMounted(async () => {
   loading.value = true;
   try {
     order.value = await orderApi.fetchOrderDetail(orderId.value);
-    const r = await productApi.fetchHomeRecommends();
-    recommends.value = r.hot.slice(0, 4);
+    recommends.value = await realProductApi.fetchHomeRecommendations(4);
   } finally {
     loading.value = false;
   }
