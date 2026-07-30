@@ -176,6 +176,31 @@ export async function fetchWalletLedger(q: {
   };
 }
 
+export async function fetchWalletLedgersByTypes(q: {
+  size?: number;
+  types: Api.Wallet.TxnType[];
+}) {
+  const types = [...new Set(q.types)];
+  const pages = await Promise.all(
+    types.map(type => fetchWalletLedger({ current: 1, size: q.size || 20, types: [type] }))
+  );
+  const recordsById = new Map<string, Api.Wallet.Txn>();
+  pages.forEach(page => {
+    page.records.forEach(record => {
+      const key = String(record.id);
+      if (!recordsById.has(key)) recordsById.set(key, record);
+    });
+  });
+  const records = [...recordsById.values()]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, q.size || 20);
+
+  return {
+    total: pages.reduce((sum, page) => sum + page.total, 0),
+    records
+  };
+}
+
 export function createRecharge(params: Api.RealWallet.RechargeCreateParams) {
   return realUserRequest.post<Api.RealWallet.RechargeVO | string | number, Api.RealWallet.RechargeCreateParams>(
     '/recharge/create',

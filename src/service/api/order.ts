@@ -30,6 +30,10 @@ function toIso(value?: string | number) {
   return value;
 }
 
+function toTotal(value?: string | number) {
+  return Number(value || 0);
+}
+
 function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.Order.OrderRecord {
   const id = dto.orderId as unknown as number;
   const customerId = dto.customerId as unknown as number;
@@ -76,7 +80,7 @@ function mapPage(
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 10,
-    total: page.total,
+    total: toTotal(page.total),
     records: page.records.map(toOrderRecord)
   };
 }
@@ -123,7 +127,7 @@ export async function countMyOrdersByStatus() {
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
       >('/orders/bought/page', { pageNo: 1, pageSize: 1, status: realStatus });
-      return [frontStatus, page.total || 0] as const;
+      return [frontStatus, toTotal(page.total)] as const;
     })
   );
   entries.forEach(([status, count]) => {

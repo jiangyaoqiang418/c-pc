@@ -2,11 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { orderApi } from '@shared';
 import { avatarUrl } from '@shared/utils/image';
 import VipBadge from '@/components/common/vip-badge.vue';
 import AudienceSegment from '@/components/common/audience-segment.vue';
 import { useUserStore } from '@/stores';
+import * as realOrderApi from '@/service/api/order';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -19,21 +19,30 @@ const isBuyerActive = computed(() => userStore.isBuyerActive);
 const orderCounts = ref<Record<string, number>>({});
 
 async function loadOrders() {
-  if (!user.value) return;
+  if (!user.value || isBuyerActive.value) {
+    orderCounts.value = {};
+    return;
+  }
   try {
-    orderCounts.value = await orderApi.countMyOrdersByStatus(user.value.id);
-  } catch { /* ignore */ }
+    orderCounts.value = await realOrderApi.countMyOrdersByStatus();
+  } catch {
+    orderCounts.value = {};
+  }
 }
 
 onMounted(loadOrders);
-watch(() => userStore.currentUser?.id, loadOrders);
+watch([() => userStore.currentUser?.id, () => userStore.isBuyerActive], loadOrders);
 
-const pendingPay = computed(() => orderCounts.value['PENDING_PAYMENT'] || 0);
+function orderCount(status: string) {
+  return Number(orderCounts.value[status] || 0);
+}
+
+const pendingPay = computed(() => orderCount('PENDING_PAYMENT'));
 const pendingShip = computed(() =>
-  (orderCounts.value['PROCURING'] || 0) + (orderCounts.value['PROCURED'] || 0)
+  orderCount('PROCURING') + orderCount('PROCURED')
 );
 const pendingReceive = computed(() =>
-  (orderCounts.value['IN_TRANSIT'] || 0) + (orderCounts.value['AFTERSALE_CONFIRM'] || 0)
+  orderCount('IN_TRANSIT') + orderCount('AFTERSALE_CONFIRM')
 );
 
 /** 顾客面板功能项 */

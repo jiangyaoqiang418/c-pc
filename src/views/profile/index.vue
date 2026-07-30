@@ -114,12 +114,16 @@ const quickEntries = computed<QuickEntry[]>(() => [
   }
 ]);
 
+function orderCount(status: string) {
+  return Number(orderCounts.value[status] || 0);
+}
+
 const orderTabsMeta = computed(() => [
-  { label: '待付款', count: orderCounts.value['PENDING_PAYMENT'] || 0, status: 'PENDING_PAYMENT' },
-  { label: '待发货', count: (orderCounts.value['PROCURING'] || 0) + (orderCounts.value['PROCURED'] || 0) },
-  { label: '待收货', count: (orderCounts.value['IN_TRANSIT'] || 0) + (orderCounts.value['AFTERSALE_CONFIRM'] || 0) },
-  { label: '已完成', count: (orderCounts.value['COMPLETED'] || 0) + (orderCounts.value['WARRANTY'] || 0) },
-  { label: '售后中', count: orderCounts.value['IN_AFTERSALE'] || 0 }
+  { label: '待付款', count: orderCount('PENDING_PAYMENT'), status: 'PENDING_PAYMENT' },
+  { label: '待发货', count: orderCount('PROCURING') + orderCount('PROCURED') },
+  { label: '待收货', count: orderCount('IN_TRANSIT') + orderCount('AFTERSALE_CONFIRM') },
+  { label: '已完成', count: orderCount('COMPLETED') + orderCount('WARRANTY') },
+  { label: '售后中', count: orderCount('IN_AFTERSALE') }
 ]);
 </script>
 

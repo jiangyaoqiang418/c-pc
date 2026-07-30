@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { buyerApi } from '@shared';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
-import PurchaseProofUploadModal from '@/components/buyer/purchase-proof-upload-modal.vue';
-import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as realOrderApi from '@/service/api/order';
 
 const userStore = useUserStore();
 
@@ -28,16 +26,17 @@ const activeKey = ref('all');
 const orders = ref<Api.Order.OrderRecord[]>([]);
 const loading = ref(false);
 
-const proofModalOpen = ref(false);
-const shipModalOpen = ref(false);
-const opOrder = ref<Api.Order.OrderRecord>();
-
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const r = await buyerApi.fetchBuyerOrders(userStore.currentUser.id, tab?.statuses);
+    const r = await realOrderApi.fetchMyOrders({
+      shopperId: userStore.currentUser.id,
+      current: 1,
+      size: 50,
+      statuses: tab?.statuses
+    });
     orders.value = r.records;
   } finally {
     loading.value = false;
@@ -47,32 +46,12 @@ async function load() {
 onMounted(load);
 watch(activeKey, load);
 
-function onUploadProof(order: Api.Order.OrderRecord) {
-  opOrder.value = order;
-  proofModalOpen.value = true;
+function onUploadProof() {
+  Message.info('采购凭证绑定订单接口暂未提供');
 }
 
-function onUploadShipping(order: Api.Order.OrderRecord) {
-  opOrder.value = order;
-  shipModalOpen.value = true;
-}
-
-async function confirmProof(orderId: number, imageUrl: string) {
-  const r = await buyerApi.uploadPurchaseProofMock(orderId, imageUrl);
-  if (r.ok) {
-    Message.success('采购截图已上传，订单变为「已采购待发货」');
-    proofModalOpen.value = false;
-    load();
-  }
-}
-
-async function confirmShipping(orderId: number, trackingNumber: string, carrier: Api.Order.ShippingCarrier) {
-  const r = await buyerApi.uploadShippingMock(orderId, trackingNumber, carrier);
-  if (r.ok) {
-    Message.success('发货信息已上传，订单变为「运输中」');
-    shipModalOpen.value = false;
-    load();
-  }
+function onUploadShipping() {
+  Message.info('物流信息绑定订单接口暂未提供');
 }
 </script>
 
@@ -104,9 +83,6 @@ async function confirmShipping(orderId: number, trackingNumber: string, carrier:
         />
       </a-spin>
     </div>
-
-    <PurchaseProofUploadModal v-model:visible="proofModalOpen" :order="opOrder" @confirm="confirmProof" />
-    <ShippingUploadModal v-model:visible="shipModalOpen" :order="opOrder" @confirm="confirmShipping" />
   </div>
 </template>
 

@@ -2,12 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { formatAmount, walletApi } from '@shared';
+import { formatAmount } from '@shared';
 import BucketCard from '@/components/wallet/bucket-card.vue';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import * as realWalletApi from '@/service/api/wallet';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -23,8 +24,7 @@ async function loadAll() {
   loading.value = true;
   try {
     await walletStore.fetchWallet(userStore.currentUser.id);
-    const r = await walletApi.fetchMyTxns({
-      userId: userStore.currentUser.id,
+    const r = await realWalletApi.fetchWalletLedgersByTypes({
       types: ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT', 'ORDER_SETTLE', 'INTEREST_ACCRUE'],
       size: 30
     });
