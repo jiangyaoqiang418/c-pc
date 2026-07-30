@@ -18,6 +18,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
   const summary = ref<Api.User.WalletSummary | undefined>();
   const buyerWallet = ref<Api.Buyer.Wallet | undefined>();
   const totalAssets = ref<string>('0');
+  const today = ref<{ depositIn: string; withdrawOut: string; internalVolume: string }>();
   const account = ref<Api.Wallet.InternalAccount | undefined>();
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
@@ -30,6 +31,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
       summary.value = overview.summary;
       buyerWallet.value = undefined;
       totalAssets.value = overview.total;
+      today.value = overview.today;
       account.value = overview.account;
       lastFetchedAt.value = Date.now();
     } finally {
@@ -46,6 +48,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     summary.value = undefined;
     buyerWallet.value = undefined;
     totalAssets.value = '0';
+    today.value = undefined;
     account.value = undefined;
     lastFetchedAt.value = 0;
   }
@@ -96,6 +99,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     summary,
     buyerWallet,
     totalAssets,
+    today,
     account,
     loading,
     lastFetchedAt,

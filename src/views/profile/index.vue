@@ -2,9 +2,10 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { cmsApi, enums, formatAmount, formatPoints, orderApi } from '@shared';
+import { cmsApi, enums, formatAmount, formatPoints } from '@shared';
 import * as vipApi from '@/service/api/vip';
 import * as realAuthApi from '@/service/api/auth';
+import * as realOrderApi from '@/service/api/order';
 import * as realWalletApi from '@/service/api/wallet';
 import VipBadge from '@/components/common/vip-badge.vue';
 import { useUserStore } from '@/stores';
@@ -38,7 +39,7 @@ async function loadProfile() {
   const [vip, assets, counts, anns] = await Promise.all([
     vipApi.fetchMyVipStatus(uid),
     realWalletApi.fetchWalletOverview(uid),
-    orderApi.countMyOrdersByStatus(uid),
+    realOrderApi.countMyOrdersByStatus(),
     cmsApi.fetchAnnouncements({ size: 3 })
   ]);
   vipStatus.value = vip;

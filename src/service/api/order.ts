@@ -105,9 +105,20 @@ export async function fetchOrderDetail(id: string | number) {
 }
 
 export async function countMyOrdersByStatus() {
+  const counts = Object.fromEntries(
+    Object.keys(reverseStatusMap).map(status => [status, 0])
+  ) as Record<Api.Order.OrderStatus, number>;
+  const primaryStatusMap: Array<[Api.Order.OrderStatus, Api.RealOrder.OrderStatus]> = [
+    ['PENDING_PAYMENT', 'CREATED'],
+    ['PROCURING', 'PAID'],
+    ['IN_TRANSIT', 'SHIPPED'],
+    ['IN_AFTERSALE', 'REFUND_REVIEW'],
+    ['ARCHIVED', 'REFUNDED'],
+    ['COMPLETED', 'COMPLETED'],
+    ['CANCELLED', 'CANCELED']
+  ];
   const entries = await Promise.all(
-    Object.entries(reverseStatusMap).map(async ([frontStatus, realStatus]) => {
-      if (!realStatus) return [frontStatus, 0] as const;
+    primaryStatusMap.map(async ([frontStatus, realStatus]) => {
       const page = await realOrderRequest.post<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
@@ -115,7 +126,10 @@ export async function countMyOrdersByStatus() {
       return [frontStatus, page.total || 0] as const;
     })
   );
-  return Object.fromEntries(entries) as Record<Api.Order.OrderStatus, number>;
+  entries.forEach(([status, count]) => {
+    counts[status] = count;
+  });
+  return counts;
 }
 
 export async function payOrder(id: string | number) {

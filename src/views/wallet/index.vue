@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { formatAmount, walletApi } from '@shared';
+import { formatAmount } from '@shared';
+import * as realWalletApi from '@/service/api/wallet';
 import BucketCard from '@/components/wallet/bucket-card.vue';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
@@ -15,16 +16,14 @@ const userStore = useUserStore();
 const walletStore = useWalletStore();
 
 const recentTxns = ref<Api.Wallet.Txn[]>([]);
-const today = ref<{ depositIn: string; withdrawOut: string; internalVolume: string }>();
 const drawerTxn = ref<Api.Wallet.Txn>();
 const drawerOpen = ref(false);
 
 async function loadAll() {
   if (!userStore.currentUser) return;
   await walletStore.fetchWallet(userStore.currentUser.id);
-  const r = await walletApi.fetchMyTxns({ userId: userStore.currentUser.id, size: 5 });
+  const r = await realWalletApi.fetchWalletLedger({ current: 1, size: 5 });
   recentTxns.value = r.records;
-  today.value = (await import('@shared/mock/data/wallet-txns')).todayAggregates();
 }
 
 onMounted(loadAll);
@@ -80,16 +79,16 @@ function openDetail(t: Api.Wallet.Txn) {
             <Icon icon="lucide:list" width="15" /> 交易记录
           </button>
         </div>
-        <div v-if="today" class="hero-today">
+        <div v-if="walletStore.today" class="hero-today">
           <div class="today-item">
             <span class="dot inbound"></span>
             <span class="today-label">今日入</span>
-            <span class="today-val yb-mono">+U {{ formatAmount(today.depositIn) }}</span>
+            <span class="today-val yb-mono">+U {{ formatAmount(walletStore.today.depositIn) }}</span>
           </div>
           <div class="today-item">
             <span class="dot outbound"></span>
             <span class="today-label">今日出</span>
-            <span class="today-val yb-mono">−U {{ formatAmount(today.withdrawOut) }}</span>
+            <span class="today-val yb-mono">−U {{ formatAmount(walletStore.today.withdrawOut) }}</span>
           </div>
         </div>
       </div>
