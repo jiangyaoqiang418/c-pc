@@ -22,6 +22,32 @@ function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.Category.Ca
 }
 
 export async function fetchCategoryTree() {
-  const list = await realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree');
+  const list = await fetchRealCategoryTree();
   return list.map(toCategoryNode);
+}
+
+export function fetchRealCategoryTree() {
+  return realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree');
+}
+
+export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryApplyPageQuery = {}) {
+  const result = await realOrderRequest.post<
+    Api.Common.PaginatingQueryRecord<Api.RealCategory.CategoryApplyDTO> & { pageNo?: number; pageSize?: number },
+    Api.RealCategory.CategoryApplyPageQuery
+  >('/categories/apply/my/page', {
+    pageNo: q.pageNo || 1,
+    pageSize: q.pageSize || 20,
+    keyword: q.keyword,
+    status: q.status
+  });
+  return {
+    current: result.current || result.pageNo || q.pageNo || 1,
+    size: result.size || result.pageSize || q.pageSize || 20,
+    total: result.total,
+    records: result.records
+  };
+}
+
+export function submitCategoryApplication(p: Api.RealCategory.CategoryApplySubmitParams) {
+  return realOrderRequest.post<string, Api.RealCategory.CategoryApplySubmitParams>('/categories/apply/submit', p);
 }

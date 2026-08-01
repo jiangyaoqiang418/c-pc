@@ -156,6 +156,11 @@ export async function cancelOrder(id: string | number) {
   return { ok: true, message: '' };
 }
 
+export async function changeOrderPrice(p: Api.RealOrder.OrderPriceChangeParams) {
+  await realOrderRequest.put<string, Api.RealOrder.OrderPriceChangeParams>('/orders/price', p);
+  return { ok: true };
+}
+
 export async function confirmReceipt(id: string | number) {
   await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/confirm', { id });
   return { ok: true, message: '' };

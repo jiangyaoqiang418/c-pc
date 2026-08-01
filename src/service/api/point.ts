@@ -105,3 +105,20 @@ export async function appealPointLog(p: { logId: number | string; reason: string
   });
   return { ok: true, message: '' };
 }
+
+export async function fetchMyPointAppeals(q: Api.RealPoint.PointAppealPageQuery) {
+  const result = await realUserRequest.post<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointAppealDTO>>(
+    '/points/appeals/page',
+    q
+  );
+  const page = result as Api.Common.PaginatingQueryRecord<Api.RealPoint.PointAppealDTO> & {
+    pageNo?: number;
+    pageSize?: number;
+  };
+  return {
+    current: result.current || page.pageNo || q.pageNo || 1,
+    size: result.size || page.pageSize || q.pageSize || 20,
+    total: result.total,
+    records: result.records
+  };
+}

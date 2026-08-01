@@ -4,10 +4,10 @@
 
 ## 扫描范围与 Swagger 快照
 
-- 前端：45 个页面、61 个组件、4 个 Store、16 个 Mock API 模块及相关类型。
+- 前端基线：45 个页面、61 个组件、4 个 Store、16 个 Mock API 模块及相关类型；本轮新增 2 个买手页面。
 - 当前实际调用：73 项 Mock API 能力。
 - 共用入口：`http://221.128.249.198:8902/doc.html`。
-- 2026-07-28 实时读取：`admin` 83 路径/84 操作，`user` 19/19，`order` 40/42。
+- 2026-08-01 实时读取：`admin` 84 路径/85 操作，`user` 19/19，`order` 40/42；`user`、`order` 与 2026-07-30 一致。
 - `notify` 的 `/notify/v3/api-docs` 返回 HTTP 404。
 - 表中 `/user/...`、`/order/...`、`/admin/...` 用首段标识 Swagger 分组；分组内原始 path 分别从 `/auth/...`、`/orders/...` 等开始，后续同源请求前缀按请求层配置确定。
 
@@ -242,3 +242,27 @@
 | 已页面接入进度 | 约 51% |
 | 真实回归通过进度 | 约 36% |
 | C 端 PC 整体交付进度 | 约 43% |
+
+## 2026-08-01 新增页面调用矩阵
+
+| 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 真实验证 |
+|---|---|---|---|---|
+| P1 | 积分申诉记录 | `POST /user/points/appeals/page` | API 已封装，积分页已调用；支持关键词、状态和分页 | Chrome 已验证页签、关键词查询和空态；账号无申诉数据 |
+| P2 | 我的分类申请 | `POST /order/categories/apply/my/page` | API 已封装，`/buyer/categories/apply` 已调用 | 未运行 |
+| P2 | 提交分类申请 | `POST /order/categories/apply/submit` | API 已封装，分类申请弹窗已调用；`parentId` 保留原始字符串 | 未运行 |
+| P2 | 秒杀可用场次/我的报名 | `GET /order/flash-sale/sessions/available`、`GET /order/flash-sale/my` | API 已封装，`/buyer/flash-sales` 已调用 | 未运行 |
+| P2 | 秒杀报名/取消 | `POST /order/flash-sale/enroll`、`DELETE /order/flash-sale/enroll` | API 已封装，报名弹窗与取消操作已调用 | 未运行 |
+| P2 | 商品图片结构 | `POST /order/files/upload`、`POST /order/products/create` | 商品创建已提交上传结果的 `bucket/filePath` | MinIO 未配置，待后端环境 |
+| P2 | 商品审核驳回 | `POST /order/products/my/page`，状态 `REJECTED` | adapter、前端枚举、筛选页签和卡片展示已对齐 | 未运行 |
+| P3 | 未支付订单改价 | `PUT /order/orders/price` | API 已封装，买手订单 `PENDING_PAYMENT` 卡片已调用 | 未运行 |
+| P4 | 充值详情 | `GET /user/recharge/detail` | 充值记录列表详情抽屉已调用 | Chrome 已验证页面和空态；账号无充值记录，未点击详情 |
+| P4 | 提现详情 | `GET /user/withdraw/detail` | 提现记录列表详情抽屉已调用 | Chrome 已验证页面、KYC 提示和空态；账号无提现记录，未点击详情 |
+
+> P5 完整售后未接入：现有前端为 5 类售后工单，Swagger 仅有简单退款接口，直接替换会改变已确认交互和业务语义。
+
+### 本轮 Chrome 回归结论
+
+- 真实账号登录成功，首页展示 `john / VIP0 / 0积分`。
+- 积分申诉记录查询、充值页、提现页及买手路由权限守卫运行正常，Chrome 控制台与 Vite 终端无 warning/error。
+- 买手功能因当前账号未完成 KYC、不是买手而未进入页面；需要真实买手账号、在售商品、秒杀场次和待付款卖出订单继续验证。
+- 未运行 `typecheck`、`lint`、`test` 或 `build`。

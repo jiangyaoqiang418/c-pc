@@ -10,7 +10,10 @@ interface Props {
   dir?: string;
 }
 const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [], dir: 'evidence' });
-const emit = defineEmits<{ (e: 'update:modelValue', v: string[]): void }>();
+const emit = defineEmits<{
+  (e: 'update:modelValue', v: string[]): void;
+  (e: 'uploaded', v: Api.RealProduct.FileUploadResult[]): void;
+}>();
 
 const uploading = ref(false);
 const inputRef = ref<HTMLInputElement>();
@@ -32,6 +35,7 @@ async function onFileChange(e: Event) {
   try {
     const uploaded = await Promise.all(picked.map(file => uploadFile(file, props.dir)));
     emit('update:modelValue', [...props.modelValue, ...uploaded.map(item => item.url || item.filePath)]);
+    emit('uploaded', uploaded);
     Message.success(picked.length > 1 ? `已上传 ${picked.length} 张图片` : '图片已上传');
   } catch (error) {
     const message = error instanceof RequestError ? error.message : '';

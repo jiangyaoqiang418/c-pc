@@ -61,4 +61,31 @@ declare namespace Api.RealPoint {
     reversed?: boolean;
     createdAt: string;
   }
+
+  type PointAppealStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  interface PointAppealPageQuery {
+    pageNo?: number;
+    pageSize?: number;
+    keyword?: string;
+    status?: PointAppealStatus;
+    userId?: string;
+  }
+
+  interface PointAppealDTO {
+    id: string;
+    ledgerId: string;
+    userId: string;
+    userNickname?: string;
+    behaviorCode?: string;
+    behaviorName?: string;
+    originalScore?: number;
+    reason: string;
+    status: PointAppealStatus;
+    decision?: string;
+    reviewComment?: string;
+    reviewerId?: string;
+    createdAt: string;
+    reviewedAt?: string;
+  }
 }

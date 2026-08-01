@@ -32,4 +32,9 @@ declare namespace Api.RealOrder {
   interface OrderIdParams {
     id: string | number;
   }
+
+  interface OrderPriceChangeParams {
+    id: string | number;
+    amount: number;
+  }
 }

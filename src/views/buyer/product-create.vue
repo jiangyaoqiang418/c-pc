@@ -21,7 +21,7 @@ async function onSubmit(form: {
   overseasCustoms: boolean;
   summary: string;
   description: string;
-  images: string[];
+  images: Api.RealProduct.ProductImageParam[];
 }) {
   if (!userStore.currentUser) return;
   Modal.confirm({

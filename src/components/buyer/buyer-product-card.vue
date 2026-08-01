@@ -19,6 +19,7 @@ const aftersaleMeta = computed(() => enums.AFTERSALE_TYPE_META[props.product.aft
 const STATUS_META: Record<Api.Product.ProductStatus, { label: string; color: string }> = {
   PENDING_AUDIT: { label: '待审核', color: 'orange' },
   IN_AUDIT: { label: '审核中', color: 'arcoblue' },
+  REJECTED: { label: '审核驳回', color: 'red' },
   NORMAL: { label: '正常', color: 'green' },
   FROZEN: { label: '已冻结', color: 'red' },
   DELETED: { label: '已删除', color: 'gray' }

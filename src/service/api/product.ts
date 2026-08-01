@@ -16,7 +16,7 @@ function fromAfterSaleType(value: Api.Product.AftersaleType): Api.RealProduct.Af
 
 function toProductStatus(status?: string): Api.Product.ProductStatus {
   if (status === 'REVIEWING') return 'IN_AUDIT';
-  if (status === 'REJECTED') return 'PENDING_AUDIT';
+  if (status === 'REJECTED') return 'REJECTED';
   if (status === 'FROZEN') return 'FROZEN';
   return 'NORMAL';
 }
@@ -176,6 +176,7 @@ export async function fetchMyProducts(q: { current?: number; size?: number; stat
   const statusMap: Partial<Record<Api.Product.ProductStatus, Api.RealProduct.ProductStatus>> = {
     PENDING_AUDIT: 'REVIEWING',
     IN_AUDIT: 'REVIEWING',
+    REJECTED: 'REJECTED',
     NORMAL: 'ON_SALE',
     FROZEN: 'FROZEN'
   };
@@ -206,7 +207,7 @@ export async function createProduct(p: {
   overseasCustoms: boolean;
   summary: string;
   description: string;
-  images: string[];
+  images: Api.RealProduct.ProductImageParam[];
 }) {
   const id = await realOrderRequest.post<string, Api.RealProduct.ProductCreateParams>('/products/create', {
     title: p.title,
@@ -219,7 +220,7 @@ export async function createProduct(p: {
     overseasClearance: p.overseasCustoms,
     brief: p.summary,
     description: p.description,
-    images: p.images.map(url => ({ bucket: 'product', filePath: url }))
+    images: p.images
   });
   return fetchSellerProductDetail(id);
 }

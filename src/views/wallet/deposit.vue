@@ -15,6 +15,9 @@ const submitting = ref(false);
 const loadingRecords = ref(false);
 const currentRecharge = ref<Api.RealWallet.RechargeVO>();
 const recentDeposits = ref<Api.RealWallet.RechargeVO[]>([]);
+const detailOpen = ref(false);
+const detailLoading = ref(false);
+const detail = ref<Api.RealWallet.RechargeVO>();
 
 const chainOptions = [
   { value: 'TRON', label: 'TRC20（USDT-TRON）' },
@@ -78,6 +81,17 @@ async function copy(text?: string) {
   if (!text) return;
   await navigator.clipboard.writeText(text);
   Message.success('已复制');
+}
+
+async function showDetail(record: Api.RealWallet.RechargeVO) {
+  detailOpen.value = true;
+  detailLoading.value = true;
+  detail.value = undefined;
+  try {
+    detail.value = await realWalletApi.fetchRechargeDetail(record.id);
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
 onMounted(loadAll);
@@ -150,10 +164,29 @@ onMounted(loadAll);
           <a-table-column title="创建时间">
             <template #cell="{ record }">{{ formatTime(record.createdAt) }}</template>
           </a-table-column>
+          <a-table-column title="操作" :width="90">
+            <template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template>
+          </a-table-column>
         </template>
         <template #empty><EmptyState title="暂无链上充值记录" /></template>
       </a-table>
     </a-card>
+
+    <a-drawer v-model:visible="detailOpen" title="充值订单详情" width="520" :footer="false">
+      <a-spin :loading="detailLoading" style="width: 100%">
+        <a-descriptions v-if="detail" :column="1" bordered :data="[
+          { label: '订单编号', value: String(detail.id) },
+          { label: '链', value: detail.chain },
+          { label: '金额', value: 'U ' + formatAmount(detail.amount) },
+          { label: '状态', value: detail.statusText || detail.status || 'PENDING' },
+          { label: '收款地址', value: detail.depositAddress || '—' },
+          { label: 'Memo / Tag', value: detail.memo || '—' },
+          { label: '交易哈希', value: detail.txHash || '—' },
+          { label: '创建时间', value: formatTime(detail.createdAt) },
+          { label: '确认时间', value: formatTime(detail.confirmedAt) }
+        ]" />
+      </a-spin>
+    </a-drawer>
   </div>
 </template>
 

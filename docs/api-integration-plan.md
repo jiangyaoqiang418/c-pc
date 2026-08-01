@@ -2,11 +2,11 @@
 
 > 本文用于统一油宝 C 端 PC 的接口对接方式。说明使用中文，接口路径、字段名、代码名和 `mock` 等技术标识保持原样。
 
-## 2026-07-28 完整接口满足度扫描
+## 2026-08-01 最新接口满足度扫描
 
 ### 扫描范围
 
-- 已读取 `src/views/` 下 45 个页面、`src/components/` 下 61 个组件、4 个 Store。
+- 已读取基线 `src/views/` 下 45 个页面、`src/components/` 下 61 个组件、4 个 Store；本轮新增 2 个买手页面。
 - 已读取页面实际调用的 16 个 `src/mock/api/*.ts` 模块、相关 `src/mock/typings/api/*.d.ts` 和直接读取的 Mock 数据。
 - PC 当前实际调用 73 项 Mock API 能力；静态注册页和本地购物车作为额外交互单独核对，不计入 73 项函数统计。
 - 本次不是根据 Mock 文件名匹配，而是按页面表单、筛选、分页、详情字段、状态操作和写操作逐项核对。
@@ -15,12 +15,12 @@
 
 | 分组 | 文档地址 | 路径数 | 操作数 | 结论 |
 |---|---|---:|---:|---|
-| `admin` | `/admin/v3/api-docs` | 83 | 84 | 可读取 |
+| `admin` | `/admin/v3/api-docs` | 84 | 85 | 可读取 |
 | `user` | `/user/v3/api-docs` | 19 | 19 | 可读取 |
 | `order` | `/order/v3/api-docs` | 40 | 42 | 可读取 |
 | `notify` | `/notify/v3/api-docs` | - | - | HTTP 404 |
 
-三个有效文档版本均为 `v1.0.0`。详细路径和字段匹配见 `api-swagger-match-matrix.md`。
+三个有效文档版本均为 `v1.0.0`。2026-08-01 实时读取与 2026-07-30 相比，`user`、`order` 未新增 C 端接口；`admin` 新增的订单详情接口不替代 C 端 `GET /order/orders/detail`。详细路径和字段匹配见 `api-swagger-match-matrix.md`。
 
 ### 满足度结论
 
@@ -408,3 +408,27 @@ view / store
 | 已页面接入进度 | 约 51% |
 | 真实回归通过进度 | 约 36% |
 | C 端 PC 整体交付进度 | 约 43% |
+
+## 2026-08-01 可开发梯队批量接入
+
+### 已完成代码接入
+
+| 梯队 | 能力 | Swagger 接口 | 页面/API 状态 |
+|---|---|---|---|
+| P0/P1 | 积分申诉记录 | `POST /user/points/appeals/page` | 已新增真实类型与 API，积分页新增“申诉记录”页签、关键词/状态筛选和分页；新接入 ID 保留 Long 原值 |
+| P2 | 分类申请 | `POST /order/categories/apply/my/page`、`POST /order/categories/apply/submit` | 已新增 `/buyer/categories/apply`，支持申请列表、筛选、分页和提交 |
+| P2 | 秒杀报名 | `GET /order/flash-sale/sessions/available`、`POST /order/flash-sale/enroll`、`DELETE /order/flash-sale/enroll`、`GET /order/flash-sale/my` | 已新增 `/buyer/flash-sales`，支持场次读取、商品报名、我的报名和取消报名 |
+| P2 | 商品上传结构 | `POST /order/files/upload`、`POST /order/products/create` | 上传组件保留展示 URL，同时向商品表单传递真实 `bucket/filePath`；创建商品不再把 URL 伪装成 `filePath` |
+| P2 | 商品驳回状态 | `POST /order/products/my/page` | 前端商品状态新增 `REJECTED`，商品管理新增“审核驳回”筛选和状态展示 |
+| P3 | 卖家订单改价 | `PUT /order/orders/price` | 买手订单新增“待付款”页签和改价弹窗，仅 `PENDING_PAYMENT` 订单显示入口 |
+| P4 | 充值/提现详情 | `GET /user/recharge/detail`、`GET /user/withdraw/detail` | 充值、提现记录列表新增详情入口和真实详情抽屉 |
+
+### 验证与剩余边界
+
+- 已使用真实账号完成 Chrome 回归：登录成功，积分“申诉记录”页签、关键词查询和空态正常；充值、提现页面可正常加载并展示空记录状态；控制台和现有 Vite 终端无 warning/error。
+- 当前真实账号积分流水、申诉、充值和提现记录均为空，因此未覆盖申诉记录非空展示及充值/提现详情抽屉的真实数据回显，也未创建资金类测试订单。
+- 访问 `/buyer/categories/apply` 会按现有权限守卫跳转 `/kyc`；该账号未完成 KYC 且不是买手，分类提交、秒杀报名、商品驳回和订单改价的真实流程未验证。
+- 本轮未执行 `typecheck`、`lint`、`test` 或 `build`。
+- 买手分类申请、秒杀报名、订单改价需要 KYC 通过的买手账号及对应商品/订单数据验证成功写入与刷新。
+- 商品图片上传仍受后端 MinIO 未配置阻塞；前端已按 Swagger 修正提交结构，不增加本地占位或 Mock fallback。
+- P5 售后页面现有 5 类工单、证据、列表、取消和时间线，与 Swagger 仅提供的简单退款契约冲突；未在本轮强行替换，等待产品确认交互收敛方案。

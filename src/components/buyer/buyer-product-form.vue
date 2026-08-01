@@ -18,11 +18,15 @@ interface FormState {
   images: string[];
 }
 
+interface SubmitForm extends Omit<FormState, 'images'> {
+  images: Api.RealProduct.ProductImageParam[];
+}
+
 interface Props {
   submitting?: boolean;
 }
 defineProps<Props>();
-const emit = defineEmits<{ (e: 'submit', form: FormState): void }>();
+const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
 
 interface CategoryNode {
   id: string | number;
@@ -31,6 +35,7 @@ interface CategoryNode {
 }
 
 const cascaderOptions = ref<any[]>([]);
+const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
 
 const form = reactive<FormState>({
   title: '',
@@ -72,7 +77,18 @@ function submit() {
     Message.warning('至少上传 1 张商品图');
     return;
   }
-  emit('submit', { ...form });
+  const images = form.images.map(url => uploadedImageMap.get(url)).filter(Boolean) as Api.RealProduct.ProductImageParam[];
+  if (images.length !== form.images.length) {
+    Message.warning('请重新上传商品图片');
+    return;
+  }
+  emit('submit', { ...form, images });
+}
+
+function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
+  items.forEach(item => {
+    uploadedImageMap.set(item.url || item.filePath, { bucket: item.bucket, filePath: item.filePath });
+  });
 }
 </script>
 
@@ -144,7 +160,7 @@ function submit() {
     </a-form-item>
 
     <a-form-item label="商品图片（至少 1 张，最多 6 张）" required>
-      <AftersaleEvidenceUploader v-model="form.images" :max="6" dir="product" />
+      <AftersaleEvidenceUploader v-model="form.images" :max="6" dir="product" @uploaded="onUploaded" />
     </a-form-item>
 
     <div class="actions">

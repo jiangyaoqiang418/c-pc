@@ -11,6 +11,7 @@ interface Props {
 }
 const props = defineProps<Props>();
 defineEmits<{
+  (e: 'change-price', order: Api.Order.OrderRecord): void;
   (e: 'upload-proof', order: Api.Order.OrderRecord): void;
   (e: 'upload-shipping', order: Api.Order.OrderRecord): void;
 }>();
@@ -69,7 +70,14 @@ function goIm() {
         <Icon icon="lucide:message-square" width="14" /> 三方群
       </button>
       <button
-        v-if="order.status === 'PROCURING'"
+        v-if="order.status === 'PENDING_PAYMENT'"
+        class="btn primary"
+        @click="$emit('change-price', order)"
+      >
+        <Icon icon="lucide:badge-dollar-sign" width="14" /> 修改价格
+      </button>
+      <button
+        v-else-if="order.status === 'PROCURING'"
         class="btn primary"
         @click="$emit('upload-proof', order)"
       >

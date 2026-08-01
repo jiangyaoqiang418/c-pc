@@ -10,4 +10,36 @@ declare namespace Api.RealCategory {
     childCount?: number;
     children?: CategoryNodeDTO[];
   }
+
+  type CategoryApplyStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+  interface CategoryApplyPageQuery {
+    pageNo?: number;
+    pageSize?: number;
+    keyword?: string;
+    status?: CategoryApplyStatus;
+  }
+
+  interface CategoryApplyDTO {
+    id: string;
+    applicantId: string;
+    applicantName?: string;
+    parentId?: string;
+    parentPath?: string;
+    level?: number;
+    newName: string;
+    reason: string;
+    status: CategoryApplyStatus;
+    reviewComment?: string;
+    reviewerId?: string;
+    createdCategoryId?: string;
+    createdAt: string;
+    reviewedAt?: string;
+  }
+
+  interface CategoryApplySubmitParams {
+    parentId?: string;
+    newName: string;
+    reason: string;
+  }
 }

@@ -16,6 +16,7 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { key: 'all', label: '全部' },
+  { key: 'pending-payment', label: '待付款', statuses: ['PENDING_PAYMENT'] },
   { key: 'procuring', label: '采购中', statuses: ['PROCURING'] },
   { key: 'procured', label: '待发货', statuses: ['PROCURED'] },
   { key: 'shipping', label: '运输中', statuses: ['IN_TRANSIT', 'AFTERSALE_CONFIRM'] },
@@ -25,6 +26,10 @@ const TABS: TabDef[] = [
 const activeKey = ref('all');
 const orders = ref<Api.Order.OrderRecord[]>([]);
 const loading = ref(false);
+const priceModalOpen = ref(false);
+const priceSubmitting = ref(false);
+const priceOrder = ref<Api.Order.OrderRecord>();
+const priceAmount = ref<number>();
 
 async function load() {
   if (!userStore.currentUser) return;
@@ -53,6 +58,28 @@ function onUploadProof() {
 function onUploadShipping() {
   Message.info('物流信息绑定订单接口暂未提供');
 }
+
+function openPriceModal(order: Api.Order.OrderRecord) {
+  priceOrder.value = order;
+  priceAmount.value = Number(order.totalAmount);
+  priceModalOpen.value = true;
+}
+
+async function changePrice() {
+  if (!priceOrder.value || !priceAmount.value || priceAmount.value <= 0) {
+    Message.warning('请输入正确的订单金额');
+    return;
+  }
+  priceSubmitting.value = true;
+  try {
+    await realOrderApi.changeOrderPrice({ id: priceOrder.value.id, amount: priceAmount.value });
+    Message.success('订单价格已修改');
+    priceModalOpen.value = false;
+    await load();
+  } finally {
+    priceSubmitting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -72,6 +99,7 @@ function onUploadShipping() {
             v-for="o in orders"
             :key="o.id"
             :order="o"
+            @change-price="openPriceModal"
             @upload-proof="onUploadProof"
             @upload-shipping="onUploadShipping"
           />
@@ -83,6 +111,17 @@ function onUploadShipping() {
         />
       </a-spin>
     </div>
+
+    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" @ok="changePrice">
+      <a-form layout="vertical">
+        <a-form-item label="订单">
+          <a-input :model-value="priceOrder?.code" disabled />
+        </a-form-item>
+        <a-form-item label="订单金额 (USDT)" required>
+          <a-input-number v-model="priceAmount" :min="0.01" :precision="2" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 

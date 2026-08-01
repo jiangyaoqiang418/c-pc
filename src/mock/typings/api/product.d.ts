@@ -8,7 +8,7 @@
  */
 declare namespace Api.Product {
   /** R-DATA-17 硬枚举：商品 5 状态 */
-  type ProductStatus = 'PENDING_AUDIT' | 'IN_AUDIT' | 'NORMAL' | 'FROZEN' | 'DELETED';
+  type ProductStatus = 'PENDING_AUDIT' | 'IN_AUDIT' | 'REJECTED' | 'NORMAL' | 'FROZEN' | 'DELETED';
 
   type ShelfStatus = 'on-shelf' | 'off-shelf';
 

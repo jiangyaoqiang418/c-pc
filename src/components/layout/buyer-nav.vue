@@ -17,6 +17,8 @@ interface BuyerNavItem {
 const items: BuyerNavItem[] = [
   { name: 'buyer-dashboard', label: '仪表盘', path: '/buyer/dashboard', emoji: '📊' },
   { name: 'buyer-products', label: '商品管理', path: '/buyer/products', emoji: '📦' },
+  { name: 'buyer-category-applications', label: '分类申请', path: '/buyer/categories/apply', emoji: '🗂️' },
+  { name: 'buyer-flash-sales', label: '秒杀报名', path: '/buyer/flash-sales', emoji: '⚡' },
   { name: 'buyer-claimable', label: '求购接单', path: '/buyer/claimable', emoji: '🙋' },
   { name: 'buyer-orders', label: '买手订单', path: '/buyer/orders', emoji: '📋' },
   { name: 'buyer-deposit', label: '押金管理', path: '/buyer/deposit', emoji: '🔒' },

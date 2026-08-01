@@ -22,6 +22,7 @@ const TABS: TabDef[] = [
   { key: 'on-shelf', label: '在售', status: 'NORMAL', shelf: 'on-shelf' },
   { key: 'pending', label: '待审核', status: 'PENDING_AUDIT' },
   { key: 'in-audit', label: '审核中', status: 'IN_AUDIT' },
+  { key: 'rejected', label: '审核驳回', status: 'REJECTED' },
   { key: 'off-shelf', label: '已下架', status: 'NORMAL', shelf: 'off-shelf' },
   { key: 'frozen', label: '已冻结', status: 'FROZEN' }
 ];
@@ -64,7 +65,11 @@ function onDelete(p: Api.Product.ProductRecord) {
   <div class="bp-page shop-container">
     <div class="page-head">
       <h1 class="page-title">商品管理</h1>
-      <a-button type="primary" @click="router.push('/buyer/products/create')">+ 上架新商品</a-button>
+      <a-space>
+        <a-button @click="router.push('/buyer/categories/apply')">分类申请</a-button>
+        <a-button @click="router.push('/buyer/flash-sales')">秒杀报名</a-button>
+        <a-button type="primary" @click="router.push('/buyer/products/create')">+ 上架新商品</a-button>
+      </a-space>
     </div>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">

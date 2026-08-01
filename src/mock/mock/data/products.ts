@@ -1074,6 +1074,7 @@ export function countByStatus(): Record<Api.Product.ProductStatus, number> {
   const init: Record<Api.Product.ProductStatus, number> = {
     PENDING_AUDIT: 0,
     IN_AUDIT: 0,
+    REJECTED: 0,
     NORMAL: 0,
     FROZEN: 0,
     DELETED: 0

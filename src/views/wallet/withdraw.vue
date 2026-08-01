@@ -16,6 +16,9 @@ const modalOpen = ref(false);
 const loadingRecords = ref(false);
 const recentWithdrawals = ref<Api.RealWallet.WithdrawVO[]>([]);
 const createdWithdrawal = ref<Api.RealWallet.WithdrawVO>();
+const detailOpen = ref(false);
+const detailLoading = ref(false);
+const detail = ref<Api.RealWallet.WithdrawVO>();
 
 const chainOptions = [
   { value: 'TRON', label: 'TRC20（USDT-TRON）' },
@@ -86,6 +89,17 @@ async function confirm() {
   }
 }
 
+async function showDetail(record: Api.RealWallet.WithdrawVO) {
+  detailOpen.value = true;
+  detailLoading.value = true;
+  detail.value = undefined;
+  try {
+    detail.value = await realWalletApi.fetchWithdrawDetail(record.id);
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
 onMounted(loadAll);
 </script>
 
@@ -132,6 +146,7 @@ onMounted(loadAll);
           <a-table-column title="金额" :width="130"><template #cell="{ record }">U {{ formatAmount(record.amount) }}</template></a-table-column>
           <a-table-column title="状态" :width="140"><template #cell="{ record }"><a-tag :color="record.status === 'SUCCESS' ? 'green' : record.status === 'REJECTED' ? 'red' : 'orange'">{{ record.statusText || record.status || 'REVIEWING' }}</a-tag></template></a-table-column>
           <a-table-column title="创建时间"><template #cell="{ record }">{{ formatTime(record.createdAt) }}</template></a-table-column>
+          <a-table-column title="操作" :width="90"><template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template></a-table-column>
         </template>
         <template #empty><EmptyState title="暂无转出申请" /></template>
       </a-table>
@@ -145,6 +160,23 @@ onMounted(loadAll);
         { label: '目标地址', value: form.toAddress }
       ]" />
     </a-modal>
+
+    <a-drawer v-model:visible="detailOpen" title="转出申请详情" width="520" :footer="false">
+      <a-spin :loading="detailLoading" style="width: 100%">
+        <a-descriptions v-if="detail" :column="1" bordered :data="[
+          { label: '申请编号', value: String(detail.id) },
+          { label: '链', value: detail.chain },
+          { label: '目标地址', value: detail.toAddress },
+          { label: '金额', value: 'U ' + formatAmount(detail.amount) },
+          { label: '状态', value: detail.statusText || detail.status || 'REVIEWING' },
+          { label: '审核意见', value: detail.reviewComment || '—' },
+          { label: '失败原因', value: detail.failReason || '—' },
+          { label: '交易哈希', value: detail.txHash || '—' },
+          { label: '创建时间', value: formatTime(detail.createdAt) },
+          { label: '确认时间', value: formatTime(detail.confirmedAt) }
+        ]" />
+      </a-spin>
+    </a-drawer>
   </div>
 </template>
 

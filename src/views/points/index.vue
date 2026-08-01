@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message } from '@arco-design/web-vue';
 import { formatPoints } from '@shared';
 import * as pointApi from '@/service/api/point';
 import * as vipApi from '@/service/api/vip';
@@ -12,7 +12,7 @@ import { useUserStore } from '@/stores';
 
 const userStore = useUserStore();
 
-const activeTab = ref<'logs' | 'rules'>('logs');
+const activeTab = ref<'logs' | 'appeals' | 'rules'>('logs');
 const logs = ref<Api.Point.LogEntry[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -20,6 +20,15 @@ const size = ref(20);
 const loading = ref(false);
 const rules = ref<Api.Point.Rule[]>([]);
 const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const appeals = ref<Api.RealPoint.PointAppealDTO[]>([]);
+const appealTotal = ref(0);
+const appealCurrent = ref(1);
+const appealSize = ref(20);
+const appealLoading = ref(false);
+const appealFilter = reactive<{
+  keyword?: string;
+  status?: Api.RealPoint.PointAppealStatus;
+}>({});
 
 const filter = reactive<{
   behaviors: Api.Point.BehaviorCode[];
@@ -58,6 +67,25 @@ async function loadRules() {
   }
 }
 
+async function loadAppeals() {
+  const userId = userStore.currentUser?.id;
+  if (!userId) return;
+  appealLoading.value = true;
+  try {
+    const r = await pointApi.fetchMyPointAppeals({
+      pageNo: appealCurrent.value,
+      pageSize: appealSize.value,
+      keyword: appealFilter.keyword || undefined,
+      status: appealFilter.status,
+      userId: String(userId)
+    });
+    appeals.value = r.records;
+    appealTotal.value = r.total;
+  } finally {
+    appealLoading.value = false;
+  }
+}
+
 async function loadInitial() {
   const uid = userStore.currentUser?.id;
   if (!uid) return;
@@ -74,11 +102,14 @@ onMounted(loadInitial);
 
 watch(() => userStore.currentUser?.id, () => {
   current.value = 1;
+  appealCurrent.value = 1;
   loadInitial();
+  if (activeTab.value === 'appeals') loadAppeals();
 });
 
 watch(activeTab, t => {
   if (t === 'rules' && !rules.value.length) loadRules();
+  if (t === 'appeals') loadAppeals();
 });
 
 const user = computed(() => userStore.currentUser);
@@ -111,6 +142,21 @@ function reset() {
   loadLogs();
 }
 
+function resetAppeals() {
+  appealFilter.keyword = undefined;
+  appealFilter.status = undefined;
+  appealCurrent.value = 1;
+  loadAppeals();
+}
+
+function appealStatusText(status: Api.RealPoint.PointAppealStatus) {
+  return { PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }[status];
+}
+
+function appealStatusColor(status: Api.RealPoint.PointAppealStatus) {
+  return { PENDING: 'orange', APPROVED: 'green', REJECTED: 'red' }[status];
+}
+
 const filteredRules = computed(() => rules.value.filter(r => r.enabled));
 </script>
 
@@ -138,6 +184,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
     <a-card :bordered="false" :body-style="{ padding: 0 }" class="tab-card">
       <a-tabs v-model:active-key="activeTab">
         <a-tab-pane key="logs" title="积分流水" />
+        <a-tab-pane key="appeals" title="申诉记录" />
         <a-tab-pane key="rules" title="积分规则" />
       </a-tabs>
     </a-card>
@@ -180,6 +227,57 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
           :page-size="size"
           show-total
           @change="(p: number) => { current = p; loadLogs(); }"
+        />
+      </div>
+    </template>
+
+    <template v-else-if="activeTab === 'appeals'">
+      <a-card class="filter-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
+        <a-form :model="appealFilter" layout="inline">
+          <a-form-item label="关键词">
+            <a-input v-model="appealFilter.keyword" allow-clear placeholder="行为或申诉原因" style="width: 220px" />
+          </a-form-item>
+          <a-form-item label="状态">
+            <a-select v-model="appealFilter.status" allow-clear placeholder="全部" style="width: 140px">
+              <a-option value="PENDING">待审核</a-option>
+              <a-option value="APPROVED">已通过</a-option>
+              <a-option value="REJECTED">已驳回</a-option>
+            </a-select>
+          </a-form-item>
+          <a-button type="primary" @click="(() => { appealCurrent = 1; loadAppeals(); })()">查询</a-button>
+          <a-button @click="resetAppeals">重置</a-button>
+        </a-form>
+      </a-card>
+
+      <a-card :bordered="false" :body-style="{ padding: 0 }" class="list-card">
+        <a-table :data="appeals" :loading="appealLoading" :pagination="false" row-key="id">
+          <template #columns>
+            <a-table-column title="行为" :width="160">
+              <template #cell="{ record }">{{ record.behaviorName || record.behaviorCode || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="原积分" data-index="originalScore" :width="100" />
+            <a-table-column title="申诉原因" data-index="reason" />
+            <a-table-column title="状态" :width="100">
+              <template #cell="{ record }">
+                <a-tag :color="appealStatusColor(record.status)">{{ appealStatusText(record.status) }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="审核意见" :width="200">
+              <template #cell="{ record }">{{ record.reviewComment || record.decision || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="提交时间" data-index="createdAt" :width="180" />
+          </template>
+          <template #empty><EmptyState title="暂无申诉记录" /></template>
+        </a-table>
+      </a-card>
+
+      <div v-if="appealTotal > appealSize" class="pagination-bar">
+        <a-pagination
+          :total="appealTotal"
+          :current="appealCurrent"
+          :page-size="appealSize"
+          show-total
+          @change="(p: number) => { appealCurrent = p; loadAppeals(); }"
         />
       </div>
     </template>
