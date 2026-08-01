@@ -15,6 +15,10 @@ const submitting = ref(false);
 const modalOpen = ref(false);
 const loadingRecords = ref(false);
 const recentWithdrawals = ref<Api.RealWallet.WithdrawVO[]>([]);
+const recordCurrent = ref(1);
+const recordSize = ref(10);
+const recordTotal = ref(0);
+const recordStatus = ref<Api.RealWallet.WithdrawStatus>();
 const createdWithdrawal = ref<Api.RealWallet.WithdrawVO>();
 const detailOpen = ref(false);
 const detailLoading = ref(false);
@@ -51,8 +55,13 @@ function getId(result: Api.RealWallet.WithdrawVO | string | number) {
 async function loadRecords() {
   loadingRecords.value = true;
   try {
-    const result = await realWalletApi.fetchWithdrawPage({ pageNo: 1, pageSize: 10 });
+    const result = await realWalletApi.fetchWithdrawPage({
+      pageNo: recordCurrent.value,
+      pageSize: recordSize.value,
+      status: recordStatus.value
+    });
     recentWithdrawals.value = result.records;
+    recordTotal.value = result.total;
   } finally {
     loadingRecords.value = false;
   }
@@ -83,6 +92,7 @@ async function confirm() {
     createdWithdrawal.value = typeof created === 'object' ? created : await realWalletApi.fetchWithdrawDetail(id);
     modalOpen.value = false;
     Message.success('转出申请已提交，请等待平台审核');
+    recordCurrent.value = 1;
     await Promise.all([walletStore.refetch(), loadRecords()]);
   } finally {
     submitting.value = false;
@@ -98,6 +108,11 @@ async function showDetail(record: Api.RealWallet.WithdrawVO) {
   } finally {
     detailLoading.value = false;
   }
+}
+
+function queryRecords() {
+  recordCurrent.value = 1;
+  void loadRecords();
 }
 
 onMounted(loadAll);
@@ -138,7 +153,15 @@ onMounted(loadAll);
     </a-card>
 
     <a-card class="records-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-      <div class="section-title">最近转出申请</div>
+      <div class="records-head">
+        <div class="section-title">转出申请</div>
+        <a-select v-model="recordStatus" placeholder="全部状态" allow-clear style="width: 160px" @change="queryRecords">
+          <a-option value="REVIEWING">审核中</a-option>
+          <a-option value="APPROVED">已通过</a-option>
+          <a-option value="SUCCESS">已完成</a-option>
+          <a-option value="REJECTED">已驳回</a-option>
+        </a-select>
+      </div>
       <a-table :data="recentWithdrawals" :loading="loadingRecords" :pagination="false" row-key="id" :bordered="false">
         <template #columns>
           <a-table-column title="申请编号" data-index="id" :width="220" />
@@ -150,6 +173,15 @@ onMounted(loadAll);
         </template>
         <template #empty><EmptyState title="暂无转出申请" /></template>
       </a-table>
+      <div v-if="recordTotal > recordSize" class="pagination">
+        <a-pagination
+          :total="recordTotal"
+          :current="recordCurrent"
+          :page-size="recordSize"
+          show-total
+          @change="(page: number) => { recordCurrent = page; loadRecords(); }"
+        />
+      </div>
     </a-card>
 
     <a-modal v-model:visible="modalOpen" title="确认提交转出申请" :ok-loading="submitting" ok-text="确认提交" @ok="confirm">
@@ -191,5 +223,7 @@ onMounted(loadAll);
 .balance-amount { font-size: 22px; font-weight: 700; color: var(--bw-brand-primary); font-family: ui-monospace, monospace; }
 .err { color: #f53f3f; font-size: 12px; margin-bottom: 8px; }
 .section-title { font-size: 14px; font-weight: 600; color: #1d2129; margin-bottom: 14px; padding-left: 8px; border-left: 3px solid var(--bw-brand-primary); }
+.records-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.pagination { display: flex; justify-content: center; margin-top: 16px; }
 .confirm-alert { margin-bottom: 16px; }
 </style>

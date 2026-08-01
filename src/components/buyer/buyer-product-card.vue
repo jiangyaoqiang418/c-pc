@@ -66,6 +66,9 @@ function onDelete() {
         <a-tag :color="shelfMeta.color" size="small">{{ shelfMeta.label }}</a-tag>
         <a-tag :color="aftersaleMeta.color" size="small">{{ aftersaleMeta.label }}</a-tag>
       </div>
+      <div v-if="product.status === 'REJECTED' && product.draftAuditOpinion" class="reject-reason">
+        驳回原因：{{ product.draftAuditOpinion }}
+      </div>
       <div class="meta-row">
         <PriceTag :price="product.price" size="sm" />
         <span class="stock">库存 {{ product.stock }}</span>
@@ -148,6 +151,15 @@ function onDelete() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+}
+.reject-reason {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  color: #cb2634;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #fff0f0;
+  border-radius: 4px;
 }
 .stock {
   font-size: 12px;

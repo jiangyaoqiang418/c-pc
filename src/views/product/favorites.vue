@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { Message, Modal } from '@arco-design/web-vue';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
@@ -11,6 +12,7 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(12);
 const loading = ref(false);
+const cancelingId = ref<string>();
 
 async function load() {
   loading.value = true;
@@ -26,6 +28,25 @@ async function load() {
   }
 }
 
+function cancelFavorite(product: Api.Product.ProductRecord) {
+  Modal.confirm({
+    title: '取消收藏？',
+    content: `确认将「${product.title}」移出收藏列表吗？`,
+    okText: '确认取消',
+    async onOk() {
+      cancelingId.value = String(product.id);
+      try {
+        await productApi.cancelProductFavorite(product.id);
+        if (list.value.length === 1 && current.value > 1) current.value -= 1;
+        await load();
+        Message.success('已取消收藏');
+      } finally {
+        cancelingId.value = undefined;
+      }
+    }
+  });
+}
+
 onMounted(load);
 </script>
 
@@ -38,7 +59,19 @@ onMounted(load);
 
     <a-spin :loading="loading" style="width: 100%">
       <div v-if="list.length" class="product-grid">
-        <ProductCard v-for="p in list" :key="p.id" :product="p" />
+        <div v-for="p in list" :key="p.id" class="favorite-item">
+          <ProductCard :product="p" />
+          <a-button
+            class="cancel-button"
+            type="outline"
+            status="danger"
+            long
+            :loading="cancelingId === String(p.id)"
+            @click="cancelFavorite(p)"
+          >
+            取消收藏
+          </a-button>
+        </div>
       </div>
       <EmptyState
         v-else
@@ -86,6 +119,12 @@ onMounted(load);
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+}
+.favorite-item {
+  min-width: 0;
+}
+.cancel-button {
+  margin-top: 8px;
 }
 .pagination-bar {
   display: flex;

@@ -15,6 +15,10 @@ const submitting = ref(false);
 const loadingRecords = ref(false);
 const currentRecharge = ref<Api.RealWallet.RechargeVO>();
 const recentDeposits = ref<Api.RealWallet.RechargeVO[]>([]);
+const recordCurrent = ref(1);
+const recordSize = ref(10);
+const recordTotal = ref(0);
+const recordStatus = ref<Api.RealWallet.RechargeStatus>();
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.RechargeVO>();
@@ -44,8 +48,13 @@ function getId(result: Api.RealWallet.RechargeVO | string | number) {
 async function loadRecords() {
   loadingRecords.value = true;
   try {
-    const result = await realWalletApi.fetchRechargePage({ pageNo: 1, pageSize: 10 });
+    const result = await realWalletApi.fetchRechargePage({
+      pageNo: recordCurrent.value,
+      pageSize: recordSize.value,
+      status: recordStatus.value
+    });
     recentDeposits.value = result.records;
+    recordTotal.value = result.total;
   } finally {
     loadingRecords.value = false;
   }
@@ -70,6 +79,7 @@ async function createRecharge() {
       currentRecharge.value = await realWalletApi.fetchRechargeDetail(id);
     }
     activeTab.value = 'address';
+    recordCurrent.value = 1;
     await loadRecords();
     Message.success('充值订单已创建，请按收款信息完成链上转账');
   } finally {
@@ -92,6 +102,11 @@ async function showDetail(record: Api.RealWallet.RechargeVO) {
   } finally {
     detailLoading.value = false;
   }
+}
+
+function queryRecords() {
+  recordCurrent.value = 1;
+  void loadRecords();
 }
 
 onMounted(loadAll);
@@ -150,7 +165,14 @@ onMounted(loadAll);
     </a-card>
 
     <a-card class="txn-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-      <div class="section-title">最近充值记录</div>
+      <div class="records-head">
+        <div class="section-title">充值记录</div>
+        <a-select v-model="recordStatus" placeholder="全部状态" allow-clear style="width: 160px" @change="queryRecords">
+          <a-option value="PENDING">待确认</a-option>
+          <a-option value="CONFIRMED">已确认</a-option>
+          <a-option value="CANCELED">已取消</a-option>
+        </a-select>
+      </div>
       <a-table :data="recentDeposits" :loading="loadingRecords" :pagination="false" row-key="id" :bordered="false">
         <template #columns>
           <a-table-column title="订单编号" data-index="id" :width="220" />
@@ -170,6 +192,15 @@ onMounted(loadAll);
         </template>
         <template #empty><EmptyState title="暂无链上充值记录" /></template>
       </a-table>
+      <div v-if="recordTotal > recordSize" class="pagination">
+        <a-pagination
+          :total="recordTotal"
+          :current="recordCurrent"
+          :page-size="recordSize"
+          show-total
+          @change="(page: number) => { recordCurrent = page; loadRecords(); }"
+        />
+      </div>
     </a-card>
 
     <a-drawer v-model:visible="detailOpen" title="充值订单详情" width="520" :footer="false">
@@ -201,4 +232,6 @@ onMounted(loadAll);
 .address-label { color: #86909c; font-size: 12px; margin-bottom: 8px; }
 .address-value { color: #1d2129; font-family: var(--yb-font-mono); overflow-wrap: anywhere; margin-bottom: 12px; }
 .section-title { font-size: 14px; font-weight: 600; color: #1d2129; margin-bottom: 14px; padding-left: 8px; border-left: 3px solid var(--bw-brand-primary); }
+.records-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.pagination { display: flex; justify-content: center; margin-top: 16px; }
 </style>

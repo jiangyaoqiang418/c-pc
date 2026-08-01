@@ -26,6 +26,9 @@ const TABS: TabDef[] = [
 const activeKey = ref('all');
 const orders = ref<Api.Order.OrderRecord[]>([]);
 const loading = ref(false);
+const current = ref(1);
+const size = ref(10);
+const total = ref(0);
 const priceModalOpen = ref(false);
 const priceSubmitting = ref(false);
 const priceOrder = ref<Api.Order.OrderRecord>();
@@ -38,18 +41,22 @@ async function load() {
     const tab = TABS.find(t => t.key === activeKey.value);
     const r = await realOrderApi.fetchMyOrders({
       shopperId: userStore.currentUser.id,
-      current: 1,
-      size: 50,
+      current: current.value,
+      size: size.value,
       statuses: tab?.statuses
     });
     orders.value = r.records;
+    total.value = r.total;
   } finally {
     loading.value = false;
   }
 }
 
 onMounted(load);
-watch(activeKey, load);
+watch(activeKey, () => {
+  current.value = 1;
+  void load();
+});
 
 function onUploadProof() {
   Message.info('采购凭证绑定订单接口暂未提供');
@@ -112,8 +119,18 @@ async function changePrice() {
       </a-spin>
     </div>
 
+    <div v-if="total > size" class="pagination">
+      <a-pagination
+        :total="total"
+        :current="current"
+        :page-size="size"
+        show-total
+        @change="(page: number) => { current = page; load(); }"
+      />
+    </div>
+
     <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" @ok="changePrice">
-      <a-form layout="vertical">
+      <a-form :model="{ priceAmount }" layout="vertical">
         <a-form-item label="订单">
           <a-input :model-value="priceOrder?.code" disabled />
         </a-form-item>
@@ -136,5 +153,10 @@ async function changePrice() {
 }
 .list-wrap {
   margin-top: 16px;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0 32px;
 }
 </style>

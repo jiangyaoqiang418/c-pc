@@ -62,6 +62,7 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.Product.Pr
     salesCount: Number(dto.salesCount || 0),
     viewCount: Number(dto.viewCount || 0),
     favoriteCount: Number(dto.favoriteCount || 0),
+    draftAuditOpinion: dto.reviewComment,
     createdAt,
     submittedAt: createdAt,
     publishedAt: dto.status === 'ON_SALE' ? createdAt : undefined,
@@ -151,6 +152,11 @@ export async function toggleProductFavorite(id: string | number) {
   return { ok: true };
 }
 
+export async function cancelProductFavorite(id: string | number) {
+  await realOrderRequest.delete<boolean>('/products/favorite', { params: { id } });
+  return { ok: true };
+}
+
 export async function fetchMyFavorites(q: { current?: number; size?: number } = {}) {
   const page = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO> & { pageNo?: number; pageSize?: number },
@@ -172,7 +178,14 @@ export async function fetchSellerProductDetail(id: string | number) {
   return toProductRecord(dto);
 }
 
-export async function fetchMyProducts(q: { current?: number; size?: number; status?: Api.Product.ProductStatus }) {
+export async function fetchMyProducts(q: {
+  current?: number;
+  size?: number;
+  keyword?: string;
+  categoryId?: string | number;
+  status?: Api.Product.ProductStatus;
+  shelf?: Api.Product.ShelfStatus;
+}) {
   const statusMap: Partial<Record<Api.Product.ProductStatus, Api.RealProduct.ProductStatus>> = {
     PENDING_AUDIT: 'REVIEWING',
     IN_AUDIT: 'REVIEWING',
@@ -180,13 +193,18 @@ export async function fetchMyProducts(q: { current?: number; size?: number; stat
     NORMAL: 'ON_SALE',
     FROZEN: 'FROZEN'
   };
+  const status = q.shelf
+    ? q.shelf === 'on-shelf' ? 'ON_SALE' : 'OFF_SHELF'
+    : q.status ? statusMap[q.status] : undefined;
   const page = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.ProductPageQuery
   >('/products/my/page', {
     pageNo: q.current || 1,
     pageSize: q.size || 50,
-    status: q.status ? statusMap[q.status] : undefined
+    keyword: q.keyword,
+    categoryId: q.categoryId,
+    status
   });
   return {
     current: page.current || page.pageNo || q.current || 1,

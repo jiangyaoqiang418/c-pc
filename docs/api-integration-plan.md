@@ -432,3 +432,33 @@ view / store
 - 买手分类申请、秒杀报名、订单改价需要 KYC 通过的买手账号及对应商品/订单数据验证成功写入与刷新。
 - 商品图片上传仍受后端 MinIO 未配置阻塞；前端已按 Swagger 修正提交结构，不增加本地占位或 Mock fallback。
 - P5 售后页面现有 5 类工单、证据、列表、取消和时间线，与 Swagger 仅提供的简单退款契约冲突；未在本轮强行替换，等待产品确认交互收敛方案。
+
+## 2026-08-01 列表能力与收藏闭环补齐
+
+### 已完成代码接入
+
+| 梯队 | 能力 | Swagger 接口 | 页面/API 状态 |
+|---|---|---|---|
+| P2 | 取消商品收藏 | `DELETE /order/products/favorite?id=` | `/favorites` 已增加确认取消入口；成功后重新读取当前页，末页最后一条被移除时自动回退上一页 |
+| P2 | 买手商品筛选与分页 | `POST /order/products/my/page` | `/buyer/products` 已支持关键词、分类、状态和后端分页；`ON_SALE/OFF_SHELF` 直接作为后端状态查询，不再在单页结果上二次过滤 |
+| P2 | 商品驳回原因 | `POST /order/products/my/page` 返回 `reviewComment` | adapter 映射至现有 `draftAuditOpinion`，驳回商品卡展示审核意见 |
+| P3 | 买手订单分页 | `POST /order/orders/sold/page` | `/buyer/orders` 已使用真实 `pageNo/pageSize/total` 分页，切换状态时回到第一页 |
+| P4 | 充值记录筛选与分页 | `POST /user/recharge/page` | `/wallet/deposit` 已支持 `PENDING/CONFIRMED/CANCELED` 状态筛选和真实分页 |
+| P4 | 转出记录筛选与分页 | `POST /user/withdraw/page` | `/wallet/withdraw` 已支持 `REVIEWING/APPROVED/SUCCESS/REJECTED` 状态筛选和真实分页 |
+
+### 验证与剩余边界
+
+- 已执行 `pnpm typecheck` 与 `git diff --check`，均通过。
+- Chrome 已验证收藏页空态、充值状态筛选、转出状态筛选和列表空态；现有 Vite 终端无新增报错。
+- 当前账号无收藏、充值和转出记录，未执行取消收藏或资金写操作；非空记录、详情与翻页需准备测试数据后补充回归。
+- 当前账号未完成 KYC 且不是买手，访问买手商品/订单页会按现有权限守卫跳转 `/kyc`；买手筛选、驳回原因、订单翻页需使用真实买手账号和对应数据验证。
+- 本轮没有强行接入卖家发货、购物车下单和退款接口：其 Swagger 参数仍与现有物流、地址、多商品结算及 5 类售后交互不一致。
+
+本轮后 C 端 PC 已有接口对接估算：
+
+| 口径 | 进度 |
+|---|---:|
+| 已封装接口进度 | 约 53% |
+| 已页面接入进度 | 约 54% |
+| 真实回归通过进度 | 约 38% |
+| C 端 PC 整体交付进度 | 约 45% |

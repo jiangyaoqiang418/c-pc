@@ -5,6 +5,7 @@ import { Message } from '@arco-design/web-vue';
 import BuyerProductCard from '@/components/buyer/buyer-product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
+import { fetchCategoryTree } from '@/service/api/category';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -30,23 +31,63 @@ const TABS: TabDef[] = [
 const activeKey = ref('all');
 const products = ref<Api.Product.ProductRecord[]>([]);
 const loading = ref(false);
+const keyword = ref('');
+const categoryPath = ref<Array<string | number>>([]);
+const categoryOptions = ref<Array<{ value: string | number; label: string; children?: any[] }>>([]);
+const current = ref(1);
+const size = ref(12);
+const total = ref(0);
+
+function mapCategoryOptions(nodes: Api.Category.CategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
+  return nodes.map(node => ({
+    value: node.id,
+    label: node.name,
+    children: node.children?.length ? mapCategoryOptions(node.children) : undefined
+  }));
+}
 
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const r = await productApi.fetchMyProducts({ status: tab?.status });
-    let list = r.records;
-    if (tab?.shelf) list = list.filter(p => p.shelfStatus === tab.shelf);
-    products.value = list;
+    const r = await productApi.fetchMyProducts({
+      current: current.value,
+      size: size.value,
+      keyword: keyword.value.trim() || undefined,
+      categoryId: categoryPath.value.at(-1),
+      status: tab?.status,
+      shelf: tab?.shelf
+    });
+    products.value = r.records;
+    total.value = r.total;
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(load);
-watch(activeKey, load);
+async function loadCategories() {
+  categoryOptions.value = mapCategoryOptions(await fetchCategoryTree());
+}
+
+function queryProducts() {
+  current.value = 1;
+  void load();
+}
+
+function resetFilters() {
+  keyword.value = '';
+  categoryPath.value = [];
+  queryProducts();
+}
+
+onMounted(() => {
+  void Promise.all([load(), loadCategories()]);
+});
+watch(activeKey, () => {
+  current.value = 1;
+  void load();
+});
 
 async function toggleShelf(p: Api.Product.ProductRecord) {
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
@@ -78,6 +119,22 @@ function onDelete(p: Api.Product.ProductRecord) {
       </a-tabs>
     </a-card>
 
+    <a-card class="filter-card" :bordered="false">
+      <a-space wrap>
+        <a-input v-model="keyword" placeholder="搜索商品名称" allow-clear style="width: 240px" @press-enter="queryProducts" />
+        <a-cascader
+          v-model="categoryPath"
+          :options="categoryOptions"
+          placeholder="选择商品分类"
+          allow-clear
+          check-strictly
+          style="width: 240px"
+        />
+        <a-button type="primary" @click="queryProducts">查询</a-button>
+        <a-button @click="resetFilters">重置</a-button>
+      </a-space>
+    </a-card>
+
     <a-spin :loading="loading" style="width: 100%">
       <div v-if="products.length" class="grid">
         <BuyerProductCard
@@ -96,6 +153,16 @@ function onDelete(p: Api.Product.ProductRecord) {
         @action="router.push('/buyer/products/create')"
       />
     </a-spin>
+
+    <div v-if="total > size" class="pagination">
+      <a-pagination
+        :total="total"
+        :current="current"
+        :page-size="size"
+        show-total
+        @change="(page: number) => { current = page; load(); }"
+      />
+    </div>
   </div>
 </template>
 
@@ -119,5 +186,13 @@ function onDelete(p: Api.Product.ProductRecord) {
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-top: 16px;
+}
+.filter-card {
+  margin-top: 16px;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0 32px;
 }
 </style>

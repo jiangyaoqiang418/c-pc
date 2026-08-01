@@ -266,3 +266,22 @@
 - 积分申诉记录查询、充值页、提现页及买手路由权限守卫运行正常，Chrome 控制台与 Vite 终端无 warning/error。
 - 买手功能因当前账号未完成 KYC、不是买手而未进入页面；需要真实买手账号、在售商品、秒杀场次和待付款卖出订单继续验证。
 - 未运行 `typecheck`、`lint`、`test` 或 `build`。
+
+## 2026-08-01 列表补齐调用矩阵
+
+| 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 真实验证 |
+|---|---|---|---|---|
+| P2-B | 取消收藏 | `DELETE /order/products/favorite?id=` | API 已封装，`/favorites` 已调用；保留 Long ID 原值 | 当前账号收藏为空，已验证空态，未执行写操作 |
+| P2-A | 买手商品关键词/分类筛选 | `POST /order/products/my/page` 的 `keyword/categoryId` | API 与页面已传递筛选条件，分类末级 ID 保留原值 | 当前账号非买手，路由守卫跳转 `/kyc` |
+| P2-A | 买手商品状态分页 | `POST /order/products/my/page` 的 `pageNo/pageSize/status` | 已使用后端 `total`；在售/下架分别查询 `ON_SALE/OFF_SHELF` | 待买手账号及多页商品数据 |
+| P2-A | 商品驳回意见 | 商品 DTO 的 `reviewComment` | adapter 已映射，`REJECTED` 商品卡已展示 | 待一条驳回商品数据 |
+| P3 | 买手订单分页 | `POST /order/orders/sold/page` 的 `pageNo/pageSize/status` | 页面已使用真实 `total` 分页 | 当前账号非买手，待名下多页订单数据 |
+| P4 | 充值状态筛选/分页 | `POST /user/recharge/page` 的 `status/pageNo/pageSize` | 页面已调用，支持待确认/已确认/已取消 | Chrome 已验证筛选交互和空态；账号无记录 |
+| P4 | 转出状态筛选/分页 | `POST /user/withdraw/page` 的 `status/pageNo/pageSize` | 页面已调用，支持审核中/已通过/已完成/已驳回 | Chrome 已验证筛选交互和空态；账号无记录 |
+
+### 本轮验证结论
+
+- `pnpm typecheck`、`git diff --check` 均通过。
+- 收藏、充值和转出页面正常渲染；充值“待确认”和转出“审核中”筛选可选中并刷新列表，Vite 终端无新增报错。
+- 当前测试账号没有收藏、充值、转出或买手业务数据，写操作、非空回显和真实翻页不标记为已验证。
+- 卖家发货、购物车下单、退款接口仍属于契约冲突项，未计入可直接开发能力。
