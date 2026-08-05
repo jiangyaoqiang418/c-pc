@@ -102,6 +102,13 @@ function statusColor(status: Api.RealCategory.CategoryApplyStatus) {
   return { PENDING: 'orange', APPROVED: 'green', REJECTED: 'red' }[status];
 }
 
+function formatTime(value?: string | number) {
+  if (!value) return '—';
+  const raw = String(value);
+  const date = /^\d+$/.test(raw) ? new Date(Number(raw)) : new Date(raw);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
+
 onMounted(() => {
   load();
   loadCategories();
@@ -149,7 +156,9 @@ onMounted(() => {
           <a-table-column title="审核意见" :width="220">
             <template #cell="{ record }">{{ record.reviewComment || '-' }}</template>
           </a-table-column>
-          <a-table-column title="申请时间" data-index="createdAt" :width="180" />
+          <a-table-column title="申请时间" :width="180">
+            <template #cell="{ record }">{{ formatTime(record.createdAt) }}</template>
+          </a-table-column>
         </template>
       </a-table>
     </a-card>
