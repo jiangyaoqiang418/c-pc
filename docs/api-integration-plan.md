@@ -551,3 +551,16 @@ view / store
 - 已执行 `pnpm typecheck`、`git diff --check`，均通过。
 - 分类申请下一步需后台审核 `2084925388770336770`，再回归 `APPROVED/REJECTED`、审核意见和分类树变化。
 - 商品上传下一步需先配置 MinIO；Chrome 扩展文件上传还需开启“Allow access to file URLs”。
+
+## 2026-08-05 分类申请审核闭环
+
+| 验证项 | 接口结果 | Chrome 结果 | 结论 |
+|---|---|---|---|
+| 审核状态 | 申请 `2084925388770336770` 返回 `APPROVED`，审核意见 `1` | 列表显示“已通过”和审核意见 | 通过 |
+| 审核时间 | `reviewedAt=1785922636848` | 新增审核时间列，显示为本地日期时间 | 通过 |
+| 分类创建 | `createdCategoryId=2084936769859051521`，分类树节点 `enabled=true/source=APPLY` | 商品创建分类下拉出现 `QA_20260805_PC分类申请回归` | 审核与分类树联动通过 |
+
+- Chrome 项目控制台无 warning/error。
+- 已执行 `pnpm typecheck`、`git diff --check`，均通过。
+- 分类申请创建、后台审核、C 端状态回显和商品表单分类联动已形成完整闭环。
+- 商品创建仍由 MinIO 未配置阻塞；分类已满足后续商品提交条件。

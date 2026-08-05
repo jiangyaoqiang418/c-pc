@@ -159,6 +159,9 @@ onMounted(() => {
           <a-table-column title="申请时间" :width="180">
             <template #cell="{ record }">{{ formatTime(record.createdAt) }}</template>
           </a-table-column>
+          <a-table-column title="审核时间" :width="180">
+            <template #cell="{ record }">{{ formatTime(record.reviewedAt) }}</template>
+          </a-table-column>
         </template>
       </a-table>
     </a-card>

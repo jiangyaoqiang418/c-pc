@@ -356,3 +356,15 @@
 
 - 当前分类申请为 `PENDING`，待后台审核后继续验证状态、审核意见和新分类树节点。
 - Chrome 项目控制台无 warning/error；本轮唯一业务阻塞为 MinIO 未配置。
+
+## 2026-08-05 分类申请审核闭环验证
+
+| 梯队 | 前端能力 | Swagger/字段 | 真实验证 |
+|---|---|---|---|
+| P2 | 分类申请审核结果 | `POST /order/categories/apply/my/page` 返回 `status/reviewComment/reviewedAt/createdCategoryId` | 申请 `2084925388770336770` 已为 `APPROVED`，审核意见和申请/审核时间均正确展示 |
+| P2 | 审核后分类树联动 | `GET /order/categories/tree` | 新分类 `2084936769859051521` 已返回，`source=APPLY/enabled=true` |
+| P2 | 商品创建分类选择 | 商品表单复用分类树 | Chrome 分类下拉已出现 `QA_20260805_PC分类申请回归` |
+
+- 分类申请的创建、审核、列表回显和分类树联动已真实闭环通过。
+- 页面新增审核时间列，并兼容后端毫秒时间戳字符串。
+- 商品上传与创建仍受 MinIO 未配置阻塞，不因分类闭环通过而扩大结论。
