@@ -331,3 +331,17 @@
 - 最新 Swagger 没有 KYC 提交、审核或状态变更接口，买手审核接口也未声明 KYC 联动，因此不再把 `KYC=PASSED` 作为买手页面回归前置条件。
 - 当前买手只读链路已完成真实接口与 Chrome 空态回归；抢单、商品状态、订单动作和押金非零展示仍受测试数据缺失限制。
 - 接口满足度、页面接入进度和整体交付进度不因权限校正发生变化；真实回归覆盖范围已扩大，但非空及写操作仍需补测。
+
+## 2026-08-05 买手扩展页面调用验证
+
+| 梯队 | 前端能力 | Swagger 匹配 | 页面调用状态 | 真实验证 |
+|---|---|---|---|---|
+| P2 | 分类树与我的分类申请 | `GET /order/categories/tree`、`POST /order/categories/apply/my/page` | 商品创建和分类申请页面均已调用 | 分类树 4 项、申请 total=0；Chrome 筛选、重置和空态通过 |
+| P2 | 提交分类申请 | `POST /order/categories/apply/submit` | 提交弹窗已调用，保留 Long `parentId` | 必填提示通过；未提交真实申请 |
+| P2 | 秒杀场次与我的报名 | `GET /order/flash-sale/sessions/available`、`GET /order/flash-sale/my` | 秒杀报名页已调用 | 两接口均成功且为空；页签、刷新和空态通过 |
+| P2 | 秒杀报名 | `POST /order/flash-sale/enroll` | 报名弹窗已接入 | 缺可报名场次和在售商品，未执行写操作 |
+| P2 | 商品创建表单 | `GET /order/categories/tree`、`POST /order/files/upload`、`POST /order/products/create` | 表单、分类下拉、上传组件和提交 API 已接入 | 分类选项和必填校验通过；上传及创建待 MinIO 和测试图片 |
+
+- 本轮 Chrome 项目控制台无 warning/error。
+- 本轮只验证读取、空态、筛选、页签和表单校验，没有产生外部写入。
+- 分类申请、商品创建和秒杀报名不能因页面可操作而标记为真实闭环通过，仍需记录成功写入返回的业务 ID。
