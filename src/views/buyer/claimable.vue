@@ -2,10 +2,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { buyerApi } from '@shared';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import VipBadge from '@/components/common/vip-badge.vue';
+import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -13,6 +13,8 @@ const userStore = useUserStore();
 
 const list = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
 const total = ref(0);
+const current = ref(1);
+const size = ref(10);
 const loading = ref(false);
 
 const user = computed(() => userStore.currentUser);
@@ -21,9 +23,12 @@ async function load() {
   if (!user.value) return;
   loading.value = true;
   try {
-    const r = await buyerApi.fetchClaimableRequests(user.value.id);
+    const r = await purchaseApi.fetchHall({ current: current.value, size: size.value });
     list.value = r.records;
-    total.value = r.total;
+    total.value = Number(r.total || 0);
+  } catch {
+    list.value = [];
+    total.value = 0;
   } finally {
     loading.value = false;
   }
@@ -32,10 +37,10 @@ onMounted(load);
 
 async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
   if (!user.value) return;
-  const r = await buyerApi.claimRequestAsBuyerMock(req.id, user.value.id);
+  const r = await purchaseApi.claimRequest(req.id);
   if (r.ok) {
-    Message.success('接单成功！请在 12h 内完成采购');
-    load();
+    Message.success('接单成功');
+    await load();
     router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
   } else {
     Message.error(r.message || '接单失败');
@@ -48,19 +53,19 @@ async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
     <a-card class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
       <div class="hero-row">
         <div class="hero-left">
-          <div class="hero-title">🙋 求购接单</div>
-          <div class="hero-sub">按 VIP 等级阶梯推送 · 高 VIP 优先接单</div>
+          <div class="hero-title">可接求购</div>
+          <div class="hero-sub">查看求购大厅当前可接需求</div>
         </div>
         <div class="hero-right">
           <VipBadge v-if="user" :level="user.vipLevel" />
-          <div class="stat">推送 <strong>{{ total }}</strong> 单</div>
-          <a-button @click="router.push('/purchase/hall')">查看公开大厅 ›</a-button>
+          <div class="stat">可接 <strong>{{ total }}</strong> 单</div>
+          <a-button @click="router.push('/purchase/hall')">查看求购大厅</a-button>
         </div>
       </div>
     </a-card>
 
     <a-alert type="info" class="tip" closable>
-      💡 提示：接单后系统在 12h 内自动创建订单并通知顾客；超时未确认订单可能被平台撤回，影响接单评分
+      当前展示求购大厅中的可接需求。后台暂未提供按买手定向推送的独立列表。
     </a-alert>
 
     <a-spin :loading="loading" style="width: 100%">
@@ -76,12 +81,22 @@ async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
       </div>
       <EmptyState
         v-else
-        title="暂无推送给您的求购"
-        description="您的 VIP 等级越高，推送优先级越靠前；可在「VIP 特权」页查看升级路径"
-        action-text="VIP 特权"
-        @action="router.push('/vip')"
+        title="暂无可接求购"
+        description="当前求购大厅没有可接需求"
+        action-text="查看求购大厅"
+        @action="router.push('/purchase/hall')"
       />
     </a-spin>
+
+    <div v-if="total > size" class="pagination">
+      <a-pagination
+        :total="total"
+        :current="current"
+        :page-size="size"
+        show-total
+        @change="(page: number) => { current = page; load(); }"
+      />
+    </div>
   </div>
 </template>
 
@@ -130,5 +145,10 @@ async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
 }
 </style>

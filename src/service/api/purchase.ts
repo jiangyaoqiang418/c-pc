@@ -23,7 +23,7 @@ function toStatus(value?: string): Api.PurchaseRequest.RequestStatus {
   if (key === 'PENDING_AUDIT' || key === 'PENDING' || key === 'REVIEWING') return 'pending_audit';
   if (key === 'REJECTED') return 'rejected';
   if (key === 'CLAIMED' || key === 'TAKEN') return 'claimed';
-  if (key === 'CANCELLED' || key === 'CANCELED') return 'cancelled';
+  if (key === 'VOID' || key === 'CANCELLED' || key === 'CANCELED') return 'cancelled';
   return 'pushing';
 }
 
@@ -62,7 +62,7 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
   return {
     id,
     code: `PUR-${dto.id}`,
-    customerId: 0 as unknown as number,
+    customerId: dto.buyerId as unknown as number,
     customerName: '',
     productTitle: dto.title,
     productDescription: dto.description || '',
@@ -75,6 +75,7 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     evidenceUrls: dto.images || [],
     appeal: dto.demandNote || dto.description || '',
     status: toStatus(dto.status),
+    claimExpiresAt: toIso(dto.expireAt),
     pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId as unknown as number] : [],
     claimedBy: claimedBuyerId as unknown as number | undefined,
     claimedByName: claimedBuyerId ? `买手 ${claimedBuyerId}` : undefined,

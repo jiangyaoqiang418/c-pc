@@ -51,6 +51,10 @@ function goDetail() {
             <Icon icon="lucide:calendar-days" width="11" />
             期望 {{ request.expectedDays }} 天
           </span>
+          <span v-if="request.status === 'pushing' && request.claimExpiresAt" class="chip">
+            <Icon icon="lucide:clock-3" width="11" />
+            截止 {{ new Date(request.claimExpiresAt).toLocaleString() }}
+          </span>
           <span class="chip">
             <Icon icon="lucide:shield-check" width="11" />
             {{ aftersaleMeta.label }}

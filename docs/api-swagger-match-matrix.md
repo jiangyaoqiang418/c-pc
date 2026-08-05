@@ -7,8 +7,8 @@
 - 前端基线：45 个页面、61 个组件、4 个 Store、16 个 Mock API 模块及相关类型；本轮新增 2 个买手页面。
 - 当前实际调用：73 项 Mock API 能力。
 - 共用入口：`http://221.128.249.198:8902/doc.html`。
-- 2026-08-01 实时读取：`admin` 84 路径/85 操作，`user` 19/19，`order` 40/42；`user`、`order` 与 2026-07-30 一致。
-- `notify` 的 `/notify/v3/api-docs` 返回 HTTP 404。
+- 2026-08-05 实时读取：`admin` 84 路径/85 操作，`user` 19/19，`order` 40/42；Swagger 源站与测试环境的路径、方法和 Schema 结构差异均为 `0`。
+- `notify` 已出现在 `swagger-config` 分组中，但源站与测试环境的 `/notify/v3/api-docs` 均返回 HTTP 404，不计为可用接口。
 - 表中 `/user/...`、`/order/...`、`/admin/...` 用首段标识 Swagger 分组；分组内原始 path 分别从 `/auth/...`、`/orders/...` 等开始，后续同源请求前缀按请求层配置确定。
 
 ## 满足度口径
@@ -21,7 +21,7 @@
 | D 当前缺失 | `admin`、`user`、`order` 中均无满足当前能力的接口 |
 | 本地能力 | 当前交互不要求后端接口，不计入接口满足度 |
 
-按 73 项已调用 Mock API 能力统计：A 4、B 14、C 20、D 35；A+B 约 `25%`，A+B+C 约 `52%`。
+2026-08-01 初始 73 项 Mock 能力基线为 A 4、B 14、C 20、D 35。2026-08-05 深度复核将“KYC 完整缺失”修正为“状态读取部分满足、提交能力缺失”，当前基线修正为 A 4、B 14、C 21、D 34；A+B 约 `25%`，A+B+C 约 `53%`。该口径用于接口契约覆盖，不等同于页面接入或真实回归进度。
 
 ## 认证、注册与当前用户
 
@@ -87,14 +87,14 @@
 | 买手订单 | `POST /order/orders/sold/page` | C | 缺采购截图、发货截图、物流公司/单号、地址和细分状态 |
 | 上传采购凭证 | `POST /order/files/upload` 只能上传文件 | D | 没有把采购凭证绑定到订单的接口 |
 | 发货 | `POST /order/orders/ship` | C | 只接收订单 ID，当前页面需要 trackingNumber、carrier 和 shippingScreenshotUrl |
-| 买手押金与经营统计 | `GET /user/wallet/overview`、`GET /user/buyer/application` | C | 无押金细分、完成率、好评率、投诉率、平均发货时效和未履约统计 |
+| 买手押金与经营统计 | `GET /user/wallet/overview`、`POST /user/wallet/ledger/page`、`GET /user/buyer/application` | C | `DEPOSIT_AVAILABLE/DEPOSIT_GUARANTEED` 和押金流水可读取；仍缺押金划转、完成率、好评率、投诉率、平均发货时效和未履约统计 |
 
 ## 求购
 
 | 前端需求 | Swagger 匹配 | 等级 | 关键差异 |
 |---|---|---|---|
 | 发起求购 | `POST /order/demands/create` | B | 标题、分类、描述、预算、天数、海外、售后、图片可匹配 |
-| 我的求购/大厅 | `POST /order/demands/my/page`、`POST /order/demands/hall/page` | C | 缺推送批次、客户/买手名称、审核信息、关联订单号和取消原因；PC 的预算区间/期望天数筛选也无参数 |
+| 我的求购/大厅 | `POST /order/demands/my/page`、`POST /order/demands/hall/page` | C | 已返回 `buyerId/expireAt/takenBy/takenAt/orderId`；仍缺推送批次、客户/买手名称、审核信息、关联订单号和取消原因，预算区间/期望天数筛选也无参数 |
 | 求购详情 | `GET /order/demands/detail` | C | 主体数据存在；没有 pushLogs 和 pushed buyer 列表 |
 | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | B | 核心操作存在；取消原因无法提交 |
 | 手动推下一批 | 无 | D | PC 详情页存在该操作，Swagger 无对应接口 |
@@ -103,7 +103,7 @@
 
 | 模块 | PC 现有需求 | 当前结论 |
 |---|---|---|
-| KYC | 实名/证件正反面/人脸/手机验证码、状态与审核结果 | D：无 C 端 KYC 接口 |
+| KYC | `GET /user/auth/me` 可读取 `kycStatus`；实名资料、证件正反面、人脸、手机验证码、提交和审核详情无接口 | C/D：状态读取部分满足，完整认证能力缺失 |
 | 理财 | 产品、VIP 利率、认购、锁仓列表/详情、利息流水、提前解锁 | D：无理财接口 |
 | 评价 | 商品评价、我的评价、评分摘要、提交评价 | D：无评价接口 |
 | 完整售后 | 5 类工单、证据、列表、详情、历史、取消、IM 入口 | D/C：仅有简单退款申请/审核/详情 |
@@ -119,7 +119,7 @@
 3. 补齐订单地址、收件人、金额拆分、物流、采购/发货截图、售后配置和状态时间线；卖家发货接收物流字段。
 4. KYC、理财、评价、IM/通知、公告/帮助/协议、AI 导购接口。
 5. 独立售后工单列表/详情/创建/取消/证据/历史。
-6. C 端公开积分规则、VIP 全等级配置及充值收款地址契约。
+6. C 端公开积分规则、VIP 全等级配置及买手押金充值/转出划转接口。
 7. 求购推送批次/日志、预算区间筛选和买手经营统计。
 
 ## 状态说明
@@ -285,3 +285,32 @@
 - 收藏、充值和转出页面正常渲染；充值“待确认”和转出“审核中”筛选可选中并刷新列表，Vite 终端无新增报错。
 - 当前测试账号没有收藏、充值、转出或买手业务数据，写操作、非空回显和真实翻页不标记为已验证。
 - 卖家发货、购物车下单、退款接口仍属于契约冲突项，未计入可直接开发能力。
+
+## 2026-08-05 深度匹配修正与调用状态
+
+| 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 真实验证 |
+|---|---|---|---|---|
+| P2 | 求购状态与字段 | `GET /order/demands/detail` 返回 `buyerId/expireAt/takenBy/takenAt/orderId`，状态包含 `VOID` | adapter 已使用买家 ID、接单截止和关联订单；`VOID` 映射为“已取消”，详情所有权不再用当前查看者覆盖 | 真实求购 `2082306670605197313` 返回 `VOID`，Chrome 正确展示“已取消”和接单截止时间 |
+| P2 | 买手可接求购 | `POST /order/demands/hall/page`、`POST /order/demands/grab` | `/buyer/claimable` 已移除 `buyerApi` Mock，使用真实大厅分页和抢单；页面语义调整为“可接求购” | 当前账号为 `CUSTOMER`，大厅接口返回“请先申请成为买手”；需真实买手账号验证列表和抢单成功路径 |
+| P4 | 买手押金概览与流水 | `GET /user/wallet/overview`、`POST /user/wallet/ledger/page` | `/buyer/deposit` 已读取真实押金桶、押金流水和卖出订单统计；Mock 余额划转已移除 | 钱包总览和押金流水接口成功，当前账号余额与流水均为 `0`；买手页面非空回显待买手账号 |
+| P4 | 钱包桶枚举 | `WalletVO.distribution.type` | adapter 已兼容后端实际返回的 `FINANCE_LOCKED/ORDER_FROZEN/RISK_FROZEN`，避免非零冻结资产被忽略 | 当前账号对应金额均为 `0`，已验证接口枚举结构，非零金额待测试数据 |
+| P5 | KYC 状态 | `GET /user/auth/me` 返回 `kycStatus` | `/kyc` 已读取真实状态；证件上传、短信、人脸和 Mock 提交链路已关闭 | Chrome 展示 `john / UNSUBMITTED`，提交按钮禁用，控制台无 warning/error |
+| P2 | 买手商品货架状态 | `ProductDTO.status` | 仅 `ON_SALE` 映射为“在售”；审核中、驳回、下架、冻结统一不显示在售 | 当前账号不是买手，待买手商品状态数据验证页面标签 |
+
+### 本轮验证结论
+
+- Swagger 源站和测试环境的 `admin/user/order` 路径、方法和 Schema 结构完全一致，没有新增可用接口；`notify` 分组仍为 HTTP 404。
+- `pnpm typecheck`、`git diff --check` 均通过，目标页面已无 `fetchClaimableRequests`、`fetchBuyerDepositSummary`、`submitKycMock` 等相关 Mock 调用。
+- Chrome 已验证真实账号登录、KYC 未提交状态、禁用提交入口、求购 `VOID` 状态和接单截止字段；控制台无 warning/error。
+- 当前账号角色为 `CUSTOMER`、KYC 为 `UNSUBMITTED`。买手可接求购、押金非空数据、商品状态和抢单写操作仍需要 KYC 通过的真实买手账号及对应业务数据。
+
+本轮后 C 端 PC 已有接口对接估算：
+
+| 口径 | 进度 |
+|---|---:|
+| 接口契约严格满足度（A+B） | 约 25% |
+| 接口契约覆盖度（A+B+C） | 约 53% |
+| 已封装接口进度 | 约 53% |
+| 已页面接入进度 | 约 58% |
+| 真实回归通过进度 | 约 40% |
+| C 端 PC 整体交付进度 | 约 47% |

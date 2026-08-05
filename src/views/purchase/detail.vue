@@ -22,10 +22,7 @@ async function load() {
   loading.value = true;
   try {
     const r = await purchaseApi.fetchPurchaseDetail(id.value);
-    request.value = {
-      ...r.request,
-      customerId: userStore.currentUser?.id || r.request.customerId
-    };
+    request.value = r.request;
     pushLogs.value = r.pushLogs;
   } finally {
     loading.value = false;
@@ -124,6 +121,7 @@ function cancel() {
             <div class="section-title">求购信息</div>
             <a-descriptions :column="2" :data="[
               { label: '期望发货', value: request.expectedDays + ' 天内' },
+              { label: '接单截止', value: request.claimExpiresAt ? new Date(request.claimExpiresAt).toLocaleString() : '—' },
               { label: '海外过关', value: request.overseasCustoms ? '是' : '否' },
               { label: '售后类型', value: aftersaleMeta?.label || '—' },
               { label: '创建时间', value: new Date(request.createdAt).toLocaleString() }

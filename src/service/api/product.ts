@@ -22,7 +22,7 @@ function toProductStatus(status?: string): Api.Product.ProductStatus {
 }
 
 function toShelfStatus(status?: string): Api.Product.ShelfStatus {
-  return status === 'OFF_SHELF' ? 'off-shelf' : 'on-shelf';
+  return status === 'ON_SALE' ? 'on-shelf' : 'off-shelf';
 }
 
 function toIso(value?: string | number) {

@@ -50,6 +50,7 @@ declare namespace Api.PurchaseRequest {
     currentPushLevel?: PushBatchLevel;
     pushedAt?: string;
     nextPushAt?: string;
+    claimExpiresAt?: string;
     pushedToBuyerIds: number[];
 
     // 接单
