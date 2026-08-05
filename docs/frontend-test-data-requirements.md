@@ -12,7 +12,8 @@
 | 我的求购/求购详情 | 普通 C 端账号 + 已创建求购 | 已有测试求购 `2082306670605197313` |
 | 买家订单列表 | 普通 C 端账号 | 接口可用，当前订单 total=0 |
 | 我的收藏 | 普通 C 端账号 | 接口可用，当前收藏 total=0 |
-| 买手申请状态 | 当前普通 C 端账号 | 申请 `2083573396550537218` 为 `PENDING`，KYC 为 `UNSUBMITTED`，当前不能进入买手中心 |
+| 买手申请状态 | 当前 C 端账号 | 申请 `2083573396550537218` 已为 `APPROVED`，账号角色包含 `BUYER`；KYC 仍为 `UNSUBMITTED`，但买手中心按真实审核契约已可进入 |
+| 买手中心只读页面 | 已审核买手账号 | 工作台、可接求购、押金、商品和卖出订单接口均成功；当前业务数据 total=0，页面空态已通过 |
 
 ## 需要后台准备的数据
 
@@ -21,7 +22,7 @@
 | P0 | MinIO 对象存储配置 | 上传求购图、商品图 | `/order/files/upload?dir=` 返回 `code=1`，页面图片回显 |
 | P0 | 一个在售商品 ID | 商品详情、浏览打点、收藏 | 商品详情展示价格/库存/图片，收藏后 `/favorites` 可回显 |
 | P0 | 当前 C 端账号的一笔买家订单 | 订单列表、详情、支付/取消/确认收货 | `/order/orders/bought/page` 有记录，详情字段能展示 |
-| P1 | 审核当前买手申请并完成 KYC，或提供 KYC 通过的真实买手账号 | 买手商品、求购抢单 | 当前申请 `2083573396550537218` 审核通过且账号返回 `BUYER/PASSED`，或提供等价测试账号；前端可进入买手中心 |
+| P1 | 已完成：审核当前买手申请 | 买手中心访问 | 当前申请 `2083573396550537218` 已审核通过，账号返回 `BUYER/UNSUBMITTED`；按 Swagger“审核通过即授予买手身份”的契约已可进入买手中心 |
 | P1 | 买手名下商品数据 | 买手商品列表/详情 | `/order/products/my/page` 有记录，状态映射正确 |
 | P1 | 可抢求购数据 | 买手抢单 | 买手账号调用 `/order/demands/grab` 成功 |
 | P1 | 买手押金与流水数据 | 押金概览、担保利用率、流水 | `DEPOSIT_AVAILABLE` 或 `DEPOSIT_GUARANTEED` 至少一项非零，且至少有一条押金支付/释放/罚没流水 |
@@ -51,7 +52,7 @@
 
 ## 当前买手回归最小数据包
 
-1. 登录账号的 `/user/auth/me` 返回角色包含 `BUYER`，`kycStatus=PASSED`。
+1. 登录账号的 `/user/auth/me` 返回角色包含 `BUYER`；买手访问权限以后台审核授予的角色为准，KYC 作为独立实名状态记录。
 2. `/order/demands/hall/page` 至少返回一条 `OPEN` 求购，可执行一次 `/order/demands/grab`。
 3. `/user/wallet/overview` 返回非零 `DEPOSIT_AVAILABLE` 或 `DEPOSIT_GUARANTEED`。
 4. `/user/wallet/ledger/page` 按 `bizGroup=DEPOSIT` 至少返回一条押金流水。

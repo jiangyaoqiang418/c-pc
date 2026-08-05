@@ -41,7 +41,7 @@ const isMyRequest = computed(() => userStore.currentUser?.id === request.value?.
 const canClaim = computed(() => {
   if (!userStore.currentUser || !request.value) return false;
   if (request.value.status !== 'pushing') return false;
-  return userStore.isBuyerActive && userStore.currentUser.kycStatus === 'approved';
+  return userStore.isBuyerActive;
 });
 
 async function pushNext() {

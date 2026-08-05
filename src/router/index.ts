@@ -237,12 +237,8 @@ router.beforeEach(async to => {
   }
   if (to.meta.requiresBuyer) {
     if (!userStore.currentUser?.isBuyer) {
-      Message.warning('您还不是买手，请先完成 KYC 后申请');
-      return { name: 'kyc' };
-    }
-    if (userStore.currentUser.kycStatus !== 'approved') {
-      Message.warning('请先完成 KYC 认证');
-      return { name: 'kyc' };
+      Message.warning('您还不是买手，请先提交申请并等待审核');
+      return { name: 'buyer-apply' };
     }
     if (!userStore.isBuyerActive) {
       userStore.setAudience('buyer');

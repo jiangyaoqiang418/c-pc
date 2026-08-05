@@ -35,11 +35,10 @@ src/
 
 ## 当前数据与请求状态
 
-- 页面和 Store 通过 `@shared` 直接调用 `src/mock/api/*.ts`。
-- Mock 使用内存数据和 `Promise + setTimeout` 模拟异步与分页。
-- 当前没有 Axios 或 `fetch` 请求封装，没有真实 API baseURL，也没有 Vite API 代理。
-- 当前 Mock 不经过网络，因此不能直接使用后台项目的 Axios browser adapter 进行拦截。
-- PC 与 H5 的 `src/mock/` 当前内容一致，但分别存放在两个项目中，运行时互不依赖。
+- 已对接模块通过 `src/service/request/`、`src/service/api/` 调用真实接口，使用原生 `fetch` 和 Vite 代理访问 admin、user、order、notify 服务。
+- 尚未匹配真实契约的模块继续通过 `@shared` 使用 `src/mock/api/*.ts`，已切真实接口的模块不自动回退 Mock。
+- Mock 使用内存数据和 `Promise + setTimeout` 模拟异步与分页；真实接口、页面接入和浏览器回归状态在文档中分别记录。
+- PC 与 H5 的 `src/mock/` 分别存放在两个项目中，运行时互不依赖。
 
 ## 真实接口对接约定
 
@@ -57,10 +56,10 @@ src/
 
 ## 当前 Swagger 满足度
 
-2026-07-28 已完整扫描全部 45 个页面、61 个组件、4 个 Store 和当前使用的 Mock API：
+截至 2026-08-05，已完整扫描全部页面、组件、Store、Mock 能力和最新 Swagger：
 
 - 当前实际调用的 73 项 Mock API 能力中，18 项可直接或通过 API 层适配接入，20 项仅有部分后端能力，35 项在当前 Swagger 中缺失。
-- 可直接/适配接入口径约为 `25%`；计入部分覆盖后约为 `52%`。该比例只表示接口能力匹配，不代表页面已完成真实接口对接。
+- 可直接/适配接入口径约为 `25%`；计入部分覆盖后约为 `53%`。该比例只表示接口能力匹配，不代表页面已完成真实接口对接。
 - 主要缺口为地址、公开商品分页筛选、完整订单与卖家物流字段、KYC、理财、评价、IM/通知、CMS、AI 和完整售后。
 - 逐模块路径、字段差异及后端补充项见 [Swagger 真实接口匹配矩阵](./docs/api-swagger-match-matrix.md)。
 

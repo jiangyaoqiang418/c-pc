@@ -19,8 +19,7 @@ export const useUserStore = defineStore('bw-user', () => {
     if (getAccessToken()) {
       try {
         currentUser.value = await realAuthApi.fetchCurrentUser();
-        currentAudience.value =
-          currentUser.value.isBuyer && currentUser.value.kycStatus === 'approved' ? loadAudienceFromStorage() : 'customer';
+        currentAudience.value = currentUser.value.isBuyer ? loadAudienceFromStorage() : 'customer';
         initialized.value = true;
         return;
       } catch {
@@ -40,7 +39,7 @@ export const useUserStore = defineStore('bw-user', () => {
       const result = await authApi.switchCurrentUser(userId);
       if (result && !('error' in result)) {
         currentUser.value = result;
-        currentAudience.value = result.isBuyer && result.kycStatus === 'approved' ? loadAudienceFromStorage() : 'customer';
+        currentAudience.value = result.isBuyer ? loadAudienceFromStorage() : 'customer';
       }
     }
     initialized.value = true;
@@ -59,7 +58,7 @@ export const useUserStore = defineStore('bw-user', () => {
   async function loginWithPassword(params: Api.RealAuth.LoginParams) {
     const result = await realAuthApi.login(params);
     currentUser.value = result.user;
-    currentAudience.value = result.user.isBuyer && result.user.kycStatus === 'approved' ? loadAudienceFromStorage() : 'customer';
+    currentAudience.value = result.user.isBuyer ? loadAudienceFromStorage() : 'customer';
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.setItem(STORAGE_KEY.currentAudience, currentAudience.value);
   }
@@ -96,7 +95,7 @@ export const useUserStore = defineStore('bw-user', () => {
 
   const isLoggedIn = computed(() => !!currentUser.value);
   const displayName = computed(() => currentUser.value?.nickname || currentUser.value?.email?.split('@')[0] || '');
-  const canSwitchToBuyer = computed(() => !!currentUser.value?.isBuyer && currentUser.value?.kycStatus === 'approved');
+  const canSwitchToBuyer = computed(() => !!currentUser.value?.isBuyer);
   const isBuyerActive = computed(() => currentAudience.value === 'buyer');
   const demoUserList = computed(() => MOCK_USERS);
 

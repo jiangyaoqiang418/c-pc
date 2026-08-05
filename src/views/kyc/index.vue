@@ -41,7 +41,7 @@ const statusView = computed(() => {
   return {
     icon: 'lucide:user-round-search',
     title: '尚未提交 KYC 认证',
-    description: '完成认证后可申请买手并使用需要实名校验的功能。'
+    description: '完成认证后可使用需要实名校验的功能；买手身份以平台审核结果为准。'
   };
 });
 

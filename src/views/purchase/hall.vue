@@ -24,7 +24,7 @@ const expDaysFilter = ref<number | undefined>();
 
 const canClaim = computed(() => {
   if (!userStore.currentUser) return false;
-  return userStore.isBuyerActive && userStore.currentUser.kycStatus === 'approved';
+  return userStore.isBuyerActive;
 });
 
 async function load() {
@@ -176,13 +176,13 @@ function reset() {
         <Icon icon="lucide:info" width="14" />
       </div>
       <div class="notice-text">
-        <strong>仅买手身份 + 已通过 KYC 可接单。</strong>
+        <strong>仅已审核通过的买手可接单。</strong>
         <span class="notice-hint">
-          {{ userStore.canSwitchToBuyer ? '可切换到买手工作台接单' : '前往 KYC 完成认证后申请成为买手' }}
+          {{ userStore.canSwitchToBuyer ? '可切换到买手工作台接单' : '提交买手申请并等待平台审核' }}
         </span>
       </div>
-      <button class="notice-cta" @click="userStore.canSwitchToBuyer ? router.push('/buyer/dashboard') : router.push('/kyc')">
-        {{ userStore.canSwitchToBuyer ? '进入买手工作台' : '前往 KYC' }} <Icon icon="lucide:arrow-right" width="12" />
+      <button class="notice-cta" @click="userStore.canSwitchToBuyer ? router.push('/buyer/dashboard') : router.push('/buyer/apply')">
+        {{ userStore.canSwitchToBuyer ? '进入买手工作台' : '申请成为买手' }} <Icon icon="lucide:arrow-right" width="12" />
       </button>
     </div>
 

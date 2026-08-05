@@ -314,3 +314,20 @@
 | 已页面接入进度 | 约 58% |
 | 真实回归通过进度 | 约 40% |
 | C 端 PC 整体交付进度 | 约 47% |
+
+## 2026-08-05 买手审核后契约校正
+
+| 梯队 | 前端能力 | Swagger/运行时证据 | 当前状态 | 真实验证 |
+|---|---|---|---|---|
+| P1/P2 | 买手访问权限 | `PUT /admin/buyer-applications/review` 明确“通过并授予买手身份”；`GET /user/auth/me` 返回 `BUYER/UNSUBMITTED` | 买手路由和身份切换已改为按 `BUYER` 角色放行，KYC 不再作为契约外入口门槛 | Chrome 可进入工作台、可接求购、押金、商品和订单页面，无 warning/error |
+| P2 | 买手可接求购 | `POST /order/demands/hall/page` 返回 `code=1,total=0` | 页面读取真实大厅并展示空态 | 空态通过；无可接求购，未执行抢单 |
+| P2 | 买手商品列表 | `POST /order/products/my/page` 返回 `code=1,total=0` | 状态筛选、关键词查询、重置和空态正常 | 交互通过；商品状态非空回显待数据 |
+| P3 | 买手卖出订单 | `POST /order/orders/sold/page` 返回 `code=1,total=0` | 状态页签和空态正常 | 读取通过；订单操作待数据 |
+| P4 | 买手押金 | `GET /user/wallet/overview`、`POST /user/wallet/ledger/page` 均返回 `code=1` | 押金总额、可用、已担保均为 `0`，流水空态正确 | 读取通过；非零金额和流水待数据 |
+
+### 校正结论
+
+- 当前账号已由后台审核为买手，申请状态 `APPROVED`，角色包含 `BUYER`；KYC 仍为 `UNSUBMITTED`。
+- 最新 Swagger 没有 KYC 提交、审核或状态变更接口，买手审核接口也未声明 KYC 联动，因此不再把 `KYC=PASSED` 作为买手页面回归前置条件。
+- 当前买手只读链路已完成真实接口与 Chrome 空态回归；抢单、商品状态、订单动作和押金非零展示仍受测试数据缺失限制。
+- 接口满足度、页面接入进度和整体交付进度不因权限校正发生变化；真实回归覆盖范围已扩大，但非空及写操作仍需补测。
