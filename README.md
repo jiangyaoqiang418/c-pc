@@ -51,6 +51,7 @@ src/
 详细规则见：
 
 - [AGENTS.md](./AGENTS.md)
+- [当前开发交接](./docs/current-handoff.md)
 - [真实接口接入计划](./docs/api-integration-plan.md)
 - [Swagger 真实接口匹配矩阵](./docs/api-swagger-match-matrix.md)
 

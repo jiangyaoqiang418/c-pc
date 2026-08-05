@@ -4,6 +4,12 @@
 
 项目是油宝 C 端 PC，基于 `Vue 3 + Vite + TypeScript + Arco Design Vue + Pinia + Vue Router + Tailwind CSS`。后续接口对接沿用后台项目的处理原则：前端现有交互和业务行为优先，接口路径、字段、类型、枚举、分页及响应结构以后端 Swagger 为准。
 
+## 跨设备恢复
+
+- 新电脑或新 Codex 会话开始时，先阅读 `docs/current-handoff.md`，再结合接入计划、Swagger 矩阵和测试数据清单核对实时状态。
+- `docs/current-handoff.md` 只记录当前工作入口；代码、远端分支、实时 Swagger 和测试环境始终是最终依据。
+- 每批开发和回归完成后统一更新交接文档，避免换设备后重复已完成工作或遗漏外部阻塞。
+
 ## Core Rules
 
 ### 代码风格
