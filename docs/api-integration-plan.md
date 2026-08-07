@@ -564,3 +564,27 @@ view / store
 - 已执行 `pnpm typecheck`、`git diff --check`，均通过。
 - 分类申请创建、后台审核、C 端状态回显和商品表单分类联动已形成完整闭环。
 - 商品创建仍由 MinIO 未配置阻塞；分类已满足后续商品提交条件。
+
+## 2026-08-07 user 新接口接入与地址写入回归
+
+### 实时 Swagger 变化
+
+- 当前源站与测试网关的 `admin` Swagger 一致，为 107 条路径、108 个操作；`user` 为 32 条路径、32 个操作。
+- 相比 2026-08-05 文档口径，`user` 新出现地址 CRUD、KYC 详情/提交、买手保证金流水/缴纳/退还和充值链配置能力。
+- `order` 曾短暂从聚合配置消失；当前源站与测试网关的 `/order/v3/api-docs` 已恢复 HTTP 200，分类树真实读取正常。`notify` 继续为 HTTP 404；订单写链路仍需按数据前置条件单独回归。
+
+### 已完成代码接入
+
+| 梯队 | 能力 | Swagger 接口 | 页面/API 状态 |
+|---|---|---|---|
+| P0 | 地址管理 | `GET /user/addresses/list`、`GET /user/addresses/detail`、`POST /user/addresses/create`、`PUT /user/addresses/update`、`PUT /user/addresses/default`、`DELETE /user/addresses/delete` | 新增 `src/service/api/address.ts` 和真实类型；`/address` 与结算地址选择器均已移除 `@shared` 地址 Mock，编辑使用真实更新而非删除后重建，并保留页面未编辑的邮编、证件号和标签；业务 ID 原值透传 |
+| P0 | 买手保证金 | `POST /user/buyer/deposit/page`、`POST /user/buyer/deposit/pay`、`POST /user/buyer/deposit/refund` | 买手保证金页使用专属流水；缴纳和退还改为真实确认操作，每次写入生成 UUID 幂等键并校验可用余额；工作台入口已指向押金管理。当前 order 服务异常不会阻断钱包和押金主体数据加载 |
+| P0/P1 | 充值链配置 | `GET /user/recharge/chains` | 充值页移除 ETH/TRON/BSC 硬编码，按后端启用链、名称、最小金额和精度渲染并校验；空列表不再被误显示为持续加载 |
+| P1 | KYC 详情 | `GET /user/kyc/detail` | KYC 页面读取真实姓名、脱敏证件号、提交/审核时间和驳回意见；`POST /user/kyc/submit` 已封装但尚未开放 UI 提交 |
+
+### 验证边界与结果
+
+- 已执行 `git diff --check`，未执行 `pnpm typecheck` 或构建。
+- Chrome 使用真实账号完成地址新增、编辑、回读和设默认：两条 QA 地址均持久化回显，编辑后的详细地址刷新正确，第二条已成为默认地址；按授权保留测试数据，未执行删除。
+- 保证金写测仍需要非零钱包余额、可用保证金和流水数据。
+- KYC 提交 DTO 需要真实证件图片 URL；当前没有独立 KYC 上传接口，现有 order 文件上传受 MinIO 未配置和 order 网关 404 双重阻塞，禁止用 `picsum` 或占位图 URL 提交。

@@ -10,7 +10,7 @@ const userStore = useUserStore();
 const walletStore = useWalletStore();
 const activeTab = ref<'create' | 'address'>('create');
 const amount = ref(100);
-const chain = ref<'ETH' | 'TRON' | 'BSC'>('TRON');
+const chain = ref('');
 const submitting = ref(false);
 const loadingRecords = ref(false);
 const currentRecharge = ref<Api.RealWallet.RechargeVO>();
@@ -22,12 +22,10 @@ const recordStatus = ref<Api.RealWallet.RechargeStatus>();
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.RechargeVO>();
+const loadingChains = ref(false);
 
-const chainOptions = [
-  { value: 'TRON', label: 'TRC20（USDT-TRON）' },
-  { value: 'ETH', label: 'ERC20（USDT-ETH）' },
-  { value: 'BSC', label: 'BEP20（USDT-BSC）' }
-] as const;
+const chainOptions = ref<Api.RealWallet.RechargeChainVO[]>([]);
+const selectedChain = computed(() => chainOptions.value.find(item => item.chain === chain.value));
 
 const statusColor = computed(() => (status?: string) => {
   if (status === 'CONFIRMED') return 'green';
@@ -60,14 +58,40 @@ async function loadRecords() {
   }
 }
 
+async function loadChains() {
+  loadingChains.value = true;
+  try {
+    const chains = await realWalletApi.fetchRechargeChains();
+    chainOptions.value = chains.filter(item => item.enabled);
+    if (!chainOptions.value.some(item => item.chain === chain.value)) {
+      chain.value = chainOptions.value[0]?.chain || '';
+    }
+  } finally {
+    loadingChains.value = false;
+  }
+}
+
 async function loadAll() {
   if (!userStore.currentUser) return;
-  await Promise.all([walletStore.fetchWallet(userStore.currentUser.id), loadRecords()]);
+  await Promise.allSettled([
+    loadChains(),
+    walletStore.fetchWallet(userStore.currentUser.id),
+    loadRecords()
+  ]);
 }
 
 async function createRecharge() {
   if (amount.value <= 0) {
     Message.warning('请输入正确的充值金额');
+    return;
+  }
+  if (!selectedChain.value) {
+    Message.warning('当前没有可用充值链');
+    return;
+  }
+  const minAmount = Number(selectedChain.value.minAmount || 0);
+  if (minAmount > 0 && amount.value < minAmount) {
+    Message.warning(`该链单笔最低充值金额为 ${minAmount} USDT`);
     return;
   }
   submitting.value = true;
@@ -124,13 +148,15 @@ onMounted(loadAll);
             <a-row :gutter="16">
               <a-col :span="12">
                 <a-form-item label="充值金额 (USDT)">
-                  <a-input-number v-model="amount" :min="0.01" :precision="2" size="large" />
+                  <a-input-number v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" size="large" />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
                 <a-form-item label="链选择">
-                  <a-select v-model="chain" size="large">
-                    <a-option v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option>
+                  <a-select v-model="chain" size="large" :loading="loadingChains" placeholder="请选择充值链">
+                  <a-option v-for="option in chainOptions" :key="option.chain" :value="option.chain">
+                    {{ option.label }}（{{ option.chain }}）
+                  </a-option>
                   </a-select>
                 </a-form-item>
               </a-col>

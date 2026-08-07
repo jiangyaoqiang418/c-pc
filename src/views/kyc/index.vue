@@ -2,12 +2,28 @@
 import { computed, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { enums } from '@shared';
+import * as realKycApi from '@/service/api/kyc';
+import { getAccessToken } from '@/service/request';
 import { useUserStore } from '@/stores';
 
 const userStore = useUserStore();
 const loading = ref(false);
+const kycDetail = ref<Api.RealKyc.KycVO | null>();
 
-const status = computed<Api.User.KycStatus>(() => userStore.currentUser?.kycStatus || 'none');
+function toDisplayStatus(value?: string): Api.User.KycStatus {
+  if (value === 'PASSED') return 'approved';
+  if (value === 'PENDING') return 'pending';
+  if (value === 'REJECTED') return 'rejected';
+  return userStore.currentUser?.kycStatus || 'none';
+}
+
+function formatTime(value?: string | number) {
+  if (!value) return '—';
+  const date = new Date(typeof value === 'number' || /^\d+$/.test(value) ? Number(value) : value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
+
+const status = computed<Api.User.KycStatus>(() => toDisplayStatus(kycDetail.value?.status));
 const meta = computed(() => enums.KYC_STATUS_META[status.value]);
 const statusView = computed(() => {
   if (status.value === 'approved') {
@@ -28,7 +44,7 @@ const statusView = computed(() => {
     return {
       icon: 'lucide:circle-x',
       title: '您的认证未通过审核',
-      description: '当前接口未返回审核意见和重新提交入口。'
+      description: kycDetail.value?.reviewRemark || '认证未通过，请按审核意见补充资料。'
     };
   }
   if (status.value === 'expired') {
@@ -50,6 +66,7 @@ async function load() {
   try {
     await userStore.init();
     await userStore.refreshCurrentUser();
+    if (getAccessToken()) kycDetail.value = await realKycApi.fetchMyKycDetail();
   } finally {
     loading.value = false;
   }
@@ -81,7 +98,11 @@ onMounted(load);
             { label: '当前账号', value: userStore.currentUser?.nickname || userStore.currentUser?.email || '—' },
             { label: '手机号', value: userStore.currentUser?.phone || '—' },
             { label: '账号身份', value: userStore.currentUser?.isBuyer ? '买手' : '顾客' },
-            { label: '状态来源', value: '当前用户信息接口' }
+            { label: '认证姓名', value: kycDetail?.realName || '—' },
+            { label: '认证证件', value: kycDetail?.idNo || '—' },
+            { label: '提交时间', value: formatTime(kycDetail?.submittedAt) },
+            { label: '审核时间', value: formatTime(kycDetail?.reviewedAt) },
+            { label: '状态来源', value: kycDetail ? '实名认证详情接口' : '当前用户信息接口' }
           ]"
         />
 
@@ -89,7 +110,7 @@ onMounted(load);
           <a-divider />
           <a-alert
             :type="status === 'rejected' ? 'error' : 'info'"
-            title="KYC 资料提交、证件上传、人脸验证和短信验证接口暂未提供，当前页面不会生成模拟认证结果。"
+            :title="kycDetail ? '认证详情已接入真实接口；图片上传链路尚未恢复，当前不会提交模拟图片 URL。' : '当前还没有实名认证记录；图片上传链路尚未恢复，当前不会生成模拟认证结果。'"
           />
           <div class="actions">
             <a-button type="primary" disabled>提交认证</a-button>

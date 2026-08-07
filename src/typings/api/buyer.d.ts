@@ -19,4 +19,40 @@ declare namespace Api.RealBuyer {
     appliedAt?: string | number;
     reviewedAt?: string | number;
   }
+
+  type DepositBizType = 'PAY' | 'REFUND' | 'DEDUCT' | 'FREEZE' | 'UNFREEZE' | string;
+
+  interface DepositLedgerDTO {
+    id: string | number;
+    buyerId: string | number;
+    userId: string | number;
+    bizType: DepositBizType;
+    amount: string | number;
+    balanceAfter: string | number;
+    bizNo?: string;
+    remark?: string;
+    createdAt?: string | number;
+  }
+
+  interface DepositLedgerPageQuery {
+    pageNo?: number;
+    pageSize?: number;
+    buyerId?: string | number;
+    userId?: string | number;
+    bizType?: DepositBizType;
+  }
+
+  interface DepositOperationParams {
+    amount: number;
+    idempotencyKey: string;
+  }
+
+  interface DepositPageResult {
+    pageNo?: number;
+    pageSize?: number;
+    current?: number;
+    size?: number;
+    total: number;
+    records: DepositLedgerDTO[];
+  }
 }

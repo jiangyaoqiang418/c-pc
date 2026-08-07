@@ -13,8 +13,16 @@ const router = useRouter();
 const userStore = useUserStore();
 const cart = useCartStore();
 
-const addressId = ref<number>();
-const selectedAddr = ref<{ receiverName: string; receiverPhone: string; province: string; city: string; district: string; detail: string }>();
+const addressId = ref<string | number>();
+const selectedAddr = ref<{
+  receiverName: string;
+  receiverPhone: string;
+  country: string;
+  province: string;
+  city: string;
+  district: string;
+  detail: string;
+}>();
 const wallet = ref<Api.User.WalletSummary>();
 const agreed = ref(false);
 const submitting = ref(false);
@@ -95,7 +103,7 @@ async function doSubmit() {
         tax: item.product.tax,
         receiverName: addr.receiverName,
         receiverPhone: addr.receiverPhone,
-        shippingAddress: `${addr.province}${addr.city}${addr.district}${addr.detail}`,
+        shippingAddress: `${addr.country}${addr.province}${addr.city}${addr.district}${addr.detail}`,
         aftersaleType: item.product.aftersaleType
       });
       const payResult = await orderApi.payOrderMock(order.id);

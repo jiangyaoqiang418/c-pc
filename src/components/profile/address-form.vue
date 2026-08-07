@@ -1,20 +1,19 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import type { AddressRecord } from '@shared/api/address';
-
 interface Props {
-  modelValue?: Partial<AddressRecord>;
+  modelValue?: Partial<Api.RealAddress.AddressRecord>;
   submitting?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'submit', form: Omit<AddressRecord, 'id' | 'userId' | 'createdAt'>): void;
+  (e: 'submit', form: Omit<Api.RealAddress.AddressRecord, 'id' | 'createdAt' | 'updatedAt'>): void;
 }>();
 
 const form = reactive({
   receiverName: '',
   receiverPhone: '',
+  country: '中国',
   province: '',
   city: '',
   district: '',
@@ -26,6 +25,7 @@ function sync() {
   if (props.modelValue) {
     form.receiverName = props.modelValue.receiverName || '';
     form.receiverPhone = props.modelValue.receiverPhone || '';
+    form.country = props.modelValue.country || '中国';
     form.province = props.modelValue.province || '';
     form.city = props.modelValue.city || '';
     form.district = props.modelValue.district || '';
@@ -36,7 +36,7 @@ function sync() {
 watch(() => props.modelValue, sync, { immediate: true });
 
 const canSubmit = computed(
-  () => form.receiverName && form.receiverPhone && form.province && form.detail
+  () => form.receiverName && form.receiverPhone && form.country && form.province && form.detail
 );
 
 function submit() {
@@ -62,6 +62,9 @@ function submit() {
         </a-form-item>
       </a-col>
     </a-row>
+    <a-form-item label="国家/地区" required>
+      <a-input v-model="form.country" placeholder="如 中国" />
+    </a-form-item>
     <a-row :gutter="12">
       <a-col :span="8">
         <a-form-item label="省" required>

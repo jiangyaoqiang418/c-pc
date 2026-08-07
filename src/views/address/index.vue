@@ -1,25 +1,24 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { Message, Modal } from '@arco-design/web-vue';
-import { addressApi } from '@shared';
-import type { AddressRecord } from '@shared/api/address';
+import * as realAddressApi from '@/service/api/address';
 import AddressForm from '@/components/profile/address-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 
 const userStore = useUserStore();
 
-const list = ref<AddressRecord[]>([]);
+const list = ref<Api.RealAddress.AddressRecord[]>([]);
 const loading = ref(false);
 const modalOpen = ref(false);
-const editing = ref<Partial<AddressRecord>>();
+const editing = ref<Partial<Api.RealAddress.AddressRecord>>();
 const submitting = ref(false);
 
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
-    list.value = await addressApi.fetchMyAddresses(userStore.currentUser.id);
+    list.value = await realAddressApi.fetchMyAddresses();
   } finally {
     loading.value = false;
   }
@@ -31,45 +30,51 @@ function openAdd() {
   modalOpen.value = true;
 }
 
-function openEdit(a: AddressRecord) {
+function openEdit(a: Api.RealAddress.AddressRecord) {
   editing.value = { ...a };
   modalOpen.value = true;
 }
 
-async function setDefault(a: AddressRecord) {
-  await addressApi.setDefault(a.id);
+async function setDefault(a: Api.RealAddress.AddressRecord) {
+  await realAddressApi.setDefaultAddress(a.id);
   Message.success('已设为默认');
   load();
 }
 
-function onDelete(a: AddressRecord) {
+function onDelete(a: Api.RealAddress.AddressRecord) {
   Modal.confirm({
     title: '删除地址？',
     content: `${a.receiverName} · ${a.detail}`,
     okText: '确认删除',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await addressApi.deleteAddress(a.id);
-      if (r.ok) {
-        Message.success('已删除');
-        load();
-      }
+      await realAddressApi.deleteAddress(a.id);
+      Message.success('已删除');
+      load();
     }
   });
 }
 
-async function onSubmit(form: Omit<AddressRecord, 'id' | 'userId' | 'createdAt'>) {
+async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'createdAt' | 'updatedAt'>) {
   if (!userStore.currentUser) return;
   submitting.value = true;
   try {
-    if (editing.value?.id) {
-      // 编辑：mock 暂不支持原地编辑 → 删除旧的再新建
-      await addressApi.deleteAddress(editing.value.id);
-    }
-    await addressApi.createAddress({
-      userId: userStore.currentUser.id,
-      ...form
-    });
+    const params: Api.RealAddress.AddressSaveParams = {
+      id: editing.value?.id,
+      receiverName: form.receiverName,
+      receiverPhone: form.receiverPhone,
+      country: form.country,
+      province: form.province,
+      city: form.city,
+      district: form.district,
+      detailAddress: form.detail,
+      postalCode: editing.value?.postalCode,
+      idCardNo: editing.value?.idCardNo,
+      defaultFlag: form.isDefault,
+      tag: editing.value?.tag
+    };
+    if (editing.value?.id) await realAddressApi.updateAddress(params);
+    else await realAddressApi.createAddress(params);
     Message.success(editing.value?.id ? '已更新' : '已添加');
     modalOpen.value = false;
     load();
@@ -96,7 +101,7 @@ async function onSubmit(form: Omit<AddressRecord, 'id' | 'userId' | 'createdAt'>
             </div>
             <a-tag v-if="a.isDefault" color="arcoblue" size="small">默认</a-tag>
           </div>
-          <div class="detail">{{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}</div>
+          <div class="detail">{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}</div>
           <div class="actions">
             <a-button v-if="!a.isDefault" size="small" type="outline" @click="setDefault(a)">设为默认</a-button>
             <a-button size="small" type="outline" @click="openEdit(a)">编辑</a-button>

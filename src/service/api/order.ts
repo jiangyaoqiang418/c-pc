@@ -105,7 +105,10 @@ export async function fetchMyOrders(q: Api.Order.ListQuery) {
   };
 }
 
-async function countOrdersByStatus(url: '/orders/bought/page' | '/orders/sold/page') {
+async function countOrdersByStatus(
+  url: '/orders/bought/page' | '/orders/sold/page',
+  options: { showError?: boolean } = {}
+) {
   const counts = Object.fromEntries(
     Object.keys(reverseStatusMap).map(status => [status, 0])
   ) as Record<Api.Order.OrderStatus, number>;
@@ -123,7 +126,7 @@ async function countOrdersByStatus(url: '/orders/bought/page' | '/orders/sold/pa
       const page = await realOrderRequest.post<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
-      >(url, { pageNo: 1, pageSize: 1, status: realStatus });
+      >(url, { pageNo: 1, pageSize: 1, status: realStatus }, { showError: options.showError });
       return [frontStatus, toTotal(page.total)] as const;
     })
   );
@@ -133,12 +136,12 @@ async function countOrdersByStatus(url: '/orders/bought/page' | '/orders/sold/pa
   return counts;
 }
 
-export function countMyOrdersByStatus() {
-  return countOrdersByStatus('/orders/bought/page');
+export function countMyOrdersByStatus(options?: { showError?: boolean }) {
+  return countOrdersByStatus('/orders/bought/page', options);
 }
 
-export function countMySoldOrdersByStatus() {
-  return countOrdersByStatus('/orders/sold/page');
+export function countMySoldOrdersByStatus(options?: { showError?: boolean }) {
+  return countOrdersByStatus('/orders/sold/page', options);
 }
 
 export async function fetchOrderDetail(id: string | number) {

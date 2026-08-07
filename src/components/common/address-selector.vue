@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { addressApi } from '@shared';
-import type { AddressRecord } from '@shared/api/address';
+import * as realAddressApi from '@/service/api/address';
 
 interface Props {
-  modelValue?: number;
-  userId: number;
+  modelValue?: string | number;
+  userId: string | number;
 }
 const props = defineProps<Props>();
-const emit = defineEmits<{ (e: 'update:modelValue', v: number): void; (e: 'changed', addr: AddressRecord): void }>();
+const emit = defineEmits<{
+  (e: 'update:modelValue', v: string | number): void;
+  (e: 'changed', addr: Api.RealAddress.AddressRecord): void;
+}>();
 
-const list = ref<AddressRecord[]>([]);
+const list = ref<Api.RealAddress.AddressRecord[]>([]);
 const loading = ref(false);
 const modalOpen = ref(false);
 const submitting = ref(false);
@@ -19,6 +21,7 @@ const submitting = ref(false);
 const form = reactive({
   receiverName: '',
   receiverPhone: '',
+  country: '中国',
   province: '',
   city: '',
   district: '',
@@ -30,7 +33,7 @@ async function load() {
   if (!props.userId) return;
   loading.value = true;
   try {
-    list.value = await addressApi.fetchMyAddresses(props.userId);
+    list.value = await realAddressApi.fetchMyAddresses();
     if (list.value.length && props.modelValue == null) {
       const def = list.value.find(a => a.isDefault) || list.value[0];
       emit('update:modelValue', def.id);
@@ -44,7 +47,7 @@ async function load() {
 onMounted(load);
 watch(() => props.userId, load);
 
-function onSelect(addr: AddressRecord) {
+function onSelect(addr: Api.RealAddress.AddressRecord) {
   emit('update:modelValue', addr.id);
   emit('changed', addr);
 }
@@ -52,6 +55,7 @@ function onSelect(addr: AddressRecord) {
 function openAdd() {
   form.receiverName = '';
   form.receiverPhone = '';
+  form.country = '中国';
   form.province = '';
   form.city = '';
   form.district = '';
@@ -61,13 +65,22 @@ function openAdd() {
 }
 
 async function submit() {
-  if (!form.receiverName || !form.receiverPhone || !form.province || !form.detail) {
+  if (!form.receiverName || !form.receiverPhone || !form.country || !form.province || !form.detail) {
     Message.warning('请完善地址信息');
     return;
   }
   submitting.value = true;
   try {
-    const created = await addressApi.createAddress({ ...form, userId: props.userId });
+    const created = await realAddressApi.createAddress({
+      receiverName: form.receiverName,
+      receiverPhone: form.receiverPhone,
+      country: form.country,
+      province: form.province,
+      city: form.city,
+      district: form.district,
+      detailAddress: form.detail,
+      defaultFlag: form.isDefault
+    });
     modalOpen.value = false;
     Message.success('地址已添加');
     await load();
@@ -98,7 +111,7 @@ async function submit() {
               <span class="phone">{{ a.receiverPhone }}</span>
               <a-tag v-if="a.isDefault" color="arcoblue" size="small">默认</a-tag>
             </div>
-            <div class="row-detail">{{ a.province }} · {{ a.city }} · {{ a.district }} · {{ a.detail }}</div>
+            <div class="row-detail">{{ a.country }} · {{ a.province }} · {{ a.city }} · {{ a.district }} · {{ a.detail }}</div>
           </div>
         </div>
         <a-button class="add-btn" long type="dashed" @click="openAdd">+ 新增收货地址</a-button>
@@ -119,6 +132,9 @@ async function submit() {
             </a-form-item>
           </a-col>
         </a-row>
+        <a-form-item label="国家/地区" required>
+          <a-input v-model="form.country" placeholder="如 中国" />
+        </a-form-item>
         <a-row :gutter="12">
           <a-col :span="8">
             <a-form-item label="省" required>

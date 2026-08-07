@@ -48,7 +48,7 @@
 | 前端需求 | Swagger 匹配 | 等级 | 关键差异 |
 |---|---|---|---|
 | 本地购物车增删改选 | 无需后端 | 本地能力 | 当前使用 Pinia/local storage，结算前需重新校验商品 |
-| 地址列表/新增/编辑/设默认/删除 | 无 | D | 三组 Swagger 均无收货地址接口 |
+| 地址列表/新增/编辑/设默认/删除 | `GET /user/addresses/list`、`POST /user/addresses/create`、`PUT /user/addresses/update`、`PUT /user/addresses/default`、`DELETE /user/addresses/delete` | B | 2026-08-07 已接入地址页与结算选择器；前端新增 `country` 输入并在 API 层转换 `detailAddress/defaultFlag`，真实写入待回归 |
 | 下单 | `POST /order/orders/create` | C | 仅 `productId/quantity/sessionId/remark`；页面需要地址选择、金额拆分、多购物项和售后上下文 |
 | 买家订单列表 | `POST /order/orders/bought/page` | C | 基本分页存在；前端 10 状态与后端 7 状态不一致，缺地址、买手名、物流和售后字段 |
 | 订单详情 | `GET /order/orders/detail` | C | 缺 receiver、address、shippingFee、tax、物流、采购/发货截图、保修、售后关联和完整时间线 |
@@ -65,7 +65,7 @@
 | 总资产 | `GET /user/wallet/overview` 的 `total` | A | API 层应转换为字符串展示，避免浮点运算 |
 | 钱包流水与筛选 | `POST /user/wallet/ledger/page` | C | 缺链上 hash、地址、refType/refId、费用拆分；没有日期、方向、bucket、keyword 等当前完整筛选 |
 | 发起充值 | `POST /user/recharge/create`、`GET /user/recharge/detail`、`POST /user/recharge/page` | B | 页面已按“创建订单→读取收款地址→展示记录”接入；真实写入与到账确认待充值测试资金 |
-| 平台链钱包列表 | 无 C 端接口 | 不适用 | 页面不再预取平台静态链钱包，收款地址改由充值订单详情返回 |
+| 平台链钱包列表 | `GET /user/recharge/chains` | B | 2026-08-07 已改为动态读取 `enabled/label/minAmount/decimals`，收款地址仍以充值订单详情为准 |
 | 发起提现 | `POST /user/withdraw/create`、`GET /user/withdraw/detail`、`POST /user/withdraw/page` | B | 页面已按当前 `chain/toAddress/amount` 契约接入；支付密码/手续费不在 Swagger 中，已移除模拟计算 |
 
 ## 积分与 VIP
@@ -87,7 +87,7 @@
 | 买手订单 | `POST /order/orders/sold/page` | C | 缺采购截图、发货截图、物流公司/单号、地址和细分状态 |
 | 上传采购凭证 | `POST /order/files/upload` 只能上传文件 | D | 没有把采购凭证绑定到订单的接口 |
 | 发货 | `POST /order/orders/ship` | C | 只接收订单 ID，当前页面需要 trackingNumber、carrier 和 shippingScreenshotUrl |
-| 买手押金与经营统计 | `GET /user/wallet/overview`、`POST /user/wallet/ledger/page`、`GET /user/buyer/application` | C | `DEPOSIT_AVAILABLE/DEPOSIT_GUARANTEED` 和押金流水可读取；仍缺押金划转、完成率、好评率、投诉率、平均发货时效和未履约统计 |
+| 买手押金与经营统计 | `GET /user/wallet/overview`、`POST /user/buyer/deposit/page`、`POST /user/buyer/deposit/pay`、`POST /user/buyer/deposit/refund`、`GET /user/buyer/application` | B | 2026-08-07 已接入专属流水、缴纳和退还；仍缺完成率、好评率、投诉率、平均发货时效和未履约统计，写入待非零测试资金回归 |
 
 ## 求购
 
@@ -103,7 +103,7 @@
 
 | 模块 | PC 现有需求 | 当前结论 |
 |---|---|---|
-| KYC | `GET /user/auth/me` 可读取 `kycStatus`；实名资料、证件正反面、人脸、手机验证码、提交和审核详情无接口 | C/D：状态读取部分满足，完整认证能力缺失 |
+| KYC | `GET /user/auth/me`、`GET /user/kyc/detail`、`POST /user/kyc/submit`；admin 已出现 KYC 查询/审核接口 | C | 2026-08-07 已接入 C 端详情读取；提交 DTO 支持证件照 URL 和手持照，但缺独立安全上传接口，MinIO 与 order 上传链路未恢复，页面暂不发送模拟图片 URL |
 | 理财 | 产品、VIP 利率、认购、锁仓列表/详情、利息流水、提前解锁 | D：无理财接口 |
 | 评价 | 商品评价、我的评价、评分摘要、提交评价 | D：无评价接口 |
 | 完整售后 | 5 类工单、证据、列表、详情、历史、取消、IM 入口 | D/C：仅有简单退款申请/审核/详情 |
@@ -368,3 +368,14 @@
 - 分类申请的创建、审核、列表回显和分类树联动已真实闭环通过。
 - 页面新增审核时间列，并兼容后端毫秒时间戳字符串。
 - 商品上传与创建仍受 MinIO 未配置阻塞，不因分类闭环通过而扩大结论。
+
+## 2026-08-07 地址真实写入回归
+
+| 梯队 | 能力 | 真实操作与结果 | 结论 |
+|---|---|---|---|
+| P0/P3 | 地址新增与回读 | Chrome 提交两条 QA 地址，列表刷新后均展示真实服务端数据 | 通过 |
+| P0/P3 | 地址编辑 | 更新第一条的详细地址，关闭表单后列表回读为更新值 | 通过 |
+| P0/P3 | 设为默认 | 将第二条 QA 地址设为默认，服务端返回成功，列表排序及默认标记同步切换 | 通过 |
+
+- 测试数据按用户授权保留，未执行删除；因此地址删除接口仍未做真实写入回归。
+- 本轮页面控制台出现一条表单属性警告：`maxLength` 以字符串传入而组件期望数字；不影响上述接口写入结果，待单独修复并复测。

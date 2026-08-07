@@ -42,8 +42,17 @@ declare namespace Api.RealWallet {
   type WithdrawStatus = 'REVIEWING' | 'APPROVED' | 'SUCCESS' | 'REJECTED' | string;
 
   interface RechargeCreateParams {
-    chain: 'ETH' | 'TRON' | 'BSC';
+    chain: string;
     amount: number;
+  }
+
+  interface RechargeChainVO {
+    chain: string;
+    label: string;
+    decimals: number;
+    depositAddress?: string;
+    minAmount?: string | number;
+    enabled: boolean;
   }
 
   interface RechargePageQuery {

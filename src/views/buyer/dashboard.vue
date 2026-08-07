@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import { avatarUrl } from '@shared/utils/image';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
@@ -74,9 +73,6 @@ const kpis = computed(() => [
   { label: '已完成', value: completedOrderCount.value, icon: 'lucide:badge-check', color: '#00A88A' }
 ]);
 
-function showDepositUnavailable() {
-  Message.info('买手押金划转接口暂未提供');
-}
 </script>
 
 <template>
@@ -191,13 +187,13 @@ function showDepositUnavailable() {
               <div class="dd-val yb-mono">{{ depositPct.toFixed(1) }}%</div>
             </div>
             <div class="deposit-actions">
-              <button class="btn primary sm" @click="showDepositUnavailable">
+              <button class="btn primary sm" @click="router.push('/buyer/deposit')">
                 <Icon icon="lucide:arrow-down-to-line" width="14" /> 充值
               </button>
-              <button class="btn ghost sm" @click="showDepositUnavailable">
+              <button class="btn ghost sm" @click="router.push('/buyer/deposit')">
                 <Icon icon="lucide:arrow-up-from-line" width="14" /> 转出
               </button>
-              <button class="btn ghost sm" @click="router.push('/wallet')">
+              <button class="btn ghost sm" @click="router.push('/buyer/deposit')">
                 <Icon icon="lucide:list" width="14" /> 流水
               </button>
             </div>

@@ -6,6 +6,7 @@ import DepositMeter from '@/components/buyer/deposit-meter.vue';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as realBuyerApi from '@/service/api/buyer';
 import * as realOrderApi from '@/service/api/order';
 import * as realWalletApi from '@/service/api/wallet';
 import { useUserStore, useWalletStore } from '@/stores';
@@ -19,21 +20,26 @@ const loading = ref(false);
 const drawerOpen = ref(false);
 const drawerTxn = ref<Api.Wallet.Txn>();
 const account = computed(() => walletStore.account);
+const transferOpen = ref(false);
+const transferKind = ref<'pay' | 'refund'>('pay');
+const transferAmount = ref<number>();
+const transferring = ref(false);
+const maxTransferAmount = computed(() => {
+  const value = transferKind.value === 'pay' ? account.value?.available : account.value?.depositAvailable;
+  return Number(value || 0);
+});
 
 async function loadAll() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
-    const [, txnRes, countsRes] = await Promise.all([
+    const [, txnResult, countsResult] = await Promise.allSettled([
       walletStore.fetchWallet(userStore.currentUser.id),
-      realWalletApi.fetchWalletLedgersByTypes({
-        types: ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT'],
-        size: 20
-      }),
-      realOrderApi.countMySoldOrdersByStatus()
+      realBuyerApi.fetchBuyerDepositLedger({ pageNo: 1, pageSize: 20 }),
+      realOrderApi.countMySoldOrdersByStatus({ showError: false })
     ]);
-    txns.value = txnRes.records;
-    orderCounts.value = countsRes;
+    txns.value = txnResult.status === 'fulfilled' ? txnResult.value.records : [];
+    orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
   } finally {
     loading.value = false;
   }
@@ -51,8 +57,37 @@ const depositUtilization = computed(() => {
   return total > 0 ? ((guaranteed / total) * 100).toFixed(1) : '0.0';
 });
 
-function showDepositTransferUnavailable() {
-  Message.info('买手押金充值与转出接口暂未提供');
+function openDepositTransfer(kind: 'pay' | 'refund') {
+  transferKind.value = kind;
+  transferAmount.value = undefined;
+  transferOpen.value = true;
+}
+
+function createIdempotencyKey() {
+  return crypto.randomUUID();
+}
+
+async function submitDepositTransfer() {
+  if (!transferAmount.value || transferAmount.value <= 0) {
+    Message.warning('请输入正确的保证金金额');
+    return;
+  }
+  if (transferAmount.value > maxTransferAmount.value) {
+    Message.warning(transferKind.value === 'pay' ? '缴纳金额不能超过钱包可用余额' : '退还金额不能超过可用保证金');
+    return;
+  }
+
+  transferring.value = true;
+  try {
+    const params = { amount: transferAmount.value, idempotencyKey: createIdempotencyKey() };
+    if (transferKind.value === 'pay') await realBuyerApi.payBuyerDeposit(params);
+    else await realBuyerApi.refundBuyerDeposit(params);
+    Message.success(transferKind.value === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
+    transferOpen.value = false;
+    await loadAll();
+  } finally {
+    transferring.value = false;
+  }
 }
 
 function openTxn(t: Api.Wallet.Txn) {
@@ -69,10 +104,10 @@ function openTxn(t: Api.Wallet.Txn) {
       <a-card v-if="account" class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
         <DepositMeter :available="account.depositAvailable" :guaranteed="account.depositGuaranteed" size="lg" />
         <a-divider />
-        <a-alert type="info" class="alert">当前页面展示真实押金余额与流水，押金充值和转出需等待后台提供划转接口。</a-alert>
+        <a-alert type="info" class="alert">保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</a-alert>
         <div class="actions">
-          <a-button type="primary" @click="showDepositTransferUnavailable">充值押金</a-button>
-          <a-button @click="showDepositTransferUnavailable">转出至钱包</a-button>
+          <a-button type="primary" @click="openDepositTransfer('pay')">充值押金</a-button>
+          <a-button @click="openDepositTransfer('refund')">转出至钱包</a-button>
           <a-tooltip content="规则：在架商品需缴纳的最低押金 = 最贵商品单价。担保中订单完成后押金自动释放。">
             <a-button type="text">📖 规则说明</a-button>
           </a-tooltip>
@@ -109,6 +144,30 @@ function openTxn(t: Api.Wallet.Txn) {
     </a-spin>
 
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
+
+    <a-modal
+      v-model:visible="transferOpen"
+      :title="transferKind === 'pay' ? '缴纳保证金' : '退还保证金至钱包'"
+      :ok-loading="transferring"
+      @ok="submitDepositTransfer"
+    >
+      <a-form :model="{ amount: transferAmount }" layout="vertical">
+        <a-form-item label="金额 (USDT)" required>
+          <a-input-number
+            v-model="transferAmount"
+            :min="0.01"
+            :max="maxTransferAmount"
+            :precision="2"
+            placeholder="请输入金额"
+            style="width: 100%"
+          />
+        </a-form-item>
+        <a-alert
+          :type="transferKind === 'pay' ? 'warning' : 'info'"
+          :title="transferKind === 'pay' ? '将从钱包可用余额划入保证金。' : '将从可用保证金退还至钱包余额。'"
+        />
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
