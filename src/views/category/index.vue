@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { productApi } from '@shared';
 import * as categoryApi from '@/service/api/category';
+import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 
@@ -68,10 +68,7 @@ async function pick(id: string) {
   breadcrumb.value = found ? found.path.join(' / ') : '';
   loading.value = true;
   try {
-    const numericId = Number(id);
-    const r = Number.isSafeInteger(numericId)
-      ? await productApi.fetchProductList({ categoryId: numericId, size: 24 })
-      : await productApi.fetchProductList({ size: 24 });
+    const r = await productApi.fetchStorefrontProducts({ categoryId: id, size: 24 });
     products.value = r.records;
     total.value = r.total;
   } finally {
