@@ -613,3 +613,7 @@ view / store
 - 分类页保留真实 `/order/categories/tree`，分类节点选择后使用 `POST /order/storefront/products/page` 查询对应分类及其后代商品。
 - 分类 ID 从树节点到公开商品查询始终按原始字符串透传，不再使用 `Number()` 或安全整数判断丢弃 Long ID。
 - 当前分类树可读取、公开商品分页为 `total=0`；分类页已准备真实空态，待在售商品后验证分类筛选、商品卡与后续加购结算。
+
+### 构建验证
+
+- 2026-08-07 已执行 `pnpm build`（`vue-tsc --noEmit && vite build`）并通过。Vite 仅提示主包约 `1.46 MB`（gzip `376.77 kB`）超过默认分包建议阈值，属于性能优化项，不影响构建产物。

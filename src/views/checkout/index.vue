@@ -30,7 +30,7 @@ const submitting = ref(false);
 
 interface PendingCheckout {
   idempotencyKey: string;
-  productIds: number[];
+  productIds: Array<string | number>;
   orderItems: Api.RealOrder.OrderCreateItemParams[];
   orderIds?: Array<string | number>;
   firstOrderId?: string | number;
@@ -126,14 +126,11 @@ async function doSubmit() {
   submitting.value = true;
   try {
     if (!addressId.value) throw new Error('未选择收货地址');
-    let pending = pendingCheckout.value;
-    if (!pending) {
-      pending = {
+    const pending: PendingCheckout = pendingCheckout.value ?? {
         idempotencyKey: crypto.randomUUID(),
         productIds: items.value.map(item => item.productId),
         orderItems: items.value.map(item => ({ productId: item.productId, quantity: item.qty }))
       };
-    }
     if (!pending.orderIds?.length) {
       savePendingCheckout(pending);
       const orderGroup = await realOrderApi.createOrders({
