@@ -48,7 +48,7 @@
 | 前端需求 | Swagger 匹配 | 等级 | 关键差异 |
 |---|---|---|---|
 | 本地购物车增删改选 | 无需后端 | 本地能力 | 当前使用 Pinia/local storage，结算前需重新校验商品 |
-| 地址列表/新增/编辑/设默认/删除 | `GET /user/addresses/list`、`POST /user/addresses/create`、`PUT /user/addresses/update`、`PUT /user/addresses/default`、`DELETE /user/addresses/delete` | B | 2026-08-07 已接入地址页与结算选择器；前端新增 `country` 输入并在 API 层转换 `detailAddress/defaultFlag`，真实写入待回归 |
+| 地址列表/新增/编辑/设默认/删除 | `GET /user/addresses/list`、`POST /user/addresses/create`、`PUT /user/addresses/update`、`PUT /user/addresses/default`、`DELETE /user/addresses/delete` | B | 2026-08-07 已接入地址页与结算选择器；前端新增 `country` 输入并在 API 层转换 `detailAddress/defaultFlag`，新增、编辑、设默认、删除及回读均已真实回归 |
 | 下单 | `POST /order/orders/create` | C | 仅 `productId/quantity/sessionId/remark`；页面需要地址选择、金额拆分、多购物项和售后上下文 |
 | 买家订单列表 | `POST /order/orders/bought/page` | C | 基本分页存在；前端 10 状态与后端 7 状态不一致，缺地址、买手名、物流和售后字段 |
 | 订单详情 | `GET /order/orders/detail` | C | 缺 receiver、address、shippingFee、tax、物流、采购/发货截图、保修、售后关联和完整时间线 |
@@ -376,6 +376,7 @@
 | P0/P3 | 地址新增与回读 | Chrome 提交两条 QA 地址，列表刷新后均展示真实服务端数据 | 通过 |
 | P0/P3 | 地址编辑 | 更新第一条的详细地址，关闭表单后列表回读为更新值 | 通过 |
 | P0/P3 | 设为默认 | 将第二条 QA 地址设为默认，服务端返回成功，列表排序及默认标记同步切换 | 通过 |
+| P0/P3 | 地址删除 | 删除非默认 QA 地址后刷新列表，已不再返回该地址 | 通过 |
 
-- 测试数据按用户授权保留，未执行删除；因此地址删除接口仍未做真实写入回归。
-- 本轮页面控制台出现一条表单属性警告：`maxLength` 以字符串传入而组件期望数字；不影响上述接口写入结果，待单独修复并复测。
+- 默认 QA 地址按用户原始要求保留；非默认 QA 地址已用于删除接口真实回归。
+- 已将 `maxLength` 改为数字绑定；删除回归页面控制台仅有 Vite 连接日志，无项目 warning/error。

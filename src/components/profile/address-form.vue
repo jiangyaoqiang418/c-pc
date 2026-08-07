@@ -58,7 +58,7 @@ function submit() {
       </a-col>
       <a-col :span="12">
         <a-form-item label="手机号" required>
-          <a-input v-model="form.receiverPhone" placeholder="11 位手机号" max-length="11" />
+          <a-input v-model="form.receiverPhone" placeholder="11 位手机号" :max-length="11" />
         </a-form-item>
       </a-col>
     </a-row>
