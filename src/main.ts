@@ -1,7 +1,56 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
-import ArcoVue from '@arco-design/web-vue';
-import ArcoVueIcon from '@arco-design/web-vue/es/icon';
+import {
+  Alert,
+  Badge,
+  Breadcrumb,
+  BreadcrumbItem,
+  Button,
+  Card,
+  Cascader,
+  Checkbox,
+  Col,
+  Collapse,
+  CollapseItem,
+  Descriptions,
+  Divider,
+  Drawer,
+  Dropdown,
+  Empty,
+  Form,
+  FormItem,
+  Input,
+  InputNumber,
+  InputPassword,
+  InputSearch,
+  Link,
+  Modal,
+  Option,
+  Optgroup,
+  Pagination,
+  Progress,
+  Radio,
+  RadioGroup,
+  RangePicker,
+  Result,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Step,
+  Steps,
+  Switch,
+  TabPane,
+  Table,
+  TableColumn,
+  Tabs,
+  Tag,
+  Textarea,
+  Timeline,
+  TimelineItem,
+  Tooltip,
+  Tree
+} from '@arco-design/web-vue';
 import '@arco-design/web-vue/dist/arco.css';
 import { MotionPlugin } from '@vueuse/motion';
 // 品牌字体（Inter + JetBrains Mono）
@@ -22,7 +71,11 @@ import './styles/main.css'; // Tailwind v4 入口
 const app = createApp(App);
 app.use(createPinia());
 app.use(router);
-app.use(ArcoVue);
-app.use(ArcoVueIcon);
+[
+  Alert, Badge, Breadcrumb, BreadcrumbItem, Button, Card, Cascader, Checkbox, Col, Collapse, CollapseItem,
+  Descriptions, Divider, Drawer, Dropdown, Empty, Form, FormItem, Input, InputNumber, InputPassword, InputSearch,
+  Link, Modal, Option, Optgroup, Pagination, Progress, Radio, RadioGroup, RangePicker, Result, Row, Select, Space,
+  Spin, Step, Steps, Switch, TabPane, Table, TableColumn, Tabs, Tag, Textarea, Timeline, TimelineItem, Tooltip, Tree
+].forEach(component => app.component(component.name!, component));
 app.use(MotionPlugin);
 app.mount('#app');
