@@ -187,7 +187,7 @@
 | P2-B | 商品浏览打点 | `POST /order/storefront/browse`、`POST /order/products/view` | 商品详情页已调用；使用静默错误避免打点失败影响详情浏览 | 需真实商品 ID 验证浏览量变化 |
 | P2-B | 收藏/我的收藏 | `POST /order/products/favorite`、`POST /order/products/favorites/page` | 商品详情收藏按钮和 `/favorites` 页面已调用；当前账号收藏 total=0 | 需真实商品数据验证收藏后列表回显 |
 | P3 | 买家订单列表/详情 | `POST /order/orders/bought/page`、`GET /order/orders/detail` | API 已封装，订单列表/详情已调用；当前账号订单 total=0 | 后端缺地址、物流、售后、时间线等详情字段 |
-| P3 | 结算下单与钱包支付 | `POST /order/orders/create-batch`、`POST /order/orders/pay` | 结算页已调用真实批量下单和逐订单钱包支付，携带地址 ID 与 UUID 幂等键；不再调用 Mock 下单/支付或模拟 OKX 支付 | 需在售真实商品、有效库存和足额钱包余额验证成功写入、订单回显与余额扣减 |
+| P3 | 结算下单与钱包支付 | `POST /order/orders/create-batch`、`POST /order/orders/pay` | 结算页已调用真实批量下单和逐订单钱包支付，携带地址 ID 与 UUID 幂等键；缓存待支付订单，重试仅支付失败项，不再调用 Mock 下单/支付或模拟 OKX 支付 | 需在售真实商品、有效库存和足额钱包余额验证成功写入、订单回显与余额扣减 |
 | P4 | 钱包流水 | `POST /user/wallet/ledger/page` | API 已封装，资金流水页已调用；当前账号流水 total=0 | 后端仅支持 `bizGroup/bizType`，页面桶/日期/多类型为前端侧过滤 |
 
 本轮后 C 端 PC 已有接口对接估算：

@@ -28,6 +28,16 @@ const wallet = ref<Api.User.WalletSummary>();
 const agreed = ref(false);
 const submitting = ref(false);
 
+interface PendingCheckout {
+  idempotencyKey: string;
+  productIds: number[];
+  orderItems: Api.RealOrder.OrderCreateItemParams[];
+  orderIds?: Array<string | number>;
+  firstOrderId?: string | number;
+}
+
+const pendingCheckout = ref<PendingCheckout>();
+
 const items = computed(() => cart.selectedItems);
 const overseasItems = computed(() => items.value.filter(i => i.product?.overseasCustoms));
 const subTotal = computed(() => cart.subTotal);
@@ -38,6 +48,20 @@ const grandTotal = computed(() => cart.grandTotal);
 const availableBalance = computed(() => Number(wallet.value?.available || 0));
 const balanceEnough = computed(() => availableBalance.value >= Number(grandTotal.value));
 
+function pendingStorageKey(userId: string | number) {
+  return `cpc:checkout:pending:${userId}`;
+}
+
+function savePendingCheckout(value: PendingCheckout) {
+  pendingCheckout.value = value;
+  localStorage.setItem(pendingStorageKey(userStore.currentUser!.id), JSON.stringify(value));
+}
+
+function clearPendingCheckout() {
+  pendingCheckout.value = undefined;
+  localStorage.removeItem(pendingStorageKey(userStore.currentUser!.id));
+}
+
 onMounted(async () => {
   if (!userStore.currentUser) {
     router.replace({ name: 'login', query: { redirect: '/checkout' } });
@@ -47,6 +71,19 @@ onMounted(async () => {
     Message.warning('请先选择要结算的商品');
     router.replace('/cart');
     return;
+  }
+  try {
+    const raw = localStorage.getItem(pendingStorageKey(userStore.currentUser.id));
+    if (raw) {
+      const cached = JSON.parse(raw) as PendingCheckout;
+      if (cached.idempotencyKey && Array.isArray(cached.productIds) && Array.isArray(cached.orderItems)) {
+        pendingCheckout.value = cached;
+      } else {
+        localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
+      }
+    }
+  } catch {
+    localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
   }
   wallet.value = await walletApi.fetchMyWallet(userStore.currentUser.id);
 });
@@ -88,18 +125,43 @@ async function doSubmit() {
   submitting.value = true;
   try {
     if (!addressId.value) throw new Error('未选择收货地址');
-    const orderGroup = await realOrderApi.createOrders({
-      addressId: addressId.value,
-      items: items.value.map(item => ({ productId: item.productId, quantity: item.qty })),
-      idempotencyKey: crypto.randomUUID()
-    });
-    if (!orderGroup.orderIds.length) throw new Error('下单未返回订单 ID');
-    await Promise.all(orderGroup.orderIds.map(realOrderApi.payOrder));
-    const firstOrderId = orderGroup.orderIds[0];
-    items.value.forEach(item => cart.remove(item.productId));
+    let pending = pendingCheckout.value;
+    if (!pending) {
+      pending = {
+        idempotencyKey: crypto.randomUUID(),
+        productIds: items.value.map(item => item.productId),
+        orderItems: items.value.map(item => ({ productId: item.productId, quantity: item.qty }))
+      };
+    }
+    if (!pending.orderIds?.length) {
+      savePendingCheckout(pending);
+      const orderGroup = await realOrderApi.createOrders({
+        addressId: addressId.value,
+        items: pending.orderItems,
+        idempotencyKey: pending.idempotencyKey
+      }, { showError: false });
+      if (!orderGroup.orderIds.length) throw new Error('下单未返回订单 ID');
+      pending.orderIds = orderGroup.orderIds;
+      pending.firstOrderId = orderGroup.orderIds[0];
+      savePendingCheckout(pending);
+    }
+    const paymentResults = await Promise.allSettled(
+      pending.orderIds.map(id => realOrderApi.payOrder(id, { showError: false }))
+    );
+    const failedOrderIds = pending.orderIds.filter((_, index) => paymentResults[index].status === 'rejected');
+    if (failedOrderIds.length) {
+      pending.orderIds = failedOrderIds;
+      savePendingCheckout(pending);
+      throw new Error(`已创建订单，其中 ${failedOrderIds.length} 笔待付款。请检查余额后重试，系统不会重复下单。`);
+    }
+    const firstOrderId = pending.firstOrderId;
+    pending.productIds.forEach(productId => cart.remove(productId));
+    clearPendingCheckout();
     wallet.value = await walletApi.fetchMyWallet(userStore.currentUser!.id);
     Message.success('支付成功');
     if (firstOrderId) router.push({ name: 'checkout-success', params: { orderId: String(firstOrderId) } });
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
   } finally {
     submitting.value = false;
   }
