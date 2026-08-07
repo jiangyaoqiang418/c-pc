@@ -6,8 +6,7 @@
 
 ## 跨设备恢复
 
-- 新电脑或新 Codex 会话开始时，先阅读 `docs/current-handoff.md`，再结合接入计划、Swagger 矩阵和测试数据清单核对实时状态。
-- `docs/current-handoff.md` 只记录当前工作入口；代码、远端分支、实时 Swagger 和测试环境始终是最终依据。
+- 新电脑或新 Codex 会话开始时，先阅读接入计划与 Swagger 矩阵，再结合代码、远端分支、实时 Swagger 和测试环境核对状态。
 - 每批开发和回归完成后统一更新交接文档，避免换设备后重复已完成工作或遗漏外部阻塞。
 
 ## Core Rules
