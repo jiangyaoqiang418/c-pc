@@ -1,23 +1,37 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { formatAmount, orderApi } from '@shared';
+import { formatAmount } from '@shared';
 import ProductCard from '@/components/product/product-card.vue';
 import * as realProductApi from '@/service/api/product';
+import * as realOrderApi from '@/service/api/order';
 
 const route = useRoute();
 const router = useRouter();
 const order = ref<Api.Order.OrderRecord>();
 const recommends = ref<Api.Product.ProductRecord[]>([]);
 const loading = ref(false);
+const errorMessage = ref('');
 
-const orderId = computed(() => Number(route.params.orderId));
+const orderId = computed(() => String(route.params.orderId || ''));
 
 onMounted(async () => {
+  if (!orderId.value) {
+    errorMessage.value = '缺少订单编号';
+    return;
+  }
   loading.value = true;
   try {
-    order.value = await orderApi.fetchOrderDetail(orderId.value);
-    recommends.value = await realProductApi.fetchHomeRecommendations(4);
+    const [orderResult, recommendResult] = await Promise.allSettled([
+      realOrderApi.fetchOrderDetail(orderId.value),
+      realProductApi.fetchHomeRecommendations(4)
+    ]);
+    if (orderResult.status === 'fulfilled') {
+      order.value = orderResult.value;
+    } else {
+      errorMessage.value = orderResult.reason instanceof Error ? orderResult.reason.message : '订单信息读取失败';
+    }
+    if (recommendResult.status === 'fulfilled') recommends.value = recommendResult.value;
   } finally {
     loading.value = false;
   }
@@ -28,9 +42,10 @@ onMounted(async () => {
   <div class="success-page">
     <a-spin :loading="loading">
       <a-result
+        v-if="order"
         status="success"
         :title="'支付成功'"
-        :subtitle="order ? `订单号 ${order.code} · 金额 U ${formatAmount(order.totalAmount)}` : ''"
+        :subtitle="`订单号 ${order.code} · 金额 U ${formatAmount(order.totalAmount)}`"
       >
         <template #extra>
           <a-space>
@@ -42,7 +57,21 @@ onMounted(async () => {
         </template>
       </a-result>
 
-      <div class="recommend-block">
+      <a-result
+        v-else-if="errorMessage"
+        status="error"
+        title="订单加载失败"
+        :subtitle="errorMessage"
+      >
+        <template #extra>
+          <a-space>
+            <a-button type="primary" @click="router.push({ name: 'order-list' })">查看我的订单</a-button>
+            <a-button @click="router.push('/')">继续购物</a-button>
+          </a-space>
+        </template>
+      </a-result>
+
+      <div v-if="recommends.length" class="recommend-block">
         <div class="rec-title">您可能也喜欢</div>
         <div class="shop-grid-4">
           <ProductCard v-for="p in recommends" :key="p.id" :product="p" />

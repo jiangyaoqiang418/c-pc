@@ -617,3 +617,9 @@ view / store
 ### 构建验证
 
 - 2026-08-07 已执行 `pnpm build`（`vue-tsc --noEmit && vite build`）并通过。Vite 仅提示主包约 `1.46 MB`（gzip `376.77 kB`）超过默认分包建议阈值，属于性能优化项，不影响构建产物。
+
+## 2026-08-07 P0-6 支付成功页真实订单回显
+
+- `/checkout/success/:orderId` 使用路由中的原始订单 ID 调用 `GET /order/orders/detail`，展示真实订单号和金额；不再读取 Mock 订单详情。
+- 订单详情读取失败时展示“订单加载失败”及服务端错误信息，并引导到我的订单；推荐商品读取失败不会覆盖或伪造订单结果。
+- 推荐区继续使用真实 `GET /order/storefront/recommend`，无推荐数据时保持不展示，不回退 Mock 商品。

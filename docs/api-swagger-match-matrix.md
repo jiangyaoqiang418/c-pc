@@ -226,7 +226,7 @@
 |---|---|---|---|---|
 | P2-A | 买手工作台订单与可接求购 | `POST /order/orders/sold/page`、`POST /order/demands/hall/page` | API 已封装，`/buyer/dashboard` 已调用真实列表、状态统计和可接求购；无契约的随机经营指标已移除 | 需 KYC 通过的买手账号和名下订单/可接求购验证非空回显与抢单后刷新 |
 | P4 | 买手工作台资金与押金概览 | `GET /user/wallet/overview` | 工作台已读取真实钱包和押金字段；充值/转出未调用 Mock，因 Swagger 缺少买手押金划转写接口而明确提示 | 需买手钱包、可用押金和已担保押金测试数据；后端需补押金划转接口后再接写操作 |
-| P2-B | 支付成功页推荐 | `GET /order/storefront/recommend?limit=` | API 已封装，`/checkout/success/:id` 已调用真实推荐；当前环境无推荐数据时展示空态，不回退 Mock 商品 | 需在售推荐商品验证商品卡、图片和跳转；成功页主订单仍依赖 P3 结算链路 |
+| P2-B/P3 | 支付成功页订单与推荐 | `GET /order/orders/detail`、`GET /order/storefront/recommend?limit=` | 成功页已按真实订单 ID 读取订单号和金额，推荐区使用真实接口；任一接口失败不回退 Mock | 需真实支付订单及在售推荐商品验证订单回显、商品卡、图片和跳转 |
 
 ### 本轮 Chrome 回归
 
