@@ -2,8 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { enums, formatAmount, orderApi, walletApi } from '@shared';
+import { enums, formatAmount, walletApi } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
+import * as realOrderApi from '@/service/api/order';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import AddressSelector from '@/components/common/address-selector.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -26,7 +27,6 @@ const selectedAddr = ref<{
 const wallet = ref<Api.User.WalletSummary>();
 const agreed = ref(false);
 const submitting = ref(false);
-const payMode = ref<'wallet' | 'okx'>('wallet');
 
 const items = computed(() => cart.selectedItems);
 const overseasItems = computed(() => items.value.filter(i => i.product?.overseasCustoms));
@@ -60,7 +60,7 @@ async function submit() {
     Message.warning('请选择收货地址');
     return;
   }
-  if (payMode.value === 'wallet' && !balanceEnough.value) {
+  if (!balanceEnough.value) {
     Message.error({
       content: '钱包余额不足，请前往钱包链上充值',
       duration: 3500
@@ -87,33 +87,17 @@ async function submit() {
 async function doSubmit() {
   submitting.value = true;
   try {
-    const userId = userStore.currentUser!.id;
-    const addr = selectedAddr.value!;
-    let firstOrderId: number | undefined;
-    for (const item of items.value) {
-      if (!item.product) continue;
-      const order = await orderApi.createOrderMock({
-        customerId: userId,
-        productId: item.productId,
-        shopperId: item.product.sellerId,
-        productTitle: item.product.title,
-        productCover: item.product.images?.[0]?.url,
-        price: (Number(item.product.price) * item.qty).toFixed(2),
-        shippingFee: item.product.shippingFee,
-        tax: item.product.tax,
-        receiverName: addr.receiverName,
-        receiverPhone: addr.receiverPhone,
-        shippingAddress: `${addr.country}${addr.province}${addr.city}${addr.district}${addr.detail}`,
-        aftersaleType: item.product.aftersaleType
-      });
-      const payResult = await orderApi.payOrderMock(order.id);
-      if (!payResult.ok) {
-        Message.error(payResult.message || '支付失败');
-        return;
-      }
-      if (firstOrderId == null) firstOrderId = order.id;
-      cart.remove(item.productId);
-    }
+    if (!addressId.value) throw new Error('未选择收货地址');
+    const orderGroup = await realOrderApi.createOrders({
+      addressId: addressId.value,
+      items: items.value.map(item => ({ productId: item.productId, quantity: item.qty })),
+      idempotencyKey: crypto.randomUUID()
+    });
+    if (!orderGroup.orderIds.length) throw new Error('下单未返回订单 ID');
+    await Promise.all(orderGroup.orderIds.map(realOrderApi.payOrder));
+    const firstOrderId = orderGroup.orderIds[0];
+    items.value.forEach(item => cart.remove(item.productId));
+    wallet.value = await walletApi.fetchMyWallet(userStore.currentUser!.id);
     Message.success('支付成功');
     if (firstOrderId) router.push({ name: 'checkout-success', params: { orderId: String(firstOrderId) } });
   } finally {
@@ -201,22 +185,13 @@ async function doSubmit() {
 
       <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
         <div class="step-title">4. 支付</div>
-        <a-radio-group v-model="payMode" direction="vertical">
-          <a-radio value="wallet">
-            <div class="pay-row">
-              <span class="pay-name">使用钱包余额支付</span>
-              <span class="pay-meta" :class="{ insufficient: !balanceEnough }">
-                可用 U {{ formatAmount(availableBalance) }} {{ balanceEnough ? '' : '· 余额不足' }}
-              </span>
-            </div>
-          </a-radio>
-          <a-radio value="okx">
-            <div class="pay-row">
-              <span class="pay-name">OKX 快速支付</span>
-              <span class="pay-meta">原型阶段仅模拟，实际不会唤起 OKX</span>
-            </div>
-          </a-radio>
-        </a-radio-group>
+        <div class="pay-row">
+          <span class="pay-name">使用钱包余额支付</span>
+          <span class="pay-meta" :class="{ insufficient: !balanceEnough }">
+            可用 U {{ formatAmount(availableBalance) }} {{ balanceEnough ? '' : '· 余额不足' }}
+          </span>
+        </div>
+        <p class="pay-meta">当前 Swagger 仅提供钱包余额支付，OKX 支付入口将在后端提供真实支付契约后开放。</p>
 
         <a-divider />
 

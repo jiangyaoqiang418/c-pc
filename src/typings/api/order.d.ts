@@ -33,6 +33,25 @@ declare namespace Api.RealOrder {
     id: string | number;
   }
 
+  interface OrderCreateItemParams {
+    productId: string | number;
+    quantity?: number;
+    sessionId?: string | number;
+  }
+
+  interface OrderCreateBatchParams {
+    addressId: string | number;
+    items: OrderCreateItemParams[];
+    idempotencyKey?: string;
+    remark?: string;
+  }
+
+  interface OrderGroupVO {
+    orderGroupNo?: string;
+    orderIds: Array<string | number>;
+    totalAmount?: string | number;
+  }
+
   interface OrderPriceChangeParams {
     id: string | number;
     amount: number;

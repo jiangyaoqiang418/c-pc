@@ -149,6 +149,10 @@ export async function fetchOrderDetail(id: string | number) {
   return toOrderRecord(dto);
 }
 
+export function createOrders(params: Api.RealOrder.OrderCreateBatchParams) {
+  return realOrderRequest.post<Api.RealOrder.OrderGroupVO, Api.RealOrder.OrderCreateBatchParams>('/orders/create-batch', params);
+}
+
 export async function payOrder(id: string | number) {
   await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/pay', { id });
   return { ok: true, message: '' };
