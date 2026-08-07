@@ -70,9 +70,81 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.Product.Pr
   };
 }
 
-export async function fetchProductDetail(id: string | number) {
-  const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/storefront/product/detail', { params: { id } });
+function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Api.Product.ProductRecord {
+  return {
+    id: dto.id as unknown as number,
+    code: String(dto.id || ''),
+    title: dto.title,
+    sellerId: dto.sellerId as unknown as number,
+    sellerName: dto.sellerName || `买手 ${dto.sellerId || ''}`,
+    categoryId: dto.categoryId as unknown as number,
+    categoryPath: dto.categoryName || String(dto.categoryId || ''),
+    price: String(dto.price ?? 0),
+    stock: dto.stock ?? 0,
+    shippingFee: '0',
+    tax: '0',
+    images: dto.coverImage ? [{ url: dto.coverImage, name: '商品图', type: 'image', sort: 0 }] : [],
+    summary: '',
+    description: '',
+    aftersaleType: toAfterSaleType(dto.afterSaleType),
+    overseasCustoms: !!dto.overseasClearance,
+    status: 'NORMAL',
+    shelfStatus: 'on-shelf',
+    salesCount: Number(dto.salesCount || 0),
+    viewCount: 0,
+    favoriteCount: 0,
+    createdAt: '',
+    submittedAt: '',
+    updatedAt: ''
+  };
+}
+
+export async function fetchProductDetail(id: string | number, options: { showError?: boolean } = {}) {
+  const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/storefront/product/detail', {
+    params: { id },
+    showError: options.showError
+  });
   return toProductRecord(dto);
+}
+
+export async function fetchStorefrontProducts(q: {
+  current?: number;
+  size?: number;
+  keyword?: string;
+  categoryId?: string | number;
+  aftersaleType?: Api.Product.AftersaleType;
+  overseasCustoms?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
+  sort?: 'sales' | 'price-asc' | 'price-desc' | 'newest' | 'reviews';
+}) {
+  const sortMap = {
+    sales: 'DEFAULT',
+    newest: 'NEW',
+    'price-asc': 'PRICE_ASC',
+    'price-desc': 'PRICE_DESC',
+    reviews: 'SALES'
+  } as const;
+  const page = await realOrderRequest.post<
+    Api.Common.PaginatingQueryRecord<Api.RealProduct.StorefrontProductVO> & { pageNo?: number; pageSize?: number },
+    Api.RealProduct.StorefrontProductPageQuery
+  >('/storefront/products/page', {
+    pageNo: q.current || 1,
+    pageSize: q.size || 20,
+    keyword: q.keyword,
+    categoryId: q.categoryId,
+    minPrice: q.minPrice,
+    maxPrice: q.maxPrice,
+    afterSaleType: q.aftersaleType ? fromAfterSaleType(q.aftersaleType) : undefined,
+    overseasClearance: q.overseasCustoms,
+    sortBy: sortMap[q.sort || 'sales']
+  });
+  return {
+    current: page.current || page.pageNo || q.current || 1,
+    size: page.size || page.pageSize || q.size || 20,
+    total: Number(page.total || 0),
+    records: page.records.map(toStorefrontProductRecord)
+  };
 }
 
 async function fetchStorefrontPage(url: string, pageSize = 20) {

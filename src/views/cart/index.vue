@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { enums } from '@shared';
@@ -18,7 +18,7 @@ function setAll(checked: boolean) {
   cart.setAllSelected(checked);
 }
 
-function remove(productId: number) {
+function remove(productId: string | number) {
   Modal.confirm({
     title: '从购物车移除？',
     content: '该商品将从购物车删除',
@@ -41,6 +41,10 @@ function goCheckout() {
   }
   router.push('/checkout');
 }
+
+onMounted(() => {
+  cart.refresh();
+});
 </script>
 
 <template>

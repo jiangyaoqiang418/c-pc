@@ -67,6 +67,7 @@ onMounted(async () => {
     router.replace({ name: 'login', query: { redirect: '/checkout' } });
     return;
   }
+  await cart.refresh();
   if (items.value.length === 0) {
     Message.warning('请先选择要结算的商品');
     router.replace('/cart');

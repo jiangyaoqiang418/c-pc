@@ -1,10 +1,10 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { STORAGE_KEY } from '@shared';
-import { PRODUCTS } from '@shared/mock/data/products';
+import * as productApi from '@/service/api/product';
 
 export interface CartItem {
-  productId: number;
+  productId: string | number;
   qty: number;
   addedAt: string;
   selected: boolean;
@@ -19,27 +19,9 @@ export interface EnrichedCartItem extends CartItem {
   lineTotal: string;
 }
 
-function enrich(item: CartItem): EnrichedCartItem {
-  const product = PRODUCTS.find(p => p.id === item.productId);
-  const available = !!product && product.status === 'NORMAL' && product.shelfStatus === 'on-shelf' && product.stock > 0;
-  const price = product ? Number(product.price) : 0;
-  const shipping = product ? Number(product.shippingFee) : 0;
-  const tax = product ? Number(product.tax) : 0;
-  const subtotal = (price * item.qty).toFixed(2);
-  const lineTotal = (price * item.qty + shipping + tax).toFixed(2);
-  return {
-    ...item,
-    product,
-    available,
-    subtotal,
-    shippingFee: shipping.toFixed(2),
-    tax: tax.toFixed(2),
-    lineTotal
-  };
-}
-
 export const useCartStore = defineStore('bw-cart', () => {
   const items = ref<CartItem[]>([]);
+  const products = ref<Record<string, Api.Product.ProductRecord>>({});
   const initialized = ref(false);
 
   function persist() {
@@ -60,7 +42,41 @@ export const useCartStore = defineStore('bw-cart', () => {
     initialized.value = true;
   }
 
-  function add(productId: number, qty = 1) {
+  function enrich(item: CartItem): EnrichedCartItem {
+    const product = products.value[String(item.productId)];
+    const available = !!product && product.status === 'NORMAL' && product.shelfStatus === 'on-shelf' && product.stock > 0;
+    const price = product ? Number(product.price) : 0;
+    const shipping = product ? Number(product.shippingFee) : 0;
+    const tax = product ? Number(product.tax) : 0;
+    const subtotal = (price * item.qty).toFixed(2);
+    const lineTotal = (price * item.qty + shipping + tax).toFixed(2);
+    return {
+      ...item,
+      product,
+      available,
+      subtotal,
+      shippingFee: shipping.toFixed(2),
+      tax: tax.toFixed(2),
+      lineTotal
+    };
+  }
+
+  function upsertProduct(product: Api.Product.ProductRecord) {
+    products.value[String(product.id)] = product;
+  }
+
+  async function refresh() {
+    await Promise.all(items.value.map(async item => {
+      try {
+        upsertProduct(await productApi.fetchProductDetail(item.productId, { showError: false }));
+      } catch {
+        delete products.value[String(item.productId)];
+      }
+    }));
+  }
+
+  function add(productId: string | number, qty = 1, product?: Api.Product.ProductRecord) {
+    if (product) upsertProduct(product);
     const exist = items.value.find(i => i.productId === productId);
     if (exist) {
       exist.qty += qty;
@@ -71,7 +87,7 @@ export const useCartStore = defineStore('bw-cart', () => {
     persist();
   }
 
-  function update(productId: number, qty: number) {
+  function update(productId: string | number, qty: number) {
     const exist = items.value.find(i => i.productId === productId);
     if (exist) {
       exist.qty = Math.max(1, qty);
@@ -79,12 +95,12 @@ export const useCartStore = defineStore('bw-cart', () => {
     }
   }
 
-  function remove(productId: number) {
+  function remove(productId: string | number) {
     items.value = items.value.filter(i => i.productId !== productId);
     persist();
   }
 
-  function setSelected(productId: number, selected: boolean) {
+  function setSelected(productId: string | number, selected: boolean) {
     const exist = items.value.find(i => i.productId === productId);
     if (exist) {
       exist.selected = selected;
@@ -129,6 +145,7 @@ export const useCartStore = defineStore('bw-cart', () => {
 
   return {
     items,
+    products,
     enrichedItems,
     validItems,
     selectedItems,
@@ -141,6 +158,8 @@ export const useCartStore = defineStore('bw-cart', () => {
     taxTotal,
     grandTotal,
     init,
+    refresh,
+    upsertProduct,
     add,
     update,
     remove,

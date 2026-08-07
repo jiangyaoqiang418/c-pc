@@ -13,9 +13,11 @@ import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import * as productApi from '@/service/api/product';
+import { useCartStore } from '@/stores';
 
 const route = useRoute();
 const router = useRouter();
+const cart = useCartStore();
 
 const product = ref<Api.Product.ProductRecord>();
 const reviews = ref<Api.Review.ReviewRecord[]>([]);
@@ -58,11 +60,15 @@ watch(() => route.params.id, load);
 
 function addToCart() {
   if (!product.value) return;
-  Message.warning('真实商品购物车/结算链路将在 P3 接入');
+  cart.add(product.value.id, qty.value, product.value);
+  Message.success('已加入购物车');
 }
 function buyNow() {
   if (!product.value) return;
-  Message.warning('真实商品下单链路将在 P3 接入');
+  cart.add(product.value.id, qty.value, product.value);
+  cart.setAllSelected(false);
+  cart.setSelected(product.value.id, true);
+  router.push('/checkout');
 }
 function startPurchase() {
   if (!product.value) return;

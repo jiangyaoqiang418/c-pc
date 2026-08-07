@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { productApi } from '@shared';
+import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 
@@ -54,12 +54,11 @@ function syncFromQuery() {
 async function load() {
   loading.value = true;
   try {
-    const numericCategoryId = filter.categoryId ? Number(filter.categoryId) : undefined;
-    const r = await productApi.fetchProductList({
+    const r = await productApi.fetchStorefrontProducts({
       current: current.value,
       size: size.value,
       keyword: filter.keyword || undefined,
-      categoryId: Number.isSafeInteger(numericCategoryId) ? numericCategoryId : undefined,
+      categoryId: filter.categoryId || undefined,
       aftersaleType: filter.aftersaleType,
       overseasCustoms: filter.overseasCustoms,
       minPrice: filter.minPrice,

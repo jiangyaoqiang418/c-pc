@@ -26,6 +26,34 @@ declare namespace Api.RealProduct {
     updatedAt?: string | number;
   }
 
+  interface StorefrontProductVO {
+    id: string;
+    title: string;
+    coverImage?: string;
+    price?: string | number;
+    salesCount?: string | number;
+    stock?: number;
+    categoryId?: string;
+    categoryName?: string;
+    afterSaleType?: AfterSaleType;
+    afterSaleTypeText?: string;
+    overseasClearance?: boolean;
+    sellerId?: string;
+    sellerName?: string;
+  }
+
+  interface StorefrontProductPageQuery {
+    pageNo?: number;
+    pageSize?: number;
+    keyword?: string;
+    categoryId?: string | number;
+    minPrice?: number;
+    maxPrice?: number;
+    afterSaleType?: AfterSaleType;
+    overseasClearance?: boolean;
+    sortBy?: 'DEFAULT' | 'SALES' | 'NEW' | 'PRICE_ASC' | 'PRICE_DESC';
+  }
+
   interface ProductImageParam {
     bucket: string;
     filePath: string;

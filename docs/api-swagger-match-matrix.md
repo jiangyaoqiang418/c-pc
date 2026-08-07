@@ -148,7 +148,7 @@
 
 | 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
 |---|---|---|---|---|
-| P2-A | 商品详情 | `GET /order/storefront/product/detail?id=` | API 已封装，商品详情页已调用 | 评价、同店推荐无接口；购物车/立即购买属于 P3，当前只提示 |
+| P2-A/P3 | 公开商品、详情与购物车 | `POST /order/storefront/products/page`、`GET /order/storefront/product/detail?id=` | 商品列表、详情、加购与立即购买均使用真实商品 ID；购物车/结算进入时回读详情校验库存和上架状态 | 公开商品当前 total=0，待真实商品验证商品卡、加购、库存变更与结算 |
 | P2-A | 买手商品列表 | `POST /order/products/my/page` | API 已封装，买手商品管理页已调用 | 状态映射需真实数据确认；删除商品无接口 |
 | P2-A | 买手创建商品 | `POST /order/products/create`、`GET /order/products/detail?id=` | API 已封装，创建商品页已调用 | 图片上传组件仍需治理为 `bucket/filePath` 结构 |
 | P2-A | 买手上下架 | `PUT /order/products/shelf` | API 已封装，商品卡片上下架已调用 | `ON_SALE/OFF_SHELF` 与前端 shelf/status 拆分需真实返回确认 |
