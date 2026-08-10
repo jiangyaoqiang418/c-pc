@@ -2,9 +2,10 @@
 import { onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { aftersaleApi, enums, formatAmount } from '@shared';
+import { enums, formatAmount } from '@shared';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as aftersaleApi from '@/service/aftersale-adapter';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -62,7 +63,7 @@ function cancel(c: Api.Order.AftersaleCase) {
     okText: '确认撤销',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await aftersaleApi.cancelAftersaleMock(c.id);
+      const r = await aftersaleApi.cancelAftersale(c.id);
       if (r.ok) {
         Message.success('已撤销');
         load();

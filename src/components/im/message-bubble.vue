@@ -3,25 +3,84 @@ import { computed } from 'vue';
 import { enums } from '@shared';
 
 interface Props {
-  msg: Api.Im.Message;
+  msg: Api.Im.Message | Api.RealNotify.ImMessageVO;
   side: 'left' | 'right' | 'center';
   senderName?: string;
 }
 const props = defineProps<Props>();
 
-const typeMeta = computed(() => enums.MSG_TYPE_META[props.msg.type]);
-const time = computed(() => new Date(props.msg.sentAt).toLocaleString());
+function toMockMessageType(type?: string): Api.Im.MessageType {
+  const value = String(type || '').toUpperCase();
+  if (value === 'IMAGE') return 'image';
+  if (value === 'VOICE') return 'audio';
+  if (value === 'ORDER_CARD') return 'card-order';
+  if (value === 'SYSTEM') return 'system';
+  return 'text';
+}
 
-const isSystem = computed(() => ['system', 'system-banner'].includes(props.msg.type));
-const isRisk = computed(() => ['risk-warning', 'risk-intercept'].includes(props.msg.type));
+function parseOrderCard(content?: string): Api.Im.CardPayload | undefined {
+  if (!content) return undefined;
+  try {
+    const card = JSON.parse(content) as {
+      productTitle?: string;
+      amount?: string | number;
+      orderNo?: string | number;
+      productImage?: string;
+      statusText?: string;
+    };
+    if (!card.productTitle && !card.orderNo) return undefined;
+    return {
+      title: card.productTitle || '订单卡片',
+      subtitle: card.statusText,
+      coverUrl: card.productImage,
+      fields: [
+        ...(card.orderNo ? [{ label: '订单号', value: String(card.orderNo) }] : []),
+        ...(card.amount !== undefined ? [{ label: '金额', value: `U ${card.amount}` }] : [])
+      ]
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+const displayMessage = computed<Api.Im.Message>(() => {
+  if ('type' in props.msg) return props.msg;
+  const role = String(props.msg.senderRole || '').toUpperCase();
+  const type = toMockMessageType(props.msg.msgType);
+  return {
+    id: props.msg.id as unknown as number,
+    conversationId: props.msg.conversationId as unknown as number,
+    type,
+    senderId: (props.msg.senderId || 0) as unknown as number,
+    senderName: role === 'SELLER' ? '买手' : role === 'ADMIN' ? '平台客服' : role === 'CUSTOMER' ? '顾客' : '系统',
+    senderRole: role === 'SELLER' ? 'shopper' : role === 'ADMIN' ? 'agent' : role === 'CUSTOMER' ? 'customer' : 'ai_bot',
+    content: props.msg.content,
+    mediaUrl: props.msg.mediaUrl,
+    cardPayload: type === 'card-order' ? parseOrderCard(props.msg.content) : undefined,
+    isIntercepted: false,
+    sentAt: props.msg.createdAt ? String(props.msg.createdAt) : '',
+    readByIds: []
+  };
+});
+
+const typeMeta = computed(() => enums.MSG_TYPE_META[displayMessage.value.type]);
+const time = computed(() => {
+  const raw = displayMessage.value.sentAt;
+  if (!raw) return '—';
+  const date = new Date(/^\d+$/.test(raw) ? Number(raw) : raw);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+});
+
+const isSystem = computed(() => ['system', 'system-banner'].includes(displayMessage.value.type));
+const isRisk = computed(() => ['risk-warning', 'risk-intercept'].includes(displayMessage.value.type));
 const isEvent = computed(() =>
   ['order-paid', 'order-shipped', 'order-delivered', 'price-change', 'refund-request', 'presale-merged'].includes(
-    props.msg.type
+    displayMessage.value.type
   )
 );
-const isCard = computed(() => ['card-order', 'card-product', 'card-payment'].includes(props.msg.type));
-const isMedia = computed(() => ['image', 'video', 'audio', 'file'].includes(props.msg.type));
-const isText = computed(() => props.msg.type === 'text');
+const isCard = computed(() => ['card-order', 'card-product', 'card-payment'].includes(displayMessage.value.type));
+const isMedia = computed(() => ['image', 'video', 'audio', 'file'].includes(displayMessage.value.type));
+const isText = computed(() => displayMessage.value.type === 'text');
 
 const eventEmoji = computed(() => {
   const m: Record<string, string> = {
@@ -32,7 +91,7 @@ const eventEmoji = computed(() => {
     'refund-request': '💰',
     'presale-merged': '🔗'
   };
-  return m[props.msg.type] || '📢';
+  return m[displayMessage.value.type] || '📢';
 });
 </script>
 
@@ -40,7 +99,7 @@ const eventEmoji = computed(() => {
   <!-- 系统消息（居中） -->
   <div v-if="isSystem" class="msg-row center">
     <div class="bubble system">
-      {{ msg.content || typeMeta.label }}
+      {{ displayMessage.content || typeMeta.label }}
     </div>
   </div>
 
@@ -49,63 +108,63 @@ const eventEmoji = computed(() => {
     <div class="bubble event">
       <span class="emoji">{{ eventEmoji }}</span>
       <span class="event-label">{{ typeMeta.label }}</span>
-      <span class="event-content">{{ msg.content || '—' }}</span>
+      <span class="event-content">{{ displayMessage.content || '—' }}</span>
     </div>
   </div>
 
   <!-- 风险消息（居中横幅） -->
   <div v-else-if="isRisk" class="msg-row center">
-    <div class="bubble risk" :class="msg.type">
+    <div class="bubble risk" :class="displayMessage.type">
       <span class="emoji">⚠️</span>
       <span class="risk-label">{{ typeMeta.label }}</span>
-      <span class="risk-content">{{ msg.content || '本消息已被平台风控拦截' }}</span>
+      <span class="risk-content">{{ displayMessage.content || '本消息已被平台风控拦截' }}</span>
     </div>
   </div>
 
   <!-- 普通对话气泡 -->
   <div v-else class="msg-row" :class="side">
     <div class="msg-meta">
-      <span class="sender-name">{{ senderName || msg.senderName }}</span>
+      <span class="sender-name">{{ senderName || displayMessage.senderName }}</span>
       <span class="time">{{ time }}</span>
     </div>
 
     <!-- 文本 -->
     <div v-if="isText" class="bubble text" :class="side">
-      {{ msg.content }}
+      {{ displayMessage.content }}
     </div>
 
     <!-- 卡片消息 -->
-    <div v-else-if="isCard && msg.cardPayload" class="bubble card" :class="side">
-      <div v-if="msg.cardPayload.coverUrl" class="card-cover">
-        <img :src="msg.cardPayload.coverUrl" />
+    <div v-else-if="isCard && displayMessage.cardPayload" class="bubble card" :class="side">
+      <div v-if="displayMessage.cardPayload.coverUrl" class="card-cover">
+        <img :src="displayMessage.cardPayload.coverUrl" />
       </div>
       <div class="card-body">
-        <div class="card-title">{{ msg.cardPayload.title }}</div>
-        <div v-if="msg.cardPayload.subtitle" class="card-sub">{{ msg.cardPayload.subtitle }}</div>
-        <div v-if="msg.cardPayload.fields?.length" class="card-fields">
-          <div v-for="f in msg.cardPayload.fields" :key="f.label" class="card-field">
+        <div class="card-title">{{ displayMessage.cardPayload.title }}</div>
+        <div v-if="displayMessage.cardPayload.subtitle" class="card-sub">{{ displayMessage.cardPayload.subtitle }}</div>
+        <div v-if="displayMessage.cardPayload.fields?.length" class="card-fields">
+          <div v-for="f in displayMessage.cardPayload.fields" :key="f.label" class="card-field">
             <span class="f-lbl">{{ f.label }}</span>
             <span class="f-val">{{ f.value }}</span>
           </div>
         </div>
-        <a-link v-if="msg.cardPayload.linkText && msg.cardPayload.linkUrl" size="small">
-          {{ msg.cardPayload.linkText }} ›
+        <a-link v-if="displayMessage.cardPayload.linkText && displayMessage.cardPayload.linkUrl" size="small">
+          {{ displayMessage.cardPayload.linkText }} ›
         </a-link>
       </div>
     </div>
 
     <!-- 媒体消息 -->
     <div v-else-if="isMedia" class="bubble media" :class="side">
-      <img v-if="msg.type === 'image' && msg.mediaUrl" :src="msg.mediaUrl" class="media-img" />
+      <img v-if="displayMessage.type === 'image' && displayMessage.mediaUrl" :src="displayMessage.mediaUrl" class="media-img" />
       <div v-else class="media-fallback">
-        <span class="emoji">{{ msg.type === 'video' ? '🎬' : msg.type === 'audio' ? '🎙' : '📎' }}</span>
-        <span>{{ msg.mediaName || typeMeta.label }}</span>
+        <span class="emoji">{{ displayMessage.type === 'video' ? '🎬' : displayMessage.type === 'audio' ? '🎙' : '📎' }}</span>
+        <span>{{ displayMessage.mediaName || typeMeta.label }}</span>
       </div>
     </div>
 
     <!-- 其他 -->
     <div v-else class="bubble text" :class="side">
-      {{ msg.content || typeMeta.label }}
+      {{ displayMessage.content || typeMeta.label }}
     </div>
   </div>
 </template>

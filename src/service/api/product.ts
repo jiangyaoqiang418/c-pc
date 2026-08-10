@@ -219,8 +219,8 @@ export async function trackProductView(id: string | number) {
   return { ok: true };
 }
 
-export async function toggleProductFavorite(id: string | number) {
-  await realOrderRequest.post<boolean, Api.RealProduct.ProductIdParams>('/products/favorite', { id });
+export async function toggleProductFavorite(id: string | number, options: { showError?: boolean } = {}) {
+  await realOrderRequest.post<boolean, Api.RealProduct.ProductIdParams>('/products/favorite', { id }, options);
   return { ok: true };
 }
 

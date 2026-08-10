@@ -34,6 +34,25 @@ function toTotal(value?: string | number) {
   return Number(value || 0);
 }
 
+function toShippingAddress(dto: Api.RealOrder.OrderDTO) {
+  if (dto.shippingAddress || dto.receiverAddress) return dto.shippingAddress || dto.receiverAddress || '';
+  const parts = [
+    dto.receiverCountry,
+    dto.receiverProvince,
+    dto.receiverCity,
+    dto.receiverDistrict,
+    dto.receiverDetailAddress
+  ].filter(Boolean);
+  return parts.length ? parts.join('') : '后端暂未返回收货地址';
+}
+
+function toShippingCarrier(code?: string): Api.Order.ShippingCarrier | undefined {
+  const carriers: Api.Order.ShippingCarrier[] = ['SF_INTL', 'FEDEX', 'DHL', '4PX', 'EMS'];
+  return code && carriers.includes(code as Api.Order.ShippingCarrier)
+    ? code as Api.Order.ShippingCarrier
+    : undefined;
+}
+
 function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.Order.OrderRecord {
   const id = dto.orderId as unknown as number;
   const customerId = dto.customerId as unknown as number;
@@ -54,14 +73,18 @@ function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.Order.OrderRecord {
     shopperId,
     shopperName: shopperId ? `买手 ${shopperId}` : '买手',
     price: unitPrice,
-    shippingFee: '0',
-    tax: '0',
+    shippingFee: String(dto.shippingFee ?? 0),
+    tax: String(dto.taxAmount ?? 0),
     totalAmount,
     paidAmount: dto.paidAt ? totalAmount : '0',
     status: statusMap[dto.status || ''] || 'PENDING_PAYMENT',
-    shippingAddress: '后端暂未返回收货地址',
-    receiverName: '—',
-    receiverPhone: '—',
+    shippingAddress: toShippingAddress(dto),
+    receiverName: dto.receiverName || '—',
+    receiverPhone: dto.receiverPhone || '—',
+    trackingNumber: dto.trackingNo || dto.logisticsNo,
+    shippingCarrier: toShippingCarrier(dto.logisticsCompanyCode),
+    purchaseScreenshotUrl: dto.purchaseVoucherUrl || dto.purchaseVoucherUrls?.[0],
+    shippingScreenshotUrl: dto.shippingVoucherUrl || dto.shippingVoucherUrls?.[0],
     overseasCustoms: false,
     aftersaleType: '7day-no-reason',
     priceHistory: [],

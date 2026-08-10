@@ -2,10 +2,11 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { aftersaleApi, enums, formatAmount } from '@shared';
+import { enums, formatAmount } from '@shared';
 import AftersaleStatusTimeline from '@/components/aftersale/aftersale-status-timeline.vue';
 import AftersaleVerdictCard from '@/components/aftersale/aftersale-verdict-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import * as aftersaleApi from '@/service/aftersale-adapter';
 
 const route = useRoute();
 const router = useRouter();
@@ -37,7 +38,7 @@ function cancel() {
     content: '撤销后该工单将不可恢复',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await aftersaleApi.cancelAftersaleMock(caseRow.value!.id);
+      const r = await aftersaleApi.cancelAftersale(caseRow.value!.id);
       if (r.ok) {
         Message.success('已撤销');
         load();

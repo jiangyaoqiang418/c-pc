@@ -82,9 +82,11 @@ async function favorite() {
   if (!product.value) return;
   favoriting.value = true;
   try {
-    await productApi.toggleProductFavorite(product.value.id);
+    await productApi.toggleProductFavorite(product.value.id, { showError: false });
     product.value.favoriteCount = Number(product.value.favoriteCount || 0) + 1;
     Message.success('收藏状态已更新');
+  } catch {
+    Message.error('收藏失败，服务器暂未完成写入，请稍后重试');
   } finally {
     favoriting.value = false;
   }

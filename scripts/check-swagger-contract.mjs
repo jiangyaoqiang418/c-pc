@@ -62,6 +62,10 @@ const [admin, user, order] = await Promise.all([
   fetchJson('order', groups.order)
 ]);
 
+const login = requestSchema(user, operation(user, '/auth/login', 'post'));
+expectRequired(login, ['email', 'password'], '邮箱登录');
+operation(user, '/auth/me', 'get');
+
 const createBatch = operation(order, '/orders/create-batch', 'post');
 const createBatchRequest = requestSchema(order, createBatch);
 expectRequired(createBatchRequest, ['addressId', 'items'], '合并下单');
@@ -79,12 +83,18 @@ expectRequired(groupPay, ['orderGroupNo'], '订单组支付');
 const ship = requestSchema(order, operation(order, '/orders/ship', 'post'));
 expectRequired(ship, ['id', 'logisticsCompany', 'trackingNo'], '买手发货');
 
+const confirmReceipt = requestSchema(order, operation(order, '/orders/confirm', 'post'));
+expectRequired(confirmReceipt, ['id'], '确认收货');
+
 const createDemand = requestSchema(order, operation(order, '/demands/create', 'post'));
 expectRequired(
   createDemand,
   ['addressId', 'afterSaleType', 'budget', 'categoryId', 'demandNote', 'expectDeliveryDays', 'title'],
   '发起求购'
 );
+
+const grabDemand = requestSchema(order, operation(order, '/demands/grab', 'post'));
+expectRequired(grabDemand, ['id'], '抢单');
 
 [
   ['/addresses/list', 'get'],
@@ -107,6 +117,14 @@ if (notifyResponse.status === 404) {
     ['/im/conversations/page', 'post'],
     ['/im/messages/page', 'post']
   ].forEach(([path, method]) => operation(notify, path, method));
+  const markRead = requestSchema(notify, operation(notify, '/notifications/read', 'put'));
+  expectRequired(markRead, ['id'], '标记通知已读');
+  const messagePage = requestSchema(notify, operation(notify, '/im/messages/page', 'post'));
+  expectRequired(messagePage, ['conversationId'], '会话消息分页');
+  const sendMessage = requestSchema(notify, operation(notify, '/im/messages/send', 'post'));
+  expectRequired(sendMessage, ['conversationId', 'msgType'], '发送会话消息');
+  operation(notify, '/notifications/read-all', 'put');
+  operation(notify, '/im/conversations/by-order', 'get');
   notifySummary = `notify: ${Object.keys(notify.paths || {}).length} paths, ${countOperations(notify)} operations, ${Object.keys(notify.components?.schemas || {}).length} schemas`;
 }
 
@@ -115,4 +133,4 @@ for (const [name, document] of Object.entries({ admin, user, order })) {
   console.log(`${name}: ${Object.keys(document.paths || {}).length} paths, ${countOperations(document)} operations, ${schemas} schemas`);
 }
 console.log(notifySummary);
-console.log('关键 C 端契约检查通过：地址、合并下单、订单组支付、买手发货、发起求购。');
+console.log('关键 C 端契约检查通过：登录、地址、合并下单、订单组支付、买手发货、确认收货、发起求购、抢单和通知/IM。');

@@ -2,12 +2,13 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { aftersaleApi, enums, formatAmount, orderApi } from '@shared';
+import { enums, formatAmount, orderApi } from '@shared';
 import AftersaleCaseTypePicker from '@/components/aftersale/aftersale-case-type-picker.vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as aftersaleApi from '@/service/aftersale-adapter';
 
 const route = useRoute();
 const router = useRouter();
@@ -56,7 +57,7 @@ async function submit() {
     async onOk() {
       submitting.value = true;
       try {
-        const r = await aftersaleApi.createAftersaleMock({
+        const r = await aftersaleApi.createAftersale({
           orderId: order.value!.id,
           customerId: userStore.currentUser!.id,
           caseType: form.caseType!,

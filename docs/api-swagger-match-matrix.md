@@ -87,7 +87,7 @@
 | 买手订单 | `POST /order/orders/sold/page` | C | 缺采购截图、发货截图、物流公司/单号、地址和细分状态 |
 | 上传采购凭证 | `POST /order/files/upload` 只能上传文件 | D | 没有把采购凭证绑定到订单的接口 |
 | 发货 | `POST /order/orders/ship` | C | 只接收订单 ID，当前页面需要 trackingNumber、carrier 和 shippingScreenshotUrl |
-| 买手押金与经营统计 | `GET /user/wallet/overview`、`POST /user/buyer/deposit/page`、`POST /user/buyer/deposit/pay`、`POST /user/buyer/deposit/refund`、`GET /user/buyer/application` | B | 2026-08-07 已接入专属流水、缴纳和退还；仍缺完成率、好评率、投诉率、平均发货时效和未履约统计，写入待非零测试资金回归 |
+| 买手押金与经营统计 | `GET /user/wallet/overview`、`POST /user/buyer/deposit/page`、`POST /user/buyer/deposit/pay`、`POST /user/buyer/deposit/refund`、`GET /user/buyer/application` | B | 已完成 1 U 真实缴纳→余额/流水回读→真实退还→余额恢复的闭环；仍缺完成率、好评率、投诉率、平均发货时效和未履约统计 |
 
 ## 求购
 
@@ -148,7 +148,7 @@
 
 | 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
 |---|---|---|---|---|
-| P2-A/P3 | 公开商品、详情与购物车 | `POST /order/storefront/products/page`、`GET /order/storefront/product/detail?id=` | 商品列表、详情、加购与立即购买均使用真实商品 ID；购物车/结算进入时回读详情校验库存和上架状态 | 公开商品当前 total=0，待真实商品验证商品卡、加购、库存变更与结算 |
+| P2-A/P3 | 公开商品、详情与购物车 | `POST /order/storefront/products/page`、`GET /order/storefront/product/detail?id=` | 商品列表、详情、加购与立即购买均使用真实商品 ID；跨账号已完成真实商品下单、支付、发货、确认收货 | 订单详情仍缺地址、物流原始字段与凭证 |
 | P2-A/P3 | 分类入口商品列表 | `GET /order/categories/tree`、`POST /order/storefront/products/page` | 分类树节点的原始 Long ID 已透传至真实公开商品分页，分类页不再读取 Mock 商品 | 分类树读取和真实空态已确认；待在售商品验证分类筛选与商品卡 |
 | P2-A | 买手商品列表 | `POST /order/products/my/page` | API 已封装，买手商品管理页已调用 | 状态映射需真实数据确认；删除商品无接口 |
 | P2-A | 买手创建商品 | `POST /order/products/create`、`GET /order/products/detail?id=` | API 已封装，创建商品页已调用 | 图片上传组件仍需治理为 `bucket/filePath` 结构 |
@@ -186,9 +186,9 @@
 |---|---|---|---|---|
 | P2-B | 文件上传 | `POST /order/files/upload?dir=` | API 已封装，求购/买手商品上传组件已调用；接口真实返回 MinIO 未配置 | 后端配置对象存储后再验证成功上传和图片回显 |
 | P2-B | 商品浏览打点 | `POST /order/storefront/browse`、`POST /order/products/view` | 商品详情页已调用；使用静默错误避免打点失败影响详情浏览 | 需真实商品 ID 验证浏览量变化 |
-| P2-B | 收藏/我的收藏 | `POST /order/products/favorite`、`POST /order/products/favorites/page` | 商品详情收藏按钮和 `/favorites` 页面已调用；当前账号收藏 total=0 | 需真实商品数据验证收藏后列表回显 |
-| P3 | 买家订单列表/详情 | `POST /order/orders/bought/page`、`GET /order/orders/detail` | API 已封装，订单列表/详情已调用；当前账号订单 total=0 | 后端缺地址、物流、售后、时间线等详情字段 |
-| P3 | 结算下单与钱包支付 | `POST /order/orders/create-batch`、`POST /order/orders/pay` | 结算页已调用真实批量下单和逐订单钱包支付，携带地址 ID 与 UUID 幂等键；缓存待支付订单，重试仅支付失败项，不再调用 Mock 下单/支付或模拟 OKX 支付 | 需在售真实商品、有效库存和足额钱包余额验证成功写入、订单回显与余额扣减 |
+| P2-B | 收藏/我的收藏 | `POST /order/products/favorite`、`POST /order/products/favorites/page` | 商品详情收藏按钮和 `/favorites` 页面已调用；真实商品写入返回 `t_product_favorite.created_at` 无默认值，列表仍为 total=0 | 后端需补数据库默认值或插入字段后复测回显与取消收藏 |
+| P3 | 买家订单列表/详情 | `POST /order/orders/bought/page`、`GET /order/orders/detail` | 跨账号真实订单完成后，列表和详情均能用原始 Long ID 回读，并完成确认收货 | 后端缺地址、物流、售后、凭证等详情字段 |
+| P3 | 结算下单与钱包支付 | `POST /order/orders/create-batch`、`POST /order/orders/group/pay` | 已以真实在售商品、有效库存和钱包余额完成下单、订单组支付、发货、确认收货；Long ID 保留为字符串 | OKX 等外部支付仍无后端契约 |
 | P4 | 钱包流水 | `POST /user/wallet/ledger/page` | API 已封装，资金流水页已调用；当前账号流水 total=0 | 后端仅支持 `bizGroup/bizType`，页面桶/日期/多类型为前端侧过滤 |
 
 本轮后 C 端 PC 已有接口对接估算：
@@ -272,7 +272,7 @@
 
 | 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 真实验证 |
 |---|---|---|---|---|
-| P2-B | 取消收藏 | `DELETE /order/products/favorite?id=` | API 已封装，`/favorites` 已调用；保留 Long ID 原值 | 当前账号收藏为空，已验证空态，未执行写操作 |
+| P2-B | 取消收藏 | `DELETE /order/products/favorite?id=` | API 已封装，`/favorites` 已调用；保留 Long ID 原值 | 需先修复后端收藏写入的 `created_at` 约束，再回归添加、回显与取消 |
 | P2-A | 买手商品关键词/分类筛选 | `POST /order/products/my/page` 的 `keyword/categoryId` | API 与页面已传递筛选条件，分类末级 ID 保留原值 | 当前账号非买手，路由守卫跳转 `/kyc` |
 | P2-A | 买手商品状态分页 | `POST /order/products/my/page` 的 `pageNo/pageSize/status` | 已使用后端 `total`；在售/下架分别查询 `ON_SALE/OFF_SHELF` | 待买手账号及多页商品数据 |
 | P2-A | 商品驳回意见 | 商品 DTO 的 `reviewComment` | adapter 已映射，`REJECTED` 商品卡已展示 | 待一条驳回商品数据 |
@@ -407,8 +407,8 @@
 
 | 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 真实验证 |
 |---|---|---|---|---|
-| P1 | KYC 资料上传与提交 | `POST /order/files/upload?dir=kyc` 返回图片 URL；`POST /user/kyc/submit` 接收资料与 URL | 表单、真实上传、校验与提交已接入；不再生成模拟证件图 | 类型检查通过；待用户本人资料进行写入回归 |
-| P1 | KYC 状态与审核结果 | `GET /user/kyc/detail`；admin `POST /kyc/page`、`GET /kyc/detail`、`PUT /kyc/review` | C 端详情与状态刷新已接入，后台审核契约完整 | 待提交真实资料后验证待审、通过/驳回回显 |
+| P1 | KYC 资料上传与提交 | `POST /order/files/upload?dir=kyc` 返回图片 URL；`POST /user/kyc/submit` 接收资料与 URL | 独立 QA 账号已上传带明确水印的非真人模拟资料并成功提交；不涉及真实身份信息 | 通过；真实资料不作为测试前置 |
+| P1 | KYC 状态与审核结果 | `GET /user/kyc/detail`；admin `POST /kyc/page`、`GET /kyc/detail`、`PUT /kyc/review` | C 端回读审核中；后台查询、通过审核后 C 端回读“已通过”及审核时间 | 通过 |
 
 ## 2026-08-10 结算商品归属与缓存防错
 
@@ -446,7 +446,7 @@
 |---|---|---|---|
 | P2 | 发起求购 | `POST /order/demands/create` 的 `PurchaseDemandCreateQO` 必填 `addressId`、`afterSaleType`、`budget`、`categoryId`、`demandNote`、`expectDeliveryDays`、`title`；前端补传地址后成功创建 `2086765099709194242`。 | 真实创建通过 |
 | P2 | 抢单 | `POST /order/demands/claim` 成功，求购状态回显“已接单”，关联订单 `2086765217812406274`。 | 真实闭环通过 |
-| P2 | 买手商品创建与审核 | `POST /order/files/upload`、`POST /order/products/create` 成功创建商品 `2086766319630901249`，但商品状态为 `审核中`。 | 创建通过；公开展示与跨账号购买待审核 |
+| P2 | 买手商品创建与审核 | `POST /order/files/upload`、`POST /order/products/create` 成功创建商品 `2086766319630901249`；后台首次审核通过后，另一账号已在 C-PC 下单、支付、发货并签收。 | 创建、审核、公开展示与该商品的真实交易闭环通过 |
 | P3/P4 | 充值链与记录详情 | `GET /user/recharge/chains` 返回 TRON；充值列表/详情回显一笔已到账非空记录。 | 非空回归通过 |
 | P4 | 买手押金 | 钱包概览与押金流水接口成功，当前返回均为 0/空。 | 读取与空态通过，非零待数据 |
 | P2 | 秒杀报名 | 可报名场次接口成功但空，不能产生报名写入。 | 缺启用场次 |
@@ -454,3 +454,24 @@
 - `pnpm check:swagger` 现同时检查求购创建契约，关键检查范围为地址、合并下单、订单组支付、买手发货、发起求购。
 - notify Swagger 已恢复可访问（9 paths / 9 operations）；检查脚本不再把历史 404 作为固定成功条件，可用时会校验通知与 IM 的分页/未读关键操作。
 - KYC 真实提交仍以用户本人资料为前提；完整售后仍不能用简单退款接口替代现有五类工单。
+
+## 2026-08-10 通知与 IM 契约接入（进行中）
+
+| 梯队 | 能力 | Swagger 契约 | 页面/API 状态 | 验证边界 |
+|---|---|---|---|---|
+| P5 | 通知列表与已读 | `POST /notify/notifications/page`、`GET /notifications/unread/count`、`PUT /notifications/read`、`PUT /notifications/read-all` | 真实 API 与类型已建立；当前项目没有独立通知列表页面，因此尚无页面调用。 | 契约检查通过；页面入口须在产品确定后新增。 |
+| P5 | 订单会话列表/详情 | `POST /notify/im/conversations/page`、`GET /im/conversations/by-order`、`POST /im/messages/page` | `/im` 与 `/im/order-group/:orderCode` 已改用真实统一会话与消息分页。 | 类型检查通过；待双账号真实会话非空回读。 |
+| P5 | 发送消息 | `POST /notify/im/messages/send`，必填 `conversationId/msgType` | 文本与图片入口均改发真实 `TEXT/IMAGE`，移除本地自动回复。 | 待两个测试账号真实发送与回读。 |
+
+- 后端统一会话 DTO 不含 Mock 页面原有的参与者、订单金额、风控、客服排队、售前合并等字段；这些字段不再由前端构造或补假数据。
+- 运行时：消息发送成功后会话预览已更新，但刷新后的 `POST /im/messages/page` 未回显该消息；同时发送接口真实响应为消息 ID。C-PC 已按消息 ID 后重新分页读取，消息分页读写一致性待 notify 后端核对。
+- `ORDER_CARD` 的消息内容按 JSON 字符串解析为现有订单卡片字段；解析失败维持文本展示，避免前端将后端载荷原样当作卡片结构使用。
+
+## 2026-08-10 前端待后端字段的接入边界
+
+| 模块 | 前端已完成 | 后端依赖 |
+|---|---|---|
+| 订单详情 | DTO 与 adapter 已支持地址、物流、运费税费、采购/发货凭证的可选映射；字段缺失时保留明确降级提示。 | `GET /order/orders/detail` 返回对应真实字段。 |
+| 售后 | 创建、列表、详情、撤销调用已收敛至单一 adapter，页面仍保留当前交互。 | 提供完整售后资源与状态机契约后替换 adapter。 |
+| 收藏 | 真实请求失败不乐观更新数量，并保留可读错误提示。 | 修复收藏表 `created_at` 写入约束。 |
+| 通知 | notify 调用不会因单域 `-200` 清空整站 token。 | notify 服务正确识别用户/后台 token。 |

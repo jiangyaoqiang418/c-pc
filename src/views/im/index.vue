@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
-import { formatAmount, imApi } from '@shared';
-import { findUserById } from '@shared/mock/data/users';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
-import OrderGroupHeader from '@/components/im/order-group-header.vue';
-import RiskFlagBanner from '@/components/im/risk-flag-banner.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as notifyApi from '@/service/api/notify';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -17,44 +13,54 @@ const userStore = useUserStore();
 type ConvKind = 'group' | 'cs' | 'presale';
 const activeTab = ref<ConvKind>('group');
 
-const groups = ref<Api.Im.OrderGroup[]>([]);
-const csSession = ref<Api.Im.PlatformCsSession>();
-const selectedGroupId = ref<number>();
-const messages = ref<Api.Im.Message[]>([]);
+const conversations = ref<Api.RealNotify.ImConversationVO[]>([]);
+const selectedConversationId = ref<string | number>();
+const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
 const loading = ref(false);
 const scrollRef = ref<HTMLDivElement>();
 
-async function loadGroups() {
-  if (!userStore.currentUser) return;
-  groups.value = await imApi.fetchMyOrderGroups(userStore.currentUser.id);
-  if (groups.value.length && selectedGroupId.value == null) {
-    selectGroup(groups.value[0]);
-  }
+function hasBizType(conversation: Api.RealNotify.ImConversationVO, type: string) {
+  return String(conversation.bizType || '').toUpperCase() === type;
 }
 
-async function loadCs() {
-  if (!userStore.currentUser) return;
-  csSession.value = await imApi.fetchPlatformCsConversation(userStore.currentUser.id);
-  if (csSession.value) {
-    messages.value = await imApi.fetchMessages(csSession.value.id);
-    await nextTick();
-    scrollToBottom();
-  }
-}
+const groups = computed(() => conversations.value.filter(conversation => hasBizType(conversation, 'ORDER')));
+const csSessions = computed(() => conversations.value.filter(conversation => {
+  const type = String(conversation.bizType || '').toUpperCase();
+  return type === 'CUSTOMER_SERVICE' || type === 'CS';
+}));
+const presaleSessions = computed(() => conversations.value.filter(conversation => hasBizType(conversation, 'PRESALE')));
+const selectedConversation = computed(() => conversations.value.find(conversation => conversation.id === selectedConversationId.value));
 
-const presaleSessions = ref<Api.Im.PresaleSession[]>([]);
-async function loadPresales() {
-  if (!userStore.currentUser) return;
-  presaleSessions.value = await imApi.fetchPresaleConversations(userStore.currentUser.id);
-}
-
-async function selectGroup(g: Api.Im.OrderGroup) {
-  selectedGroupId.value = g.id;
+async function loadConversations() {
   loading.value = true;
   try {
-    messages.value = await imApi.fetchMessages(g.id);
+    conversations.value = (await notifyApi.fetchConversations({ pageNo: 1, pageSize: 100 })).records || [];
+    await selectFirstConversation();
+  } catch {
+    conversations.value = [];
+    selectedConversationId.value = undefined;
+    messages.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function selectFirstConversation() {
+  const candidates = activeTab.value === 'group' ? groups.value : activeTab.value === 'cs' ? csSessions.value : presaleSessions.value;
+  if (candidates.length && !candidates.some(conversation => conversation.id === selectedConversationId.value)) {
+    await selectConversation(candidates[0]);
+  }
+}
+
+async function selectConversation(conversation: Api.RealNotify.ImConversationVO) {
+  selectedConversationId.value = conversation.id;
+  loading.value = true;
+  try {
+    messages.value = (await notifyApi.fetchConversationMessages({ conversationId: conversation.id, pageNo: 1, pageSize: 100 })).records || [];
     await nextTick();
     scrollToBottom();
+  } catch {
+    messages.value = [];
   } finally {
     loading.value = false;
   }
@@ -67,63 +73,60 @@ function scrollToBottom() {
 }
 
 onMounted(() => {
-  loadGroups();
+  loadConversations();
 });
 
 watch(activeTab, async tab => {
   messages.value = [];
-  if (tab === 'group') {
-    await loadGroups();
-  } else if (tab === 'cs') {
-    await loadCs();
-  } else if (tab === 'presale') {
-    await loadPresales();
-  }
+  if (tab === 'group' || tab === 'cs' || tab === 'presale') await selectFirstConversation();
 });
 
-const selectedGroup = computed(() => groups.value.find(g => g.id === selectedGroupId.value));
-
-const sideOf = (msg: Api.Im.Message): 'left' | 'right' | 'center' => {
-  if (['system', 'system-banner', 'risk-warning', 'risk-intercept', 'order-paid', 'order-shipped', 'order-delivered', 'price-change', 'refund-request', 'presale-merged'].includes(msg.type)) return 'center';
-  return msg.senderId === userStore.currentUser?.id ? 'right' : 'left';
+const sideOf = (message: Api.RealNotify.ImMessageVO): 'left' | 'right' | 'center' => {
+  if (!message.senderId || String(message.msgType || '').toUpperCase() === 'SYSTEM') return 'center';
+  return String(message.senderId) === String(userStore.currentUser?.id) ? 'right' : 'left';
 };
 
-function getSenderName(msg: Api.Im.Message): string {
-  if (msg.senderId === userStore.currentUser?.id) return '我';
-  const u = findUserById(msg.senderId);
-  return u?.nickname || msg.senderName || '系统';
+function getSenderName(message: Api.RealNotify.ImMessageVO): string {
+  if (String(message.senderId) === String(userStore.currentUser?.id)) return '我';
+  const role = String(message.senderRole || '').toUpperCase();
+  return role === 'SELLER' ? '买手' : role === 'ADMIN' ? '平台客服' : role === 'CUSTOMER' ? '顾客' : '系统';
 }
-
-const riskCount = computed(() => messages.value.filter(m => m.type === 'risk-warning' || m.type === 'risk-intercept').length);
 
 async function onSend(payload: { type: Api.Im.MessageType; content?: string; mediaUrl?: string }) {
-  if (!userStore.currentUser) return;
-  const convId = activeTab.value === 'group' ? selectedGroup.value?.id : csSession.value?.id;
-  if (!convId) return;
-  const newMsg = await imApi.sendMessageMock({
-    conversationId: convId,
-    senderId: userStore.currentUser.id,
-    type: payload.type,
-    content: payload.content,
-    mediaUrl: payload.mediaUrl
-  });
-  messages.value.push(newMsg);
-  await nextTick();
-  scrollToBottom();
+  if (!selectedConversation.value) return;
+  try {
+    await notifyApi.sendConversationMessage({
+      conversationId: selectedConversation.value.id,
+      msgType: payload.type === 'image' ? 'IMAGE' : 'TEXT',
+      content: payload.content,
+      mediaUrl: payload.mediaUrl
+    });
+    messages.value = (await notifyApi.fetchConversationMessages({
+      conversationId: selectedConversation.value.id,
+      pageNo: 1,
+      pageSize: 100
+    })).records || [];
+    await nextTick();
+    scrollToBottom();
+  } catch {
+    // 请求层已展示后端错误信息，不回退为本地 Mock 消息。
+  }
 }
 
-function lastPreview(g: Api.Im.OrderGroup): string {
-  if (g.lastMessagePreview) return g.lastMessagePreview;
-  return `${g.productTitle.slice(0, 18)}...`;
+function lastPreview(conversation: Api.RealNotify.ImConversationVO): string {
+  return conversation.lastMessagePreview || '暂无消息';
 }
 
-function previewTime(g: Api.Im.OrderGroup): string {
-  return new Date(g.lastMessageAt || g.createdAt).toLocaleDateString();
+function previewTime(conversation: Api.RealNotify.ImConversationVO): string {
+  if (!conversation.lastMessageAt) return '—';
+  const raw = conversation.lastMessageAt;
+  const date = new Date(typeof raw === 'string' && /^\d+$/.test(raw) ? Number(raw) : raw);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
 }
 
 function openOrderGroup() {
-  if (selectedGroup.value) {
-    router.push({ name: 'im-order-group', params: { orderCode: selectedGroup.value.orderId } });
+  if (selectedConversation.value?.bizId) {
+    router.push({ name: 'im-order-group', params: { orderCode: selectedConversation.value.bizId } });
   }
 }
 </script>
@@ -143,16 +146,16 @@ function openOrderGroup() {
                   v-for="g in groups"
                   :key="g.id"
                   class="conv-row"
-                  :class="{ active: selectedGroupId === g.id }"
-                  @click="selectGroup(g)"
+                  :class="{ active: selectedConversationId === g.id }"
+                  @click="selectConversation(g)"
                 >
-                  <div class="avatar group">{{ g.productTitle.slice(0, 1) }}</div>
+                  <div class="avatar group">{{ (g.title || '订').slice(0, 1) }}</div>
                   <div class="info">
-                    <div class="conv-name">{{ g.productTitle }}</div>
+                    <div class="conv-name">{{ g.title || `订单会话 ${g.bizId || ''}` }}</div>
                     <div class="conv-meta">
                       <span class="preview">{{ lastPreview(g) }}</span>
                     </div>
-                    <div class="conv-time">U {{ formatAmount(g.orderAmount) }} · {{ previewTime(g) }}</div>
+                    <div class="conv-time">订单 {{ g.bizId || '—' }} · {{ previewTime(g) }}</div>
                   </div>
                 </div>
               </div>
@@ -160,28 +163,27 @@ function openOrderGroup() {
             </a-tab-pane>
             <a-tab-pane key="cs" title="平台客服">
               <div class="cs-block">
-                <div v-if="csSession" class="cs-info">
+                <div v-for="session in csSessions" :key="session.id" class="cs-info conv-row" @click="selectConversation(session)">
                   <div class="avatar cs">客</div>
                   <div>
-                    <div class="conv-name">油宝在线客服</div>
-                    <div class="conv-meta">{{ csSession.skillGroup || '通用客服' }} · 平均 2 分钟内响应</div>
+                    <div class="conv-name">{{ session.title || '油宝在线客服' }}</div>
+                    <div class="conv-meta">{{ lastPreview(session) }}</div>
                   </div>
                 </div>
-                <EmptyState v-else title="暂无客服会话" />
+                <EmptyState v-if="!csSessions.length" title="暂无客服会话" />
               </div>
             </a-tab-pane>
             <a-tab-pane key="presale" :title="`售前 (${presaleSessions.length})`">
               <div v-if="presaleSessions.length" class="presale-list chat-scroll">
-                <div v-for="s in presaleSessions" :key="s.id" class="conv-row">
+                <div v-for="s in presaleSessions" :key="s.id" class="conv-row" :class="{ active: selectedConversationId === s.id }" @click="selectConversation(s)">
                   <div class="avatar group" style="background: #ff7d00">售</div>
                   <div class="info">
-                    <div class="conv-name">{{ s.productTitle }}</div>
+                    <div class="conv-name">{{ s.title || `售前会话 ${s.bizId || ''}` }}</div>
                     <div class="conv-meta">
-                      <span class="preview">买手 {{ s.shopperName }}</span>
+                      <span class="preview">{{ lastPreview(s) }}</span>
                     </div>
                     <div class="conv-time">
-                      {{ s.mergedToGroupId ? '已并入三方群' : '咨询中' }} ·
-                      {{ new Date(s.createdAt).toLocaleDateString() }}
+                      咨询中 · {{ previewTime(s) }}
                     </div>
                   </div>
                 </div>
@@ -194,9 +196,14 @@ function openOrderGroup() {
         <!-- 右侧 chat -->
         <section class="chat-pane">
           <a-spin :loading="loading" style="width: 100%; height: 100%">
-            <template v-if="activeTab === 'group' && selectedGroup">
-              <OrderGroupHeader :group="selectedGroup" />
-              <RiskFlagBanner :count="riskCount" />
+            <template v-if="selectedConversation">
+              <div class="conversation-header">
+                <div>
+                  <div class="cs-title">{{ selectedConversation.title || '会话' }}</div>
+                  <div class="cs-sub">{{ selectedConversation.bizType || '—' }} · 业务 ID {{ selectedConversation.bizId || '—' }}</div>
+                </div>
+                <a-link v-if="activeTab === 'group' && selectedConversation.bizId" @click="openOrderGroup">独立窗口打开 ›</a-link>
+              </div>
               <div ref="scrollRef" class="messages chat-scroll">
                 <MessageBubble
                   v-for="m in messages"
@@ -206,30 +213,6 @@ function openOrderGroup() {
                   :sender-name="getSenderName(m)"
                 />
                 <div v-if="!messages.length" class="empty-msg">该群暂无消息</div>
-              </div>
-              <div class="pane-actions">
-                <a-link @click="openOrderGroup">独立窗口打开 ›</a-link>
-              </div>
-              <MessageInput @send="onSend" />
-            </template>
-
-            <template v-else-if="activeTab === 'cs' && csSession">
-              <div class="cs-header">
-                <div class="avatar cs">客</div>
-                <div>
-                  <div class="cs-title">油宝平台客服</div>
-                  <div class="cs-sub">7×24 在线 · 通用客服</div>
-                </div>
-              </div>
-              <div ref="scrollRef" class="messages chat-scroll">
-                <MessageBubble
-                  v-for="m in messages"
-                  :key="m.id"
-                  :msg="m"
-                  :side="sideOf(m)"
-                  :sender-name="getSenderName(m)"
-                />
-                <div v-if="!messages.length" class="empty-msg">向客服发送您的问题</div>
               </div>
               <MessageInput @send="onSend" />
             </template>
@@ -358,6 +341,15 @@ function openOrderGroup() {
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
+}
+.conversation-header {
+  background: #fff;
+  padding: 14px 20px;
+  border-bottom: 1px solid #f2f3f5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 .cs-header {
   background: #fff;

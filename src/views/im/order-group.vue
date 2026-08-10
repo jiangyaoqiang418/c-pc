@@ -1,22 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { imApi } from '@shared';
-import { findUserById } from '@shared/mock/data/users';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
-import OrderGroupHeader from '@/components/im/order-group-header.vue';
-import RiskFlagBanner from '@/components/im/risk-flag-banner.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import * as notifyApi from '@/service/api/notify';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
 const orderCode = computed(() => String(route.params.orderCode));
-const group = ref<Api.Im.OrderGroup>();
-const messages = ref<Api.Im.Message[]>([]);
+const conversation = ref<Api.RealNotify.ImConversationVO>();
+const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
 const loading = ref(false);
 const sending = ref(false);
 const scrollRef = ref<HTMLDivElement>();
@@ -24,12 +21,15 @@ const scrollRef = ref<HTMLDivElement>();
 async function load() {
   loading.value = true;
   try {
-    group.value = await imApi.fetchOrderGroupByOrderCode(orderCode.value);
-    if (group.value) {
-      messages.value = await imApi.fetchMessages(group.value.id);
+    conversation.value = await notifyApi.fetchOrderConversation(orderCode.value);
+    if (conversation.value) {
+      messages.value = (await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 100 })).records || [];
       await nextTick();
       scrollToBottom();
     }
+  } catch {
+    conversation.value = undefined;
+    messages.value = [];
   } finally {
     loading.value = false;
   }
@@ -44,84 +44,61 @@ function scrollToBottom() {
 onMounted(load);
 watch(() => route.params.orderCode, load);
 
-const sideOf = (msg: Api.Im.Message): 'left' | 'right' | 'center' => {
-  if (['system', 'system-banner', 'risk-warning', 'risk-intercept', 'order-paid', 'order-shipped', 'order-delivered', 'price-change', 'refund-request', 'presale-merged'].includes(msg.type)) return 'center';
-  return msg.senderId === userStore.currentUser?.id ? 'right' : 'left';
+const sideOf = (message: Api.RealNotify.ImMessageVO): 'left' | 'right' | 'center' => {
+  if (!message.senderId || String(message.msgType || '').toUpperCase() === 'SYSTEM') return 'center';
+  return String(message.senderId) === String(userStore.currentUser?.id) ? 'right' : 'left';
 };
 
-const riskCount = computed(() => messages.value.filter(m => m.type === 'risk-warning' || m.type === 'risk-intercept').length);
-
 const disableInput = computed(() => {
-  if (!group.value) return true;
-  return ['ARCHIVED', 'DISSOLVED', 'ARCHIVING'].includes(group.value.orderGroupStatus);
+  return !conversation.value;
 });
 
 const disableText = computed(() => {
-  if (!group.value) return '';
-  if (group.value.orderGroupStatus === 'ARCHIVED') return '本群已归档，仅可查看历史消息';
-  if (group.value.orderGroupStatus === 'DISSOLVED') return '本群已解散';
-  if (group.value.orderGroupStatus === 'ARCHIVING') return '本群归档中';
-  return '';
+  return conversation.value ? '' : '当前订单没有可用会话';
 });
 
 async function onSend(payload: { type: Api.Im.MessageType; content?: string; mediaUrl?: string }) {
-  if (!group.value || !userStore.currentUser) return;
+  if (!conversation.value) return;
   sending.value = true;
   try {
-    const newMsg = await imApi.sendMessageMock({
-      conversationId: group.value.id,
-      senderId: userStore.currentUser.id,
-      type: payload.type,
-      content: payload.content,
-      mediaUrl: payload.mediaUrl
-    });
-    messages.value.push(newMsg);
-    await nextTick();
-    scrollToBottom();
-
-    // 模拟自动回复（仅 customer 发出时）
-    if (userStore.currentUser.id === group.value.customerId && payload.type === 'text') {
-      setTimeout(async () => {
-        if (!group.value) return;
-        const shopperUser = findUserById(group.value.shopperId);
-        const replyTexts = ['好的，我看下', '收到，稍后回复', '我这边核实一下', '没问题，按您要求处理'];
-        const reply = replyTexts[Math.floor(messages.value.length % replyTexts.length)];
-        const r = await imApi.sendMessageMock({
-          conversationId: group.value.id,
-          senderId: group.value.shopperId,
-          type: 'text',
-          content: reply
-        });
-        // hack: 改 senderRole 为 shopper（sendMessageMock 默认按发送方推断）
-        r.senderRole = 'shopper';
-        r.senderName = shopperUser?.nickname || '买手';
-        messages.value.push(r);
-        await nextTick();
-        scrollToBottom();
-      }, 1500);
+    try {
+      await notifyApi.sendConversationMessage({
+        conversationId: conversation.value.id,
+        msgType: payload.type === 'image' ? 'IMAGE' : 'TEXT',
+        content: payload.content,
+        mediaUrl: payload.mediaUrl
+      });
+      messages.value = (await notifyApi.fetchConversationMessages({
+        conversationId: conversation.value.id,
+        pageNo: 1,
+        pageSize: 100
+      })).records || [];
+      await nextTick();
+      scrollToBottom();
+    } catch {
+      // 请求层已展示后端错误信息，不回退为本地 Mock 消息。
     }
   } finally {
     sending.value = false;
   }
 }
 
-function getSenderName(msg: Api.Im.Message): string {
-  if (msg.senderId === userStore.currentUser?.id) return '我';
-  const u = findUserById(msg.senderId);
-  return u?.nickname || msg.senderName || '系统';
+function getSenderName(message: Api.RealNotify.ImMessageVO): string {
+  if (String(message.senderId) === String(userStore.currentUser?.id)) return '我';
+  const role = String(message.senderRole || '').toUpperCase();
+  return role === 'SELLER' ? '买手' : role === 'ADMIN' ? '平台客服' : role === 'CUSTOMER' ? '顾客' : '系统';
 }
-
-void sending;
 </script>
 
 <template>
   <div class="im-group-page shop-container">
     <a-spin :loading="loading" style="width: 100%">
-      <template v-if="group">
+      <template v-if="conversation">
         <a-card class="chat-card" :body-style="{ padding: 0 }" :bordered="false">
-          <OrderGroupHeader :group="group" />
-
-          <RiskFlagBanner :count="riskCount" />
+          <div class="conversation-header">
+            <div class="conversation-title">{{ conversation.title || '订单会话' }}</div>
+            <div class="conversation-sub">订单 ID {{ conversation.bizId || orderCode }} · {{ conversation.myRole || '—' }}</div>
+          </div>
 
           <div ref="scrollRef" class="messages chat-scroll">
             <MessageBubble
@@ -138,7 +115,7 @@ void sending;
         </a-card>
       </template>
 
-      <EmptyState v-else-if="!loading" title="三方群不存在" action-text="返回订单列表" @action="router.push('/order')" />
+      <EmptyState v-else-if="!loading" title="订单会话不存在" action-text="返回订单列表" @action="router.push('/order')" />
     </a-spin>
   </div>
 </template>
@@ -155,6 +132,21 @@ void sending;
   flex-direction: column;
   height: calc(100vh - 200px);
   min-height: 560px;
+}
+.conversation-header {
+  background: #fff;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f2f3f5;
+}
+.conversation-title {
+  color: #1d2129;
+  font-size: 14px;
+  font-weight: 600;
+}
+.conversation-sub {
+  color: #86909c;
+  font-size: 12px;
+  margin-top: 4px;
 }
 .messages {
   flex: 1;
