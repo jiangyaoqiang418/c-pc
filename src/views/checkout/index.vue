@@ -29,6 +29,7 @@ const selectedAddr = ref<{
 const wallet = ref<Api.User.WalletSummary>();
 const agreed = ref(false);
 const submitting = ref(false);
+const backendSelfPurchaseProductIds = ref<string[]>([]);
 
 interface PendingCheckout {
   idempotencyKey: string;
@@ -49,8 +50,14 @@ const taxTotal = computed(() => cart.taxTotal);
 const grandTotal = computed(() => cart.grandTotal);
 const selfSoldItems = computed(() => {
   const currentUserId = userStore.currentUser?.id;
-  if (currentUserId === undefined || currentUserId === null) return [];
-  return items.value.filter(item => item.product?.sellerId !== undefined && String(item.product.sellerId) === String(currentUserId));
+  const backendRejectedIds = new Set(backendSelfPurchaseProductIds.value);
+  return items.value.filter(item => {
+    if (backendRejectedIds.has(String(item.productId))) return true;
+    return currentUserId !== undefined
+      && currentUserId !== null
+      && item.product?.sellerId !== undefined
+      && String(item.product.sellerId) === String(currentUserId);
+  });
 });
 const selfSoldTitles = computed(() => selfSoldItems.value.map(item => item.product?.title || String(item.productId)).join('、'));
 
@@ -86,6 +93,10 @@ function hasSameOrderItems(
 
 function shouldDiscardPending(pending: PendingCheckout) {
   return !pending.orderIds?.length && !hasSameOrderItems(pending.orderItems, currentOrderItems());
+}
+
+function isSelfPurchaseError(error: unknown) {
+  return error instanceof RequestError && /不能购买自己(?:的|发布的)?商品/.test(error.message);
 }
 
 onMounted(async () => {
@@ -204,6 +215,11 @@ async function doSubmit() {
     if (firstOrderId) router.push({ name: 'checkout-success', params: { orderId: String(firstOrderId) } });
   } catch (error) {
     if (createBatchStarted && !activePending?.orderIds?.length && error instanceof RequestError) {
+      if (isSelfPurchaseError(error) && activePending) {
+        backendSelfPurchaseProductIds.value = [
+          ...new Set([...backendSelfPurchaseProductIds.value, ...activePending.productIds.map(String)])
+        ];
+      }
       clearPendingCheckout();
     }
     Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
