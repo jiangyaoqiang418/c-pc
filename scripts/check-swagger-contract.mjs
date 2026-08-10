@@ -79,6 +79,13 @@ expectRequired(groupPay, ['orderGroupNo'], '订单组支付');
 const ship = requestSchema(order, operation(order, '/orders/ship', 'post'));
 expectRequired(ship, ['id', 'logisticsCompany', 'trackingNo'], '买手发货');
 
+const createDemand = requestSchema(order, operation(order, '/demands/create', 'post'));
+expectRequired(
+  createDemand,
+  ['addressId', 'afterSaleType', 'budget', 'categoryId', 'demandNote', 'expectDeliveryDays', 'title'],
+  '发起求购'
+);
+
 [
   ['/addresses/list', 'get'],
   ['/addresses/create', 'post'],
@@ -88,11 +95,24 @@ expectRequired(ship, ['id', 'logisticsCompany', 'trackingNo'], '买手发货');
 ].forEach(([path, method]) => operation(user, path, method));
 
 const notifyResponse = await fetch(groups.notify);
-if (notifyResponse.status !== 404) throw new Error(`notify Swagger 预期为 HTTP 404，实际为 ${notifyResponse.status}`);
+let notifySummary;
+if (notifyResponse.status === 404) {
+  notifySummary = 'notify: HTTP 404（当前后端未提供通知 Swagger）';
+} else {
+  if (!notifyResponse.ok) throw new Error(`notify Swagger 请求失败：HTTP ${notifyResponse.status}`);
+  const notify = await notifyResponse.json();
+  [
+    ['/notifications/page', 'post'],
+    ['/notifications/unread/count', 'get'],
+    ['/im/conversations/page', 'post'],
+    ['/im/messages/page', 'post']
+  ].forEach(([path, method]) => operation(notify, path, method));
+  notifySummary = `notify: ${Object.keys(notify.paths || {}).length} paths, ${countOperations(notify)} operations, ${Object.keys(notify.components?.schemas || {}).length} schemas`;
+}
 
 for (const [name, document] of Object.entries({ admin, user, order })) {
   const schemas = Object.keys(document.components?.schemas || {}).length;
   console.log(`${name}: ${Object.keys(document.paths || {}).length} paths, ${countOperations(document)} operations, ${schemas} schemas`);
 }
-console.log('notify: HTTP 404（当前后端未提供通知 Swagger）');
-console.log('关键 C 端契约检查通过：地址、合并下单、订单组支付、买手发货。');
+console.log(notifySummary);
+console.log('关键 C 端契约检查通过：地址、合并下单、订单组支付、买手发货、发起求购。');

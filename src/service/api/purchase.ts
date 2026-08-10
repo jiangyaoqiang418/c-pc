@@ -135,6 +135,7 @@ export async function createPurchase(p: {
   productTitle: string;
   productDescription: string;
   categoryId: string | number;
+  addressId: string | number;
   budgetAmount: string | number;
   expectedDays: number;
   overseasCustoms: boolean;
@@ -145,6 +146,7 @@ export async function createPurchase(p: {
   const id = await realOrderRequest.post<string, Api.RealPurchase.PurchaseDemandCreateParams>('/demands/create', {
     title: p.productTitle,
     categoryId: p.categoryId,
+    addressId: p.addressId,
     description: p.productDescription,
     budget: Number(p.budgetAmount),
     expectDeliveryDays: p.expectedDays,

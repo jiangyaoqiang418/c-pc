@@ -5,6 +5,7 @@ import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import AddressSelector from '@/components/common/address-selector.vue';
 import { fetchCategoryTree } from '@/service/api/category';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
@@ -23,6 +24,7 @@ const form = reactive<{
   productTitle: string;
   productDescription: string;
   categoryPath: Array<string | number>;
+  addressId?: string | number;
   budgetAmount: number;
   expectedDays: number;
   overseasCustoms: boolean;
@@ -33,6 +35,7 @@ const form = reactive<{
   productTitle: (route.query.productHint as string) || '',
   productDescription: '',
   categoryPath: route.query.categoryId ? [String(route.query.categoryId)] : [],
+  addressId: undefined,
   budgetAmount: 500,
   expectedDays: 14,
   overseasCustoms: false,
@@ -69,6 +72,11 @@ async function submit() {
     Message.warning('请选择商品分类');
     return;
   }
+  if (form.addressId === undefined || form.addressId === null || form.addressId === '') {
+    Message.warning('请选择收货地址');
+    return;
+  }
+  const addressId = form.addressId;
   if (form.appeal.trim().length < 10) {
     Message.warning('求购说明至少 10 字');
     return;
@@ -85,6 +93,7 @@ async function submit() {
           productTitle: form.productTitle.trim(),
           productDescription: form.productDescription.trim() || form.appeal.trim(),
           categoryId: form.categoryPath[form.categoryPath.length - 1],
+          addressId,
           budgetAmount: String(form.budgetAmount),
           expectedDays: form.expectedDays,
           overseasCustoms: form.overseasCustoms,
@@ -128,6 +137,13 @@ async function submit() {
         </div>
         <a-form-item label="商品标题" required>
           <a-input v-model="form.productTitle" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" size="large" />
+        </a-form-item>
+        <a-form-item label="收货地址" required>
+          <AddressSelector
+            v-if="userStore.currentUser"
+            v-model="form.addressId"
+            :user-id="userStore.currentUser.id"
+          />
         </a-form-item>
         <a-form-item label="商品分类" required>
           <a-cascader

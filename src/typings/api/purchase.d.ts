@@ -26,6 +26,7 @@ declare namespace Api.RealPurchase {
   interface PurchaseDemandCreateParams {
     title: string;
     categoryId: string | number;
+    addressId: string | number;
     description?: string;
     budget: number;
     expectDeliveryDays: number;
