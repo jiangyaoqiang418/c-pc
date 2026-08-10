@@ -2,9 +2,11 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { enums, formatAmount, walletApi } from '@shared';
+import { enums, formatAmount } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import * as realOrderApi from '@/service/api/order';
+import * as realWalletApi from '@/service/api/wallet';
+import { RequestError } from '@/service/request';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import AddressSelector from '@/components/common/address-selector.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -32,6 +34,7 @@ interface PendingCheckout {
   idempotencyKey: string;
   productIds: Array<string | number>;
   orderItems: Api.RealOrder.OrderCreateItemParams[];
+  orderGroupNo?: string;
   orderIds?: Array<string | number>;
   firstOrderId?: string | number;
 }
@@ -44,6 +47,12 @@ const subTotal = computed(() => cart.subTotal);
 const shippingFeeTotal = computed(() => cart.shippingFeeTotal);
 const taxTotal = computed(() => cart.taxTotal);
 const grandTotal = computed(() => cart.grandTotal);
+const selfSoldItems = computed(() => {
+  const currentUserId = userStore.currentUser?.id;
+  if (currentUserId === undefined || currentUserId === null) return [];
+  return items.value.filter(item => item.product?.sellerId !== undefined && String(item.product.sellerId) === String(currentUserId));
+});
+const selfSoldTitles = computed(() => selfSoldItems.value.map(item => item.product?.title || String(item.productId)).join('、'));
 
 const availableBalance = computed(() => Number(wallet.value?.available || 0));
 const balanceEnough = computed(() => availableBalance.value >= Number(grandTotal.value));
@@ -62,6 +71,23 @@ function clearPendingCheckout() {
   localStorage.removeItem(pendingStorageKey(userStore.currentUser!.id));
 }
 
+function currentOrderItems(): Api.RealOrder.OrderCreateItemParams[] {
+  return items.value.map(item => ({ productId: item.productId, quantity: item.qty }));
+}
+
+function hasSameOrderItems(
+  left: Api.RealOrder.OrderCreateItemParams[],
+  right: Api.RealOrder.OrderCreateItemParams[]
+) {
+  if (left.length !== right.length) return false;
+  const normalize = (item: Api.RealOrder.OrderCreateItemParams) => `${String(item.productId)}:${item.quantity || 1}`;
+  return left.map(normalize).sort().every((item, index) => item === right.map(normalize).sort()[index]);
+}
+
+function shouldDiscardPending(pending: PendingCheckout) {
+  return !pending.orderIds?.length && !hasSameOrderItems(pending.orderItems, currentOrderItems());
+}
+
 onMounted(async () => {
   if (!userStore.currentUser) {
     router.replace({ name: 'login', query: { redirect: '/checkout' } });
@@ -78,7 +104,11 @@ onMounted(async () => {
     if (raw) {
       const cached = JSON.parse(raw) as PendingCheckout;
       if (cached.idempotencyKey && Array.isArray(cached.productIds) && Array.isArray(cached.orderItems)) {
-        pendingCheckout.value = cached;
+        if (shouldDiscardPending(cached)) {
+          localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
+        } else {
+          pendingCheckout.value = cached;
+        }
       } else {
         localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
       }
@@ -86,10 +116,14 @@ onMounted(async () => {
   } catch {
     localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
   }
-  wallet.value = await walletApi.fetchMyWallet(userStore.currentUser.id);
+  wallet.value = (await realWalletApi.fetchWalletOverview(userStore.currentUser.id)).summary;
 });
 
 async function submit() {
+  if (selfSoldItems.value.length) {
+    Message.error(`不能购买自己发布的商品：${selfSoldTitles.value}`);
+    return;
+  }
   if (!agreed.value) {
     Message.warning('请阅读并同意协议');
     return;
@@ -124,41 +158,54 @@ async function submit() {
 
 async function doSubmit() {
   submitting.value = true;
+  let activePending: PendingCheckout | undefined;
+  let createBatchStarted = false;
   try {
     if (!addressId.value) throw new Error('未选择收货地址');
+    if (pendingCheckout.value && shouldDiscardPending(pendingCheckout.value)) clearPendingCheckout();
     const pending: PendingCheckout = pendingCheckout.value ?? {
         idempotencyKey: crypto.randomUUID(),
         productIds: items.value.map(item => item.productId),
-        orderItems: items.value.map(item => ({ productId: item.productId, quantity: item.qty }))
+        orderItems: currentOrderItems()
       };
+    activePending = pending;
     if (!pending.orderIds?.length) {
       savePendingCheckout(pending);
+      createBatchStarted = true;
       const orderGroup = await realOrderApi.createOrders({
         addressId: addressId.value,
         items: pending.orderItems,
         idempotencyKey: pending.idempotencyKey
       }, { showError: false });
       if (!orderGroup.orderIds.length) throw new Error('下单未返回订单 ID');
+      pending.orderGroupNo = orderGroup.orderGroupNo;
       pending.orderIds = orderGroup.orderIds;
       pending.firstOrderId = orderGroup.orderIds[0];
       savePendingCheckout(pending);
     }
-    const paymentResults = await Promise.allSettled(
-      pending.orderIds.map(id => realOrderApi.payOrder(id, { showError: false }))
-    );
-    const failedOrderIds = pending.orderIds.filter((_, index) => paymentResults[index].status === 'rejected');
-    if (failedOrderIds.length) {
-      pending.orderIds = failedOrderIds;
-      savePendingCheckout(pending);
-      throw new Error(`已创建订单，其中 ${failedOrderIds.length} 笔待付款。请检查余额后重试，系统不会重复下单。`);
+    if (pending.orderGroupNo) {
+      await realOrderApi.payOrderGroup(pending.orderGroupNo, { showError: false });
+    } else {
+      const paymentResults = await Promise.allSettled(
+        pending.orderIds.map(id => realOrderApi.payOrder(id, { showError: false }))
+      );
+      const failedOrderIds = pending.orderIds.filter((_, index) => paymentResults[index].status === 'rejected');
+      if (failedOrderIds.length) {
+        pending.orderIds = failedOrderIds;
+        savePendingCheckout(pending);
+        throw new Error(`已创建订单，其中 ${failedOrderIds.length} 笔待付款。请检查余额后重试，系统不会重复下单。`);
+      }
     }
     const firstOrderId = pending.firstOrderId;
     pending.productIds.forEach(productId => cart.remove(productId));
     clearPendingCheckout();
-    wallet.value = await walletApi.fetchMyWallet(userStore.currentUser!.id);
+    wallet.value = (await realWalletApi.fetchWalletOverview(userStore.currentUser!.id)).summary;
     Message.success('支付成功');
     if (firstOrderId) router.push({ name: 'checkout-success', params: { orderId: String(firstOrderId) } });
   } catch (error) {
+    if (createBatchStarted && !activePending?.orderIds?.length && error instanceof RequestError) {
+      clearPendingCheckout();
+    }
     Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
   } finally {
     submitting.value = false;
@@ -252,6 +299,13 @@ async function doSubmit() {
           </span>
         </div>
         <p class="pay-meta">当前 Swagger 仅提供钱包余额支付，OKX 支付入口将在后端提供真实支付契约后开放。</p>
+        <a-alert
+          v-if="selfSoldItems.length"
+          type="error"
+          :title="`不能购买自己发布的商品：${selfSoldTitles}`"
+          content="请返回购物车移除该商品，或选择其他买手的商品后再结算。"
+          class="self-purchase-alert"
+        />
 
         <a-divider />
 
@@ -269,7 +323,7 @@ async function doSubmit() {
             <span class="grand">{{ formatUsdt(grandTotal) }}</span>
             <span class="grand-usdt">≈ {{ formatCny(grandTotal) }}</span>
           </div>
-          <a-button type="primary" size="large" :loading="submitting" :disabled="!agreed" @click="submit">
+          <a-button type="primary" size="large" :loading="submitting" :disabled="!agreed || selfSoldItems.length > 0" @click="submit">
             提交订单
           </a-button>
         </div>
@@ -437,6 +491,9 @@ async function doSubmit() {
 .pay-meta {
   font-size: 12px;
   color: #86909c;
+}
+.self-purchase-alert {
+  margin-top: 12px;
 }
 .pay-meta.insufficient {
   color: #f53f3f;

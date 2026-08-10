@@ -2,9 +2,11 @@
 import { onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
+import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
+import { enums } from '@shared';
 
 const userStore = useUserStore();
 
@@ -33,6 +35,9 @@ const priceModalOpen = ref(false);
 const priceSubmitting = ref(false);
 const priceOrder = ref<Api.Order.OrderRecord>();
 const priceAmount = ref<number>();
+const shippingModalOpen = ref(false);
+const shippingSubmitting = ref(false);
+const shippingOrder = ref<Api.Order.OrderRecord>();
 
 async function load() {
   if (!userStore.currentUser) return;
@@ -62,8 +67,26 @@ function onUploadProof() {
   Message.info('采购凭证绑定订单接口暂未提供');
 }
 
-function onUploadShipping() {
-  Message.info('物流信息绑定订单接口暂未提供');
+function onUploadShipping(order: Api.Order.OrderRecord) {
+  shippingOrder.value = order;
+  shippingModalOpen.value = true;
+}
+
+async function shipOrder(orderId: string | number, trackingNo: string, carrier: Api.Order.ShippingCarrier) {
+  shippingSubmitting.value = true;
+  try {
+    await realOrderApi.shipOrder({
+      id: orderId,
+      logisticsCompany: enums.CARRIER_META[carrier].label,
+      logisticsCompanyCode: carrier,
+      trackingNo
+    });
+    Message.success('发货信息已提交');
+    shippingModalOpen.value = false;
+    await load();
+  } finally {
+    shippingSubmitting.value = false;
+  }
 }
 
 function openPriceModal(order: Api.Order.OrderRecord) {
@@ -139,6 +162,13 @@ async function changePrice() {
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <ShippingUploadModal
+      v-model:visible="shippingModalOpen"
+      :order="shippingOrder"
+      :submitting="shippingSubmitting"
+      @confirm="shipOrder"
+    />
   </div>
 </template>
 

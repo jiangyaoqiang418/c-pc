@@ -76,13 +76,14 @@ function goIm() {
       >
         <Icon icon="lucide:badge-dollar-sign" width="14" /> 修改价格
       </button>
-      <button
-        v-else-if="order.status === 'PROCURING'"
-        class="btn primary"
-        @click="$emit('upload-proof', order)"
-      >
-        <Icon icon="lucide:upload" width="14" /> 上传采购截图
-      </button>
+      <template v-else-if="order.status === 'PROCURING'">
+        <button class="btn ghost" @click="$emit('upload-proof', order)">
+          <Icon icon="lucide:upload" width="14" /> 上传采购截图
+        </button>
+        <button class="btn primary" @click="$emit('upload-shipping', order)">
+          <Icon icon="lucide:package" width="14" /> 填写发货
+        </button>
+      </template>
       <button
         v-else-if="order.status === 'PROCURED'"
         class="btn primary"

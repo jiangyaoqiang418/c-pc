@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { Message } from '@arco-design/web-vue';
 import { enums } from '@shared';
 import * as realKycApi from '@/service/api/kyc';
 import { getAccessToken } from '@/service/request';
+import IdCardUploader from '@/components/kyc/id-card-uploader.vue';
 import { useUserStore } from '@/stores';
 
 const userStore = useUserStore();
 const loading = ref(false);
+const submitting = ref(false);
+const uploading = ref(false);
 const kycDetail = ref<Api.RealKyc.KycVO | null>();
+const form = reactive<Api.RealKyc.SubmitParams>({
+  realName: '',
+  idType: 'ID_CARD',
+  idNo: '',
+  idCardFront: '',
+  idCardBack: '',
+  holdingPhoto: '',
+  nationality: '中国'
+});
 
 function toDisplayStatus(value?: string): Api.User.KycStatus {
   if (value === 'PASSED') return 'approved';
@@ -73,6 +86,34 @@ async function load() {
 }
 
 onMounted(load);
+
+async function submit() {
+  if (!form.realName.trim() || !form.idNo.trim() || !form.idCardFront) {
+    Message.warning('请填写真实姓名、证件号码并上传证件人像面');
+    return;
+  }
+  if (form.idType === 'ID_CARD' && !form.idCardBack) {
+    Message.warning('身份证认证请上传证件国徽面');
+    return;
+  }
+  if (uploading.value) {
+    Message.warning('证件图片上传中，请稍候');
+    return;
+  }
+  submitting.value = true;
+  try {
+    await realKycApi.submitKyc({
+      ...form,
+      realName: form.realName.trim(),
+      idNo: form.idNo.trim(),
+      nationality: form.nationality?.trim() || undefined
+    });
+    await Promise.all([load(), userStore.refreshCurrentUser()]);
+    Message.success('实名认证已提交，请等待平台审核');
+  } finally {
+    submitting.value = false;
+  }
+}
 </script>
 
 <template>
@@ -108,13 +149,25 @@ onMounted(load);
 
         <template v-if="status !== 'approved' && status !== 'pending'">
           <a-divider />
-          <a-alert
-            :type="status === 'rejected' ? 'error' : 'info'"
-            :title="kycDetail ? '认证详情已接入真实接口；图片上传链路尚未恢复，当前不会提交模拟图片 URL。' : '当前还没有实名认证记录；图片上传链路尚未恢复，当前不会生成模拟认证结果。'"
-          />
-          <div class="actions">
-            <a-button type="primary" disabled>提交认证</a-button>
-          </div>
+          <a-alert :type="status === 'rejected' ? 'error' : 'info'" :title="status === 'rejected' ? statusView.description : '请填写真实资料并上传清晰的证件图片；提交后由平台审核。'" />
+          <a-form :model="form" layout="vertical" class="kyc-form">
+            <a-row :gutter="16">
+              <a-col :span="12"><a-form-item label="真实姓名" required><a-input v-model="form.realName" placeholder="请输入证件上的真实姓名" :max-length="64" /></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="国籍"><a-input v-model="form.nationality" placeholder="如：中国" :max-length="64" /></a-form-item></a-col>
+            </a-row>
+            <a-row :gutter="16">
+              <a-col :span="12"><a-form-item label="证件类型" required><a-select v-model="form.idType"><a-option value="ID_CARD">身份证</a-option><a-option value="PASSPORT">护照</a-option></a-select></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="证件号码" required><a-input v-model="form.idNo" placeholder="请输入证件号码" :max-length="64" /></a-form-item></a-col>
+            </a-row>
+            <a-form-item label="证件图片" required extra="身份证须上传正反面；护照至少上传资料页。请勿上传与本人无关的证件。">
+              <div class="uploaders">
+                <IdCardUploader v-model="form.idCardFront" side="front" @uploading="uploading = $event" />
+                <IdCardUploader v-if="form.idType === 'ID_CARD'" v-model="form.idCardBack" side="back" @uploading="uploading = $event" />
+                <IdCardUploader v-model="form.holdingPhoto" side="face" @uploading="uploading = $event" />
+              </div>
+            </a-form-item>
+            <div class="actions"><a-button type="primary" :loading="submitting" :disabled="uploading" @click="submit">提交认证</a-button></div>
+          </a-form>
         </template>
       </a-card>
     </a-spin>
@@ -173,4 +226,6 @@ onMounted(load);
   justify-content: flex-end;
   margin-top: 16px;
 }
+.kyc-form { margin-top: 20px; }
+.uploaders { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
 </style>

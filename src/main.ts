@@ -1,53 +1,40 @@
-import { createApp } from 'vue';
+import { createApp, type Plugin } from 'vue';
 import { createPinia } from 'pinia';
 import {
   Alert,
   Badge,
   Breadcrumb,
-  BreadcrumbItem,
   Button,
   Card,
   Cascader,
   Checkbox,
-  Col,
   Collapse,
-  CollapseItem,
+  DatePicker,
   Descriptions,
   Divider,
   Drawer,
   Dropdown,
   Empty,
   Form,
-  FormItem,
+  Grid,
   Input,
   InputNumber,
-  InputPassword,
-  InputSearch,
   Link,
   Modal,
-  Option,
-  Optgroup,
   Pagination,
   Progress,
   Radio,
-  RadioGroup,
-  RangePicker,
   Result,
-  Row,
   Select,
   Space,
   Spin,
-  Step,
   Steps,
   Switch,
-  TabPane,
   Table,
-  TableColumn,
   Tabs,
   Tag,
   Textarea,
   Timeline,
-  TimelineItem,
   Tooltip,
   Tree
 } from '@arco-design/web-vue';
@@ -71,11 +58,11 @@ import './styles/main.css'; // Tailwind v4 入口
 const app = createApp(App);
 app.use(createPinia());
 app.use(router);
-[
-  Alert, Badge, Breadcrumb, BreadcrumbItem, Button, Card, Cascader, Checkbox, Col, Collapse, CollapseItem,
-  Descriptions, Divider, Drawer, Dropdown, Empty, Form, FormItem, Input, InputNumber, InputPassword, InputSearch,
-  Link, Modal, Option, Optgroup, Pagination, Progress, Radio, RadioGroup, RangePicker, Result, Row, Select, Space,
-  Spin, Step, Steps, Switch, TabPane, Table, TableColumn, Tabs, Tag, Textarea, Timeline, TimelineItem, Tooltip, Tree
-].forEach(component => app.component(component.name!, component));
+const arcoPlugins: Plugin[] = [
+  Alert, Badge, Breadcrumb, Button, Card, Cascader, Checkbox, Collapse, Descriptions, Divider, Drawer, Dropdown,
+  Empty, Form, Grid, Input, InputNumber, Link, Modal, Pagination, Progress, Radio, DatePicker, Result, Select,
+  Space, Spin, Steps, Switch, Table, Tabs, Tag, Textarea, Timeline, Tooltip, Tree
+];
+arcoPlugins.forEach(plugin => app.use(plugin));
 app.use(MotionPlugin);
 app.mount('#app');

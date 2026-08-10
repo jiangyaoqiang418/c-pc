@@ -1,24 +1,23 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue';
+import { reactive, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { enums } from '@shared';
 
 interface Props {
   visible: boolean;
   order?: Api.Order.OrderRecord;
+  submitting?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
-  (e: 'confirm', orderId: number, trackingNumber: string, carrier: Api.Order.ShippingCarrier): void;
+  (e: 'confirm', orderId: string | number, trackingNumber: string, carrier: Api.Order.ShippingCarrier): void;
 }>();
 
 const form = reactive<{
   carrier: Api.Order.ShippingCarrier;
   trackingNumber: string;
 }>({ carrier: 'SF_INTL', trackingNumber: '' });
-
-const submitting = ref(false);
 
 const CARRIER_OPTIONS: Api.Order.ShippingCarrier[] = ['SF_INTL', 'FEDEX', 'DHL', '4PX', 'EMS'];
 
@@ -38,12 +37,7 @@ function submit() {
     Message.warning('请输入有效的运单号（至少 6 位）');
     return;
   }
-  submitting.value = true;
-  try {
-    emit('confirm', props.order.id, form.trackingNumber.trim(), form.carrier);
-  } finally {
-    setTimeout(() => (submitting.value = false), 600);
-  }
+  emit('confirm', props.order.id, form.trackingNumber.trim(), form.carrier);
 }
 </script>
 
@@ -51,7 +45,7 @@ function submit() {
   <a-modal
     :visible="visible"
     title="上传发货信息"
-    :ok-loading="submitting"
+    :ok-loading="props.submitting"
     ok-text="确认发货"
     @update:visible="(v) => $emit('update:visible', v)"
     @ok="submit"

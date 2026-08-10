@@ -165,6 +165,20 @@ export async function payOrder(id: string | number, options: { showError?: boole
   return { ok: true, message: '' };
 }
 
+export async function payOrderGroup(orderGroupNo: string, options: { showError?: boolean } = {}) {
+  await realOrderRequest.post<number, Api.RealOrder.OrderGroupPayParams>(
+    '/orders/group/pay',
+    { orderGroupNo },
+    options
+  );
+  return { ok: true, message: '' };
+}
+
+export async function shipOrder(params: Api.RealOrder.OrderShipParams) {
+  await realOrderRequest.post<string | number, Api.RealOrder.OrderShipParams>('/orders/ship', params);
+  return { ok: true, message: '' };
+}
+
 export async function cancelOrder(id: string | number) {
   await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/cancel', { id });
   return { ok: true, message: '' };

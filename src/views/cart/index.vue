@@ -256,35 +256,41 @@ onMounted(() => {
   background: #fff;
   border-radius: var(--bw-card-radius);
   padding: 16px 24px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 32px;
   align-items: center;
 }
 .summary-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
 }
 .summary-right {
-  display: flex;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(250px, 1.35fr) auto;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
 }
 .summary-row {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--yb-ink-2);
   text-align: right;
-  min-width: 260px;
+  min-width: 0;
   padding: 4px 0;
 }
 .summary-val {
+  min-width: 0;
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
+  white-space: nowrap;
 }
 .v-cny {
   color: var(--yb-ink);
@@ -321,15 +327,31 @@ onMounted(() => {
   color: var(--yb-muted);
   font-family: var(--yb-font-mono);
   margin-top: 2px;
+  white-space: nowrap;
 }
 .lbl {
   color: #86909c;
   margin-right: 8px;
+  white-space: nowrap;
 }
 .muted {
   color: #86909c;
 }
 .small {
   font-size: 12px;
+}
+
+@media (max-width: 1180px) {
+  .summary-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .summary-right {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .summary-right > .arco-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
 }
 </style>

@@ -42,16 +42,16 @@ async function submit() {
 
     <a-form :model="form" layout="vertical" @submit-success="submit">
       <a-form-item label="邮箱">
-        <a-input v-model="form.email" size="large" />
+        <a-input v-model="form.email" placeholder="请输入邮箱，如 name@example.com" size="large" />
       </a-form-item>
       <a-form-item label="昵称">
-        <a-input v-model="form.nickname" size="large" />
+        <a-input v-model="form.nickname" placeholder="请输入昵称" size="large" />
       </a-form-item>
       <a-form-item label="密码">
-        <a-input-password v-model="form.password" size="large" />
+        <a-input-password v-model="form.password" placeholder="请输入 6-64 位密码" size="large" />
       </a-form-item>
       <a-form-item label="确认密码">
-        <a-input-password v-model="form.confirm" size="large" />
+        <a-input-password v-model="form.confirm" placeholder="请再次输入密码" size="large" />
       </a-form-item>
       <a-button type="primary" long :loading="submitting" size="large" @click="submit">
         注 册

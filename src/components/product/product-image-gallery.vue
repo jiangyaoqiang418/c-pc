@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 
 interface Props {
   images: Api.Product.ProductMedia[];
-  fallbackSeed?: number;
+  fallbackSeed?: string | number;
 }
 const props = defineProps<Props>();
 

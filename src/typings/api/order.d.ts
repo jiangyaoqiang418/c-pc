@@ -52,6 +52,19 @@ declare namespace Api.RealOrder {
     totalAmount?: string | number;
   }
 
+  interface OrderGroupPayParams {
+    orderGroupNo: string;
+  }
+
+  interface OrderShipParams {
+    id: string | number;
+    logisticsCompany: string;
+    logisticsCompanyCode?: string;
+    trackingNo: string;
+    shipVouchers?: string[];
+    remark?: string;
+  }
+
   interface OrderPriceChangeParams {
     id: string | number;
     amount: number;

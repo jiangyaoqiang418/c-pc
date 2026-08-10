@@ -266,6 +266,9 @@ function goAftersale() {
 
 <style scoped>
 .order-detail-page {
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 0 auto;
   padding-top: 16px;
 }
 .hero-card {
