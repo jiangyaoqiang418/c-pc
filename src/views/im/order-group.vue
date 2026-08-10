@@ -150,8 +150,14 @@ function getSenderName(message: Api.RealNotify.ImMessageVO): string {
 }
 .messages {
   flex: 1;
+  min-height: 0;
   padding: 16px 20px;
   background: #f7f8fa;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.chat-card :deep(.input-area) {
+  flex-shrink: 0;
 }
 .empty-msg {
   text-align: center;

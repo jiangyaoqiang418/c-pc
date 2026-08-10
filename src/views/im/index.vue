@@ -195,8 +195,8 @@ function openOrderGroup() {
 
         <!-- 右侧 chat -->
         <section class="chat-pane">
-          <a-spin :loading="loading" style="width: 100%; height: 100%">
-            <template v-if="selectedConversation">
+          <a-spin class="chat-spin" :loading="loading">
+            <div v-if="selectedConversation" class="conversation">
               <div class="conversation-header">
                 <div>
                   <div class="cs-title">{{ selectedConversation.title || '会话' }}</div>
@@ -215,7 +215,7 @@ function openOrderGroup() {
                 <div v-if="!messages.length" class="empty-msg">该群暂无消息</div>
               </div>
               <MessageInput @send="onSend" />
-            </template>
+            </div>
 
             <div v-else class="placeholder">
               <EmptyState title="请选择左侧会话" description="点击三方群或客服开始聊天" />
@@ -252,9 +252,11 @@ function openOrderGroup() {
   border-right: 1px solid #f2f3f5;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 .sidebar-tabs {
   flex: 1;
+  min-height: 0;
 }
 .sidebar-tabs :deep(.arco-tabs-content) {
   height: calc(100% - 46px);
@@ -341,6 +343,22 @@ function openOrderGroup() {
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
+  min-width: 0;
+  min-height: 0;
+}
+.chat-spin {
+  flex: 1;
+  min-height: 0;
+}
+.chat-spin :deep(.arco-spin) {
+  height: 100%;
+  min-height: 0;
+}
+.conversation {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 .conversation-header {
   background: #fff;
@@ -369,8 +387,13 @@ function openOrderGroup() {
 }
 .messages {
   flex: 1;
+  min-height: 0;
   padding: 16px 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.conversation :deep(.input-area) {
+  flex-shrink: 0;
 }
 .empty-msg {
   text-align: center;
