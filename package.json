@@ -9,6 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --port 5174",
     "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
     "check:swagger": "node scripts/check-swagger-contract.mjs"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "sass": "^1.83.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
+    "vitest": "^3.2.7",
     "vue-tsc": "^2.1.10"
   }
 }

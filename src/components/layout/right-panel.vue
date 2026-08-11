@@ -104,7 +104,7 @@ function goProfile() { router.push({ name: 'profile' }); }
             </div>
           </div>
         </div>
-        <AudienceSegment />
+        <AudienceSegment v-if="user?.isBuyer" />
       </div>
 
       <!-- 身份面板动态切换 -->

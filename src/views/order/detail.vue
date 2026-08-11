@@ -52,23 +52,21 @@ interface TrackEvent {
 
 const trackEvents = computed<TrackEvent[]>(() => {
   if (!order.value || !order.value.shippedAt) return [];
-  const start = new Date(order.value.shippedAt).getTime();
-  const labels: { offsetH: number; location: string; description: string }[] = [
-    { offsetH: 0, location: '香港 · 顺丰国际枢纽', description: '快件已发出' },
-    { offsetH: 6, location: '香港 · 海关清关中', description: '正在办理出境清关手续' },
-    { offsetH: 18, location: '上海 · 浦东国际机场', description: '快件已到达，等待干线运输' },
-    { offsetH: 36, location: '北京 · 朝阳分拣中心', description: '快件抵达派送站点' },
-    { offsetH: 48, location: '北京 · 朝阳区国贸营业部', description: '快件正在派送中' }
-  ];
-  const max = order.value.deliveredAt ? new Date(order.value.deliveredAt).getTime() : Date.now();
-  return labels
-    .filter(l => start + l.offsetH * 3600_000 <= max)
-    .map(l => ({
-      time: new Date(start + l.offsetH * 3600_000).toLocaleString(),
-      location: l.location,
-      description: l.description
-    }))
-    .reverse();
+  const carrier = order.value.logisticsCompany || '承运方待回传';
+  const trackingNo = order.value.trackingNumber ? ` · 运单号 ${order.value.trackingNumber}` : '';
+  const events: TrackEvent[] = [{
+    time: new Date(order.value.shippedAt).toLocaleString(),
+    location: carrier,
+    description: `买手已发货${trackingNo}`
+  }];
+  if (order.value.deliveredAt) {
+    events.unshift({
+      time: new Date(order.value.deliveredAt).toLocaleString(),
+      location: carrier,
+      description: '订单已签收'
+    });
+  }
+  return events;
 });
 
 async function pay() {
@@ -157,7 +155,7 @@ function goAftersale() {
         </a-card>
 
         <a-card v-if="trackEvents.length" class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">物流轨迹</div>
+          <div class="section-title">物流状态</div>
           <div class="logistics-meta">
             <a-tag v-if="carrierMeta" :color="carrierMeta.color">{{ carrierMeta.label }}</a-tag>
             <span v-else class="muted">{{ order.logisticsCompany || '物流公司待回传' }}</span>

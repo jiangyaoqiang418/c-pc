@@ -17,7 +17,7 @@ const layoutComponent = computed(() => layouts[route.meta.layout || 'default']);
 
 onMounted(async () => {
   await userStore.init();
-  cartStore.init();
+  cartStore.init(userStore.currentUser?.id);
 });
 </script>
 

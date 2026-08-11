@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { type Audience, MOCK_USERS, STORAGE_KEY, authApi } from '@shared';
 import * as realAuthApi from '@/service/api/auth';
 import { getAccessToken } from '@/service/request';
+import { useCartStore } from './cart';
 
 export const useUserStore = defineStore('bw-user', () => {
   const currentUser = ref<Api.User.UserRecord | undefined>();
@@ -50,6 +51,7 @@ export const useUserStore = defineStore('bw-user', () => {
     const result = await authApi.switchCurrentUser(userId);
     if (!result || 'error' in result) throw new Error((result as { error: string })?.error || '登录失败');
     currentUser.value = result;
+    useCartStore().switchOwner(result.id);
     currentAudience.value = 'customer';
     localStorage.setItem(STORAGE_KEY.currentUserId, String(userId));
     localStorage.setItem(STORAGE_KEY.currentAudience, 'customer');
@@ -58,6 +60,7 @@ export const useUserStore = defineStore('bw-user', () => {
   async function loginWithPassword(params: Api.RealAuth.LoginParams) {
     const result = await realAuthApi.login(params);
     currentUser.value = result.user;
+    useCartStore().switchOwner(result.user.id);
     currentAudience.value = result.user.isBuyer ? loadAudienceFromStorage() : 'customer';
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.setItem(STORAGE_KEY.currentAudience, currentAudience.value);
@@ -75,6 +78,7 @@ export const useUserStore = defineStore('bw-user', () => {
   function logout() {
     currentUser.value = undefined;
     currentAudience.value = 'customer';
+    useCartStore().switchOwner();
     realAuthApi.logoutLocal();
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.removeItem(STORAGE_KEY.currentAudience);

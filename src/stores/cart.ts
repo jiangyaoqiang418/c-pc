@@ -19,19 +19,29 @@ export interface EnrichedCartItem extends CartItem {
   lineTotal: string;
 }
 
+type CartOwnerId = string | number | undefined;
+
+/** 购物车是账号私有数据，绝不能让本地缓存跨登录用户复用。 */
+export function cartStorageKey(ownerId?: CartOwnerId) {
+  return `${STORAGE_KEY.cart}:${ownerId === undefined ? 'anonymous' : String(ownerId)}`;
+}
+
 export const useCartStore = defineStore('bw-cart', () => {
   const items = ref<CartItem[]>([]);
   const products = ref<Record<string, Api.Product.ProductRecord>>({});
   const initialized = ref(false);
+  const ownerId = ref<CartOwnerId>();
 
   function persist() {
-    localStorage.setItem(STORAGE_KEY.cart, JSON.stringify(items.value));
+    localStorage.setItem(cartStorageKey(ownerId.value), JSON.stringify(items.value));
   }
 
-  function init() {
-    if (initialized.value) return;
+  function load(owner?: CartOwnerId) {
+    ownerId.value = owner;
+    items.value = [];
+    products.value = {};
     try {
-      const raw = localStorage.getItem(STORAGE_KEY.cart);
+      const raw = localStorage.getItem(cartStorageKey(owner));
       if (raw) {
         const parsed = JSON.parse(raw) as CartItem[];
         items.value = parsed.map(i => ({ ...i, selected: i.selected !== false }));
@@ -40,6 +50,16 @@ export const useCartStore = defineStore('bw-cart', () => {
       items.value = [];
     }
     initialized.value = true;
+  }
+
+  function init(owner?: CartOwnerId) {
+    if (initialized.value) return;
+    load(owner);
+  }
+
+  function switchOwner(owner?: CartOwnerId) {
+    if (initialized.value && String(ownerId.value) === String(owner)) return;
+    load(owner);
   }
 
   function enrich(item: CartItem): EnrichedCartItem {
@@ -158,6 +178,7 @@ export const useCartStore = defineStore('bw-cart', () => {
     taxTotal,
     grandTotal,
     init,
+    switchOwner,
     refresh,
     upsertProduct,
     add,
