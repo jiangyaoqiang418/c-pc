@@ -5,7 +5,7 @@ const statusMap: Record<string, Api.Order.OrderStatus> = {
   PAID: 'PROCURING',
   SHIPPED: 'IN_TRANSIT',
   REFUND_REVIEW: 'IN_AFTERSALE',
-  REFUNDED: 'ARCHIVED',
+  REFUNDED: 'REFUNDED',
   COMPLETED: 'COMPLETED',
   CANCELED: 'CANCELLED'
 };
@@ -19,6 +19,7 @@ const reverseStatusMap: Partial<Record<Api.Order.OrderStatus, Api.RealOrder.Orde
   COMPLETED: 'COMPLETED',
   WARRANTY: 'COMPLETED',
   IN_AFTERSALE: 'REFUND_REVIEW',
+  REFUNDED: 'REFUNDED',
   ARCHIVED: 'REFUNDED',
   CANCELLED: 'CANCELED'
 };
@@ -37,11 +38,11 @@ function toTotal(value?: string | number) {
 function toShippingAddress(dto: Api.RealOrder.OrderDTO) {
   if (dto.shippingAddress || dto.receiverAddress) return dto.shippingAddress || dto.receiverAddress || '';
   const parts = [
-    dto.receiverCountry,
-    dto.receiverProvince,
-    dto.receiverCity,
-    dto.receiverDistrict,
-    dto.receiverDetailAddress
+    dto.receiverCountry || dto.country,
+    dto.receiverProvince || dto.province,
+    dto.receiverCity || dto.city,
+    dto.receiverDistrict || dto.district,
+    dto.receiverDetailAddress || dto.detailAddress
   ].filter(Boolean);
   return parts.length ? parts.join('') : '后端暂未返回收货地址';
 }
@@ -71,20 +72,29 @@ function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.Order.OrderRecord {
     customerId,
     customerName: customerId ? `顾客 ${customerId}` : '当前顾客',
     shopperId,
-    shopperName: shopperId ? `买手 ${shopperId}` : '买手',
+    shopperName: dto.sellerName || (shopperId ? `买手 ${shopperId}` : '买手'),
     price: unitPrice,
     shippingFee: String(dto.shippingFee ?? 0),
-    tax: String(dto.taxAmount ?? 0),
+    tax: String(dto.taxAmount ?? dto.taxFee ?? 0),
     totalAmount,
     paidAmount: dto.paidAt ? totalAmount : '0',
     status: statusMap[dto.status || ''] || 'PENDING_PAYMENT',
     shippingAddress: toShippingAddress(dto),
     receiverName: dto.receiverName || '—',
     receiverPhone: dto.receiverPhone || '—',
+    addressId: dto.addressId as unknown as string | number | undefined,
+    postalCode: dto.postalCode,
     trackingNumber: dto.trackingNo || dto.logisticsNo,
     shippingCarrier: toShippingCarrier(dto.logisticsCompanyCode),
     purchaseScreenshotUrl: dto.purchaseVoucherUrl || dto.purchaseVoucherUrls?.[0],
-    shippingScreenshotUrl: dto.shippingVoucherUrl || dto.shippingVoucherUrls?.[0],
+    shippingScreenshotUrl: dto.shippingVoucherUrl || dto.shippingVoucherUrls?.[0] || dto.shipVouchers?.[0],
+    shippingVoucherUrls: dto.shippingVoucherUrls || dto.shipVouchers,
+    shippedRemark: dto.shippedRemark,
+    logisticsCompany: dto.logisticsCompany,
+    paymentBizNo: dto.paymentBizNo,
+    refundId: dto.refundId as unknown as string | number | undefined,
+    refundStatus: dto.refundStatus,
+    refundAmount: dto.refundAmount === undefined ? undefined : String(dto.refundAmount),
     overseasCustoms: false,
     aftersaleType: '7day-no-reason',
     priceHistory: [],
@@ -140,7 +150,7 @@ async function countOrdersByStatus(
     ['PROCURING', 'PAID'],
     ['IN_TRANSIT', 'SHIPPED'],
     ['IN_AFTERSALE', 'REFUND_REVIEW'],
-    ['ARCHIVED', 'REFUNDED'],
+    ['REFUNDED', 'REFUNDED'],
     ['COMPLETED', 'COMPLETED'],
     ['CANCELLED', 'CANCELED']
   ];

@@ -26,6 +26,13 @@ const STAGES: { key: string; label: string; matchedBy: (s: Api.Order.OrderStatus
 
 const steps = computed<Step[]>(() => {
   const o = props.order;
+  if (o.status === 'REFUNDED') {
+    return [
+      { key: 'created', label: '创建', status: 'finish', time: o.createdAt },
+      { key: 'paid', label: '付款', status: 'finish', time: o.paidAt },
+      { key: 'refund', label: '退款完成', status: 'finish', time: o.archivedAt }
+    ];
+  }
   if (o.status === 'CANCELLED') {
     return [
       { key: 'created', label: '创建', status: 'finish', time: o.createdAt },

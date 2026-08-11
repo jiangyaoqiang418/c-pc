@@ -23,6 +23,7 @@ const TABS: TabDef[] = [
   { key: 'receiving', label: '待收货', statuses: ['IN_TRANSIT', 'AFTERSALE_CONFIRM'] },
   { key: 'done', label: '已完成', statuses: ['COMPLETED', 'WARRANTY'] },
   { key: 'aftersale', label: '售后中', statuses: ['IN_AFTERSALE'] },
+  { key: 'refunded', label: '已退款', statuses: ['REFUNDED'] },
   { key: 'archived', label: '已归档', statuses: ['ARCHIVED', 'CANCELLED'] }
 ];
 

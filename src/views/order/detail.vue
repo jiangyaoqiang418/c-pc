@@ -160,6 +160,7 @@ function goAftersale() {
           <div class="section-title">物流轨迹</div>
           <div class="logistics-meta">
             <a-tag v-if="carrierMeta" :color="carrierMeta.color">{{ carrierMeta.label }}</a-tag>
+            <span v-else class="muted">{{ order.logisticsCompany || '物流公司待回传' }}</span>
             <span class="muted">运单号 {{ order.trackingNumber }}</span>
           </div>
           <a-timeline>
@@ -176,7 +177,9 @@ function goAftersale() {
           <a-descriptions :data="[
             { label: '收货人', value: order.receiverName },
             { label: '手机', value: order.receiverPhone },
-            { label: '地址', value: order.shippingAddress }
+            { label: '地址', value: order.shippingAddress },
+            { label: '邮编', value: order.postalCode || '—' },
+            { label: '地址 ID', value: order.addressId ? String(order.addressId) : '—' }
           ]" :column="3" />
         </a-card>
 
@@ -219,6 +222,26 @@ function goAftersale() {
               <span class="k">订单总额</span>
               <span class="v"><span class="cny total-big">{{ formatUsdt(order.totalAmount) }}</span><span class="usdt">≈ {{ formatCny(order.totalAmount) }} · {{ priceSet(order.totalAmount).rateLabel }}</span></span>
             </div>
+            <div v-if="order.paymentBizNo" class="amt-row">
+              <span class="k">支付凭证</span>
+              <span class="v yb-mono">{{ order.paymentBizNo }}</span>
+            </div>
+          </div>
+        </a-card>
+
+        <a-card v-if="order.shippingVoucherUrls?.length || order.shippedRemark || order.refundId" class="step-card" :body-style="{ padding: '20px 24px' }">
+          <div class="section-title">履约与退款信息</div>
+          <a-descriptions :column="2" :data="[
+            { label: '发货备注', value: order.shippedRemark || '—' },
+            { label: '退款单号', value: order.refundId ? String(order.refundId) : '—' },
+            { label: '退款状态', value: order.refundStatus || '—' },
+            { label: '退款金额', value: order.refundAmount ? formatUsdt(order.refundAmount) : '—' }
+          ]" />
+          <div v-if="order.shippingVoucherUrls?.length" class="voucher-list">
+            <span class="voucher-label">发货凭证</span>
+            <a-image-preview-group>
+              <a-image v-for="url in order.shippingVoucherUrls" :key="url" :src="url" width="88" height="88" fit="cover" />
+            </a-image-preview-group>
           </div>
         </a-card>
 
@@ -330,6 +353,8 @@ function goAftersale() {
   font-size: 11px;
   color: #86909c;
 }
+.voucher-list { margin-top: 16px; display: flex; gap: 12px; align-items: flex-start; }
+.voucher-label { color: var(--yb-muted); font-size: 13px; white-space: nowrap; }
 .goods-row {
   display: grid;
   grid-template-columns: 80px 1fr auto;

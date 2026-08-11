@@ -476,3 +476,23 @@
 | 售后 | 创建、列表、详情、撤销调用已收敛至单一 adapter，页面仍保留当前交互。 | 提供完整售后资源与状态机契约后替换 adapter。 |
 | 收藏 | 真实请求失败不乐观更新数量，并保留可读错误提示。 | 修复收藏表 `created_at` 写入约束。 |
 | 通知 | notify 调用不会因单域 `-200` 清空整站 token。 | notify 服务正确识别用户/后台 token。 |
+
+## 2026-08-11 订单与仅退款契约更新
+
+| 能力 | 实时 Swagger | C-PC 接入状态 | 验证边界 |
+|---|---|---|---|
+| 商品收藏 | 接口未变：`POST /products/favorite`、`POST /products/favorites/page`、`DELETE /products/favorite` | 已接入；后端修复写入时间填充后无需改调用。 | 待真实新增、列表回显和取消回归。 |
+| 订单详情字段 | `OrderDTO` 新/确认 `paymentBizNo`、`shipVouchers`、`shippedRemark`、地址字段、`refundId/refundStatus/refundAmount` | 类型、adapter、详情展示已同步。 | 待真实非空详情回读。 |
+| 买家仅退款 | `POST /orders/refunds/create`、`bought/page`、`GET detail`、`POST cancel` | 已替换售后三页的旧 Mock adapter；仅保留平台审核状态。 | 待申请、撤销、驳回、同意真实回归。 |
+
+- 旧 `/orders/refund/apply`、`review`、`detail` 不再使用；C-PC 未保留 Mock 或旧接口回退，防止资金状态被错误模拟。
+- 运行时：商品收藏的新增、列表回显、取消均已通过；仅退款申请与买家撤销均已通过，撤销后订单从 `REFUND_REVIEW` 恢复为 `PAID`。退款单 `2087045611828895745` 正待后台审核，以验证 `REJECTED/AGREED` 分支。
+
+### 2026-08-11 仅退款审核分支运行时结果
+
+| 分支 | 后台结果 | C-PC 订单与钱包回读 | 结论 |
+|---|---|---|---|
+| 驳回 | `2087045611828895745` → `REJECTED` | 订单恢复 `PAID`，状态展示“采购中”；`300 U` 继续保留在订单冻结，无退款流水。 | 通过 |
+| 同意 | `2087052706519277569` → `AGREED`，订单 `REFUNDED` | 退款详情回显业务号；冻结 `300 U` 归零、可用余额恢复，流水有“售后退款解冻”。 | 通过 |
+
+- 订单真实状态映射已由 `REFUNDED → ARCHIVED` 修正为 `REFUNDED → REFUNDED`；订单详情与列表不会再把退款完成误显示为“已归档”。

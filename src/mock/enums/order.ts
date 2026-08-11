@@ -18,6 +18,7 @@ export const ORDER_STATUS_META: Record<Api.Order.OrderStatus, Meta> = {
   COMPLETED: { label: '已完成', color: 'green', icon: 'mdi:check-circle-outline' },
   WARRANTY: { label: '保修期', color: 'cyan', icon: 'mdi:shield-check-outline' },
   IN_AFTERSALE: { label: '售后中', color: 'red', icon: 'mdi:alert-octagon-outline' },
+  REFUNDED: { label: '已退款', color: 'green', icon: 'mdi:cash-refund' },
   ARCHIVED: { label: '已归档', color: 'gray', icon: 'mdi:archive-outline' },
   CANCELLED: { label: '已取消', color: 'gray', icon: 'mdi:close-octagon-outline' }
 };

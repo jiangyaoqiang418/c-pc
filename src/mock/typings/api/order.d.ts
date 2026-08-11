@@ -20,6 +20,7 @@ declare namespace Api.Order {
     | 'COMPLETED'
     | 'WARRANTY'
     | 'IN_AFTERSALE'
+    | 'REFUNDED'
     | 'ARCHIVED'
     | 'CANCELLED';
 
@@ -128,9 +129,18 @@ declare namespace Api.Order {
     shippingAddress: string;
     receiverName: string;
     receiverPhone: string;
+    addressId?: string | number;
+    postalCode?: string;
     overseasCustoms: boolean;
     purchaseScreenshotUrl?: string;
     shippingScreenshotUrl?: string;
+    shippingVoucherUrls?: string[];
+    shippedRemark?: string;
+    logisticsCompany?: string;
+    paymentBizNo?: string;
+    refundId?: string | number;
+    refundStatus?: string;
+    refundAmount?: string;
     trackingNumber?: string;
     shippingCarrier?: ShippingCarrier;
     estimatedArrival?: string;

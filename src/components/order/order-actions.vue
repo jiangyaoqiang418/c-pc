@@ -34,17 +34,19 @@ const actions = computed(() => {
       disabled: true,
       tip: '三方群 IM 将在 Phase 3 实现'
     });
+    a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
   if (s === 'IN_TRANSIT') {
     a.push({ type: 'logistics', label: '查看物流', emit: () => emit('logistics') });
     a.push({ type: 'confirm', label: '确认收货', primary: true, emit: () => emit('confirm') });
+    a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
   if (s === 'AFTERSALE_CONFIRM') {
     a.push({ type: 'confirm', label: '签字确认', primary: true, emit: () => emit('confirm') });
+    a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
   if (s === 'COMPLETED' || s === 'WARRANTY') {
     a.push({ type: 'review', label: '写评价', emit: () => emit('review') });
-    a.push({ type: 'aftersale', label: '申请售后', emit: () => emit('aftersale') });
   }
   if (s === 'IN_AFTERSALE') {
     a.push({ type: 'aftersale', label: '查看售后', emit: () => emit('aftersale') });

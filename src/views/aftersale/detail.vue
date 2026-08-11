@@ -2,232 +2,31 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { enums, formatAmount } from '@shared';
-import AftersaleStatusTimeline from '@/components/aftersale/aftersale-status-timeline.vue';
-import AftersaleVerdictCard from '@/components/aftersale/aftersale-verdict-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
-import * as aftersaleApi from '@/service/aftersale-adapter';
+import * as refundApi from '@/service/api/refund';
 
-const route = useRoute();
-const router = useRouter();
-
-const id = computed(() => Number(route.params.id));
-const caseRow = ref<Api.Order.AftersaleCase>();
-const loading = ref(false);
-
-async function load() {
-  loading.value = true;
-  try {
-    caseRow.value = await aftersaleApi.fetchAftersaleDetail(id.value);
-  } finally {
-    loading.value = false;
-  }
-}
-onMounted(load);
-watch(() => route.params.id, load);
-
-const caseTypeMeta = computed(() =>
-  caseRow.value ? enums.AFTERSALE_CASE_TYPE_META[caseRow.value.caseType] : undefined
-);
-const statusMeta = computed(() => (caseRow.value ? enums.AFTERSALE_STATUS_META[caseRow.value.status] : undefined));
-
-function cancel() {
-  if (!caseRow.value) return;
-  Modal.confirm({
-    title: '撤销售后申请？',
-    content: '撤销后该工单将不可恢复',
-    okButtonProps: { status: 'danger' },
-    async onOk() {
-      const r = await aftersaleApi.cancelAftersale(caseRow.value!.id);
-      if (r.ok) {
-        Message.success('已撤销');
-        load();
-      }
-    }
-  });
-}
-
-function openIm() {
-  if (!caseRow.value) return;
-  router.push({ name: 'im-order-group', params: { orderCode: caseRow.value.orderCode } });
-}
-
-function goOrder() {
-  if (!caseRow.value) return;
-  router.push({ name: 'order-detail', params: { id: String(caseRow.value.orderId) } });
-}
+const route = useRoute(); const router = useRouter();
+const id = computed(() => String(route.params.id || ''));
+const refund = ref<Api.RealRefund.RefundDTO>(); const loading = ref(false);
+const labels: Record<string, string> = { APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
+const canCancel = computed(() => String(refund.value?.status) === 'APPLYING');
+const formatTime = (value?: string | number) => value ? new Date(typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value).toLocaleString() : '—';
+async function load() { loading.value = true; try { refund.value = await refundApi.fetchRefundDetail(id.value); } finally { loading.value = false; } }
+onMounted(load); watch(() => route.params.id, load);
+function cancel() { if (!refund.value) return; Modal.confirm({ title:'撤销仅退款申请？', content:'撤销后订单将恢复到申请前状态。', okButtonProps:{status:'danger'}, async onOk(){ await refundApi.cancelRefund(refund.value!.refundId); Message.success('已撤销退款申请'); await load(); } }); }
 </script>
 
 <template>
-  <div class="aftersale-detail-page shop-container">
-    <a-spin :loading="loading">
-      <template v-if="caseRow">
-        <a-breadcrumb class="bread">
-          <a-breadcrumb-item @click="router.push('/aftersale')">我的售后</a-breadcrumb-item>
-          <a-breadcrumb-item>{{ caseRow.code }}</a-breadcrumb-item>
-        </a-breadcrumb>
-
-        <a-card class="hero-card" :body-style="{ padding: '24px 28px' }" :bordered="false">
-          <div class="hero-row">
-            <div class="hero-left">
-              <div class="hero-meta">
-                <span class="code">{{ caseRow.code }}</span>
-                <a-tag v-if="statusMeta" :color="statusMeta.color" size="large">{{ statusMeta.label }}</a-tag>
-                <a-tag v-if="caseTypeMeta" :color="caseTypeMeta.color" size="large">{{ caseTypeMeta.label }}</a-tag>
-              </div>
-              <div class="hero-sub">关联订单 {{ caseRow.orderCode }} · 创建于 {{ new Date(caseRow.createdAt).toLocaleString() }}</div>
-            </div>
-            <a-space>
-              <a-button @click="goOrder">查看订单</a-button>
-              <a-button type="primary" @click="openIm">打开三方群</a-button>
-              <a-button v-if="caseRow.status === 'pending'" status="danger" @click="cancel">撤销申请</a-button>
-            </a-space>
-          </div>
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-          <div class="section-title">售后进度</div>
-          <AftersaleStatusTimeline :case-record="caseRow" />
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-          <div class="section-title">顾客诉求</div>
-          <div class="appeal-box">{{ caseRow.appeal }}</div>
-          <div v-if="caseRow.evidenceUrls?.length" class="evidence">
-            <img v-for="u in caseRow.evidenceUrls" :key="u" :src="u" />
-          </div>
-        </a-card>
-
-        <a-card v-if="caseRow.shopperResponse" class="step-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-          <div class="section-title">买手响应</div>
-          <a-tag :color="caseRow.shopperResponse === 'agreed' ? 'green' : 'red'" size="medium">
-            {{ caseRow.shopperResponse === 'agreed' ? '已同意' : '已拒绝' }}
-          </a-tag>
-          <p v-if="caseRow.shopperResponseNote" class="response-note">"{{ caseRow.shopperResponseNote }}"</p>
-        </a-card>
-
-        <a-card v-if="caseRow.verdict" class="step-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-          <AftersaleVerdictCard :case-record="caseRow" />
-        </a-card>
-
-        <a-card v-if="caseRow.history?.length" class="step-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-          <div class="section-title">事件历史 ({{ caseRow.history.length }})</div>
-          <a-timeline>
-            <a-timeline-item v-for="ev in caseRow.history" :key="ev.id">
-              <div class="event-row">
-                <span class="action">{{ ev.action }}</span>
-                <span class="actor">{{ ev.actor }}</span>
-                <span class="event-time">{{ new Date(ev.time).toLocaleString() }}</span>
-              </div>
-              <div v-if="ev.note" class="event-note">{{ ev.note }}</div>
-            </a-timeline-item>
-          </a-timeline>
-        </a-card>
-      </template>
-
-      <EmptyState v-else-if="!loading" title="售后工单不存在" action-text="返回列表" @action="router.push('/aftersale')" />
-    </a-spin>
-  </div>
+  <div class="aftersale-detail-page shop-container"><a-spin :loading="loading"><template v-if="refund">
+    <a-breadcrumb class="bread"><a-breadcrumb-item @click="router.push('/aftersale')">我的仅退款</a-breadcrumb-item><a-breadcrumb-item>{{ refund.orderNo || refund.refundId }}</a-breadcrumb-item></a-breadcrumb>
+    <a-card class="hero-card" :bordered="false"><div class="hero"><div><h2>仅退款申请</h2><div class="muted">订单 {{ refund.orderNo || '—' }} · 申请于 {{ formatTime(refund.appliedAt || refund.createdAt) }}</div></div><a-tag :color="String(refund.status) === 'AGREED' ? 'green' : String(refund.status) === 'REJECTED' ? 'red' : 'orange'">{{ refund.statusText || labels[String(refund.status)] || refund.status }}</a-tag></div></a-card>
+    <a-card class="step-card" :bordered="false"><div class="section-title">退款信息</div><a-descriptions :column="2" :data="[{label:'退款金额',value:'U ' + (refund.amount ?? '—')},{label:'退款业务号',value:refund.refundBizNo || '—'},{label:'订单申请前状态',value:refund.orderStatusBefore || '—'},{label:'审核时间',value:formatTime(refund.reviewedAt)}]" /></a-card>
+    <a-card class="step-card" :bordered="false"><div class="section-title">退款原因</div><p class="reason">{{ refund.reason || '—' }}</p><div v-if="refund.evidenceImages?.length" class="evidence"><img v-for="url in refund.evidenceImages" :key="url" :src="url" /></div></a-card>
+    <a-card v-if="refund.reviewRemark" class="step-card" :bordered="false"><div class="section-title">平台审核说明</div><p class="reason">{{ refund.reviewRemark }}</p></a-card>
+    <a-space><a-button @click="router.push({name:'order-detail',params:{id:String(refund.orderId)}})">查看订单</a-button><a-button v-if="canCancel" status="danger" @click="cancel">撤销申请</a-button></a-space>
+  </template><EmptyState v-else-if="!loading" title="退款申请不存在" action-text="返回售后列表" @action="router.push('/aftersale')" /></a-spin></div>
 </template>
 
 <style scoped>
-.aftersale-detail-page {
-  padding-top: 16px;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.hero-card {
-  background: linear-gradient(135deg, #fff 0%, #f7faff 100%);
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.hero-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-.hero-meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-.code {
-  font-family: ui-monospace, monospace;
-  font-size: 16px;
-  font-weight: 700;
-  color: #1d2129;
-}
-.hero-sub {
-  font-size: 12px;
-  color: #86909c;
-}
-.step-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 12px;
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1d2129;
-  margin-bottom: 12px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.appeal-box {
-  background: #f7f8fa;
-  padding: 12px 14px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #1d2129;
-  line-height: 1.6;
-  margin-bottom: 12px;
-  white-space: pre-wrap;
-}
-.evidence {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.evidence img {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.response-note {
-  margin-top: 10px;
-  font-size: 13px;
-  color: #4e5969;
-  font-style: italic;
-}
-.event-row {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-  color: #1d2129;
-}
-.action {
-  background: #f3f7ff;
-  color: var(--bw-brand-primary);
-  padding: 1px 8px;
-  border-radius: 3px;
-  font-weight: 600;
-  font-family: ui-monospace, monospace;
-}
-.actor {
-  color: #4e5969;
-}
-.event-time {
-  color: #86909c;
-}
-.event-note {
-  color: #4e5969;
-  font-size: 12px;
-  margin-top: 4px;
-}
+.aftersale-detail-page { max-width:960px; margin:0 auto; padding-top:16px; }.bread,.hero-card,.step-card { margin-bottom:12px; }.hero { display:flex; justify-content:space-between; align-items:center; gap:16px; }.hero h2 { margin:0 0 8px; font-size:18px; }.muted { color:#86909c; font-size:12px; }.section-title { font-weight:600; margin-bottom:12px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }.reason { white-space:pre-wrap; color:#4e5969; line-height:1.7; }.evidence { display:flex; flex-wrap:wrap; gap:8px; }.evidence img { width:120px; height:120px; object-fit:cover; border-radius:4px; }
 </style>

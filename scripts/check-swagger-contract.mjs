@@ -86,6 +86,22 @@ expectRequired(ship, ['id', 'logisticsCompany', 'trackingNo'], '买手发货');
 const confirmReceipt = requestSchema(order, operation(order, '/orders/confirm', 'post'));
 expectRequired(confirmReceipt, ['id'], '确认收货');
 
+const orderDetail = operation(order, '/orders/detail', 'get');
+const orderDetailResponse = resolveSchema(order, orderDetail.responses?.['200']?.content?.['*/*']?.schema);
+const orderDetailDto = resolveSchema(order, orderDetailResponse?.properties?.data);
+expectProperties(
+  orderDetailDto,
+  ['receiverName', 'receiverPhone', 'country', 'province', 'city', 'district', 'detailAddress', 'logisticsCompany', 'trackingNo', 'shipVouchers', 'paymentBizNo', 'refundId', 'refundStatus', 'refundAmount'],
+  '订单详情'
+);
+
+const refundApply = requestSchema(order, operation(order, '/orders/refunds/create', 'post'));
+expectRequired(refundApply, ['orderId', 'reason'], '仅退款申请');
+const refundCancel = requestSchema(order, operation(order, '/orders/refunds/cancel', 'post'));
+expectRequired(refundCancel, ['refundId'], '撤销仅退款');
+operation(order, '/orders/refunds/bought/page', 'post');
+operation(order, '/orders/refunds/detail', 'get');
+
 const createDemand = requestSchema(order, operation(order, '/demands/create', 'post'));
 expectRequired(
   createDemand,
@@ -133,4 +149,4 @@ for (const [name, document] of Object.entries({ admin, user, order })) {
   console.log(`${name}: ${Object.keys(document.paths || {}).length} paths, ${countOperations(document)} operations, ${schemas} schemas`);
 }
 console.log(notifySummary);
-console.log('关键 C 端契约检查通过：登录、地址、合并下单、订单组支付、买手发货、确认收货、发起求购、抢单和通知/IM。');
+console.log('关键 C 端契约检查通过：登录、地址、订单、仅退款、合并下单、订单组支付、买手发货、确认收货、发起求购、抢单和通知/IM。');
