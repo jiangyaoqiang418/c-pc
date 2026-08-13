@@ -29,6 +29,7 @@ function createProxy(env: Record<string, string>): Record<string, string | Proxy
     [env.VITE_REAL_NOTIFY_BASE_URL || '/api/notify']: {
       target: notifyTarget,
       changeOrigin: true,
+      ws: true,
       rewrite: path => path.replace(env.VITE_REAL_NOTIFY_BASE_URL || '/api/notify', '')
     }
   };
