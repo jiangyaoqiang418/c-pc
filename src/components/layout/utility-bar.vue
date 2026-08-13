@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
+import { useNotifyStore, useUserStore } from '@/stores';
 
 const router = useRouter();
+const userStore = useUserStore();
+const notifyStore = useNotifyStore();
 
 function go(name: string) {
   router.push({ name });
@@ -17,6 +20,12 @@ function go(name: string) {
         <span class="ub-welcome">欢迎来到油宝</span>
       </div>
       <div class="ub-right">
+        <template v-if="userStore.isLoggedIn">
+          <a class="ub-link badge-link" @click="go('im')">消息<span v-if="notifyStore.imUnreadCount" class="badge">{{ notifyStore.imUnreadCount > 99 ? '99+' : notifyStore.imUnreadCount }}</span></a>
+          <span class="ub-sep">·</span>
+          <a class="ub-link badge-link" @click="go('notification-list')">通知<span v-if="notifyStore.notificationUnreadCount" class="badge">{{ notifyStore.notificationUnreadCount > 99 ? '99+' : notifyStore.notificationUnreadCount }}</span></a>
+          <span class="ub-sep">·</span>
+        </template>
         <a class="ub-link" @click="go('order-list')">我的订单</a>
         <span class="ub-sep">·</span>
         <a class="ub-link" @click="go('favorites')">收藏夹</a>
@@ -69,4 +78,6 @@ function go(name: string) {
 .ub-link:hover {
   color: var(--yb-ink);
 }
+.badge-link { display: inline-flex; align-items: center; gap: 4px; }
+.badge { min-width: 16px; height: 16px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #f53f3f; color: #fff; font-size: 9px; line-height: 1; }
 </style>

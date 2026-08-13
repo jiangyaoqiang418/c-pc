@@ -15,12 +15,14 @@ const walletStore = useWalletStore();
 const product = ref<Api.FinanceProduct.ProductRecord>();
 const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
 const loading = ref(false);
+const loadError = ref('');
 
 const id = computed(() => Number(route.params.id));
 
 async function loadAll() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const [p, vip] = await Promise.all([
       financeApi.fetchFinanceProductDetail(id.value),
@@ -29,6 +31,9 @@ async function loadAll() {
     product.value = p;
     vipStatus.value = vip;
     await walletStore.fetchWallet(userStore.currentUser.id);
+  } catch {
+    product.value = undefined;
+    loadError.value = '产品信息加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -45,18 +50,30 @@ const vipBonusRate = computed(() => {
 
 async function onSubscribe(amount: string) {
   if (!product.value || !userStore.currentUser) return;
-  const r = await financeApi.subscribeFinanceMock({
-    userId: userStore.currentUser.id,
-    productId: product.value.id,
-    principalAmount: amount
-  });
-  if (r.ok && r.order) {
-    Message.success(`订阅成功 · 已锁定 U ${formatAmount(amount)}`);
-    await walletStore.refetch();
-    router.push({ name: 'finance-lockup-detail', params: { id: String(r.order.id) } });
-  } else {
-    Message.error(r.message || '订阅失败');
+  try {
+    const r = await financeApi.subscribeFinanceMock({
+      userId: userStore.currentUser.id,
+      productId: product.value.id,
+      principalAmount: amount
+    });
+    if (r.ok && r.order) {
+      Message.success(`订阅成功 · 已锁定 U ${formatAmount(amount)}`);
+      await walletStore.refetch();
+      router.push({ name: 'finance-lockup-detail', params: { id: String(r.order.id) } });
+    } else {
+      Message.error(r.message || '订阅失败');
+    }
+  } catch {
+    Message.error('订阅失败，请稍后重试');
   }
+}
+
+function handleEmptyAction() {
+  if (loadError.value) {
+    loadAll();
+    return;
+  }
+  router.push('/finance');
 }
 </script>
 
@@ -121,7 +138,13 @@ async function onSubscribe(amount: string) {
         </div>
       </template>
 
-      <EmptyState v-else-if="!loading" title="小金库产品不存在" action-text="返回列表" @action="router.push('/finance')" />
+      <EmptyState
+        v-else-if="!loading"
+        :title="loadError ? '产品加载失败' : '小金库产品不存在'"
+        :description="loadError || undefined"
+        :action-text="loadError ? '重新加载' : '返回列表'"
+        @action="handleEmptyAction"
+      />
     </a-spin>
   </div>
 </template>
@@ -197,5 +220,14 @@ async function onSubscribe(amount: string) {
 }
 .rules li {
   margin-bottom: 4px;
+}
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .head { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .big-meta { grid-template-columns: repeat(2, 1fr); gap: 14px 10px; }
+  .info-card :deep(.arco-card-body), .aside :deep(.arco-card-body) { padding: 20px !important; }
+  .val { font-size: 18px; }
 }
 </style>

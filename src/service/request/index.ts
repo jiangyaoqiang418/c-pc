@@ -1,6 +1,7 @@
 import { Message, Modal } from '@arco-design/web-vue';
 import { clearAccessToken, getAccessToken } from './token';
 import { RequestError, type RealResponse, type RequestConfig, type RequestOptions } from './type';
+import { parseJsonPreservingLong } from '@/utils/json';
 
 function splitCodes(value: string | undefined, fallback: string[]) {
   return value ? value.split(',').map(code => code.trim()).filter(Boolean) : fallback;
@@ -23,44 +24,6 @@ function appendParams(url: string, params?: RequestOptions['params']) {
 
 function getResponseMessage(response?: RealResponse | null) {
   return response?.message || response?.msg || '请求失败';
-}
-
-/**
- * 后端的雪花 ID 可能以 JSON number 返回。JavaScript 在解析超过
- * Number.MAX_SAFE_INTEGER 的整数时会发生静默精度丢失，随后用该 ID
- * 请求详情会命中错误记录或直接返回“不存在”。在 JSON.parse 前将这类
- * 整数保留为字符串，避免影响普通数值字段和已经是字符串的 ID。
- */
-function parseResponseBody<T>(text: string): RealResponse<T> {
-  let inString = false;
-  let escaped = false;
-  let normalized = '';
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (inString) {
-      normalized += char;
-      if (escaped) escaped = false;
-      else if (char === '\\') escaped = true;
-      else if (char === '"') inString = false;
-      continue;
-    }
-    if (char === '"') {
-      inString = true;
-      normalized += char;
-      continue;
-    }
-
-    const match = text.slice(index).match(/^-?\d{16,}(?=\s*[,}\]])/);
-    if (match) {
-      normalized += `"${match[0]}"`;
-      index += match[0].length - 1;
-      continue;
-    }
-    normalized += char;
-  }
-
-  return JSON.parse(normalized) as RealResponse<T>;
 }
 
 function redirectToLogin() {
@@ -118,7 +81,7 @@ class RealRequest {
 
     let body: RealResponse<T> | null = null;
     try {
-      body = parseResponseBody<T>(await response.text());
+      body = parseJsonPreservingLong<RealResponse<T>>(await response.text());
     } catch {
       body = null;
     }

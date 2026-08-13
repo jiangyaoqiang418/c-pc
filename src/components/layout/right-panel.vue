@@ -60,6 +60,7 @@ const buyerLinks = [
   { key: 'dashboard', label: '仪表盘', icon: 'lucide:layout-dashboard', path: '/buyer/dashboard' },
   { key: 'products', label: '商品管理', icon: 'lucide:package', path: '/buyer/products' },
   { key: 'buyer-orders', label: '买手订单', icon: 'lucide:clipboard-list', path: '/buyer/orders' },
+  { key: 'buyer-aftersales', label: '售后查看', icon: 'lucide:rotate-ccw', path: '/buyer/aftersales' },
   { key: 'claim', label: '求购接单', icon: 'lucide:hand-coins', path: '/purchase' },
   { key: 'deposit', label: '押金管理', icon: 'lucide:lock', path: '/buyer/deposit' },
   { key: 'buyer-wallet', label: '买手钱包', icon: 'lucide:wallet', path: '/buyer/wallet' }

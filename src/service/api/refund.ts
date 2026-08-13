@@ -11,6 +11,16 @@ export function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}) {
   );
 }
 
+/**
+ * 买手仅可查看卖出商品的售后申请；审核与退款资金处理均由平台后台完成。
+ */
+export function fetchSoldRefunds(params: Api.RealRefund.RefundPageQuery = {}) {
+  return realOrderRequest.post<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
+    '/orders/refunds/sold/page',
+    params
+  );
+}
+
 export function fetchRefundDetail(id: string | number) {
   return realOrderRequest.get<Api.RealRefund.RefundDTO>('/orders/refunds/detail', { params: { id } });
 }

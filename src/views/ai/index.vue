@@ -38,6 +38,8 @@ const messages = ref<ChatMsg[]>([
 ]);
 const input = ref('');
 const scrollRef = ref<HTMLElement>();
+const errorMessage = ref('');
+const failedQuery = ref('');
 let streamTimers: number[] = [];
 
 function scheduleStream(msg: BotMsg, onDone?: () => void) {
@@ -80,6 +82,8 @@ onBeforeUnmount(() => {
 async function send(text?: string) {
   const t = (text || input.value).trim();
   if (!t) return;
+  errorMessage.value = '';
+  failedQuery.value = '';
   input.value = '';
   messages.value.push({ role: 'user', text: t });
   messages.value.push({ role: 'loading' });
@@ -110,6 +114,9 @@ async function send(text?: string) {
   } catch {
     const loadingIdx = messages.value.findIndex(m => m.role === 'loading');
     if (loadingIdx !== -1) messages.value.splice(loadingIdx, 1);
+    errorMessage.value = 'AI 导购暂时不可用，请稍后重试。';
+    failedQuery.value = t;
+    scrollBottom();
   }
 }
 
@@ -196,6 +203,10 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
 
     <footer class="chat-input-bar">
       <div class="chat-input-inner">
+        <div v-if="errorMessage" class="chat-error" role="status">
+          {{ errorMessage }}
+          <button type="button" @click="send(failedQuery)">重试</button>
+        </div>
         <div class="input-wrap">
           <input
             v-model="input"
@@ -223,6 +234,7 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
   display: flex;
   flex-direction: column;
   height: calc(100vh - 128px);
+  min-height: 0;
   max-width: 960px;
   margin: 0 auto;
   background: var(--yb-surface);
@@ -231,6 +243,7 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
   overflow: hidden;
 }
 .chat-nav {
+  flex: 0 0 auto;
   padding: 24px 32px 16px;
   border-bottom: 1px solid var(--yb-hairline);
 }
@@ -249,7 +262,8 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
 
 /* Scroll area */
 .chat-scroll {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   scroll-behavior: smooth;
   background: var(--yb-bg);
@@ -262,6 +276,12 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+@media (max-width: 720px) {
+  .ai-chat { height: calc(100vh - 120px); border-radius: 12px; }
+  .chat-nav { padding: 16px; }
+  .chat-list { padding: 16px; gap: 14px; }
+  .bubble { max-width: 92%; }
 }
 .msg-row {
   display: flex;
@@ -407,6 +427,10 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
 
 /* Input bar */
 .chat-input-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex: 0 0 auto;
   background: var(--yb-surface);
   border-top: 1px solid var(--yb-hairline);
   padding: 16px 32px 20px;
@@ -464,5 +488,30 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
   font-size: 11px;
   color: var(--yb-faint);
   text-align: center;
+}
+.chat-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #d4380d;
+  background: #fff2e8;
+  font-size: 12px;
+}
+.chat-error button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  color: #d4380d;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+@media (max-width: 720px) {
+  .chat-input-bar { padding: 12px 16px 16px; }
+  .presets { padding-left: 0; }
 }
 </style>

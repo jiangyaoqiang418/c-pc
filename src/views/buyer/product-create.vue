@@ -83,7 +83,7 @@ async function onSubmit(form: {
 }
 .page-title {
   font-size: 22px;
-  margin: 0 0 6px;
+  margin: 0;
 }
 .hint {
   color: #86909c;

@@ -17,6 +17,8 @@ import {
   Empty,
   Form,
   Grid,
+  Image,
+  ImagePreviewGroup,
   Input,
   InputNumber,
   Link,
@@ -60,7 +62,7 @@ app.use(createPinia());
 app.use(router);
 const arcoPlugins: Plugin[] = [
   Alert, Badge, Breadcrumb, Button, Card, Cascader, Checkbox, Collapse, Descriptions, Divider, Drawer, Dropdown,
-  Empty, Form, Grid, Input, InputNumber, Link, Modal, Pagination, Progress, Radio, DatePicker, Result, Select,
+  Empty, Form, Grid, Image, ImagePreviewGroup, Input, InputNumber, Link, Modal, Pagination, Progress, Radio, DatePicker, Result, Select,
   Space, Spin, Steps, Switch, Table, Tabs, Tag, Textarea, Timeline, Tooltip, Tree
 ];
 arcoPlugins.forEach(plugin => app.use(plugin));

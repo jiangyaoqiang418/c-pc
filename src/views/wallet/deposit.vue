@@ -249,7 +249,7 @@ onMounted(loadAll);
 
 <style scoped>
 .deposit-page { padding-top: 16px; }
-.page-title { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+.page-title { font-size: 20px; font-weight: 600; margin: 0; }
 .hint { color: #86909c; font-size: 13px; margin: 0 0 16px; }
 .tab-card, .txn-card { background: #fff; border-radius: var(--bw-card-radius); margin-bottom: 16px; }
 .recharge-form { max-width: 720px; padding-top: 12px; }

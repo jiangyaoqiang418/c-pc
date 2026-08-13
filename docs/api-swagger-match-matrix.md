@@ -533,3 +533,40 @@
 | `2087164523669184512` | `mamba (#2086359209189400577) → QA IM 回归`，`6 U`，顺丰国际 `QA-SF-20260811-210934`，`运输中` | `/orders/sold/page` 可回显并成功发货 | 数据稳定后 `/orders/bought/page` 已回显订单，页面提供“查看物流 / 确认收货 / 申请仅退款 / 订单详情”。 |
 
 - `create-batch`、`group/pay`、买卖双方订单分页与 `ship` 的真实链路均已验证。支付/发货后的早期读请求存在短暂数据可见性延迟；回归应在稳定后刷新验证，不能将首次空结果直接判为接口阻塞。
+
+## 2026-08-13 IM / 通知最新契约与运行时矩阵
+
+| 能力 | 最新 Swagger | C-PC 状态 | 运行时结果 |
+|---|---|---|---|
+| 会话、消息分页、按订单取群 | `POST /im/conversations/page`、`POST /im/messages/page`、`GET /im/conversations/by-order` | 已接入订单上下文、历史分页和 Long 安全比较 | 双账号均可读取订单 `2086788120608071682` 的同一会话与消息历史。 |
+| 文本/图片发送 | `POST /im/messages/send` 返回 `ImMessageVO`，支持 `clientMsgId` | 已改为乐观消息 + 服务端 DTO 替换；图片走 order 文件上传 | 文本和真实图片均写入成功，双方刷新后正确回读。 |
+| 已读、撤回、增量 | `PUT /im/messages/read`、`PUT /im/messages/recall`、`GET /im/messages/incr` | 已接入；页面停留收到新消息时上报已读，重连/回前台执行增量同步 | 撤回真实通过，双方刷新展示“消息已撤回”；实时增量待 WS 环境恢复验证。 |
+| WebSocket 实时 | `/notify/im?token=`，`PING/PONG`、`IM_MESSAGE/READ/RECALL/NOTIFICATION` | C-PC 已实现心跳、退避重连、去重和恢复同步；Vite notify 代理开启 `ws: true` | 测试环境握手未升级，直接握手失败，发送后对端未实时收到但刷新可回读。后端/网关阻塞。 |
+| 通知中心 | 分页、未读数、已读、删除、清空共 7 个 REST 操作 | 已新增 `/notifications` 与顶部角标 | 真实 3 条通知可展示；历史数据 `bizType/bizId/templateCode` 为 `null`，因此不跳转，待后端补字段。 |
+
+- `pnpm check:swagger` 实时结果：admin `116/117/207`、user `33/33/66`、order `45/47/66`、notify `16/16/22`（paths/operations/schemas），并已验证新增 notify 字段与接口。
+
+### 2026-08-13 IM 前端降级回归
+
+| 场景 | C-PC 行为 | 服务端依赖 |
+|---|---|---|
+| WebSocket 不可用 | 明示实时连接不可用，REST 发消息与刷新/回前台增量同步仍可使用，可手动重连。 | 仍需网关返回 `101 Switching Protocols` 才能验证实时下推。 |
+| 消息发送失败 | 保留失败气泡，允许以新的 `clientMsgId` 重新发送，避免重复落库。 | 无额外依赖。 |
+| Long 已读水位 | 使用长度优先的纯字符串数值比较，避免浏览器 Long 精度丢失与字典序误判。 | REST/WS 统一字符串下发后可直接复用。 |
+| 通知分类与跳转 | 按 `templateCode/bizType` 分类；业务 ID 缺失时仅标记已读、不跳转。 | 新通知需真实下发 `bizType/bizId/templateCode` 才能闭环跳转。 |
+
+- 单元回归新增 IM 工具 3 项，合计 `pnpm test` 通过 7 项；不将该前端降级能力表述为 WebSocket 实时回归通过。
+
+### 2026-08-13 IM 语音消息
+
+| 能力 | 发送契约 | C-PC 实现 | 验证边界 |
+|---|---|---|---|
+| 录音与发送 | `POST /order/files/upload?dir=im` → `POST /notify/im/messages/send`，`msgType=VOICE`、`mediaUrl/duration` 必填 | 浏览器 `MediaRecorder` 录制 WebM、结束后上传并携带秒级时长；已有语音播放器直接复用。 | 类型检查和构建通过；真实麦克风授权、上传 MIME 与双账号播放待用户允许后验证。 |
+
+### 2026-08-13 对话滚动布局
+
+| 页面 | 消息滚动边界 | 输入区行为 | 最新消息定位 |
+|---|---|---|---|
+| `/im` | 仅 `.messages` 独立纵向滚动 | 固定为会话底部的非滚动 sibling | 选中会话、增量同步、发送后定位到底部。 |
+| `/im/order-group/:orderCode` | 仅 `.messages` 独立纵向滚动 | 固定为订单群卡片底部的非滚动 sibling | 历史按 Long ID 正序，初始与新消息均在底部；加载旧消息保持位置。 |
+| `/ai` | 仅 AI 消息区滚动 | 底部输入栏不参与消息滚动 | 流式回复与发送后调用既有 `scrollBottom`。 |

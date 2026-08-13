@@ -188,6 +188,8 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '消息中心', requiresAuth: true } },
   { path: '/im/order-group/:orderCode', name: 'im-order-group', component: () => import('@/views/im/order-group.vue'),
     meta: { layout: 'default', title: '订单三方群', requiresAuth: true } },
+  { path: '/notifications', name: 'notification-list', component: () => import('@/views/notification/index.vue'),
+    meta: { layout: 'default', title: '站内通知', requiresAuth: true } },
 
   // ===== Phase 4 — 买手中心 + AI / 地址 / 积分 =====
   // 公开
@@ -215,6 +217,8 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '买手押金', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/orders', name: 'buyer-orders', component: () => import('@/views/buyer/orders.vue'),
     meta: { layout: 'default', title: '买手订单', requiresAuth: true, requiresBuyer: true } },
+  { path: '/buyer/aftersales', name: 'buyer-aftersales', component: () => import('@/views/buyer/aftersales.vue'),
+    meta: { layout: 'default', title: '卖出商品售后', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/claimable', name: 'buyer-claimable', component: () => import('@/views/buyer/claimable.vue'),
     meta: { layout: 'default', title: '求购接单', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/wallet', name: 'buyer-wallet', component: () => import('@/views/buyer/wallet.vue'),

@@ -45,5 +45,5 @@ function cancel(row: Api.RealRefund.RefundDTO) {
 </template>
 
 <style scoped>
-.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0 0 16px; }.case-card { margin-top:12px; cursor:pointer; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:#86909c; margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:#4e5969; }.actions { justify-content:flex-end; }
+.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0; }.case-card { margin-top:12px; cursor:pointer; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:#86909c; margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:#4e5969; }.actions { justify-content:flex-end; }
 </style>

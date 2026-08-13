@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
+import { uploadFile } from '@/service/api/product';
 
 interface Props {
   disabled?: boolean;
@@ -13,12 +14,31 @@ const props = withDefaults(defineProps<Props>(), {
   placeholder: '输入消息，Enter 发送 / Shift+Enter 换行'
 });
 
-const emit = defineEmits<{
-  (e: 'send', payload: { type: Api.Im.MessageType; content?: string; mediaUrl?: string }): void;
-}>();
+type OutgoingMessage = {
+  type: 'text' | 'image' | 'audio';
+  content?: string;
+  mediaUrl?: string;
+  duration?: number;
+};
+
+const emit = defineEmits<{ (e: 'send', payload: OutgoingMessage): void }>();
 
 const text = ref('');
 const sending = ref(false);
+const uploading = ref(false);
+const fileInputRef = ref<HTMLInputElement>();
+const recording = ref(false);
+const recordingSeconds = ref(0);
+let mediaRecorder: MediaRecorder | undefined;
+let recordingStartedAt = 0;
+let recordingTimer: ReturnType<typeof setInterval> | undefined;
+
+const canRecord = computed(() => typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
+
+function clearRecordingTimer() {
+  if (recordingTimer) clearInterval(recordingTimer);
+  recordingTimer = undefined;
+}
 
 async function send() {
   const content = text.value.trim();
@@ -43,20 +63,97 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-function sendImage() {
-  if (props.disabled) return;
-  const url = `https://picsum.photos/seed/im-${Date.now()}/360/360`;
-  emit('send', { type: 'image', mediaUrl: url });
+function chooseImage() {
+  if (props.disabled || uploading.value) return;
+  fileInputRef.value?.click();
 }
+
+async function onImageSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    Message.warning('请选择图片文件');
+    return;
+  }
+
+  uploading.value = true;
+  try {
+    const uploaded = await uploadFile(file, 'im');
+    if (!uploaded.url) throw new Error('上传结果缺少图片地址');
+    emit('send', { type: 'image', mediaUrl: uploaded.url });
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '图片上传失败');
+  } finally {
+    uploading.value = false;
+  }
+}
+
+async function startRecording() {
+  if (props.disabled || uploading.value || recording.value) return;
+  if (!canRecord.value) {
+    Message.warning('当前浏览器不支持语音录制，请使用最新版 Chrome');
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const chunks: BlobPart[] = [];
+    mediaRecorder = new MediaRecorder(stream);
+    recordingStartedAt = Date.now();
+    recordingSeconds.value = 0;
+    mediaRecorder.ondataavailable = event => {
+      if (event.data.size) chunks.push(event.data);
+    };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(track => track.stop());
+      recording.value = false;
+      clearRecordingTimer();
+      const duration = Math.max(1, Math.round((Date.now() - recordingStartedAt) / 1000));
+      if (!chunks.length) return;
+      uploading.value = true;
+      try {
+        const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+        const uploaded = await uploadFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }), 'im');
+        if (!uploaded.url) throw new Error('上传结果缺少语音地址');
+        emit('send', { type: 'audio', mediaUrl: uploaded.url, duration });
+      } catch (error) {
+        Message.error(error instanceof Error ? error.message : '语音上传失败');
+      } finally {
+        uploading.value = false;
+        mediaRecorder = undefined;
+      }
+    };
+    mediaRecorder.start();
+    recording.value = true;
+    recordingTimer = setInterval(() => {
+      recordingSeconds.value = Math.floor((Date.now() - recordingStartedAt) / 1000);
+    }, 1000);
+  } catch {
+    Message.warning('无法使用麦克风，请检查浏览器权限后重试');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+}
+
+onBeforeUnmount(() => {
+  clearRecordingTimer();
+  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+});
 </script>
 
 <template>
   <div class="input-area">
     <div class="toolbar">
-      <button class="tool-btn" :disabled="disabled" @click="sendImage">🖼 图片</button>
-      <button class="tool-btn" disabled>📎 附件 · Phase 4</button>
-      <button class="tool-btn" disabled>😀 表情 · Phase 4</button>
-      <button class="tool-btn" disabled>💳 卡片 · Phase 4</button>
+      <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
+      <button class="tool-btn" :disabled="disabled || uploading" @click="chooseImage">
+        {{ uploading ? '图片上传中…' : '🖼 图片' }}
+      </button>
+      <button class="tool-btn voice-btn" :disabled="disabled || uploading || !canRecord" @click="recording ? stopRecording() : startRecording()">
+        {{ recording ? `■ 结束录音 ${recordingSeconds}s` : uploading ? '语音上传中…' : '🎙 语音' }}
+      </button>
     </div>
     <a-textarea
       v-model="text"
@@ -84,6 +181,9 @@ function sendImage() {
   gap: 8px;
   margin-bottom: 8px;
 }
+.file-input {
+  display: none;
+}
 .tool-btn {
   background: transparent;
   border: none;
@@ -102,6 +202,7 @@ function sendImage() {
   color: #c9cdd4;
   cursor: not-allowed;
 }
+.voice-btn:not(:disabled) { color: #00b42a; }
 .textarea {
   margin-bottom: 8px;
 }

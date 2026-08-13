@@ -38,6 +38,12 @@ function requestSchema(document, operationDefinition) {
   return resolveSchema(document, schema);
 }
 
+function responseDataSchema(document, operationDefinition) {
+  const wrapper = resolveSchema(document, operationDefinition.responses?.['200']?.content?.['*/*']?.schema);
+  if (!wrapper) throw new Error(`缺少成功响应：${operationDefinition.summary || '未命名操作'}`);
+  return resolveSchema(document, wrapper.properties?.data);
+}
+
 function expectRequired(schema, fields, label) {
   const required = new Set(schema.required || []);
   const missing = fields.filter(field => !required.has(field));
@@ -100,6 +106,7 @@ expectRequired(refundApply, ['orderId', 'reason'], '仅退款申请');
 const refundCancel = requestSchema(order, operation(order, '/orders/refunds/cancel', 'post'));
 expectRequired(refundCancel, ['refundId'], '撤销仅退款');
 operation(order, '/orders/refunds/bought/page', 'post');
+operation(order, '/orders/refunds/sold/page', 'post');
 operation(order, '/orders/refunds/detail', 'get');
 
 const createDemand = requestSchema(order, operation(order, '/demands/create', 'post'));
@@ -130,8 +137,15 @@ if (notifyResponse.status === 404) {
   [
     ['/notifications/page', 'post'],
     ['/notifications/unread/count', 'get'],
+    ['/notifications/delete', 'delete'],
+    ['/notifications/clear', 'delete'],
     ['/im/conversations/page', 'post'],
-    ['/im/messages/page', 'post']
+    ['/im/messages/page', 'post'],
+    ['/im/messages/incr', 'get'],
+    ['/im/messages/read', 'put'],
+    ['/im/messages/recall', 'put'],
+    ['/im/unread/count', 'get'],
+    ['/im/conversations/delete', 'delete']
   ].forEach(([path, method]) => operation(notify, path, method));
   const markRead = requestSchema(notify, operation(notify, '/notifications/read', 'put'));
   expectRequired(markRead, ['id'], '标记通知已读');
@@ -139,6 +153,19 @@ if (notifyResponse.status === 404) {
   expectRequired(messagePage, ['conversationId'], '会话消息分页');
   const sendMessage = requestSchema(notify, operation(notify, '/im/messages/send', 'post'));
   expectRequired(sendMessage, ['conversationId', 'msgType'], '发送会话消息');
+  expectProperties(sendMessage, ['content', 'mediaUrl', 'duration', 'clientMsgId'], '发送会话消息');
+  const sendMessageResponse = responseDataSchema(notify, operation(notify, '/im/messages/send', 'post'));
+  expectProperties(sendMessageResponse, ['id', 'conversationId', 'msgType', 'clientMsgId', 'recalled'], '发送消息响应');
+  const readMessage = requestSchema(notify, operation(notify, '/im/messages/read', 'put'));
+  expectRequired(readMessage, ['conversationId', 'lastReadMessageId'], '消息已读');
+  const recallMessage = requestSchema(notify, operation(notify, '/im/messages/recall', 'put'));
+  expectRequired(recallMessage, ['id'], '消息撤回');
+  const conversationSchema = notify.components?.schemas?.ImConversationVO;
+  expectProperties(conversationSchema, ['lastReadMessageId', 'peerName', 'orderNo', 'orderStatusText', 'productTitle', 'amount'], '会话响应');
+  const messageSchema = notify.components?.schemas?.ImMessageVO;
+  expectProperties(messageSchema, ['senderName', 'senderAvatar', 'eventType', 'params', 'clientMsgId', 'recalled'], '消息响应');
+  const notificationSchema = notify.components?.schemas?.NotificationVO;
+  expectProperties(notificationSchema, ['bizType', 'bizId', 'readFlag'], '站内通知响应');
   operation(notify, '/notifications/read-all', 'put');
   operation(notify, '/im/conversations/by-order', 'get');
   notifySummary = `notify: ${Object.keys(notify.paths || {}).length} paths, ${countOperations(notify)} operations, ${Object.keys(notify.components?.schemas || {}).length} schemas`;

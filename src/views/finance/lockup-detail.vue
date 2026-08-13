@@ -19,6 +19,7 @@ const walletStore = useWalletStore();
 const order = ref<Api.FinanceProduct.LockupOrder>();
 const relatedTxns = ref<Api.Wallet.Txn[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const unlockModalOpen = ref(false);
 const drawerTxn = ref<Api.Wallet.Txn>();
 const drawerOpen = ref(false);
@@ -37,12 +38,17 @@ const daysPassed = computed(() => {
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     order.value = await financeApi.fetchLockupDetail(id.value);
     if (order.value) {
       const r = await walletApi.fetchMyTxns({ userId: userStore.currentUser.id, refType: 'finance' });
       relatedTxns.value = r.records.filter(t => t.refId === order.value!.code);
     }
+  } catch {
+    order.value = undefined;
+    relatedTxns.value = [];
+    loadError.value = '锁仓信息加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -57,15 +63,27 @@ function openUnlock() {
 }
 
 async function confirmUnlock(o: Api.FinanceProduct.LockupOrder) {
-  const r = await financeApi.earlyUnlockMock(o.id);
-  if (r.ok) {
-    Message.success('提前解锁成功');
-    unlockModalOpen.value = false;
-    await walletStore.refetch();
-    await load();
-  } else {
-    Message.error(r.message || '解锁失败');
+  try {
+    const r = await financeApi.earlyUnlockMock(o.id);
+    if (r.ok) {
+      Message.success('提前解锁成功');
+      unlockModalOpen.value = false;
+      await walletStore.refetch();
+      await load();
+    } else {
+      Message.error(r.message || '解锁失败');
+    }
+  } catch {
+    Message.error('解锁失败，请稍后重试');
   }
+}
+
+function handleEmptyAction() {
+  if (loadError.value) {
+    load();
+    return;
+  }
+  router.push('/finance/my-lockups');
 }
 
 function openTxnDetail(t: Api.Wallet.Txn) {
@@ -162,7 +180,13 @@ function openTxnDetail(t: Api.Wallet.Txn) {
         </a-card>
       </template>
 
-      <EmptyState v-else-if="!loading" title="锁仓订单不存在" action-text="返回列表" @action="router.push('/finance/my-lockups')" />
+      <EmptyState
+        v-else-if="!loading"
+        :title="loadError ? '锁仓信息加载失败' : '锁仓订单不存在'"
+        :description="loadError || undefined"
+        :action-text="loadError ? '重新加载' : '返回列表'"
+        @action="handleEmptyAction"
+      />
     </a-spin>
 
     <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="order" @confirm="confirmUnlock" />
@@ -274,5 +298,17 @@ function openTxnDetail(t: Api.Wallet.Txn) {
 }
 .txn-card {
   margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .layout-2col { grid-template-columns: 1fr; }
+  .chart-card :deep(canvas), .chart-card :deep(svg) { max-width: 100%; height: auto; }
+}
+@media (max-width: 640px) {
+  .hero-row, .hero-left { align-items: flex-start; flex-direction: column; }
+  .hero-code { overflow-wrap: anywhere; font-size: 14px; }
+  .rate-formula { gap: 6px; padding: 12px 4px; }
+  .rate-cell.highlight { padding: 4px 8px; }
+  .rate-cell .val { font-size: 17px; }
+  .op { font-size: 16px; }
 }
 </style>

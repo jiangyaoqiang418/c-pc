@@ -170,7 +170,7 @@ onMounted(() => {
 .page-title {
   font-size: 20px;
   font-weight: 600;
-  margin: 0 0 16px;
+  margin: 0;
   color: #1d2129;
 }
 .cart-card {

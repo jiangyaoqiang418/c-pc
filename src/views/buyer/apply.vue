@@ -118,7 +118,7 @@ onMounted(loadApplication);
 .page-title {
   font-size: 20px;
   font-weight: 600;
-  margin: 0 0 4px;
+  margin: 0;
 }
 .hint {
   margin: 0 0 16px;

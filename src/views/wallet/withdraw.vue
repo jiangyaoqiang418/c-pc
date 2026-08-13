@@ -214,7 +214,7 @@ onMounted(loadAll);
 
 <style scoped>
 .withdraw-page { padding-top: 16px; max-width: 880px; margin: 0 auto; }
-.page-title { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+.page-title { font-size: 20px; font-weight: 600; margin: 0; }
 .hint { color: #86909c; font-size: 13px; margin: 0 0 16px; }
 .kyc-alert, .form-card, .result-card { margin-bottom: 16px; }
 .form-card, .result-card, .records-card { background: #fff; border-radius: var(--bw-card-radius); }

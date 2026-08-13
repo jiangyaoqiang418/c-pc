@@ -6,6 +6,8 @@
   max-width: 100%;
   margin: 0 auto;
   padding: 0;
+  /* 页面根容器不额外占用标题上方空间；内容区自行声明必要的内部间距。 */
+  padding-top: 0 !important;
 }
 
 .shop-section {

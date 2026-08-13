@@ -15,11 +15,16 @@ const orderId = computed(() => Number(route.params.orderId));
 const order = ref<Api.Order.OrderRecord>();
 const loading = ref(false);
 const submitting = ref(false);
+const loadError = ref('');
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     order.value = await orderApi.fetchOrderDetail(orderId.value);
+  } catch {
+    order.value = undefined;
+    loadError.value = '订单信息加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -49,11 +54,21 @@ async function onSubmit(f: { score: number; content: string; tags: string[]; pho
         } else {
           Message.error(r.message || '提交失败');
         }
+      } catch {
+        Message.error('提交失败，请稍后重试');
       } finally {
         submitting.value = false;
       }
     }
   });
+}
+
+function handleEmptyAction() {
+  if (loadError.value) {
+    load();
+    return;
+  }
+  router.push('/order');
 }
 </script>
 
@@ -82,7 +97,13 @@ async function onSubmit(f: { score: number; content: string; tags: string[]; pho
         <ReviewForm :submitting="submitting" @submit="onSubmit" />
       </template>
 
-      <EmptyState v-else-if="!loading" title="订单不存在" action-text="返回订单" @action="router.push('/order')" />
+      <EmptyState
+        v-else-if="!loading"
+        :title="loadError ? '订单加载失败' : '订单不存在'"
+        :description="loadError || undefined"
+        :action-text="loadError ? '重新加载' : '返回订单'"
+        @action="handleEmptyAction"
+      />
     </a-spin>
   </div>
 </template>
@@ -121,5 +142,12 @@ async function onSubmit(f: { score: number; content: string; tags: string[]; pho
 .meta {
   font-size: 12px;
   color: #86909c;
+}
+@media (max-width: 640px) {
+  .review-write-page { margin: 0; }
+  .order-row { align-items: flex-start; }
+  .info { min-width: 0; }
+  .title { overflow-wrap: anywhere; }
+  .meta { line-height: 1.6; }
 }
 </style>

@@ -63,7 +63,7 @@ watch(activeKey, load);
 .page-title {
   font-size: 20px;
   font-weight: 600;
-  margin: 0 0 16px;
+  margin: 0;
 }
 .list-wrap {
   margin-top: 16px;
