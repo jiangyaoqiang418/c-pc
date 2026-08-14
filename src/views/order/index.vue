@@ -33,6 +33,7 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(8);
 const loading = ref(false);
+const loadError = ref('');
 const counts = ref<Record<string, number>>({});
 
 const role = computed(() => (userStore.isBuyerActive ? 'shopper' : 'customer'));
@@ -40,6 +41,7 @@ const role = computed(() => (userStore.isBuyerActive ? 'shopper' : 'customer'));
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
     const params: Api.Order.ListQuery = {
@@ -52,6 +54,10 @@ async function load() {
     const r = await orderApi.fetchMyOrders(params);
     orders.value = r.records;
     total.value = r.total;
+  } catch {
+    orders.value = [];
+    total.value = 0;
+    loadError.value = '订单列表加载失败，请检查网络后重试';
   } finally {
     loading.value = false;
   }
@@ -60,7 +66,11 @@ async function load() {
 async function loadCounts() {
   if (!userStore.currentUser) return;
   if (role.value === 'shopper') return;
-  counts.value = await orderApi.countMyOrdersByStatus();
+  try {
+    counts.value = await orderApi.countMyOrdersByStatus();
+  } catch {
+    counts.value = {};
+  }
 }
 
 onMounted(async () => {
@@ -91,6 +101,14 @@ function onChanged() {
   load();
   loadCounts();
 }
+
+function handleEmptyAction() {
+  if (loadError.value) {
+    void load();
+    return;
+  }
+  router.push('/purchase/create');
+}
 </script>
 
 <template>
@@ -118,10 +136,10 @@ function onChanged() {
         </div>
         <EmptyState
           v-else
-          title="该状态下没有订单"
-          description="直接购买或求购成交后会生成真实订单"
-          action-text="发起求购"
-          @action="router.push('/purchase/create')"
+          :title="loadError || '该状态下没有订单'"
+          :description="loadError ? '不会展示不完整的订单数据。' : '直接购买或求购成交后会生成真实订单'"
+          :action-text="loadError ? '重新加载' : '发起求购'"
+          @action="handleEmptyAction"
         />
       </a-spin>
     </div>
@@ -170,5 +188,10 @@ function onChanged() {
   margin-top: 16px;
   display: flex;
   justify-content: center;
+}
+@media (max-width: 640px) {
+  .order-list-page { padding-top: 10px; }
+  .page-head { align-items: flex-start; flex-direction: column; gap: 6px; }
+  :deep(.arco-tabs-nav-tab) { padding-left: 10px; padding-right: 10px; }
 }
 </style>

@@ -7,6 +7,7 @@ import { useUserStore } from '@/stores';
 const userStore = useUserStore();
 const loading = ref(false);
 const submitting = ref(false);
+const loadError = ref('');
 const application = ref<Api.RealBuyer.BuyerApplicationVO | null>();
 const form = reactive<Api.RealBuyer.BuyerApplyParams>({
   realName: '',
@@ -31,11 +32,15 @@ function formatTime(value?: string | number) {
 
 async function loadApplication() {
   loading.value = true;
+  loadError.value = '';
   try {
     application.value = await buyerApi.fetchBuyerApplication();
     if (!application.value && userStore.currentUser) {
       form.contact = userStore.currentUser.phone || '';
     }
+  } catch {
+    application.value = undefined;
+    loadError.value = '买手申请状态加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -52,13 +57,17 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    await buyerApi.submitBuyerApplication({
-      realName: form.realName.trim(),
-      contact: form.contact.trim(),
-      reason: form.reason.trim()
-    });
-    Message.success('买手申请已提交');
-    await loadApplication();
+    try {
+      await buyerApi.submitBuyerApplication({
+        realName: form.realName.trim(),
+        contact: form.contact.trim(),
+        reason: form.reason.trim()
+      });
+      Message.success('买手申请已提交');
+      await loadApplication();
+    } catch {
+      Message.error('买手申请提交失败，请稍后重试');
+    }
   } finally {
     submitting.value = false;
   }
@@ -73,6 +82,9 @@ onMounted(loadApplication);
     <p class="hint">提交后由平台审核。KYC 状态及买手资格以后台审核结果为准。</p>
 
     <a-spin :loading="loading">
+      <a-alert v-if="loadError" type="error" class="reject-alert" :title="loadError" closable @close="loadError = ''">
+        <template #action><a-button size="mini" @click="loadApplication">重新加载</a-button></template>
+      </a-alert>
       <a-card v-if="application && !canApply" class="status-card" :body-style="{ padding: '24px 28px' }" :bordered="false">
         <div class="status-head">
           <a-tag :color="statusMeta.color" size="large">{{ statusMeta.label }}</a-tag>
@@ -158,5 +170,9 @@ onMounted(loadApplication);
 }
 .reject-alert {
   margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+  .buyer-apply-page { margin: 0; }
+  .status-head { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
 </style>

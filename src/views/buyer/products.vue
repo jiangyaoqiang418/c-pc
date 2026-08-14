@@ -31,6 +31,7 @@ const TABS: TabDef[] = [
 const activeKey = ref('all');
 const products = ref<Api.Product.ProductRecord[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const keyword = ref('');
 const categoryPath = ref<Array<string | number>>([]);
 const categoryOptions = ref<Array<{ value: string | number; label: string; children?: any[] }>>([]);
@@ -49,6 +50,7 @@ function mapCategoryOptions(nodes: Api.Category.CategoryNode[]): Array<{ value: 
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
     const r = await productApi.fetchMyProducts({
@@ -61,13 +63,22 @@ async function load() {
     });
     products.value = r.records;
     total.value = r.total;
+  } catch {
+    products.value = [];
+    total.value = 0;
+    loadError.value = '商品列表加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
 }
 
 async function loadCategories() {
-  categoryOptions.value = mapCategoryOptions(await fetchCategoryTree());
+  try {
+    categoryOptions.value = mapCategoryOptions(await fetchCategoryTree());
+  } catch {
+    categoryOptions.value = [];
+    Message.warning('商品分类加载失败，可先按名称查询商品');
+  }
 }
 
 function queryProducts() {
@@ -91,9 +102,13 @@ watch(activeKey, () => {
 
 async function toggleShelf(p: Api.Product.ProductRecord) {
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
-  await productApi.toggleProductShelf(p.id, nextOnShelf);
-  Message.success(nextOnShelf ? '已上架' : '已下架');
-  await load();
+  try {
+    await productApi.toggleProductShelf(p.id, nextOnShelf);
+    Message.success(nextOnShelf ? '已上架' : '已下架');
+    await load();
+  } catch {
+    Message.error(nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
+  }
 }
 
 function onDelete(p: Api.Product.ProductRecord) {
@@ -147,10 +162,10 @@ function onDelete(p: Api.Product.ProductRecord) {
       </div>
       <EmptyState
         v-else
-        title="该状态下没有商品"
-        description="点击右上角「上架新商品」开始售卖"
-        action-text="上架新商品"
-        @action="router.push('/buyer/products/create')"
+        :title="loadError ? '商品列表加载失败' : '该状态下没有商品'"
+        :description="loadError || '点击右上角「上架新商品」开始售卖'"
+        :action-text="loadError ? '重新加载' : '上架新商品'"
+        @action="loadError ? load() : router.push('/buyer/products/create')"
       />
     </a-spin>
 
@@ -194,5 +209,13 @@ function onDelete(p: Api.Product.ProductRecord) {
   display: flex;
   justify-content: center;
   margin: 20px 0 32px;
+}
+@media (max-width: 960px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) {
+  .page-head { align-items: flex-start; flex-direction: column; }
+  .page-head :deep(.arco-space) { flex-wrap: wrap; }
+  .filter-card :deep(.arco-space) { width: 100%; }
+  .filter-card :deep(.arco-input-wrapper), .filter-card :deep(.arco-cascader) { width: 100% !important; }
+  .grid { grid-template-columns: 1fr; }
 }
 </style>

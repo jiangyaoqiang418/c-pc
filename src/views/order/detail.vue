@@ -15,13 +15,19 @@ const route = useRoute();
 const router = useRouter();
 const order = ref<Api.Order.OrderRecord>();
 const loading = ref(false);
+const loadError = ref('');
+const acting = ref(false);
 
 const id = computed(() => String(route.params.id || ''));
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     order.value = await orderApi.fetchOrderDetail(id.value);
+  } catch {
+    order.value = undefined;
+    loadError.value = '订单详情加载失败，请检查网络后重试';
   } finally {
     loading.value = false;
   }
@@ -70,43 +76,47 @@ const trackEvents = computed<TrackEvent[]>(() => {
 });
 
 async function pay() {
-  if (!order.value) return;
-  const r = await orderApi.payOrder(order.value.id);
-  if (r.ok) {
-    Message.success('支付成功');
-    load();
-  } else {
-    Message.error(r.message || '支付失败');
-  }
+  if (!order.value || acting.value) return;
+  acting.value = true;
+  try {
+    const r = await orderApi.payOrder(order.value.id);
+    if (r.ok) { Message.success('支付成功'); await load(); }
+    else Message.error(r.message || '支付失败');
+  } catch { Message.error('支付请求失败，请稍后重试'); }
+  finally { acting.value = false; }
 }
 
 function cancel() {
-  if (!order.value) return;
+  if (!order.value || acting.value) return;
   Modal.confirm({
     title: '取消订单？',
     content: '取消后订单将不可恢复',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await orderApi.cancelOrder(order.value!.id);
-      if (r.ok) {
-        Message.success('订单已取消');
-        load();
-      }
+      acting.value = true;
+      try {
+        const r = await orderApi.cancelOrder(order.value!.id);
+        if (r.ok) { Message.success('订单已取消'); await load(); }
+        else Message.error(r.message || '取消订单失败');
+      } catch { Message.error('取消订单请求失败，请稍后重试'); }
+      finally { acting.value = false; }
     }
   });
 }
 
 function confirm() {
-  if (!order.value) return;
+  if (!order.value || acting.value) return;
   Modal.confirm({
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
     async onOk() {
-      const r = await orderApi.confirmReceipt(order.value!.id);
-      if (r.ok) {
-        Message.success('已确认收货');
-        load();
-      }
+      acting.value = true;
+      try {
+        const r = await orderApi.confirmReceipt(order.value!.id);
+        if (r.ok) { Message.success('已确认收货'); await load(); }
+        else Message.error(r.message || '确认收货失败');
+      } catch { Message.error('确认收货请求失败，请稍后重试'); }
+      finally { acting.value = false; }
     }
   });
 }
@@ -280,7 +290,7 @@ function goAftersale() {
         </a-card>
       </template>
 
-      <EmptyState v-else-if="!loading" title="订单不存在" action-text="返回订单列表" @action="router.push('/order')" />
+      <EmptyState v-else-if="!loading" :title="loadError || '订单不存在'" :description="loadError ? '不会展示不完整的订单数据。' : undefined" :action-text="loadError ? '重新加载' : '返回订单列表'" @action="loadError ? load() : router.push('/order')" />
     </a-spin>
   </div>
 </template>
@@ -449,5 +459,16 @@ function goAftersale() {
 }
 .small {
   font-size: 11px;
+}
+@media (max-width: 640px) {
+  .order-detail-page { width: auto; max-width: none; padding-top: 10px; }
+  .hero-head { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+  .hero-text { min-width: 0; flex-basis: calc(100% - 56px); }
+  .hero-code, .hero-meta { overflow-wrap: anywhere; }
+  .goods-row { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
+  .cover { width: 64px; height: 64px; }
+  .amount { grid-column: 2; align-items: flex-start; }
+  .voucher-list { align-items: stretch; flex-direction: column; }
+  .total-big { font-size: 20px !important; }
 }
 </style>

@@ -23,6 +23,10 @@ const createdWithdrawal = ref<Api.RealWallet.WithdrawVO>();
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.WithdrawVO>();
+const detailTarget = ref<Api.RealWallet.WithdrawVO>();
+const loadError = ref('');
+const recordError = ref('');
+const detailError = ref('');
 
 const chainOptions = [
   { value: 'TRON', label: 'TRC20（USDT-TRON）' },
@@ -54,6 +58,7 @@ function getId(result: Api.RealWallet.WithdrawVO | string | number) {
 
 async function loadRecords() {
   loadingRecords.value = true;
+  recordError.value = '';
   try {
     const result = await realWalletApi.fetchWithdrawPage({
       pageNo: recordCurrent.value,
@@ -62,6 +67,10 @@ async function loadRecords() {
     });
     recentWithdrawals.value = result.records;
     recordTotal.value = result.total;
+  } catch {
+    recentWithdrawals.value = [];
+    recordTotal.value = 0;
+    recordError.value = '转出申请加载失败，请稍后重试';
   } finally {
     loadingRecords.value = false;
   }
@@ -69,7 +78,9 @@ async function loadRecords() {
 
 async function loadAll() {
   if (!userStore.currentUser) return;
-  await Promise.all([walletStore.fetchWallet(userStore.currentUser.id), loadRecords()]);
+  loadError.value = '';
+  const [wallet] = await Promise.allSettled([walletStore.fetchWallet(userStore.currentUser.id), loadRecords()]);
+  if (wallet.status === 'rejected') loadError.value = '钱包余额加载失败，请稍后重试';
 }
 
 function fillAll() {
@@ -85,6 +96,7 @@ function openConfirm() {
 }
 
 async function confirm() {
+  if (submitting.value) return;
   submitting.value = true;
   try {
     const created = await realWalletApi.createWithdraw({ ...form, toAddress: form.toAddress.trim() });
@@ -94,17 +106,23 @@ async function confirm() {
     Message.success('转出申请已提交，请等待平台审核');
     recordCurrent.value = 1;
     await Promise.all([walletStore.refetch(), loadRecords()]);
+  } catch {
+    Message.error('转出申请提交失败，请稍后重试');
   } finally {
     submitting.value = false;
   }
 }
 
 async function showDetail(record: Api.RealWallet.WithdrawVO) {
+  detailTarget.value = record;
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
+  detailError.value = '';
   try {
     detail.value = await realWalletApi.fetchWithdrawDetail(record.id);
+  } catch {
+    detailError.value = '转出申请详情加载失败，请稍后重试';
   } finally {
     detailLoading.value = false;
   }
@@ -122,6 +140,7 @@ onMounted(loadAll);
   <div class="withdraw-page shop-container">
     <h1 class="page-title">钱包转出</h1>
     <p class="hint">将平台可用余额提取到链上 USDT 钱包，到账状态以平台审核和链上确认结果为准。</p>
+    <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>
 
     <a-alert v-if="kycTipNeeded" type="warning" closable class="kyc-alert">
       您尚未完成 KYC 认证，实际审核结果请以后台规则为准。
@@ -133,8 +152,8 @@ onMounted(loadAll);
       <a-divider />
       <a-form :model="form" layout="vertical">
         <a-row :gutter="16">
-          <a-col :span="12"><a-form-item label="选择链 / 币种"><a-select v-model="form.chain" size="large"><a-option v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option></a-select></a-form-item></a-col>
-          <a-col :span="12"><a-form-item label="转出金额 (USDT)"><a-input-number v-model="form.amount" :min="0" :max="available" :precision="2" size="large"><template #suffix>U</template><template #append><a-button size="mini" type="text" @click="fillAll">全部</a-button></template></a-input-number></a-form-item></a-col>
+          <a-col :xs="24" :sm="12"><a-form-item label="选择链 / 币种"><a-select v-model="form.chain" size="large"><a-option v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option></a-select></a-form-item></a-col>
+          <a-col :xs="24" :sm="12"><a-form-item label="转出金额 (USDT)"><a-input-number v-model="form.amount" :min="0" :max="available" :precision="2" size="large"><template #suffix>U</template><template #append><a-button size="mini" type="text" @click="fillAll">全部</a-button></template></a-input-number></a-form-item></a-col>
         </a-row>
         <a-form-item label="目标地址"><a-input v-model="form.toAddress" placeholder="请输入所选链对应的 USDT 地址" size="large" /></a-form-item>
         <div v-if="errMsg" class="err">{{ errMsg }}</div>
@@ -171,7 +190,7 @@ onMounted(loadAll);
           <a-table-column title="创建时间"><template #cell="{ record }">{{ formatTime(record.createdAt) }}</template></a-table-column>
           <a-table-column title="操作" :width="90"><template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template></a-table-column>
         </template>
-        <template #empty><EmptyState title="暂无转出申请" /></template>
+        <template #empty><EmptyState :title="recordError || '暂无转出申请'" :action-text="recordError ? '重新加载' : undefined" @action="recordError && loadRecords()" /></template>
       </a-table>
       <div v-if="recordTotal > recordSize" class="pagination">
         <a-pagination
@@ -207,6 +226,7 @@ onMounted(loadAll);
           { label: '创建时间', value: formatTime(detail.createdAt) },
           { label: '确认时间', value: formatTime(detail.confirmedAt) }
         ]" />
+        <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTarget && showDetail(detailTarget)" />
       </a-spin>
     </a-drawer>
   </div>
@@ -226,4 +246,11 @@ onMounted(loadAll);
 .records-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
 .confirm-alert { margin-bottom: 16px; }
+.load-alert { margin-bottom: 16px; }
+@media (max-width: 640px) {
+  .withdraw-page { padding-top: 10px; }
+  .form-card :deep(.arco-card-body), .result-card :deep(.arco-card-body), .records-card :deep(.arco-card-body) { padding-left: 16px !important; padding-right: 16px !important; }
+  .balance-row, .records-head { align-items: stretch; flex-direction: column; gap: 8px; }
+  .records-head :deep(.arco-select) { width: 100% !important; }
+}
 </style>

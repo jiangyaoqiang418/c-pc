@@ -16,6 +16,7 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(20);
 const loading = ref(false);
+const loadError = ref('');
 const drawerTxn = ref<Api.Wallet.Txn>();
 const drawerOpen = ref(false);
 
@@ -57,6 +58,7 @@ function applyQueryParams() {
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await walletApi.fetchWalletLedger({
       current: current.value,
@@ -78,6 +80,10 @@ async function load() {
     }
     list.value = records;
     total.value = r.total;
+  } catch {
+    list.value = [];
+    total.value = 0;
+    loadError.value = '资金流水加载失败，请检查网络后重试';
   } finally {
     loading.value = false;
   }
@@ -109,6 +115,11 @@ function openDetail(t: Api.Wallet.Txn) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }
+
+function handleEmptyAction() {
+  if (loadError.value) { void load(); return; }
+  router.push('/wallet');
+}
 </script>
 
 <template>
@@ -118,7 +129,7 @@ function openDetail(t: Api.Wallet.Txn) {
     <a-card class="filter-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
       <a-form :model="filter" layout="vertical">
         <a-row :gutter="16">
-          <a-col :span="9">
+          <a-col :xs="24" :sm="12" :lg="9">
             <a-form-item label="类型">
               <a-select v-model="filter.types" placeholder="全部类型" multiple allow-clear>
                 <a-optgroup v-for="g in TYPE_GROUPS" :key="g.label" :label="g.label">
@@ -127,19 +138,19 @@ function openDetail(t: Api.Wallet.Txn) {
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :span="5">
+          <a-col :xs="24" :sm="12" :lg="5">
             <a-form-item label="资产桶">
               <a-select v-model="filter.bucket" placeholder="全部" allow-clear>
                 <a-option v-for="b in BUCKET_OPTIONS" :key="String(b.value)" :value="b.value">{{ b.label }}</a-option>
               </a-select>
             </a-form-item>
           </a-col>
-          <a-col :span="6">
+          <a-col :xs="24" :sm="12" :lg="6">
             <a-form-item label="日期">
               <a-range-picker v-model="filter.dateRange" />
             </a-form-item>
           </a-col>
-          <a-col :span="4">
+          <a-col :xs="24" :sm="12" :lg="4">
             <a-form-item label="关键字">
               <a-input v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" allow-clear />
             </a-form-item>
@@ -162,10 +173,10 @@ function openDetail(t: Api.Wallet.Txn) {
         </template>
         <EmptyState
           v-else
-          title="暂无符合条件的流水"
-          description="充值、提现、订单支付或退款后会生成资金流水"
-          action-text="查看钱包"
-          @action="router.push('/wallet')"
+          :title="loadError || '暂无符合条件的流水'"
+          :description="loadError ? '不会展示不完整的流水数据。' : '充值、提现、订单支付或退款后会生成资金流水'"
+          :action-text="loadError ? '重新加载' : '查看钱包'"
+          @action="handleEmptyAction"
         />
       </a-spin>
     </a-card>
@@ -208,5 +219,10 @@ function openDetail(t: Api.Wallet.Txn) {
   display: flex;
   justify-content: center;
   margin-top: 12px;
+}
+@media (max-width: 640px) {
+  .history-page { padding-top: 10px; }
+  .filter-card :deep(.arco-card-body) { padding-left: 16px !important; padding-right: 16px !important; }
+  .filter-actions { flex-wrap: wrap; }
 }
 </style>

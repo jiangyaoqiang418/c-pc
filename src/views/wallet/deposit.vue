@@ -22,7 +22,11 @@ const recordStatus = ref<Api.RealWallet.RechargeStatus>();
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.RechargeVO>();
+const detailTarget = ref<Api.RealWallet.RechargeVO>();
 const loadingChains = ref(false);
+const loadError = ref('');
+const recordError = ref('');
+const detailError = ref('');
 
 const chainOptions = ref<Api.RealWallet.RechargeChainVO[]>([]);
 const selectedChain = computed(() => chainOptions.value.find(item => item.chain === chain.value));
@@ -45,6 +49,7 @@ function getId(result: Api.RealWallet.RechargeVO | string | number) {
 
 async function loadRecords() {
   loadingRecords.value = true;
+  recordError.value = '';
   try {
     const result = await realWalletApi.fetchRechargePage({
       pageNo: recordCurrent.value,
@@ -53,6 +58,10 @@ async function loadRecords() {
     });
     recentDeposits.value = result.records;
     recordTotal.value = result.total;
+  } catch {
+    recentDeposits.value = [];
+    recordTotal.value = 0;
+    recordError.value = '充值记录加载失败，请稍后重试';
   } finally {
     loadingRecords.value = false;
   }
@@ -60,12 +69,17 @@ async function loadRecords() {
 
 async function loadChains() {
   loadingChains.value = true;
+  loadError.value = '';
   try {
     const chains = await realWalletApi.fetchRechargeChains();
     chainOptions.value = chains.filter(item => item.enabled);
     if (!chainOptions.value.some(item => item.chain === chain.value)) {
       chain.value = chainOptions.value[0]?.chain || '';
     }
+  } catch {
+    chainOptions.value = [];
+    chain.value = '';
+    loadError.value = '充值链加载失败，请稍后重试';
   } finally {
     loadingChains.value = false;
   }
@@ -73,11 +87,8 @@ async function loadChains() {
 
 async function loadAll() {
   if (!userStore.currentUser) return;
-  await Promise.allSettled([
-    loadChains(),
-    walletStore.fetchWallet(userStore.currentUser.id),
-    loadRecords()
-  ]);
+  const [chains, wallet] = await Promise.allSettled([loadChains(), walletStore.fetchWallet(userStore.currentUser.id), loadRecords()]);
+  if (chains.status === 'rejected' || wallet.status === 'rejected') loadError.value ||= '钱包基础信息加载失败，请稍后重试';
 }
 
 async function createRecharge() {
@@ -106,6 +117,8 @@ async function createRecharge() {
     recordCurrent.value = 1;
     await loadRecords();
     Message.success('充值订单已创建，请按收款信息完成链上转账');
+  } catch {
+    Message.error('充值订单创建失败，请稍后重试');
   } finally {
     submitting.value = false;
   }
@@ -113,16 +126,20 @@ async function createRecharge() {
 
 async function copy(text?: string) {
   if (!text) return;
-  await navigator.clipboard.writeText(text);
-  Message.success('已复制');
+  try { await navigator.clipboard.writeText(text); Message.success('已复制'); }
+  catch { Message.error('复制失败，请手动复制'); }
 }
 
 async function showDetail(record: Api.RealWallet.RechargeVO) {
+  detailTarget.value = record;
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
+  detailError.value = '';
   try {
     detail.value = await realWalletApi.fetchRechargeDetail(record.id);
+  } catch {
+    detailError.value = '充值订单详情加载失败，请稍后重试';
   } finally {
     detailLoading.value = false;
   }
@@ -140,18 +157,19 @@ onMounted(loadAll);
   <div class="deposit-page shop-container">
     <h1 class="page-title">钱包链上充值</h1>
     <p class="hint">创建充值订单后，按订单提供的链和收款信息完成 USDT 转账。</p>
+    <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>
 
     <a-card class="tab-card" :body-style="{ padding: '12px 24px 24px' }" :bordered="false">
       <a-tabs v-model:active-key="activeTab">
         <a-tab-pane key="create" title="创建充值订单">
           <a-form :model="{ amount, chain }" layout="vertical" class="recharge-form">
             <a-row :gutter="16">
-              <a-col :span="12">
+              <a-col :xs="24" :sm="12">
                 <a-form-item label="充值金额 (USDT)">
                   <a-input-number v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" size="large" />
                 </a-form-item>
               </a-col>
-              <a-col :span="12">
+              <a-col :xs="24" :sm="12">
                 <a-form-item label="链选择">
                   <a-select v-model="chain" size="large" :loading="loadingChains" placeholder="请选择充值链">
                   <a-option v-for="option in chainOptions" :key="option.chain" :value="option.chain">
@@ -216,7 +234,7 @@ onMounted(loadAll);
             <template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template>
           </a-table-column>
         </template>
-        <template #empty><EmptyState title="暂无链上充值记录" /></template>
+        <template #empty><EmptyState :title="recordError || '暂无链上充值记录'" :action-text="recordError ? '重新加载' : undefined" @action="recordError && loadRecords()" /></template>
       </a-table>
       <div v-if="recordTotal > recordSize" class="pagination">
         <a-pagination
@@ -242,6 +260,7 @@ onMounted(loadAll);
           { label: '创建时间', value: formatTime(detail.createdAt) },
           { label: '确认时间', value: formatTime(detail.confirmedAt) }
         ]" />
+        <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTarget && showDetail(detailTarget)" />
       </a-spin>
     </a-drawer>
   </div>
@@ -260,4 +279,11 @@ onMounted(loadAll);
 .section-title { font-size: 14px; font-weight: 600; color: #1d2129; margin-bottom: 14px; padding-left: 8px; border-left: 3px solid var(--bw-brand-primary); }
 .records-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
+.load-alert { margin-bottom: 16px; }
+@media (max-width: 640px) {
+  .deposit-page { padding-top: 10px; }
+  .tab-card :deep(.arco-card-body), .txn-card :deep(.arco-card-body) { padding-left: 16px !important; padding-right: 16px !important; }
+  .records-head { align-items: stretch; flex-direction: column; gap: 10px; }
+  .records-head :deep(.arco-select) { width: 100% !important; }
+}
 </style>

@@ -17,6 +17,7 @@ const walletStore = useWalletStore();
 const txns = ref<Api.Wallet.Txn[]>([]);
 const orderCounts = ref<Record<string, number>>({});
 const loading = ref(false);
+const loadError = ref('');
 const drawerOpen = ref(false);
 const drawerTxn = ref<Api.Wallet.Txn>();
 const account = computed(() => walletStore.account);
@@ -32,6 +33,7 @@ const maxTransferAmount = computed(() => {
 async function loadAll() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const [, txnResult, countsResult] = await Promise.allSettled([
       walletStore.fetchWallet(userStore.currentUser.id),
@@ -40,6 +42,11 @@ async function loadAll() {
     ]);
     txns.value = txnResult.status === 'fulfilled' ? txnResult.value.records : [];
     orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
+    if (walletStore.account === undefined) loadError.value = '押金账户加载失败，请检查网络后重试。';
+  } catch {
+    txns.value = [];
+    orderCounts.value = {};
+    loadError.value = '押金信息加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -80,11 +87,15 @@ async function submitDepositTransfer() {
   transferring.value = true;
   try {
     const params = { amount: transferAmount.value, idempotencyKey: createIdempotencyKey() };
-    if (transferKind.value === 'pay') await realBuyerApi.payBuyerDeposit(params);
-    else await realBuyerApi.refundBuyerDeposit(params);
-    Message.success(transferKind.value === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
-    transferOpen.value = false;
-    await loadAll();
+    try {
+      if (transferKind.value === 'pay') await realBuyerApi.payBuyerDeposit(params);
+      else await realBuyerApi.refundBuyerDeposit(params);
+      Message.success(transferKind.value === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
+      transferOpen.value = false;
+      await loadAll();
+    } catch {
+      Message.error(transferKind.value === 'pay' ? '保证金缴纳失败，请稍后重试' : '保证金退还失败，请稍后重试');
+    }
   } finally {
     transferring.value = false;
   }
@@ -141,6 +152,7 @@ function openTxn(t: Api.Wallet.Txn) {
         </template>
         <EmptyState v-else title="暂无押金流水" />
       </a-card>
+      <EmptyState v-if="!account && !loading" :title="loadError ? '押金信息加载失败' : '暂无押金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
     </a-spin>
 
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
@@ -218,5 +230,10 @@ function openTxn(t: Api.Wallet.Txn) {
 }
 .alert {
   margin-bottom: 16px;
+}
+@media (max-width: 640px) {
+  .hero-card :deep(.arco-card-body), .stat-card :deep(.arco-card-body) { padding: 20px !important; }
+  .actions { flex-wrap: wrap; }
+  .stat-row { grid-template-columns: 1fr; gap: 12px; }
 }
 </style>
