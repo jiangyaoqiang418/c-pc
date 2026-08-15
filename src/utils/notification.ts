@@ -8,6 +8,11 @@ export function notificationOrderId(notification: Pick<Api.RealNotify.Notificati
   return String(notification.bizId);
 }
 
+export function notificationRoute(notification: Pick<Api.RealNotify.NotificationVO, 'bizType' | 'bizId'>) {
+  const orderId = notificationOrderId(notification);
+  return orderId ? { name: 'order-detail' as const, params: { id: orderId } } : undefined;
+}
+
 /** 从独立订单群返回消息中心时保留当前会话选中态。 */
 export function conversationListQuery(conversationId?: string | number) {
   return conversationId === undefined || conversationId === null ? undefined : { conversationId: String(conversationId) };

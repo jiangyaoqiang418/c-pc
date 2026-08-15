@@ -79,6 +79,8 @@ declare namespace Api.Wallet {
     feeFromAmount?: string;
     chainWalletId?: number;
     chainTxHash?: string;
+    /** 测试环境的模拟到账或回调数据，不可视为真实链上交易 */
+    testData?: boolean;
     /** 入金来源链上地址（仅 DEPOSIT_IN 推荐填；R-DATA-22 V2.0） */
     fromAddress?: string;
     /** 出金目标链上地址（仅 WITHDRAW_OUT 推荐填；R-DATA-22 V2.0） */

@@ -18,7 +18,12 @@ const megaOpen = ref(false);
 let megaTimer: number | null = null;
 
 onMounted(async () => {
-  categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
+  try {
+    categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
+  } catch {
+    // 分类页仍可独立重试；顶部导航保持收起，避免未处理的挂载期请求异常。
+    categories.value = [];
+  }
 });
 
 // 业务频道（占位路由）

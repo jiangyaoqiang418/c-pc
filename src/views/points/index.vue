@@ -25,6 +25,10 @@ const appealTotal = ref(0);
 const appealCurrent = ref(1);
 const appealSize = ref(20);
 const appealLoading = ref(false);
+const appealModalOpen = ref(false);
+const appealSubmitting = ref(false);
+const appealTarget = ref<Api.Point.LogEntry>();
+const appealForm = reactive({ reason: '' });
 const appealFilter = reactive<{
   keyword?: string;
   status?: Api.RealPoint.PointAppealStatus;
@@ -118,20 +122,30 @@ const progressPct = computed(() => {
   return Math.min(100, (user.value.points / vipStatus.value.nextThreshold) * 100);
 });
 
-async function appeal(log: Api.Point.LogEntry) {
-  // 用 Modal + input 收集 reason（mock，简化用 prompt 替代复杂 Modal）
-  // eslint-disable-next-line no-alert
-  const reason = window.prompt('申诉原因（≥ 10 字）');
-  if (!reason || reason.trim().length < 10) {
+function openAppeal(log: Api.Point.LogEntry) {
+  appealTarget.value = log;
+  appealForm.reason = '';
+  appealModalOpen.value = true;
+}
+
+async function submitAppeal() {
+  const reason = appealForm.reason.trim();
+  if (!appealTarget.value || reason.length < 10) {
     Message.warning('原因至少 10 字');
     return;
   }
-  const r = await pointApi.appealPointLog({ logId: log.id, reason: reason.trim() });
-  if (r.ok) {
+  appealSubmitting.value = true;
+  try {
+    const r = await pointApi.appealPointLog({ logId: appealTarget.value.id, reason });
+    if (!r.ok) {
+      Message.error(r.message || '提交失败');
+      return;
+    }
     Message.success('申诉已提交');
-    loadLogs();
-  } else {
-    Message.error(r.message || '提交失败');
+    appealModalOpen.value = false;
+    await Promise.all([loadLogs(), loadAppeals()]);
+  } finally {
+    appealSubmitting.value = false;
   }
 }
 
@@ -214,7 +228,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
       <a-card :bordered="false" :body-style="{ padding: 0 }" class="list-card">
         <a-spin :loading="loading" style="width: 100%">
           <template v-if="logs.length">
-            <PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="appeal" />
+            <PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="openAppeal" />
           </template>
           <EmptyState v-else title="暂无积分流水" description="完成订单 / 评价 / KYC 等可获得积分" />
         </a-spin>
@@ -306,6 +320,14 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
         </a-card>
       </div>
     </template>
+
+    <a-modal v-model:visible="appealModalOpen" title="积分申诉" :ok-loading="appealSubmitting" @ok="submitAppeal">
+      <a-form :model="appealForm" layout="vertical">
+        <a-form-item label="申诉原因" required>
+          <a-textarea v-model="appealForm.reason" :max-length="500" :auto-size="{ minRows: 4, maxRows: 8 }" placeholder="请说明申诉原因，至少 10 个字" show-word-limit />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 

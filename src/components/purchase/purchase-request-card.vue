@@ -9,8 +9,10 @@ interface Props {
   request: Api.PurchaseRequest.PurchaseRequest;
   mode?: 'hall' | 'mine';
   canClaim?: boolean;
+  claiming?: boolean;
+  canceling?: boolean;
 }
-const props = withDefaults(defineProps<Props>(), { mode: 'hall', canClaim: false });
+const props = withDefaults(defineProps<Props>(), { mode: 'hall', canClaim: false, claiming: false, canceling: false });
 defineEmits<{
   (e: 'claim', req: Api.PurchaseRequest.PurchaseRequest): void;
   (e: 'cancel', req: Api.PurchaseRequest.PurchaseRequest): void;
@@ -88,16 +90,18 @@ function goDetail() {
       <button
         v-if="mode === 'hall' && canClaim && request.status === 'pushing'"
         class="btn primary"
+        :disabled="claiming"
         @click="$emit('claim', request)"
       >
-        <Icon icon="lucide:hand-metal" width="13" /> 我接此单
+        <Icon icon="lucide:hand-metal" width="13" /> {{ claiming ? '接单中…' : '我接此单' }}
       </button>
       <button
         v-if="mode === 'mine' && ['pending_audit', 'pushing'].includes(request.status)"
         class="btn danger"
+        :disabled="canceling"
         @click="$emit('cancel', request)"
       >
-        <Icon icon="lucide:x" width="13" /> 撤销
+        <Icon icon="lucide:x" width="13" /> {{ canceling ? '撤销中…' : '撤销' }}
       </button>
     </div>
   </div>

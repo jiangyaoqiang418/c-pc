@@ -16,12 +16,15 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(10);
 const loading = ref(false);
+const loadError = ref('');
+const claimingId = ref<string | number>();
 
 const user = computed(() => userStore.currentUser);
 
 async function load() {
   if (!user.value) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await purchaseApi.fetchHall({ current: current.value, size: size.value });
     list.value = r.records;
@@ -29,6 +32,7 @@ async function load() {
   } catch {
     list.value = [];
     total.value = 0;
+    loadError.value = '可接求购加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -36,14 +40,21 @@ async function load() {
 onMounted(load);
 
 async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
-  if (!user.value) return;
-  const r = await purchaseApi.claimRequest(req.id);
-  if (r.ok) {
-    Message.success('接单成功');
-    await load();
-    router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
-  } else {
-    Message.error(r.message || '接单失败');
+  if (!user.value || claimingId.value !== undefined) return;
+  claimingId.value = req.id;
+  try {
+    const r = await purchaseApi.claimRequest(req.id);
+    if (r.ok) {
+      Message.success('接单成功');
+      await load();
+      router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
+    } else {
+      Message.error(r.message || '接单失败');
+    }
+  } catch {
+    // 请求层已展示错误，保留当前求购供用户重试。
+  } finally {
+    claimingId.value = undefined;
   }
 }
 </script>
@@ -76,15 +87,16 @@ async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
           :request="r"
           mode="hall"
           :can-claim="true"
+          :claiming="String(claimingId) === String(r.id)"
           @claim="onClaim"
         />
       </div>
       <EmptyState
         v-else
-        title="暂无可接求购"
-        description="当前求购大厅没有可接需求"
-        action-text="查看求购大厅"
-        @action="router.push('/purchase/hall')"
+        :title="loadError || '暂无可接求购'"
+        :description="loadError ? '不会把请求失败误显示为没有可接求购。' : '当前求购大厅没有可接需求'"
+        :action-text="loadError ? '重新加载' : '查看求购大厅'"
+        @action="loadError ? load() : router.push('/purchase/hall')"
       />
     </a-spin>
 

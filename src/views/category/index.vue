@@ -25,6 +25,9 @@ const expandedKeys = ref<string[]>([]);
 const products = ref<Api.Product.ProductRecord[]>([]);
 const total = ref(0);
 const loading = ref(false);
+const treeLoading = ref(false);
+const treeError = ref('');
+const productLoadError = ref('');
 const breadcrumb = ref<string>('请选择品类');
 
 const treeData = computed<TreeData[]>(() => mapTree(tree.value));
@@ -50,14 +53,30 @@ function findNode(nodes: CategoryNode[], id: string, path: string[] = []): { nod
   return undefined;
 }
 
-onMounted(async () => {
-  tree.value = (await categoryApi.fetchCategoryTree()) as CategoryNode[];
-  if (tree.value.length) {
-    expandedKeys.value = [String(tree.value[0].id)];
-    // 只设 selectedKeys，让 watcher 一次性接管 fetch —— 避免 onMounted 直接 pick 触发 watcher 重入
-    selectedKeys.value = [String(tree.value[0].id)];
+async function loadTree() {
+  treeLoading.value = true;
+  treeError.value = '';
+  try {
+    tree.value = (await categoryApi.fetchCategoryTree()) as CategoryNode[];
+    if (tree.value.length) {
+      expandedKeys.value = [String(tree.value[0].id)];
+      // 只设 selectedKeys，让 watcher 一次性接管 fetch —— 避免直接 pick 触发 watcher 重入
+      selectedKeys.value = [String(tree.value[0].id)];
+    } else {
+      selectedKeys.value = [];
+      products.value = [];
+      total.value = 0;
+    }
+  } catch {
+    tree.value = [];
+    selectedKeys.value = [];
+    products.value = [];
+    total.value = 0;
+    treeError.value = '分类树加载失败，请检查网络后重试。';
+  } finally {
+    treeLoading.value = false;
   }
-});
+}
 
 let lastPickedId = '';
 async function pick(id: string) {
@@ -67,10 +86,15 @@ async function pick(id: string) {
   const found = findNode(tree.value, id);
   breadcrumb.value = found ? found.path.join(' / ') : '';
   loading.value = true;
+  productLoadError.value = '';
   try {
     const r = await productApi.fetchStorefrontProducts({ categoryId: id, size: 24 });
     products.value = r.records;
     total.value = r.total;
+  } catch {
+    products.value = [];
+    total.value = 0;
+    productLoadError.value = '分类商品加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -80,6 +104,8 @@ watch(selectedKeys, keys => {
   const id = keys[0];
   if (id) pick(id);
 });
+
+onMounted(loadTree);
 </script>
 
 <template>
@@ -93,7 +119,9 @@ watch(selectedKeys, keys => {
     <div class="layout">
       <aside class="side">
         <div class="side-title">分类树</div>
+        <EmptyState v-if="treeError" :title="treeError" action-text="重新加载" @action="loadTree" />
         <a-tree
+          v-else
           v-model:selected-keys="selectedKeys"
           v-model:expanded-keys="expandedKeys"
           :data="treeData"
@@ -108,11 +136,17 @@ watch(selectedKeys, keys => {
           <span class="content-title">{{ breadcrumb }}</span>
           <span class="content-meta">共 {{ total }} 件商品</span>
         </div>
-        <a-spin :loading="loading" style="width: 100%">
+        <a-spin :loading="loading || treeLoading" style="width: 100%">
           <div v-if="products.length" class="shop-grid-4">
             <ProductCard v-for="p in products" :key="p.id" :product="p" />
           </div>
-          <EmptyState v-else title="当前分类暂无商品" description="试试其他分类或浏览推荐" />
+          <EmptyState
+            v-else
+            :title="productLoadError || '当前分类暂无商品'"
+            :description="productLoadError ? '不会把请求失败误显示为没有商品。' : '试试其他分类或浏览推荐'"
+            :action-text="productLoadError ? '重新加载' : undefined"
+            @action="selectedKeys[0] && pick(selectedKeys[0])"
+          />
         </a-spin>
       </section>
     </div>

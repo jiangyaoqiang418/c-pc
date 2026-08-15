@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
+import EmptyState from '@/components/common/empty-state.vue';
 import * as categoryApi from '@/service/api/category';
 
 interface CategoryOption {
@@ -12,6 +13,8 @@ interface CategoryOption {
 const records = ref<Api.RealCategory.CategoryApplyDTO[]>([]);
 const categoryOptions = ref<CategoryOption[]>([]);
 const loading = ref(false);
+const loadError = ref('');
+const categoryLoadError = ref('');
 const submitting = ref(false);
 const modalOpen = ref(false);
 const total = ref(0);
@@ -37,6 +40,7 @@ function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): Category
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const result = await categoryApi.fetchMyCategoryApplications({
       pageNo: current.value,
@@ -46,13 +50,23 @@ async function load() {
     });
     records.value = result.records;
     total.value = result.total;
+  } catch {
+    records.value = [];
+    total.value = 0;
+    loadError.value = '分类申请记录加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
 }
 
 async function loadCategories() {
-  categoryOptions.value = mapCategoryOptions(await categoryApi.fetchRealCategoryTree());
+  categoryLoadError.value = '';
+  try {
+    categoryOptions.value = mapCategoryOptions(await categoryApi.fetchRealCategoryTree());
+  } catch {
+    categoryOptions.value = [];
+    categoryLoadError.value = '上级分类暂时无法加载；仍可提交顶级分类申请。';
+  }
 }
 
 function openSubmit() {
@@ -73,15 +87,19 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    await categoryApi.submitCategoryApplication({
-      parentId: form.parentPath[form.parentPath.length - 1],
-      newName: form.newName.trim(),
-      reason: form.reason.trim()
-    });
-    Message.success('分类申请已提交');
-    modalOpen.value = false;
-    current.value = 1;
-    await load();
+    try {
+      await categoryApi.submitCategoryApplication({
+        parentId: form.parentPath[form.parentPath.length - 1],
+        newName: form.newName.trim(),
+        reason: form.reason.trim()
+      });
+      Message.success('分类申请已提交');
+      modalOpen.value = false;
+      current.value = 1;
+      await load();
+    } catch {
+      // 请求层已展示错误，保留表单内容供用户修正后重试。
+    }
   } finally {
     submitting.value = false;
   }
@@ -143,7 +161,8 @@ onMounted(() => {
     </a-card>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-table :data="records" :loading="loading" :pagination="false" row-key="id">
+      <EmptyState v-if="loadError" :title="loadError" action-text="重新加载" @action="load" />
+      <a-table v-else :data="records" :loading="loading" :pagination="false" row-key="id">
         <template #columns>
           <a-table-column title="申请分类" data-index="newName" :width="180" />
           <a-table-column title="上级分类" :width="220">
@@ -180,6 +199,7 @@ onMounted(() => {
             check-strictly
             allow-clear
           />
+          <div v-if="categoryLoadError" class="form-hint">{{ categoryLoadError }} <a-link @click="loadCategories">重新加载</a-link></div>
         </a-form-item>
         <a-form-item label="新分类名称" required>
           <a-input v-model="form.newName" :max-length="50" placeholder="请输入分类名称" />

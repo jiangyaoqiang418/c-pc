@@ -12,7 +12,10 @@ const props = defineProps<Props>();
 defineEmits<{ (e: 'update:visible', v: boolean): void }>();
 
 const isIn = computed(() => props.txn?.direction === 'in');
-const typeLabel = computed(() => (props.txn ? enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type : ''));
+const typeLabel = computed(() => {
+  if (!props.txn) return '';
+  return props.txn.testData ? '测试模拟到账' : enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type;
+});
 
 function copy(text?: string) {
   if (!text) return;

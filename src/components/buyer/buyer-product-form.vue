@@ -35,6 +35,7 @@ interface CategoryNode {
 }
 
 const cascaderOptions = ref<any[]>([]);
+const categoryLoadError = ref('');
 const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
 
 const form = reactive<FormState>({
@@ -60,9 +61,19 @@ function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: 
 }
 
 onMounted(async () => {
-  const tree = (await fetchCategoryTree()) as CategoryNode[];
-  cascaderOptions.value = mapToCascader(tree);
+  await reloadCategories();
 });
+
+async function reloadCategories() {
+  categoryLoadError.value = '';
+  try {
+    const tree = (await fetchCategoryTree()) as CategoryNode[];
+    cascaderOptions.value = mapToCascader(tree);
+  } catch {
+    cascaderOptions.value = [];
+    categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
+  }
+}
 
 function submit() {
   if (!form.title.trim()) {
@@ -107,6 +118,7 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
         check-strictly
         allow-clear
       />
+      <div v-if="categoryLoadError" class="hint">{{ categoryLoadError }} <a-link @click="reloadCategories">重新加载</a-link></div>
     </a-form-item>
 
     <a-row :gutter="12">

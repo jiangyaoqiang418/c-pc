@@ -38,6 +38,7 @@ const categoryOptions = ref<Array<{ value: string | number; label: string; child
 const current = ref(1);
 const size = ref(12);
 const total = ref(0);
+const shelvingId = ref<string | number>();
 
 function mapCategoryOptions(nodes: Api.Category.CategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
@@ -101,13 +102,17 @@ watch(activeKey, () => {
 });
 
 async function toggleShelf(p: Api.Product.ProductRecord) {
+  if (shelvingId.value !== undefined) return;
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
+  shelvingId.value = p.id;
   try {
     await productApi.toggleProductShelf(p.id, nextOnShelf);
     Message.success(nextOnShelf ? '已上架' : '已下架');
     await load();
   } catch {
     Message.error(nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
+  } finally {
+    shelvingId.value = undefined;
   }
 }
 

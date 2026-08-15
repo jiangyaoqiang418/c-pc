@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Message } from '@arco-design/web-vue';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as walletApi from '@/service/api/wallet';
+import { walletLedgerCsv } from '@/utils/wallet-csv';
 
 const route = useRoute();
 const router = useRouter();
@@ -116,6 +118,20 @@ function openDetail(t: Api.Wallet.Txn) {
   drawerOpen.value = true;
 }
 
+function exportCsv() {
+  if (!list.value.length) {
+    Message.info('暂无可导出的流水');
+    return;
+  }
+  const blob = new Blob([walletLedgerCsv(list.value)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `油宝资金流水-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function handleEmptyAction() {
   if (loadError.value) { void load(); return; }
   router.push('/wallet');
@@ -159,9 +175,7 @@ function handleEmptyAction() {
         <div class="filter-actions">
           <a-button type="primary" @click="(() => { current = 1; load(); })()">查询</a-button>
           <a-button @click="reset">重置</a-button>
-          <a-tooltip content="后端导出接口暂未提供">
-            <a-button disabled>导出 CSV</a-button>
-          </a-tooltip>
+          <a-button :disabled="!list.length" @click="exportCsv">导出 CSV</a-button>
         </div>
       </a-form>
     </a-card>

@@ -13,9 +13,11 @@ const current = ref(1);
 const size = ref(12);
 const loading = ref(false);
 const cancelingId = ref<string>();
+const loadError = ref('');
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await productApi.fetchMyFavorites({ current: current.value, size: size.value });
     list.value = r.records;
@@ -23,6 +25,7 @@ async function load() {
   } catch {
     list.value = [];
     total.value = 0;
+    loadError.value = '收藏列表加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -40,6 +43,8 @@ function cancelFavorite(product: Api.Product.ProductRecord) {
         if (list.value.length === 1 && current.value > 1) current.value -= 1;
         await load();
         Message.success('已取消收藏');
+      } catch {
+        // 请求层已展示错误，保留当前收藏项，避免把取消失败误显示为成功。
       } finally {
         cancelingId.value = undefined;
       }
@@ -75,10 +80,10 @@ onMounted(load);
       </div>
       <EmptyState
         v-else
-        title="暂无收藏商品"
-        description="在商品详情页点击收藏后会出现在这里"
-        action-text="去浏览商品"
-        @action="router.push('/product/list')"
+        :title="loadError || '暂无收藏商品'"
+        :description="loadError ? '不会把请求失败误显示为没有收藏。' : '在商品详情页点击收藏后会出现在这里'"
+        :action-text="loadError ? '重新加载' : '去浏览商品'"
+        @action="loadError ? load() : router.push('/product/list')"
       />
     </a-spin>
 

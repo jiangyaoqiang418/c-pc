@@ -72,6 +72,12 @@ const login = requestSchema(user, operation(user, '/auth/login', 'post'));
 expectRequired(login, ['email', 'password'], '邮箱登录');
 operation(user, '/auth/me', 'get');
 
+const rechargeConfirmOperation = operation(user, '/develop/recharge/confirm', 'post');
+const rechargeConfirm = requestSchema(user, rechargeConfirmOperation);
+expectRequired(rechargeConfirm, ['rechargeId'], '测试充值到账');
+const rechargeConfirmResponse = responseDataSchema(user, rechargeConfirmOperation);
+expectProperties(rechargeConfirmResponse, ['rechargeId', 'amount', 'txHash', 'status', 'confirmedAt', 'testData'], '测试充值到账响应');
+
 const createBatch = operation(order, '/orders/create-batch', 'post');
 const createBatchRequest = requestSchema(order, createBatch);
 expectRequired(createBatchRequest, ['addressId', 'items'], '合并下单');
@@ -176,4 +182,4 @@ for (const [name, document] of Object.entries({ admin, user, order })) {
   console.log(`${name}: ${Object.keys(document.paths || {}).length} paths, ${countOperations(document)} operations, ${schemas} schemas`);
 }
 console.log(notifySummary);
-console.log('关键 C 端契约检查通过：登录、地址、订单、仅退款、合并下单、订单组支付、买手发货、确认收货、发起求购、抢单和通知/IM。');
+console.log('关键 C 端契约检查通过：登录、测试充值到账、地址、订单、仅退款、合并下单、订单组支付、买手发货、确认收货、发起求购、抢单和通知/IM。');

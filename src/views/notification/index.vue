@@ -7,26 +7,34 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useNotifyStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import { sameBusinessId } from '@/utils/im';
-import { notificationOrderId } from '@/utils/notification';
+import { notificationRoute } from '@/utils/notification';
 
 const router = useRouter();
 const notifyStore = useNotifyStore();
 const records = ref<Api.RealNotify.NotificationVO[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const unreadOnly = ref(false);
 const pageNo = ref(1);
 const pageSize = 20;
 const total = ref(0);
+const readingAll = ref(false);
+const clearing = ref(false);
 
 const hasUnread = computed(() => records.value.some(item => !item.readFlag));
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value });
     records.value = response.records || [];
     total.value = response.total || 0;
     await notifyStore.refreshUnreadCounts();
+  } catch {
+    records.value = [];
+    total.value = 0;
+    loadError.value = '通知加载失败，请检查网络后重试';
   } finally {
     loading.value = false;
   }
@@ -61,24 +69,35 @@ async function openNotification(notification: Api.RealNotify.NotificationVO) {
     notification.readFlag = true;
     notifyStore.setNotificationUnreadCount(notifyStore.notificationUnreadCount - 1);
   }
-  const orderId = notificationOrderId(notification);
-  if (orderId) {
-    router.push({ name: 'order-detail', params: { id: orderId } });
-  }
+  const target = notificationRoute(notification);
+  if (target) router.push(target);
+  else Message.info('该通知未提供可跳转的业务对象，已保留在通知列表');
 }
 
 async function readAll() {
-  await notifyApi.markAllNotificationsRead();
-  records.value.forEach(item => { item.readFlag = true; });
-  notifyStore.setNotificationUnreadCount(0);
-  Message.success('已全部标记为已读');
+  if (readingAll.value) return;
+  readingAll.value = true;
+  try {
+    await notifyApi.markAllNotificationsRead();
+    records.value.forEach(item => { item.readFlag = true; });
+    notifyStore.setNotificationUnreadCount(0);
+    Message.success('已全部标记为已读');
+  } catch {
+    // 请求层已展示错误，保留未读状态供用户重试。
+  } finally {
+    readingAll.value = false;
+  }
 }
 
 async function remove(notification: Api.RealNotify.NotificationVO) {
-  await notifyApi.deleteNotification(notification.id);
-  records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
-  total.value = Math.max(0, total.value - 1);
-  if (!notification.readFlag) notifyStore.setNotificationUnreadCount(notifyStore.notificationUnreadCount - 1);
+  try {
+    await notifyApi.deleteNotification(notification.id);
+    records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
+    total.value = Math.max(0, total.value - 1);
+    if (!notification.readFlag) notifyStore.setNotificationUnreadCount(notifyStore.notificationUnreadCount - 1);
+  } catch {
+    // 请求层已展示错误，保留当前通知，避免把删除失败误显示为成功。
+  }
 }
 
 function clearAll() {
@@ -87,11 +106,19 @@ function clearAll() {
     content: '确认清空当前账号的全部站内通知？',
     hideCancel: false,
     onOk: async () => {
-      await notifyApi.clearNotifications();
-      records.value = [];
-      total.value = 0;
-      notifyStore.setNotificationUnreadCount(0);
-      Message.success('通知已清空');
+      if (clearing.value) return;
+      clearing.value = true;
+      try {
+        await notifyApi.clearNotifications();
+        records.value = [];
+        total.value = 0;
+        notifyStore.setNotificationUnreadCount(0);
+        Message.success('通知已清空');
+      } catch {
+        // 请求层已展示错误，保留当前列表供用户重试。
+      } finally {
+        clearing.value = false;
+      }
     }
   });
 }
@@ -113,8 +140,8 @@ onMounted(load);
     <div class="page-header">
       <div><h1>站内通知</h1><p>订单状态、退款和资金结算等平台提醒</p></div>
       <a-space>
-        <a-button :disabled="!hasUnread" @click="readAll">全部已读</a-button>
-        <a-button status="danger" :disabled="!records.length" @click="clearAll">清空通知</a-button>
+        <a-button :disabled="!hasUnread" :loading="readingAll" @click="readAll">全部已读</a-button>
+        <a-button status="danger" :disabled="!records.length" :loading="clearing" @click="clearAll">清空通知</a-button>
       </a-space>
     </div>
 
@@ -138,7 +165,13 @@ onMounted(load);
             <a-button type="text" status="danger" size="small" @click="remove(notification)">删除</a-button>
           </div>
         </div>
-        <EmptyState v-else-if="!loading" title="暂无站内通知" description="订单和退款状态变化后会在这里提醒你" />
+        <EmptyState
+          v-else-if="!loading"
+          :title="loadError || '暂无站内通知'"
+          :description="loadError ? '不会把请求失败误显示为没有通知。' : '订单和退款状态变化后会在这里提醒你'"
+          :action-text="loadError ? '重新加载' : undefined"
+          @action="load"
+        />
       </a-spin>
 
       <div v-if="total > pageSize" class="pagination">

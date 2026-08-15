@@ -10,15 +10,22 @@ const userStore = useUserStore();
 
 const list = ref<Api.RealAddress.AddressRecord[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const modalOpen = ref(false);
 const editing = ref<Partial<Api.RealAddress.AddressRecord>>();
 const submitting = ref(false);
+const defaultingId = ref<string | number>();
+const deletingId = ref<string | number>();
 
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     list.value = await realAddressApi.fetchMyAddresses();
+  } catch {
+    list.value = [];
+    loadError.value = '地址列表加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -36,9 +43,17 @@ function openEdit(a: Api.RealAddress.AddressRecord) {
 }
 
 async function setDefault(a: Api.RealAddress.AddressRecord) {
-  await realAddressApi.setDefaultAddress(a.id);
-  Message.success('已设为默认');
-  load();
+  if (defaultingId.value !== undefined) return;
+  defaultingId.value = a.id;
+  try {
+    await realAddressApi.setDefaultAddress(a.id);
+    Message.success('已设为默认');
+    await load();
+  } catch {
+    // 请求层已展示错误，保留当前默认地址状态供用户重试。
+  } finally {
+    defaultingId.value = undefined;
+  }
 }
 
 function onDelete(a: Api.RealAddress.AddressRecord) {
@@ -48,9 +63,17 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
     okText: '确认删除',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      await realAddressApi.deleteAddress(a.id);
-      Message.success('已删除');
-      load();
+      if (deletingId.value !== undefined) return;
+      deletingId.value = a.id;
+      try {
+        await realAddressApi.deleteAddress(a.id);
+        Message.success('已删除');
+        await load();
+      } catch {
+        // 请求层已展示错误，保留当前地址，避免删除失败却从页面消失。
+      } finally {
+        deletingId.value = undefined;
+      }
     }
   });
 }
@@ -73,11 +96,15 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
       defaultFlag: form.isDefault,
       tag: editing.value?.tag
     };
-    if (editing.value?.id) await realAddressApi.updateAddress(params);
-    else await realAddressApi.createAddress(params);
-    Message.success(editing.value?.id ? '已更新' : '已添加');
-    modalOpen.value = false;
-    load();
+    try {
+      if (editing.value?.id) await realAddressApi.updateAddress(params);
+      else await realAddressApi.createAddress(params);
+      Message.success(editing.value?.id ? '已更新' : '已添加');
+      modalOpen.value = false;
+      await load();
+    } catch {
+      // 请求层已展示错误，保留表单供用户修改后重试。
+    }
   } finally {
     submitting.value = false;
   }
@@ -103,18 +130,18 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
           </div>
           <div class="detail">{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}</div>
           <div class="actions">
-            <a-button v-if="!a.isDefault" size="small" type="outline" @click="setDefault(a)">设为默认</a-button>
+            <a-button v-if="!a.isDefault" size="small" type="outline" :loading="defaultingId === a.id" @click="setDefault(a)">设为默认</a-button>
             <a-button size="small" type="outline" @click="openEdit(a)">编辑</a-button>
-            <a-button size="small" status="danger" type="outline" @click="onDelete(a)">删除</a-button>
+            <a-button size="small" status="danger" type="outline" :loading="deletingId === a.id" @click="onDelete(a)">删除</a-button>
           </div>
         </div>
       </div>
       <EmptyState
         v-else
-        title="还没有收货地址"
-        description="添加地址后下单更快捷"
-        action-text="新增地址"
-        @action="openAdd"
+        :title="loadError || '还没有收货地址'"
+        :description="loadError ? '不会把请求失败误显示为没有地址。' : '添加地址后下单更快捷'"
+        :action-text="loadError ? '重新加载' : '新增地址'"
+        @action="loadError ? load() : openAdd()"
       />
     </a-spin>
 

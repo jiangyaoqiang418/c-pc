@@ -65,6 +65,7 @@ const bucketMapReverse: Record<string, Api.Wallet.Bucket> = {
 const txnTypeMap: Record<string, Api.Wallet.TxnType> = {
   RECHARGE: 'DEPOSIT_IN',
   RECHARGE_IN: 'DEPOSIT_IN',
+  CHAIN_DEPOSIT: 'DEPOSIT_IN',
   WITHDRAW: 'WITHDRAW_OUT',
   WITHDRAW_OUT: 'WITHDRAW_OUT',
   ORDER_PAY: 'ORDER_FREEZE',
@@ -117,6 +118,9 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.Wallet.Txn {
   const bucketTo = dto.toType ? bucketMapReverse[dto.toType] : undefined;
   const direction: Api.Wallet.Txn['direction'] = bucketTo && !bucketFrom ? 'in' : 'out';
   const type = txnTypeMap[dto.bizType] || txnTypeMap[dto.bizGroup || ''] || (direction === 'in' ? 'ADJUST_PLUS' : 'ADJUST_MINUS');
+  const remark = dto.remark || dto.bizTypeText || dto.bizGroupText;
+  const testData = /\[测试数据\]|\btestData\b|DEV-TEST-/i.test(remark || '');
+  const chainTxHash = remark?.match(/(?:txHash=|交易哈希[：:])([^\s，,]+)/i)?.[1];
 
   return {
     id: dto.id as unknown as number,
@@ -128,7 +132,9 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.Wallet.Txn {
     balanceAfter: String(dto.toBalanceAfter ?? dto.fromBalanceAfter ?? 0),
     bucketFrom,
     bucketTo,
-    remark: dto.remark || dto.bizTypeText || dto.bizGroupText,
+    remark,
+    chainTxHash,
+    testData,
     createdAt: toIso(dto.createdAt)
   };
 }

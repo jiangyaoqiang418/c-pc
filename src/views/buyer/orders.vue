@@ -28,6 +28,7 @@ const TABS: TabDef[] = [
 const activeKey = ref('all');
 const orders = ref<Api.Order.OrderRecord[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const current = ref(1);
 const size = ref(10);
 const total = ref(0);
@@ -42,6 +43,7 @@ const shippingOrder = ref<Api.Order.OrderRecord>();
 async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
     const r = await realOrderApi.fetchMyOrders({
@@ -52,6 +54,10 @@ async function load() {
     });
     orders.value = r.records;
     total.value = r.total;
+  } catch {
+    orders.value = [];
+    total.value = 0;
+    loadError.value = '买手订单加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -75,15 +81,19 @@ function onUploadShipping(order: Api.Order.OrderRecord) {
 async function shipOrder(orderId: string | number, trackingNo: string, carrier: Api.Order.ShippingCarrier) {
   shippingSubmitting.value = true;
   try {
-    await realOrderApi.shipOrder({
-      id: orderId,
-      logisticsCompany: enums.CARRIER_META[carrier].label,
-      logisticsCompanyCode: carrier,
-      trackingNo
-    });
-    Message.success('发货信息已提交');
-    shippingModalOpen.value = false;
-    await load();
+    try {
+      await realOrderApi.shipOrder({
+        id: orderId,
+        logisticsCompany: enums.CARRIER_META[carrier].label,
+        logisticsCompanyCode: carrier,
+        trackingNo
+      });
+      Message.success('发货信息已提交');
+      shippingModalOpen.value = false;
+      await load();
+    } catch {
+      // 请求层已展示错误，保留发货表单供用户修正后重试。
+    }
   } finally {
     shippingSubmitting.value = false;
   }
@@ -102,10 +112,14 @@ async function changePrice() {
   }
   priceSubmitting.value = true;
   try {
-    await realOrderApi.changeOrderPrice({ id: priceOrder.value.id, amount: priceAmount.value });
-    Message.success('订单价格已修改');
-    priceModalOpen.value = false;
-    await load();
+    try {
+      await realOrderApi.changeOrderPrice({ id: priceOrder.value.id, amount: priceAmount.value });
+      Message.success('订单价格已修改');
+      priceModalOpen.value = false;
+      await load();
+    } catch {
+      // 请求层已展示错误，保留改价表单供用户修正后重试。
+    }
   } finally {
     priceSubmitting.value = false;
   }
@@ -136,8 +150,10 @@ async function changePrice() {
         </template>
         <EmptyState
           v-else
-          title="该状态下没有订单"
-          description="去求购大厅接单或等待顾客通过商品下单"
+          :title="loadError || '该状态下没有订单'"
+          :description="loadError ? '不会把请求失败误显示为没有订单。' : '去求购大厅接单或等待顾客通过商品下单'"
+          :action-text="loadError ? '重新加载' : undefined"
+          @action="load"
         />
       </a-spin>
     </div>

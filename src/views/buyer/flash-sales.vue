@@ -10,6 +10,7 @@ const sessions = ref<Api.RealFlashSale.SessionDTO[]>([]);
 const enrollments = ref<Api.RealFlashSale.EnrollmentDTO[]>([]);
 const products = ref<Api.Product.ProductRecord[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const submitting = ref(false);
 const modalOpen = ref(false);
 const form = reactive<{
@@ -23,6 +24,7 @@ const selectedProduct = computed(() => products.value.find(item => String(item.i
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const [sessionList, myList, productPage] = await Promise.all([
       flashSaleApi.fetchAvailableFlashSaleSessions(),
@@ -32,6 +34,8 @@ async function load() {
     sessions.value = sessionList;
     enrollments.value = myList;
     products.value = productPage.records.filter(item => item.shelfStatus === 'on-shelf');
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : '秒杀数据暂时无法加载';
   } finally {
     loading.value = false;
   }
@@ -60,16 +64,20 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    await flashSaleApi.enrollFlashSale({
-      sessionId: form.sessionId,
-      productId: form.productId,
-      flashPrice: form.flashPrice,
-      flashStock: form.flashStock
-    });
-    Message.success('秒杀报名成功');
-    modalOpen.value = false;
-    activeTab.value = 'mine';
-    await load();
+    try {
+      await flashSaleApi.enrollFlashSale({
+        sessionId: form.sessionId,
+        productId: form.productId,
+        flashPrice: form.flashPrice,
+        flashStock: form.flashStock
+      });
+      Message.success('秒杀报名成功');
+      modalOpen.value = false;
+      activeTab.value = 'mine';
+      await load();
+    } catch {
+      // 请求层已展示业务错误，保留表单供用户修正后重试。
+    }
   } finally {
     submitting.value = false;
   }
@@ -80,9 +88,13 @@ function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
     title: '取消秒杀报名？',
     content: `确认取消「${item.title}」的本场报名？`,
     async onOk() {
-      await flashSaleApi.cancelFlashSaleEnrollment(item.sessionId, item.productId);
-      Message.success('已取消报名');
-      await load();
+      try {
+        await flashSaleApi.cancelFlashSaleEnrollment(item.sessionId, item.productId);
+        Message.success('已取消报名');
+        await load();
+      } catch {
+        // 请求层已展示业务错误，避免未处理的确认回调异常。
+      }
     }
   });
 }
@@ -112,7 +124,10 @@ onMounted(load);
     </a-card>
 
     <a-spin :loading="loading" style="width: 100%">
-      <div v-if="activeTab === 'sessions'" class="session-grid">
+      <a-result v-if="loadError" status="error" title="秒杀数据加载失败" :subtitle="loadError">
+        <template #extra><a-button type="primary" @click="load">重新加载</a-button></template>
+      </a-result>
+      <div v-else-if="activeTab === 'sessions'" class="session-grid">
         <a-card v-for="session in sessions" :key="session.id" :bordered="false" class="session-card">
           <div class="session-title">{{ session.name }}</div>
           <div class="session-time">{{ session.startTime }} 至 {{ session.endTime }}</div>

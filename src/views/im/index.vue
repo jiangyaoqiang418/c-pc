@@ -30,6 +30,11 @@ const conversations = ref<Api.RealNotify.ImConversationVO[]>([]);
 const selectedConversationId = ref<string | number>();
 const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
 const loading = ref(false);
+const conversationLoading = ref(false);
+const conversationLoadError = ref('');
+const messageLoadError = ref('');
+const restSyncing = ref(false);
+const lastSyncedAt = ref<Date>();
 const loadingOlder = ref(false);
 const pageNo = ref(1);
 const hasOlder = ref(false);
@@ -56,13 +61,21 @@ function currentCandidates() {
 }
 
 async function loadConversations(selectFirst = true) {
-  const response = await notifyApi.fetchConversations({ pageNo: 1, pageSize: 100 });
-  conversations.value = response.records || [];
-  notifyStore.setImUnreadCount(conversations.value.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0));
-  if (selectFirst) await selectFirstConversation();
+  conversationLoadError.value = '';
+  try {
+    const response = await notifyApi.fetchConversations({ pageNo: 1, pageSize: 100 });
+    conversations.value = response.records || [];
+    notifyStore.setImUnreadCount(conversations.value.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0));
+    if (selectFirst) await selectFirstConversation();
+    lastSyncedAt.value = new Date();
+  } catch (error) {
+    conversationLoadError.value = '会话加载失败，请检查网络后重试';
+    throw error;
+  }
 }
 
 async function init() {
+  conversationLoading.value = true;
   loading.value = true;
   try {
     await loadConversations();
@@ -72,6 +85,7 @@ async function init() {
     messages.value = [];
   } finally {
     loading.value = false;
+    conversationLoading.value = false;
   }
 }
 
@@ -90,6 +104,7 @@ async function selectFirstConversation() {
 async function selectConversation(conversation: Api.RealNotify.ImConversationVO) {
   selectedConversationId.value = conversation.id;
   loading.value = true;
+  messageLoadError.value = '';
   pageNo.value = 1;
   try {
     const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.id, pageNo: 1, pageSize: 50 });
@@ -101,6 +116,7 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO)
     await scrollToBottom();
   } catch {
     messages.value = [];
+    messageLoadError.value = '消息加载失败，请检查网络后重试';
   } finally {
     loading.value = false;
   }
@@ -123,6 +139,8 @@ async function loadOlderMessages() {
     hasOlder.value = messages.value.length < (response.total || 0);
     await nextTick();
     if (container) container.scrollTop = container.scrollHeight - oldHeight;
+  } catch {
+    // 请求层已展示错误；保留当前消息和滚动位置，用户可再次加载历史。
   } finally {
     loadingOlder.value = false;
   }
@@ -268,13 +286,17 @@ function deleteSelectedConversation() {
     content: '会话仅从你的列表移除；对方再次发消息后会自动恢复，历史消息不会删除。',
     hideCancel: false,
     onOk: async () => {
-      await notifyApi.deleteConversation(conversation.id);
-      conversations.value = conversations.value.filter(item => !sameBusinessId(item.id, conversation.id));
-      selectedConversationId.value = undefined;
-      messages.value = [];
-      refreshImUnreadFromConversations();
-      await selectFirstConversation();
-      Message.success('会话已移除');
+      try {
+        await notifyApi.deleteConversation(conversation.id);
+        conversations.value = conversations.value.filter(item => !sameBusinessId(item.id, conversation.id));
+        selectedConversationId.value = undefined;
+        messages.value = [];
+        refreshImUnreadFromConversations();
+        await selectFirstConversation();
+        Message.success('会话已移除');
+      } catch {
+        // 请求层已展示错误，保留当前会话，避免把删除失败误显示为已移除。
+      }
     }
   });
 }
@@ -296,6 +318,32 @@ function openOrderGroup() {
 
 function openOrder(orderId: string | number) {
   router.push({ name: 'order-detail', params: { id: orderId } });
+}
+
+function lastSyncText() {
+  return lastSyncedAt.value ? `最近同步 ${lastSyncedAt.value.toLocaleTimeString()}` : '尚未同步';
+}
+
+async function refreshRestData() {
+  if (restSyncing.value) return;
+  restSyncing.value = true;
+  try {
+    await loadConversations(false);
+    await syncCurrentConversation();
+    lastSyncedAt.value = new Date();
+  } catch {
+    // 请求层已展示错误；最近同步时间不前移，保留当前会话和消息供用户重试。
+  } finally {
+    restSyncing.value = false;
+  }
+}
+
+function retryConversationLoad() {
+  void init();
+}
+
+function retryMessageLoad() {
+  if (selectedConversation.value) void selectConversation(selectedConversation.value);
 }
 
 notifyStore.subscribe(async event => {
@@ -350,9 +398,18 @@ watch(activeTab, async () => {
     <a-card class="chat-card" :body-style="{ padding: 0 }" :bordered="false">
       <div class="layout">
         <aside class="sidebar">
+          <a-alert v-if="conversationLoadError" type="error" :show-icon="false" class="load-error">
+            {{ conversationLoadError }}
+            <template #action><a-link @click="retryConversationLoad">重新加载</a-link></template>
+          </a-alert>
+          <div class="sync-bar">
+            <span>{{ lastSyncText() }}</span>
+            <a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">刷新会话</a-button>
+          </div>
           <a-tabs v-model:active-key="activeTab" class="sidebar-tabs">
             <a-tab-pane key="group" :title="`三方群 (${groups.length})`">
-              <div v-if="groups.length" class="conv-list chat-scroll">
+              <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
+              <div v-else-if="groups.length" class="conv-list chat-scroll">
                 <div v-for="conversation in groups" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
                   <img v-if="conversation.peerAvatar" :src="conversation.peerAvatar" class="avatar image" />
                   <div v-else class="avatar group">{{ (conversation.peerName || conversation.title || '订').slice(0, 1) }}</div>
@@ -369,7 +426,8 @@ watch(activeTab, async () => {
               <EmptyState v-else title="暂无三方群" description="下单后会自动创建订单三方群" />
             </a-tab-pane>
             <a-tab-pane key="cs" title="平台客服">
-              <div v-if="csSessions.length" class="conv-list chat-scroll">
+              <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
+              <div v-else-if="csSessions.length" class="conv-list chat-scroll">
                 <div v-for="conversation in csSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
                   <div class="avatar cs">客</div><div class="info"><div class="conv-name">{{ conversation.title || '油宝在线客服' }}</div><div class="conv-meta">{{ lastPreview(conversation) }}</div></div>
                 </div>
@@ -377,7 +435,8 @@ watch(activeTab, async () => {
               <EmptyState v-else title="暂无客服会话" />
             </a-tab-pane>
             <a-tab-pane key="presale" :title="`售前 (${presaleSessions.length})`">
-              <div v-if="presaleSessions.length" class="conv-list chat-scroll">
+              <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
+              <div v-else-if="presaleSessions.length" class="conv-list chat-scroll">
                 <div v-for="conversation in presaleSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
                   <div class="avatar presale">售</div><div class="info"><div class="conv-name">{{ conversation.title || '售前会话' }}</div><div class="conv-meta">{{ lastPreview(conversation) }}</div></div>
                 </div>
@@ -395,21 +454,22 @@ watch(activeTab, async () => {
                   <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" />
                   <div><div class="cs-title">{{ selectedConversation.productTitle || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.orderNo ? `订单 ${selectedConversation.orderNo}` : `业务 ID ${selectedConversation.bizId || '—'}` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
                 </div>
-                <div class="header-actions"><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" @click="deleteSelectedConversation">删除会话</a-link></div>
+                <div class="header-actions"><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" @click="deleteSelectedConversation">删除会话</a-link></div>
             </div>
             <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
               实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
-              <template #action><a-link @click="notifyStore.connect">立即重连</a-link></template>
+              <template #action><a-space size="small"><a-link @click="notifyStore.connect">立即重连</a-link><a-link :loading="restSyncing" @click="refreshRestData">刷新数据</a-link></a-space></template>
             </a-alert>
             <div ref="scrollRef" class="messages chat-scroll">
                 <div v-if="hasOlder" class="load-older"><a-link :loading="loadingOlder" @click="loadOlderMessages">加载更早消息</a-link></div>
                 <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
-                <div v-if="!messages.length" class="empty-msg">该群暂无消息</div>
+                <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" />
+                <div v-else-if="!messages.length" class="empty-msg">该群暂无消息</div>
               </div>
               <MessageInput @send="onSend" />
               <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
             </div>
-            <div v-else class="placeholder"><EmptyState title="请选择左侧会话" description="点击三方群或客服开始聊天" /></div>
+            <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '不会把请求失败误显示为没有会话。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
           </a-spin>
         </section>
       </div>
@@ -424,6 +484,9 @@ watch(activeTab, async () => {
 .chat-card :deep(.arco-card-body) { height: 100%; min-height: 0; padding: 0 !important; overflow: hidden; }
 .layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 200px); min-height: 600px; overflow: hidden; }
 .sidebar { background: #fafbfc; border-right: 1px solid #f2f3f5; display: flex; flex-direction: column; min-height: 0; }
+.load-error { margin: 8px 8px 0; }
+.sync-bar { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 0 8px 0 14px; color: var(--yb-faint); font-size: 11px; border-bottom: 1px solid #f2f3f5; }
+.sidebar-loading { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 16px; color: var(--yb-muted); font-size: 12px; }
 .sidebar-tabs { flex: 1; min-height: 0; }
 .sidebar-tabs :deep(.arco-tabs-content) { height: calc(100% - 46px); }
 .sidebar-tabs :deep(.arco-tabs-content-list), .sidebar-tabs :deep(.arco-tabs-pane) { height: 100%; }

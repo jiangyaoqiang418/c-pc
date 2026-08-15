@@ -10,7 +10,7 @@ const props = defineProps<Props>();
 defineEmits<{ (e: 'detail', txn: Api.Wallet.Txn): void }>();
 
 const isIn = computed(() => props.txn.direction === 'in');
-const typeLabel = computed(() => enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type);
+const typeLabel = computed(() => props.txn.testData ? '测试模拟到账' : enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type);
 
 const desc = computed(() => {
   const t = props.txn;

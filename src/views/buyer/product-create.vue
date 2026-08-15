@@ -30,21 +30,25 @@ async function onSubmit(form: {
     async onOk() {
       submitting.value = true;
       try {
-        const product = await productApi.createProduct({
-          title: form.title.trim(),
-          summary: form.summary.trim() || form.title.trim(),
-          description: form.description.trim() || '—',
-          categoryId: form.categoryPath[form.categoryPath.length - 1],
-          price: form.price.toFixed(2),
-          shippingFee: form.shippingFee.toFixed(2),
-          tax: form.tax.toFixed(2),
-          stock: form.stock,
-          aftersaleType: form.aftersaleType,
-          overseasCustoms: form.overseasCustoms,
-          images: form.images
-        });
-        Message.success(`商品已提交审核（${product.code}）`);
-        router.push('/buyer/products');
+        try {
+          const product = await productApi.createProduct({
+            title: form.title.trim(),
+            summary: form.summary.trim() || form.title.trim(),
+            description: form.description.trim() || '—',
+            categoryId: form.categoryPath[form.categoryPath.length - 1],
+            price: form.price.toFixed(2),
+            shippingFee: form.shippingFee.toFixed(2),
+            tax: form.tax.toFixed(2),
+            stock: form.stock,
+            aftersaleType: form.aftersaleType,
+            overseasCustoms: form.overseasCustoms,
+            images: form.images
+          });
+          Message.success(`商品已提交审核（${product.code}）`);
+          router.push('/buyer/products');
+        } catch {
+          // 请求层已展示错误，保留商品表单和上传结果供用户修正后重试。
+        }
       } finally {
         submitting.value = false;
       }

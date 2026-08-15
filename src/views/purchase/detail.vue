@@ -17,13 +17,21 @@ const id = computed(() => String(route.params.id || ''));
 const request = ref<Api.PurchaseRequest.PurchaseRequest>();
 const pushLogs = ref<Api.PurchaseRequest.PushLog[]>([]);
 const loading = ref(false);
+const loadError = ref('');
+const claiming = ref(false);
+const canceling = ref(false);
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await purchaseApi.fetchPurchaseDetail(id.value);
     request.value = r.request;
     pushLogs.value = r.pushLogs;
+  } catch {
+    request.value = undefined;
+    pushLogs.value = [];
+    loadError.value = '求购详情加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -37,7 +45,8 @@ watch(() => route.params.id, load);
 const statusMeta = computed(() => (request.value ? enums.PURCHASE_STATUS_META[request.value.status] : undefined));
 const aftersaleMeta = computed(() => (request.value ? enums.AFTERSALE_TYPE_META[request.value.aftersaleType] : undefined));
 
-const isMyRequest = computed(() => userStore.currentUser?.id === request.value?.customerId);
+const isMyRequest = computed(() => userStore.currentUser?.id !== undefined && request.value?.customerId !== undefined
+  && String(userStore.currentUser.id) === String(request.value.customerId));
 const canClaim = computed(() => {
   if (!userStore.currentUser || !request.value) return false;
   if (request.value.status !== 'pushing') return false;
@@ -50,13 +59,20 @@ async function pushNext() {
 }
 
 async function claim() {
-  if (!request.value || !userStore.currentUser) return;
-  const r = await purchaseApi.claimRequest(request.value.id);
-  if (r.ok) {
-    Message.success('接单成功');
-    load();
-  } else {
-    Message.error(r.message || '接单失败');
+  if (!request.value || !userStore.currentUser || claiming.value) return;
+  claiming.value = true;
+  try {
+    const r = await purchaseApi.claimRequest(request.value.id);
+    if (r.ok) {
+      Message.success('接单成功');
+      await load();
+    } else {
+      Message.error(r.message || '接单失败');
+    }
+  } catch {
+    // 请求层已展示错误，保留当前求购供用户重试。
+  } finally {
+    claiming.value = false;
   }
 }
 
@@ -67,10 +83,20 @@ function cancel() {
     content: '撤销后不可恢复',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await purchaseApi.cancelPurchase(request.value!.id);
-      if (r.ok) {
-        Message.success('已撤销');
-        load();
+      if (canceling.value) return;
+      canceling.value = true;
+      try {
+        const r = await purchaseApi.cancelPurchase(request.value!.id);
+        if (r.ok) {
+          Message.success('已撤销');
+          await load();
+        } else {
+          Message.error(r.message || '撤销求购失败');
+        }
+      } catch {
+        // 请求层已展示错误，保留当前求购供用户重试。
+      } finally {
+        canceling.value = false;
       }
     }
   });
@@ -103,10 +129,11 @@ function cancel() {
                 <div class="budget">U {{ formatAmount(request.budgetAmount) }}</div>
               </div>
               <a-space direction="vertical">
-                <a-button v-if="canClaim" type="primary" size="large" @click="claim">我接此单</a-button>
+                <a-button v-if="canClaim" type="primary" size="large" :loading="claiming" @click="claim">我接此单</a-button>
                 <a-button
                   v-if="isMyRequest && ['pending_audit', 'pushing'].includes(request.status)"
                   status="danger"
+                  :loading="canceling"
                   @click="cancel"
                 >
                   撤销求购
@@ -187,7 +214,13 @@ function cancel() {
         </div>
       </template>
 
-      <EmptyState v-else-if="!loading" title="求购不存在" action-text="返回大厅" @action="router.push('/purchase/hall')" />
+      <EmptyState
+        v-else-if="!loading"
+        :title="loadError || '求购不存在'"
+        :description="loadError ? '不会展示不完整的求购数据。' : undefined"
+        :action-text="loadError ? '重新加载' : '返回大厅'"
+        @action="loadError ? load() : router.push('/purchase/hall')"
+      />
     </a-spin>
   </div>
 </template>

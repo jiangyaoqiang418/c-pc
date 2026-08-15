@@ -45,6 +45,7 @@ const form = reactive<{
 });
 
 const submitting = ref(false);
+const categoryLoadError = ref('');
 
 function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
@@ -56,9 +57,26 @@ function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: 
 
 const cascaderOptions = ref<any[]>([]);
 onMounted(async () => {
-  const tree = (await fetchCategoryTree()) as CategoryNode[];
-  cascaderOptions.value = mapToCascader(tree);
+  categoryLoadError.value = '';
+  try {
+    const tree = (await fetchCategoryTree()) as CategoryNode[];
+    cascaderOptions.value = mapToCascader(tree);
+  } catch {
+    cascaderOptions.value = [];
+    categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
+  }
 });
+
+async function reloadCategories() {
+  categoryLoadError.value = '';
+  try {
+    const tree = (await fetchCategoryTree()) as CategoryNode[];
+    cascaderOptions.value = mapToCascader(tree);
+  } catch {
+    cascaderOptions.value = [];
+    categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
+  }
+}
 
 const CNY_RATE = 7.18;
 const budgetCny = computed(() => formatAmount((form.budgetAmount * CNY_RATE).toFixed(2)));
@@ -89,21 +107,25 @@ async function submit() {
     async onOk() {
       submitting.value = true;
       try {
-        const r = await purchaseApi.createPurchase({
-          productTitle: form.productTitle.trim(),
-          productDescription: form.productDescription.trim() || form.appeal.trim(),
-          categoryId: form.categoryPath[form.categoryPath.length - 1],
-          addressId,
-          budgetAmount: String(form.budgetAmount),
-          expectedDays: form.expectedDays,
-          overseasCustoms: form.overseasCustoms,
-          aftersaleType: form.aftersaleType,
-          appeal: form.appeal.trim(),
-          evidenceUrls: form.evidenceUrls
-        });
-        if (r) {
-          Message.success(`求购已发起，编号 ${r.code}`);
-          router.push({ name: 'purchase-detail', params: { id: String(r.id) } });
+        try {
+          const r = await purchaseApi.createPurchase({
+            productTitle: form.productTitle.trim(),
+            productDescription: form.productDescription.trim() || form.appeal.trim(),
+            categoryId: form.categoryPath[form.categoryPath.length - 1],
+            addressId,
+            budgetAmount: String(form.budgetAmount),
+            expectedDays: form.expectedDays,
+            overseasCustoms: form.overseasCustoms,
+            aftersaleType: form.aftersaleType,
+            appeal: form.appeal.trim(),
+            evidenceUrls: form.evidenceUrls
+          });
+          if (r) {
+            Message.success(`求购已发起，编号 ${r.code}`);
+            router.push({ name: 'purchase-detail', params: { id: String(r.id) } });
+          }
+        } catch {
+          // 请求层已展示错误，保留表单内容供用户修正后重试。
         }
       } finally {
         submitting.value = false;
@@ -154,6 +176,9 @@ async function submit() {
             allow-clear
             check-strictly
           />
+          <div v-if="categoryLoadError" class="form-error">
+            {{ categoryLoadError }} <a-link @click="reloadCategories">重新加载</a-link>
+          </div>
         </a-form-item>
         <a-form-item label="商品描述">
           <a-textarea v-model="form.productDescription" :rows="3" placeholder="可选，详细描述商品规格、版本、颜色等" />

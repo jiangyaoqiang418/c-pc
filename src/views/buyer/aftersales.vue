@@ -9,6 +9,7 @@ const activeKey = ref('all');
 const orderNo = ref('');
 const refunds = ref<Api.RealRefund.RefundDTO[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const current = ref(1);
 const pageSize = 10;
 const total = ref(0);
@@ -35,6 +36,7 @@ function formatTime(value?: string | number) {
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const response = await refundApi.fetchSoldRefunds({
       pageNo: current.value,
@@ -44,6 +46,10 @@ async function load() {
     });
     refunds.value = response.records || [];
     total.value = Number(response.total || 0);
+  } catch {
+    refunds.value = [];
+    total.value = 0;
+    loadError.value = '卖出商品售后加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -124,7 +130,13 @@ watch(activeKey, () => {
           <div v-if="row.reviewRemark" class="review-remark"><span>平台审核说明：</span>{{ row.reviewRemark }}</div>
         </a-card>
       </div>
-      <EmptyState v-else-if="!loading" title="暂无卖出商品售后" description="买家提交仅退款申请后，会在这里显示平台审核进度。" />
+      <EmptyState
+        v-else-if="!loading"
+        :title="loadError || '暂无卖出商品售后'"
+        :description="loadError ? '不会把请求失败误显示为没有售后。' : '买家提交仅退款申请后，会在这里显示平台审核进度。'"
+        :action-text="loadError ? '重新加载' : undefined"
+        @action="load"
+      />
     </a-spin>
 
     <div v-if="total > pageSize" class="pagination">

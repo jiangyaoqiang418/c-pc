@@ -15,6 +15,7 @@ const emit = defineEmits<{
 
 const list = ref<Api.RealAddress.AddressRecord[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const modalOpen = ref(false);
 const submitting = ref(false);
 
@@ -32,6 +33,7 @@ const form = reactive({
 async function load() {
   if (!props.userId) return;
   loading.value = true;
+  loadError.value = '';
   try {
     list.value = await realAddressApi.fetchMyAddresses();
     if (list.value.length && props.modelValue == null) {
@@ -39,6 +41,9 @@ async function load() {
       emit('update:modelValue', def.id);
       emit('changed', def);
     }
+  } catch {
+    list.value = [];
+    loadError.value = '收货地址加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -50,6 +55,10 @@ watch(() => props.userId, load);
 function onSelect(addr: Api.RealAddress.AddressRecord) {
   emit('update:modelValue', addr.id);
   emit('changed', addr);
+}
+
+function isSelected(addr: Api.RealAddress.AddressRecord) {
+  return props.modelValue !== undefined && props.modelValue !== null && String(props.modelValue) === String(addr.id);
 }
 
 function openAdd() {
@@ -71,20 +80,24 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    const created = await realAddressApi.createAddress({
-      receiverName: form.receiverName,
-      receiverPhone: form.receiverPhone,
-      country: form.country,
-      province: form.province,
-      city: form.city,
-      district: form.district,
-      detailAddress: form.detail,
-      defaultFlag: form.isDefault
-    });
-    modalOpen.value = false;
-    Message.success('地址已添加');
-    await load();
-    onSelect(created);
+    try {
+      const created = await realAddressApi.createAddress({
+        receiverName: form.receiverName,
+        receiverPhone: form.receiverPhone,
+        country: form.country,
+        province: form.province,
+        city: form.city,
+        district: form.district,
+        detailAddress: form.detail,
+        defaultFlag: form.isDefault
+      });
+      modalOpen.value = false;
+      Message.success('地址已添加');
+      await load();
+      onSelect(created);
+    } catch {
+      // 请求层已展示错误，保留表单供用户修正后重试。
+    }
   } finally {
     submitting.value = false;
   }
@@ -95,15 +108,19 @@ async function submit() {
   <div class="address-selector">
     <a-spin :loading="loading" style="width: 100%">
       <div class="address-list">
+        <a-alert v-if="loadError" type="error" :show-icon="false">
+          {{ loadError }}
+          <template #action><a-link @click="load">重新加载</a-link></template>
+        </a-alert>
         <div
           v-for="a in list"
           :key="a.id"
           class="address-row"
-          :class="{ active: modelValue === a.id }"
+          :class="{ active: isSelected(a) }"
           @click="onSelect(a)"
         >
           <div class="row-radio">
-            <span class="radio-dot" :class="{ checked: modelValue === a.id }" />
+            <span class="radio-dot" :class="{ checked: isSelected(a) }" />
           </div>
           <div class="row-info">
             <div class="row-head">

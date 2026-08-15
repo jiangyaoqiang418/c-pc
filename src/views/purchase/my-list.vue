@@ -30,24 +30,32 @@ const activeKey = ref('all');
 const list = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
 const loading = ref(false);
 const allList = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const loadError = ref('');
+const cancelingId = ref<string | number>();
 
 async function loadAll() {
   await userStore.init();
   if (!userStore.currentUser) return;
-  const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id);
-  allList.value = r.records;
+  try {
+    const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id);
+    allList.value = r.records;
+  } catch {
+    allList.value = [];
+  }
 }
 
 async function load() {
   await userStore.init();
   if (!userStore.currentUser) return;
   loading.value = true;
+  loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
     const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id, tab?.statuses);
     list.value = r.records;
   } catch {
     list.value = [];
+    loadError.value = '求购列表加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -79,11 +87,21 @@ function onCancel(req: Api.PurchaseRequest.PurchaseRequest) {
     okText: '确认撤销',
     okButtonProps: { status: 'danger' },
     async onOk() {
-      const r = await purchaseApi.cancelPurchase(req.id);
-      if (r.ok) {
-        Message.success('已撤销');
-        await loadAll();
-        await load();
+      if (cancelingId.value !== undefined) return;
+      cancelingId.value = req.id;
+      try {
+        const r = await purchaseApi.cancelPurchase(req.id);
+        if (r.ok) {
+          Message.success('已撤销');
+          await loadAll();
+          await load();
+        } else {
+          Message.error(r.message || '撤销求购失败');
+        }
+      } catch {
+        // 请求层已展示错误，保留当前求购，避免撤销失败却从列表消失。
+      } finally {
+        cancelingId.value = undefined;
       }
     }
   });
@@ -133,16 +151,17 @@ function onCancel(req: Api.PurchaseRequest.PurchaseRequest) {
           :key="r.id"
           :request="r"
           mode="mine"
+          :canceling="String(cancelingId) === String(r.id)"
           @cancel="onCancel"
         />
       </div>
       <EmptyState
         v-else
         icon="lucide:inbox"
-        title="暂无该状态下的求购"
-        description="想要平台没有的商品？发起求购，全球买手为您代购"
-        action-text="发起求购"
-        @action="router.push('/purchase/create')"
+        :title="loadError || '暂无该状态下的求购'"
+        :description="loadError ? '不会把请求失败误显示为没有求购。' : '想要平台没有的商品？发起求购，全球买手为您代购'"
+        :action-text="loadError ? '重新加载' : '发起求购'"
+        @action="loadError ? load() : router.push('/purchase/create')"
       />
     </a-spin>
   </div>

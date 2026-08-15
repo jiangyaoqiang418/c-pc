@@ -23,6 +23,7 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(20);
 const loading = ref(false);
+const loadError = ref('');
 
 const sortOptions = [
   { value: 'sales', label: '综合销量' },
@@ -40,19 +41,30 @@ const aftersaleOptions = [
   { value: 'none', label: '无售后' }
 ];
 
+function optionalQueryNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function queryPage(value: unknown) {
+  const parsed = optionalQueryNumber(value);
+  return parsed ? Math.max(1, Math.floor(parsed)) : 1;
+}
+
 function syncFromQuery() {
   filter.keyword = (route.query.keyword as string) || '';
   filter.categoryId = (route.query.categoryId as string) || undefined;
   filter.aftersaleType = (route.query.aftersaleType as Api.Product.AftersaleType) || undefined;
   filter.overseasCustoms = route.query.overseas === '1' ? true : undefined;
-  filter.minPrice = route.query.minPrice ? Number(route.query.minPrice) : undefined;
-  filter.maxPrice = route.query.maxPrice ? Number(route.query.maxPrice) : undefined;
+  filter.minPrice = route.query.minPrice ? optionalQueryNumber(route.query.minPrice) : undefined;
+  filter.maxPrice = route.query.maxPrice ? optionalQueryNumber(route.query.maxPrice) : undefined;
   filter.sort = (route.query.sort as typeof filter.sort) || 'sales';
-  current.value = route.query.page ? Number(route.query.page) : 1;
+  current.value = queryPage(route.query.page);
 }
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await productApi.fetchStorefrontProducts({
       current: current.value,
@@ -67,6 +79,10 @@ async function load() {
     });
     list.value = r.records;
     total.value = r.total;
+  } catch {
+    list.value = [];
+    total.value = 0;
+    loadError.value = '商品列表加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -164,7 +180,13 @@ function onPageChange(p: number) {
       <div v-if="list.length" class="shop-grid-5">
         <ProductCard v-for="p in list" :key="p.id" :product="p" />
       </div>
-      <EmptyState v-else title="没有找到符合条件的商品" description="尝试调整筛选条件或重置" />
+      <EmptyState
+        v-else
+        :title="loadError || '没有找到符合条件的商品'"
+        :description="loadError ? '不会把请求失败误显示为没有商品。' : '尝试调整筛选条件或重置'"
+        :action-text="loadError ? '重新加载' : undefined"
+        @action="load"
+      />
       <div v-if="total > size" class="pagination-bar">
         <a-pagination
           :total="total"
