@@ -7,6 +7,7 @@ interface Props {
   disabled?: boolean;
   disabledText?: string;
   placeholder?: string;
+  submitting?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
@@ -43,6 +44,7 @@ function clearRecordingTimer() {
 async function send() {
   const content = text.value.trim();
   if (!content) return;
+  if (props.submitting || sending.value) return;
   if (props.disabled) {
     Message.warning(props.disabledText);
     return;
@@ -64,7 +66,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 function chooseImage() {
-  if (props.disabled || uploading.value) return;
+  if (props.disabled || props.submitting || uploading.value) return;
   fileInputRef.value?.click();
 }
 
@@ -91,7 +93,7 @@ async function onImageSelected(event: Event) {
 }
 
 async function startRecording() {
-  if (props.disabled || uploading.value || recording.value) return;
+  if (props.disabled || props.submitting || uploading.value || recording.value) return;
   if (!canRecord.value) {
     Message.warning('当前浏览器不支持语音录制，请使用最新版 Chrome');
     return;
@@ -148,10 +150,10 @@ onBeforeUnmount(() => {
   <div class="input-area">
     <div class="toolbar">
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
-      <button class="tool-btn" :disabled="disabled || uploading" @click="chooseImage">
+      <button class="tool-btn" :disabled="disabled || submitting || uploading" @click="chooseImage">
         {{ uploading ? '图片上传中…' : '🖼 图片' }}
       </button>
-      <button class="tool-btn voice-btn" :disabled="disabled || uploading || !canRecord" @click="recording ? stopRecording() : startRecording()">
+      <button class="tool-btn voice-btn" :disabled="disabled || submitting || uploading || !canRecord" @click="recording ? stopRecording() : startRecording()">
         {{ recording ? `■ 结束录音 ${recordingSeconds}s` : uploading ? '语音上传中…' : '🎙 语音' }}
       </button>
     </div>
@@ -159,13 +161,13 @@ onBeforeUnmount(() => {
       v-model="text"
       :placeholder="disabled ? disabledText : placeholder"
       :auto-size="{ minRows: 2, maxRows: 5 }"
-      :disabled="disabled"
+      :disabled="disabled || submitting"
       class="textarea"
       @keydown="onKeydown"
     />
     <div class="footer">
       <span class="hint">Enter 发送 · Shift+Enter 换行</span>
-      <a-button type="primary" :disabled="disabled || !text.trim()" :loading="sending" @click="send">发送</a-button>
+      <a-button type="primary" :disabled="disabled || submitting || !text.trim()" :loading="sending || submitting" @click="send">发送</a-button>
     </div>
   </div>
 </template>

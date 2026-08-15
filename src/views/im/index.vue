@@ -36,6 +36,7 @@ const messageLoadError = ref('');
 const restSyncing = ref(false);
 const lastSyncedAt = ref<Date>();
 const loadingOlder = ref(false);
+const messageSending = ref(false);
 const pageNo = ref(1);
 const hasOlder = ref(false);
 const scrollRef = ref<HTMLDivElement>();
@@ -212,7 +213,8 @@ function readText(message: Api.RealNotify.ImMessageVO) {
 
 async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaUrl?: string; duration?: number }) {
   const conversation = selectedConversation.value;
-  if (!conversation) return;
+  if (!conversation || messageSending.value) return;
+  messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId: conversation.id,
@@ -237,6 +239,8 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   } catch {
     const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
     if (optimistic) optimistic.failed = true;
+  } finally {
+    messageSending.value = false;
   }
 }
 
@@ -466,7 +470,7 @@ watch(activeTab, async () => {
                 <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" />
                 <div v-else-if="!messages.length" class="empty-msg">该群暂无消息</div>
               </div>
-              <MessageInput @send="onSend" />
+              <MessageInput :submitting="messageSending" @send="onSend" />
               <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
             </div>
             <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '不会把请求失败误显示为没有会话。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
