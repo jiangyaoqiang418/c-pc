@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { type Audience, MOCK_USERS, STORAGE_KEY, authApi } from '@shared';
 import * as realAuthApi from '@/service/api/auth';
-import { getAccessToken } from '@/service/request';
+import { getAccessToken, isAuthenticationFailure } from '@/service/request';
 import { useCartStore } from './cart';
 
 export const useUserStore = defineStore('bw-user', () => {
@@ -23,8 +23,10 @@ export const useUserStore = defineStore('bw-user', () => {
         currentAudience.value = currentUser.value.isBuyer ? loadAudienceFromStorage() : 'customer';
         initialized.value = true;
         return;
-      } catch {
-        realAuthApi.logoutLocal();
+      } catch (error) {
+        if (isAuthenticationFailure(error)) realAuthApi.logoutLocal();
+        // 临时网络错误时保留 token 且不降级到 Mock；下次路由初始化可直接重试真实会话。
+        return;
       }
     }
     const raw = localStorage.getItem(STORAGE_KEY.currentUserId);

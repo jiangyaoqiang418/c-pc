@@ -134,4 +134,5 @@ export const realNotifyRequest = new RealRequest({ baseURL: import.meta.env.VITE
 
 export { clearAccessToken, getAccessToken, setAccessToken } from './token';
 export { RequestError };
+export { isAuthenticationFailure } from './type';
 export type { RealResponse, RequestOptions };

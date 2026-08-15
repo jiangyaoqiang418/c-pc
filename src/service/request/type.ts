@@ -39,3 +39,9 @@ export class RequestError extends Error {
     this.response = options.response;
   }
 }
+
+/** 只有服务端明确拒绝身份时才应清理本地 token；网络波动不能视为登出。 */
+export function isAuthenticationFailure(error: unknown) {
+  return error instanceof RequestError
+    && (error.status === 401 || error.status === 403 || error.code === '-200' || error.code === '-201');
+}
