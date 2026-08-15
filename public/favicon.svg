@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>油宝</title>
+  <desc>红色底上的白色油滴与宝石切面图形</desc>
+  <rect width="64" height="64" rx="18" fill="#FA243C" />
+  <path d="M32 10C27.2 18.4 17 28.1 17 39.4C17 48 23.7 55 32 55C40.3 55 47 48 47 39.4C47 28.1 36.8 18.4 32 10Z" fill="#FFF9F7" />
+  <path d="M32 24.5L39.5 32L32 39.5L24.5 32L32 24.5ZM32 29.2L29.2 32L32 34.8L34.8 32L32 29.2Z" fill="#FA243C" />
+  <path d="M24.5 32H39.5M32 24.5V39.5" stroke="#FA243C" stroke-width="2.4" stroke-linecap="round" />
+</svg>

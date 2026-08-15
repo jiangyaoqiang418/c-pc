@@ -156,19 +156,14 @@ onMounted(loadAll);
 <template>
   <div class="deposit-page shop-container">
     <h1 class="page-title">钱包链上充值</h1>
-    <p class="hint">创建充值订单后，按订单提供的链和收款信息完成 USDT 转账。</p>
+    <p class="hint">选择充值链后，可直接使用专属地址完成 USDT 转账；如需留存申报记录，可填写金额后创建充值订单。</p>
     <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>
 
     <a-card class="tab-card" :body-style="{ padding: '12px 24px 24px' }" :bordered="false">
       <a-tabs v-model:active-key="activeTab">
-        <a-tab-pane key="create" title="创建充值订单">
+        <a-tab-pane key="create" title="充值地址与申报">
           <a-form :model="{ amount, chain }" layout="vertical" class="recharge-form">
             <a-row :gutter="16">
-              <a-col :xs="24" :sm="12">
-                <a-form-item label="充值金额 (USDT)">
-                  <a-input-number v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" size="large" />
-                </a-form-item>
-              </a-col>
               <a-col :xs="24" :sm="12">
                 <a-form-item label="链选择">
                   <a-select v-model="chain" size="large" :loading="loadingChains" placeholder="请选择充值链">
@@ -178,12 +173,34 @@ onMounted(loadAll);
                   </a-select>
                 </a-form-item>
               </a-col>
+              <a-col :xs="24" :sm="12">
+                <a-form-item label="申报金额 (USDT)">
+                  <a-input-number v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" size="large" />
+                </a-form-item>
+              </a-col>
             </a-row>
+            <div v-if="selectedChain?.depositAddress" class="direct-address">
+              <div class="direct-address-head">
+                <div>
+                  <div class="address-label">{{ selectedChain.label }}（{{ selectedChain.chain }}）专属充值地址</div>
+                  <div class="address-value direct-address-value">{{ selectedChain.depositAddress }}</div>
+                </div>
+                <a-button size="small" @click="copy(selectedChain.depositAddress)">复制地址</a-button>
+              </div>
+              <div v-if="selectedChain.minAmount" class="minimum-hint">建议最低充值金额：{{ selectedChain.minAmount }} USDT</div>
+            </div>
+            <a-alert v-else-if="selectedChain" type="warning" class="direct-address" title="当前充值链暂未返回专属地址，请稍后重新加载。" />
             <a-alert type="warning" class="chain-alert" title="请务必使用所选链转账；到账状态以链上确认和平台审核结果为准。" />
-            <a-button type="primary" size="large" :loading="submitting" @click="createRecharge">创建充值订单</a-button>
+            <div class="optional-order">
+              <div>
+                <div class="optional-order-title">可选：创建充值申报记录</div>
+                <div class="optional-order-hint">直接向上述地址转账即可到账；创建订单仅用于提前留存本次充值金额。</div>
+              </div>
+              <a-button type="primary" size="large" :loading="submitting" @click="createRecharge">创建申报订单</a-button>
+            </div>
           </a-form>
         </a-tab-pane>
-        <a-tab-pane key="address" title="订单收款信息">
+        <a-tab-pane key="address" title="申报订单信息">
           <template v-if="currentRecharge">
             <a-descriptions :column="1" bordered :data="[
               { label: '订单编号', value: String(currentRecharge.id) },
@@ -203,7 +220,7 @@ onMounted(loadAll);
               <a-button size="small" @click="copy(currentRecharge.memo)">复制 Memo</a-button>
             </div>
           </template>
-          <EmptyState v-else title="请先创建充值订单以获取收款信息" />
+          <EmptyState v-else title="暂无充值申报订单" />
         </a-tab-pane>
       </a-tabs>
     </a-card>
@@ -273,6 +290,14 @@ onMounted(loadAll);
 .tab-card, .txn-card { background: #fff; border-radius: var(--bw-card-radius); margin-bottom: 16px; }
 .recharge-form { max-width: 720px; padding-top: 12px; }
 .chain-alert { margin-bottom: 16px; }
+.direct-address { margin-bottom: 16px; padding: 16px; background: #f7f8fa; border: 1px solid #e5e6eb; border-radius: 6px; }
+.direct-address-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.direct-address-head > div { min-width: 0; }
+.direct-address-value { margin-bottom: 0; }
+.minimum-hint { color: #86909c; font-size: 12px; margin-top: 12px; }
+.optional-order { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 2px; }
+.optional-order-title { color: #1d2129; font-size: 14px; font-weight: 600; }
+.optional-order-hint { color: #86909c; font-size: 12px; margin-top: 4px; }
 .address-block { margin-top: 16px; padding: 16px; background: #f7f8fa; border-radius: 6px; }
 .address-label { color: #86909c; font-size: 12px; margin-bottom: 8px; }
 .address-value { color: #1d2129; font-family: var(--yb-font-mono); overflow-wrap: anywhere; margin-bottom: 12px; }
@@ -283,6 +308,8 @@ onMounted(loadAll);
 @media (max-width: 640px) {
   .deposit-page { padding-top: 10px; }
   .tab-card :deep(.arco-card-body), .txn-card :deep(.arco-card-body) { padding-left: 16px !important; padding-right: 16px !important; }
+  .direct-address-head, .optional-order { align-items: stretch; flex-direction: column; }
+  .direct-address-head .arco-btn, .optional-order .arco-btn { width: 100%; }
   .records-head { align-items: stretch; flex-direction: column; gap: 10px; }
   .records-head :deep(.arco-select) { width: 100% !important; }
 }
