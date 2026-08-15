@@ -32,6 +32,7 @@ const loading = ref(false);
 const pageNo = ref(1);
 const hasOlder = ref(false);
 const loadingOlder = ref(false);
+const messageSending = ref(false);
 const scrollRef = ref<HTMLDivElement>();
 const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
@@ -134,7 +135,8 @@ function readText(message: Api.RealNotify.ImMessageVO) {
 }
 
 async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaUrl?: string; duration?: number }) {
-  if (!conversation.value) return;
+  if (!conversation.value || messageSending.value) return;
+  messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId: conversation.value.id,
@@ -157,6 +159,8 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   } catch {
     const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
     if (optimistic) optimistic.failed = true;
+  } finally {
+    messageSending.value = false;
   }
 }
 
@@ -242,7 +246,7 @@ watch(() => route.params.orderCode, load);
           <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
           <div v-if="!messages.length" class="empty-msg">该群暂无消息，开始聊天吧 👋</div>
         </div>
-        <MessageInput @send="onSend" />
+        <MessageInput :submitting="messageSending" @send="onSend" />
         <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
       </a-card>
       <EmptyState v-else-if="!loading" title="订单会话不存在" action-text="返回订单列表" @action="router.push('/order')" />
