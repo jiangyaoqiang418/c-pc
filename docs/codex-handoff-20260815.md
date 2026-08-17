@@ -195,9 +195,23 @@ pnpm dev --host 0.0.0.0
 ### P3：暂时仍为 Mock 的专题
 
 - AI 导购。
-- 理财产品的申购/提前赎回等部分写流程。
-- 评价提交及部分评价专题。
-- 只有在 Swagger 提供完整 C 端查询/写入契约、状态枚举和测试数据后再真实化；禁止用本地 Mock 结果冒充接口闭环。
+
+## 12. 2026-08-17 理财、评价与资金/通知契约接入
+
+### 已接入（代码与最新 Swagger 校验通过，未等同于浏览器真实闭环）
+
+- 理财：产品列表/详情、申购、锁仓订单分页/详情、提前赎回已改用 `/user/finance/**`；年化利率按小数 `annualRate`、锁定期按 `lockDays` 映射，订单状态覆盖 `HOLDING/REDEEMED/SETTLED/CANCELED`。
+- 评价：待评价、我的评价、买手收到评价、商品评价分页/评分摘要/买手评分，以及提交、回复、申诉均改用 `/order/reviews/**`；评价图片走真实 `files/upload?dir=review`。
+- 充值：页面已通过 `/user/recharge/address?chain=` 获取用户专属地址、Memo、最低金额和确认数，不再把创建充值申报单当成收款地址前置条件。
+- 通知：资金、KYC、买手申请、理财、商品评价的 `bizType` 已有安全跳转；字段为空时保留在通知列表，不猜测业务对象。
+- WebSocket：前端按后端新协议使用 25 秒心跳，收到 `READY` 才标记连接成功，10 秒未收到 `READY` 会关闭后按退避策略重连。
+
+### 已验证与待验证边界
+
+- 已执行：`pnpm typecheck`、`pnpm test`（5 文件、14 项）、`pnpm check:swagger`、`pnpm build`、`git diff --check`，均通过；构建只有既有 Arco 大包警告。
+- Chrome 当前未连接到可控会话，因此理财申购/赎回、评价图片上传/提交/评分回读，以及双账号 IM 实时到达尚未标记为浏览器真实回归通过。
+- Notify `GET /back/im/status` 已纳入契约检查；WebSocket 验收仍要求有效 token 握手返回 `101`、首帧 `READY`、PING/PONG 和双账号无刷新送达。若仍非 `101`，记录为网关/反代问题，禁止以前端本地消息冒充成功。
+- 后端修复说明列出的提现 `payoutId/payoutStatus/dispatchedAt/submittedAt/blockHeight/networkFee/networkFeeSymbol`，尚未出现在本次实时 user Swagger 的 `WithdrawVO`；前端暂不猜测字段，待 Swagger 发布后再补详情展示。
 
 ## 9. 新 Codex 接手后的推荐首轮动作
 

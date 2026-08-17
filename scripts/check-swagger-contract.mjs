@@ -78,6 +78,14 @@ expectRequired(rechargeConfirm, ['rechargeId'], '测试充值到账');
 const rechargeConfirmResponse = responseDataSchema(user, rechargeConfirmOperation);
 expectProperties(rechargeConfirmResponse, ['rechargeId', 'amount', 'txHash', 'status', 'confirmedAt', 'testData'], '测试充值到账响应');
 
+operation(user, '/recharge/address', 'get');
+['/finance/products/list', '/finance/products/detail', '/finance/orders/overview', '/finance/orders/detail'].forEach(path => operation(user, path, 'get'));
+const financeSubscribe = requestSchema(user, operation(user, '/finance/orders/subscribe', 'post'));
+expectRequired(financeSubscribe, ['productId', 'amount'], '理财申购');
+const financeRedeem = requestSchema(user, operation(user, '/finance/orders/redeem', 'post'));
+expectRequired(financeRedeem, ['id'], '理财提前赎回');
+operation(user, '/finance/orders/page', 'post');
+
 const createBatch = operation(order, '/orders/create-batch', 'post');
 const createBatchRequest = requestSchema(order, createBatch);
 expectRequired(createBatchRequest, ['addressId', 'items'], '合并下单');
@@ -114,6 +122,16 @@ expectRequired(refundCancel, ['refundId'], '撤销仅退款');
 operation(order, '/orders/refunds/bought/page', 'post');
 operation(order, '/orders/refunds/sold/page', 'post');
 operation(order, '/orders/refunds/detail', 'get');
+
+['/reviews/reviewable/page', '/reviews/mine/page', '/reviews/received/page', '/reviews/appeals/mine/page', '/storefront/reviews/page'].forEach(path => operation(order, path, 'post'));
+['/reviews/detail', '/storefront/reviews/summary', '/storefront/reviews/seller-rating'].forEach(path => operation(order, path, 'get'));
+const reviewCreate = requestSchema(order, operation(order, '/reviews/create', 'post'));
+expectRequired(reviewCreate, ['orderId', 'productScore', 'sellerScore'], '提交评价');
+const reviewReply = requestSchema(order, operation(order, '/reviews/reply', 'put'));
+expectRequired(reviewReply, ['reviewId', 'content'], '买手回复评价');
+const reviewAppeal = requestSchema(order, operation(order, '/reviews/appeals/create', 'post'));
+expectRequired(reviewAppeal, ['reviewId', 'reason'], '买手评价申诉');
+operation(order, '/reviews/delete', 'delete');
 
 const createDemand = requestSchema(order, operation(order, '/demands/create', 'post'));
 expectRequired(
@@ -174,6 +192,7 @@ if (notifyResponse.status === 404) {
   expectProperties(notificationSchema, ['bizType', 'bizId', 'readFlag'], '站内通知响应');
   operation(notify, '/notifications/read-all', 'put');
   operation(notify, '/im/conversations/by-order', 'get');
+  operation(notify, '/back/im/status', 'get');
   notifySummary = `notify: ${Object.keys(notify.paths || {}).length} paths, ${countOperations(notify)} operations, ${Object.keys(notify.components?.schemas || {}).length} schemas`;
 }
 

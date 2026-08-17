@@ -2,7 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { formatAmount, orderApi, reviewApi } from '@shared';
+import { formatAmount } from '@shared';
+import * as orderApi from '@/service/api/order';
+import * as reviewApi from '@/service/api/review';
 import ReviewForm from '@/components/review/review-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
@@ -11,7 +13,7 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
-const orderId = computed(() => Number(route.params.orderId));
+const orderId = computed(() => String(route.params.orderId));
 const order = ref<Api.Order.OrderRecord>();
 const loading = ref(false);
 const submitting = ref(false);
@@ -31,29 +33,24 @@ async function load() {
 }
 onMounted(load);
 
-async function onSubmit(f: { score: number; content: string; tags: string[]; photoUrls: string[] }) {
+async function onSubmit(f: { productScore: number; sellerScore: number; content: string; tags: string[]; photoUrls: string[] }) {
   if (!order.value || !userStore.currentUser) return;
   Modal.confirm({
     title: '确认提交评价？',
-    content: '评价提交后不可修改；好评 +1 积分，差评 -1 积分',
+    content: '评价提交后不可修改，请确认评分和内容。',
     async onOk() {
       submitting.value = true;
       try {
-        const r = await reviewApi.submitReviewMock({
+        await reviewApi.submitReview({
           orderId: order.value!.id,
-          fromUserId: userStore.currentUser!.id,
-          score: f.score as Api.Review.Score,
-          content: f.content,
-          tags: f.tags,
-          photoUrls: f.photoUrls
+          productScore: f.productScore,
+          sellerScore: f.sellerScore,
+          content: f.content.trim() || undefined,
+          images: f.photoUrls,
+          anonymous: false
         });
-        if (r.ok) {
-          const pointHint = f.score >= 4 ? '+1' : f.score <= 2 ? '-1' : '0';
-          Message.success(`评价成功 · 积分 ${pointHint}`);
-          router.push('/review');
-        } else {
-          Message.error(r.message || '提交失败');
-        }
+        Message.success('评价提交成功');
+        router.push('/review');
       } catch {
         Message.error('提交失败，请稍后重试');
       } finally {

@@ -1,33 +1,38 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { enums, formatAmount, formatRate } from '@shared';
+import { formatAmount, formatRate } from '@shared';
 
 interface Props {
-  order: Api.FinanceProduct.LockupOrder;
+  order: Api.RealFinance.FinanceOrderVO;
 }
 const props = defineProps<Props>();
-defineEmits<{ (e: 'unlock', order: Api.FinanceProduct.LockupOrder): void }>();
+defineEmits<{ (e: 'unlock', order: Api.RealFinance.FinanceOrderVO): void }>();
 
 const router = useRouter();
 
-const meta = computed(() => enums.LOCKUP_ORDER_STATUS_META[props.order.status]);
+const meta = computed(() => ({
+  HOLDING: { label: '计息中', color: 'purple' },
+  SETTLED: { label: '已结算', color: 'green' },
+  REDEEMED: { label: '已赎回', color: 'orange' },
+  CANCELED: { label: '已取消', color: 'red' }
+}[props.order.status] || { label: props.order.statusText || props.order.status, color: 'gray' }));
 
-const startMs = computed(() => new Date(props.order.startAt).getTime());
-const maturityMs = computed(() => new Date(props.order.maturityAt).getTime());
+const startMs = computed(() => Number(props.order.startAt || 0));
+const maturityMs = computed(() => Number(props.order.maturityAt || 0));
 const daysPassed = computed(() => {
   const now = Math.min(Date.now(), maturityMs.value);
   return Math.max(0, Math.floor((now - startMs.value) / 86400_000));
 });
 const progressPct = computed(() => {
-  if (props.order.status === 'active') {
-    return Math.min(100, Math.round((daysPassed.value / props.order.lockupDays) * 100));
+  if (props.order.status === 'HOLDING') {
+    return Math.min(100, Math.round((daysPassed.value / props.order.lockDays) * 100));
   }
-  if (props.order.status === 'matured') return 100;
+  if (props.order.status === 'SETTLED') return 100;
   return 0;
 });
 
-const remainingDays = computed(() => Math.max(0, props.order.lockupDays - daysPassed.value));
+const remainingDays = computed(() => Math.max(0, props.order.lockDays - daysPassed.value));
 
 function goDetail() {
   router.push({ name: 'finance-lockup-detail', params: { id: String(props.order.id) } });
@@ -39,7 +44,7 @@ function goDetail() {
     <div class="head">
       <div class="name-block">
         <span class="name">{{ order.productName }}</span>
-        <span class="code">#{{ order.code }}</span>
+        <span class="code">#{{ order.productCode || order.id }}</span>
       </div>
       <a-tag :color="meta.color">{{ meta.label }}</a-tag>
     </div>
@@ -47,45 +52,45 @@ function goDetail() {
     <div class="meta-row">
       <div class="cell">
         <div class="lbl">本金</div>
-        <div class="val">U {{ formatAmount(order.principalAmount) }}</div>
+        <div class="val">U {{ formatAmount(order.principal) }}</div>
       </div>
       <div class="cell">
-        <div class="lbl">利率（含 VIP 加成）</div>
-        <div class="val rate">{{ formatRate(Number(order.rate.effectiveRate) / 100) }}</div>
+        <div class="lbl">年化利率</div>
+        <div class="val rate">{{ formatRate(Number(order.annualRate)) }}</div>
       </div>
       <div class="cell">
         <div class="lbl">已累积利息</div>
         <div class="val interest">+ U {{ formatAmount(order.accruedInterest) }}</div>
       </div>
       <div class="cell">
-        <div class="lbl">{{ order.status === 'active' ? '剩余天数' : '锁定天数' }}</div>
-        <div class="val">{{ order.status === 'active' ? remainingDays : order.lockupDays }} 天</div>
+        <div class="lbl">{{ order.status === 'HOLDING' ? '剩余天数' : '锁定天数' }}</div>
+        <div class="val">{{ order.status === 'HOLDING' ? (order.remainingDays ?? remainingDays) : order.lockDays }} 天</div>
       </div>
     </div>
 
-    <div v-if="order.status === 'active' || order.status === 'matured'" class="progress">
+    <div v-if="order.status === 'HOLDING' || order.status === 'SETTLED'" class="progress">
       <a-progress
         :percent="progressPct"
         :show-text="false"
         size="small"
-        :color="order.status === 'matured' ? '#00b42a' : '#722ed1'"
+        :color="order.status === 'SETTLED' ? '#00b42a' : '#722ed1'"
       />
       <div class="progress-text">
-        已过 {{ daysPassed }} / {{ order.lockupDays }} 天
-        <span class="muted">· 到期 {{ new Date(order.maturityAt).toLocaleDateString() }}</span>
+        已过 {{ daysPassed }} / {{ order.lockDays }} 天
+        <span class="muted">· 到期 {{ order.maturityAt ? new Date(Number(order.maturityAt)).toLocaleDateString() : '—' }}</span>
       </div>
     </div>
 
     <div class="actions" @click.stop>
       <a-button size="small" type="outline" @click="goDetail">详情</a-button>
       <a-button
-        v-if="order.status === 'active'"
+        v-if="order.canRedeem"
         size="small"
         status="danger"
         type="outline"
         @click="$emit('unlock', order)"
       >
-        提前解锁
+        提前赎回
       </a-button>
     </div>
   </a-card>

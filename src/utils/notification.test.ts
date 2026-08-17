@@ -14,11 +14,16 @@ describe('通知与会话跳转', () => {
     expect(conversationListQuery()).toBeUndefined();
   });
 
-  it('只为明确的订单业务对象创建跳转目标', () => {
+  it('为后端明确提供的业务对象创建跳转目标', () => {
     expect(notificationRoute({ bizType: 'ORDER', bizId: '2087164523669184512' })).toEqual({
       name: 'order-detail',
       params: { id: '2087164523669184512' }
     });
+    expect(notificationRoute({ bizType: 'FINANCE', bizId: '2087164523669184512' })).toEqual({
+      name: 'finance-lockup-detail',
+      params: { id: '2087164523669184512' }
+    });
+    expect(notificationRoute({ bizType: 'RECHARGE', bizId: '1' })).toEqual({ name: 'wallet-deposit' });
     expect(notificationRoute({ bizType: 'REFUND', bizId: '2087164523669184512' })).toBeUndefined();
   });
 });

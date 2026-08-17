@@ -224,6 +224,10 @@ export function fetchRechargeChains() {
   return realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains');
 }
 
+export function fetchRechargeAddress(chain: string) {
+  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { params: { chain } });
+}
+
 export function fetchRechargeDetail(id: string | number) {
   return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { params: { id } });
 }

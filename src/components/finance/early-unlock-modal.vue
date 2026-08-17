@@ -1,41 +1,31 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 
 interface Props {
   visible: boolean;
-  order?: Api.FinanceProduct.LockupOrder;
+  order?: Api.RealFinance.FinanceOrderVO;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
-  (e: 'confirm', order: Api.FinanceProduct.LockupOrder): void;
+  (e: 'confirm', order: Api.RealFinance.FinanceOrderVO): void;
 }>();
 
-const payPwd = ref('');
 const submitting = ref(false);
 
 const lossAmount = computed(() => {
   if (!props.order) return '0';
-  const expected = Number(props.order.expectedInterest) || 0;
-  const accrued = Number(props.order.accruedInterest) || 0;
-  return Math.max(0, expected - accrued).toFixed(2);
+  return String(props.order.redeemFee || 0);
 });
 
 watch(
   () => props.visible,
-  v => {
-    if (v) payPwd.value = '';
-  }
+  () => undefined
 );
 
 async function submit() {
   if (!props.order) return;
-  if (!payPwd.value) {
-    Message.warning('请输入支付密码（原型阶段任意值）');
-    return;
-  }
   submitting.value = true;
   try {
     emit('confirm', props.order);
@@ -48,30 +38,25 @@ async function submit() {
 <template>
   <a-modal
     :visible="visible"
-    title="确认提前解锁"
+    title="确认提前赎回"
     :ok-loading="submitting"
-    ok-text="确认解锁"
+    ok-text="确认赎回"
     :ok-button-props="{ status: 'danger' }"
     @update:visible="(v) => $emit('update:visible', v)"
     @ok="submit"
   >
     <template v-if="order">
       <div class="warn">
-        ⚠️ 提前解锁将立即终止本期小金库，<strong>损失全部预期利息 U {{ formatAmount(lossAmount) }}</strong>，已累积利息 U {{ formatAmount(order.accruedInterest) }} 保留。
+        ⚠️ 提前赎回本金将返回可用余额，已产生利息会扣除违约费。最终到账以接口返回为准。
       </div>
       <a-descriptions :column="1" :data="[
-        { label: '小金库订单', value: order.code + ' · ' + order.productName },
-        { label: '本金', value: 'U ' + formatAmount(order.principalAmount) },
+        { label: '小金库订单', value: (order.productCode || order.id) + ' · ' + order.productName },
+        { label: '本金', value: 'U ' + formatAmount(order.principal) },
         { label: '预期利息', value: 'U ' + formatAmount(order.expectedInterest) },
         { label: '已累积利息', value: 'U ' + formatAmount(order.accruedInterest) },
-        { label: '损失利息', value: 'U ' + formatAmount(lossAmount) },
-        { label: '解锁后到账', value: 'U ' + formatAmount(order.principalAmount) + '（仅本金）' }
+        { label: '违约费', value: 'U ' + formatAmount(lossAmount) },
+        { label: '可到账利息', value: 'U ' + formatAmount(order.redeemableInterest || 0) }
       ]" />
-      <a-form :model="{ payPwd }" layout="vertical" class="form">
-        <a-form-item label="支付密码（原型环境任意输入）">
-          <a-input-password v-model="payPwd" placeholder="任意 6 位以上" />
-        </a-form-item>
-      </a-form>
     </template>
   </a-modal>
 </template>

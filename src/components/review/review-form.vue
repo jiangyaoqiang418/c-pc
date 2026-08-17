@@ -2,9 +2,11 @@
 import { computed, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import ReviewStars from '@/components/common/review-stars.vue';
+import { uploadFile } from '@/service/api/product';
 
 interface FormState {
-  score: number;
+  productScore: number;
+  sellerScore: number;
   content: string;
   tags: string[];
   photoUrls: string[];
@@ -18,16 +20,18 @@ const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', f: FormState): void }>();
 
 const PRESET_TAGS = ['发货快', '描述相符', '正品保证', '包装精美', '服务好', '会回购'];
-const MAX_PHOTOS = 4;
+const MAX_PHOTOS = 9;
 
 const form = reactive<FormState>({
-  score: props.initial?.score ?? 5,
+  productScore: props.initial?.productScore ?? 5,
+  sellerScore: props.initial?.sellerScore ?? 5,
   content: props.initial?.content ?? '',
   tags: props.initial?.tags ?? [],
   photoUrls: props.initial?.photoUrls ?? []
 });
 
 const uploading = ref(false);
+const fileInputRef = ref<HTMLInputElement>();
 
 function toggleTag(t: string) {
   const idx = form.tags.indexOf(t);
@@ -41,12 +45,26 @@ function toggleTag(t: string) {
   }
 }
 
-async function addPhoto() {
-  if (form.photoUrls.length >= MAX_PHOTOS) return;
+function choosePhoto() {
+  if (!uploading.value && form.photoUrls.length < MAX_PHOTOS) fileInputRef.value?.click();
+}
+
+async function onPhotoSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    Message.warning('请选择图片文件');
+    return;
+  }
   uploading.value = true;
   try {
-    await new Promise(r => setTimeout(r, 600));
-    form.photoUrls.push(`https://picsum.photos/seed/rv-${Date.now()}-${form.photoUrls.length}/240/240`);
+    const uploaded = await uploadFile(file, 'review');
+    if (!uploaded.url) throw new Error('上传结果缺少图片地址');
+    form.photoUrls.push(uploaded.url);
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '评价图片上传失败');
   } finally {
     uploading.value = false;
   }
@@ -56,17 +74,17 @@ function removePhoto(idx: number) {
   form.photoUrls.splice(idx, 1);
 }
 
-const canSubmit = computed(() => form.content.trim().length >= 5 && form.score > 0);
+const canSubmit = computed(() => form.productScore > 0 && form.sellerScore > 0 && form.content.length <= 1000);
 
 const scoreLabel = computed(() => {
-  if (form.score >= 4) return '👍 好评';
-  if (form.score === 3) return '🙂 中评';
+  if (form.productScore >= 4) return '👍 好评';
+  if (form.productScore === 3) return '🙂 中评';
   return '👎 差评';
 });
 
 function submit() {
   if (!canSubmit.value) {
-    Message.warning('请完善评分与文字（≥ 5 字）');
+      Message.warning('请完善商品和买手服务评分，评价内容不能超过 1000 字');
     return;
   }
   emit('submit', { ...form });
@@ -76,9 +94,14 @@ function submit() {
 <template>
   <a-card class="review-form" :body-style="{ padding: '24px 28px' }" :bordered="false">
     <div class="row">
-      <span class="lbl">综合评分</span>
-      <ReviewStars v-model:score="form.score" mode="input" size="lg" />
+      <span class="lbl">商品评分</span>
+      <ReviewStars v-model:score="form.productScore" mode="input" size="lg" />
       <span class="score-label">{{ scoreLabel }}</span>
+    </div>
+
+    <div class="row">
+      <span class="lbl">买手服务</span>
+      <ReviewStars v-model:score="form.sellerScore" mode="input" size="lg" />
     </div>
 
     <div class="row">
@@ -101,15 +124,16 @@ function submit() {
       <span class="lbl">评价内容</span>
       <a-textarea
         v-model="form.content"
-        :max-length="500"
+        :max-length="1000"
         show-word-limit
-        placeholder="说说商品如何，至少 5 字"
+        placeholder="说说商品如何（选填，最多 1000 字）"
         :rows="4"
       />
     </div>
 
     <div class="row col">
       <span class="lbl">图片（可选，最多 {{ MAX_PHOTOS }} 张）</span>
+      <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onPhotoSelected" />
       <div class="photos">
         <div v-for="(u, i) in form.photoUrls" :key="u" class="photo-item">
           <img :src="u" :alt="'photo-' + i" />
@@ -119,7 +143,7 @@ function submit() {
           v-if="form.photoUrls.length < MAX_PHOTOS"
           class="add"
           :disabled="uploading"
-          @click="addPhoto"
+          @click="choosePhoto"
         >
           {{ uploading ? '上传中…' : '+ 上传' }}
         </button>
@@ -176,6 +200,7 @@ function submit() {
   flex-wrap: wrap;
   gap: 8px;
 }
+.file-input { display: none; }
 .photo-item {
   position: relative;
   width: 80px;

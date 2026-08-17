@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { financeApi, formatAmount, vipApi } from '@shared';
+import { formatAmount } from '@shared';
+import * as financeApi from '@/service/api/finance';
 import InterestPreview from '@/components/finance/interest-preview.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
@@ -12,24 +13,19 @@ const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const product = ref<Api.FinanceProduct.ProductRecord>();
-const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const product = ref<Api.RealFinance.FinanceProductVO>();
 const loading = ref(false);
 const loadError = ref('');
 
-const id = computed(() => Number(route.params.id));
+const id = computed(() => String(route.params.id));
 
 async function loadAll() {
   if (!userStore.currentUser) return;
   loading.value = true;
   loadError.value = '';
   try {
-    const [p, vip] = await Promise.all([
-      financeApi.fetchFinanceProductDetail(id.value),
-      vipApi.fetchMyVipStatus(userStore.currentUser.id)
-    ]);
+    const p = await financeApi.fetchFinanceProductDetail(id.value);
     product.value = p;
-    vipStatus.value = vip;
     await walletStore.fetchWallet(userStore.currentUser.id);
   } catch {
     product.value = undefined;
@@ -42,26 +38,14 @@ async function loadAll() {
 onMounted(loadAll);
 watch(() => route.params.id, loadAll);
 
-const vipBonusRate = computed(() => {
-  const cfg = vipStatus.value?.config;
-  if (!cfg || vipStatus.value?.audience !== 'customer') return 0;
-  return Number(cfg.customerBenefits?.interestRateBonus || 0);
-});
-
 async function onSubscribe(amount: string) {
   if (!product.value || !userStore.currentUser) return;
   try {
-    const r = await financeApi.subscribeFinanceMock({
-      userId: userStore.currentUser.id,
-      productId: product.value.id,
-      principalAmount: amount
-    });
-    if (r.ok && r.order) {
+    const orderId = await financeApi.subscribeFinance({ productId: product.value.id, amount });
+    if (orderId !== undefined && orderId !== null) {
       Message.success(`订阅成功 · 已锁定 U ${formatAmount(amount)}`);
       await walletStore.refetch();
-      router.push({ name: 'finance-lockup-detail', params: { id: String(r.order.id) } });
-    } else {
-      Message.error(r.message || '订阅失败');
+      router.push({ name: 'finance-lockup-detail', params: { id: String(orderId) } });
     }
   } catch {
     Message.error('订阅失败，请稍后重试');
@@ -95,11 +79,11 @@ function handleEmptyAction() {
             <div class="big-meta">
               <div class="meta-cell">
                 <div class="lbl">基准年化利率</div>
-                <div class="val rate">{{ product.baseRate }}%</div>
+                <div class="val rate">{{ (Number(product.annualRate) * 100).toFixed(2) }}%</div>
               </div>
               <div class="meta-cell">
                 <div class="lbl">锁定期</div>
-                <div class="val">{{ product.lockupDays }} 天</div>
+                <div class="val">{{ product.lockDays }} 天</div>
               </div>
               <div class="meta-cell">
                 <div class="lbl">起投金额</div>
@@ -118,10 +102,9 @@ function handleEmptyAction() {
 
             <div class="section-title">收益规则</div>
             <ul class="rules">
-              <li>每日按日利率累计利息，到期后自动转入「不可提现」桶。</li>
-              <li>提前解锁将立即终止本期小金库，损失全部预期利息，本金原路退回「可用余额」。</li>
-              <li>本产品不保本不保收益（原型环境模拟）；VIP 加成按订阅时刻冻结。</li>
-              <li>每日 0:00 计息，到期自动转出至可用余额。</li>
+              <li>按日单利计息，具体收益以订单详情为准。</li>
+              <li>提前赎回本金全额退回，已产生利息按产品费率扣除违约费。</li>
+              <li>到期后由系统自动结算本金与利息。</li>
             </ul>
           </a-card>
 
@@ -129,8 +112,6 @@ function handleEmptyAction() {
             <InterestPreview
               v-if="product && userStore.currentUser"
               :product="product"
-              :vip-bonus-rate="vipBonusRate"
-              :vip-level="userStore.currentUser.vipLevel"
               :available-balance="walletStore.account?.available || '0'"
               @subscribe="onSubscribe"
             />

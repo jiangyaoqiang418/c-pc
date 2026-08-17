@@ -2,8 +2,9 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { financeApi, formatAmount, vipApi } from '@shared';
+import { formatAmount } from '@shared';
 import { getUsdtCnyRate } from '@shared/utils/currency';
+import * as financeApi from '@/service/api/finance';
 import { useUserStore, useWalletStore } from '@/stores';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 
@@ -11,9 +12,8 @@ const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const products = ref<Api.FinanceProduct.ProductRecord[]>([]);
-const myLockups = ref<Api.FinanceProduct.LockupOrder[]>([]);
-const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const products = ref<Api.RealFinance.FinanceProductVO[]>([]);
+const overview = ref<Api.RealFinance.FinanceOverviewVO>();
 const loading = ref(false);
 const range = ref<'day' | 'week' | 'month' | 'year'>('year');
 
@@ -21,14 +21,12 @@ async function loadAll() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
-    const [list, mineRes, vip] = await Promise.all([
+    const [list, financeOverview] = await Promise.all([
       financeApi.fetchFinanceProducts(),
-      financeApi.fetchMyLockups(userStore.currentUser.id, 'active'),
-      vipApi.fetchMyVipStatus(userStore.currentUser.id)
+      financeApi.fetchFinanceOverview()
     ]);
     products.value = list;
-    myLockups.value = mineRes.records;
-    vipStatus.value = vip;
+    overview.value = financeOverview;
     await walletStore.fetchWallet(userStore.currentUser.id);
   } finally {
     loading.value = false;
@@ -36,26 +34,18 @@ async function loadAll() {
 }
 onMounted(loadAll);
 
-const vipBonusRate = computed(() => {
-  const cfg = vipStatus.value?.config;
-  if (!cfg || vipStatus.value?.audience !== 'customer') return 0;
-  return Number(cfg.customerBenefits?.interestRateBonus || 0);
-});
-
 const currentBalance = computed(() => walletStore.account?.lockedFinance || '0');
 const cnyEquiv = computed(() => formatAmount((Number(currentBalance.value) * getUsdtCnyRate()).toFixed(2)));
 
 const bestApy = computed(() => {
   if (!products.value.length) return 0;
-  return Math.max(...products.value.map(p => Number(p.baseRate) + vipBonusRate.value));
+  return Math.max(...products.value.map(p => Number(p.annualRate) * 100));
 });
 
-const totalAccruedInterest = computed(() =>
-  myLockups.value.reduce((s, o) => s + Number(o.accruedInterest || 0), 0).toFixed(2)
-);
+const totalAccruedInterest = computed(() => Number(overview.value?.pendingInterest || 0).toFixed(2));
 
-const featuredProducts = computed(() => products.value.filter(p => p.lockupDays <= 30));
-const strategyProducts = computed(() => products.value.filter(p => p.lockupDays > 30));
+const featuredProducts = computed(() => products.value.filter(p => p.lockDays <= 30));
+const strategyProducts = computed(() => products.value.filter(p => p.lockDays > 30));
 
 const bars = computed(() => {
   const count = range.value === 'day' ? 6 : range.value === 'week' ? 12 : range.value === 'month' ? 20 : 24;
@@ -69,18 +59,18 @@ const bars = computed(() => {
   return arr.map(v => Math.max(8, (v / max) * 100));
 });
 
-function effectiveRate(p: Api.FinanceProduct.ProductRecord): string {
-  return ((Number(p.baseRate) || 0) + vipBonusRate.value).toFixed(2);
+function effectiveRate(p: Api.RealFinance.FinanceProductVO): string {
+  return ((Number(p.annualRate) || 0) * 100).toFixed(2);
 }
 
-function productIcon(p: Api.FinanceProduct.ProductRecord): string {
-  if (p.lockupDays <= 7) return '💧';
-  if (p.lockupDays <= 30) return '💰';
-  if (p.lockupDays <= 90) return '🔒';
+function productIcon(p: Api.RealFinance.FinanceProductVO): string {
+  if (p.lockDays <= 7) return '💧';
+  if (p.lockDays <= 30) return '💰';
+  if (p.lockDays <= 90) return '🔒';
   return '🏦';
 }
 
-function goDetail(p: Api.FinanceProduct.ProductRecord) {
+function goDetail(p: Api.RealFinance.FinanceProductVO) {
   router.push({ name: 'finance-detail', params: { id: String(p.id) } });
 }
 
@@ -159,13 +149,13 @@ function scrollToList() {
                   <div class="ef-icon-wrap"><span>{{ productIcon(p) }}</span></div>
                   <div class="ef-info">
                     <div class="ef-name">{{ p.name }}</div>
-                    <div class="ef-meta">锁定 {{ p.lockupDays }} 天 · 起投 U {{ formatAmount(p.minAmount) }}</div>
+                    <div class="ef-meta">锁定 {{ p.lockDays }} 天 · 起投 U {{ formatAmount(p.minAmount) }}</div>
                   </div>
                 </div>
                 <div class="ef-right">
                   <div class="ef-apy-row">
                     <span class="ef-apy-label">APY</span>
-                    <InfoTooltip text="APY = 年化收益率。含基准 + VIP 加成，日结到不可提现桶" :size="12" />
+                    <InfoTooltip text="APY = 后端返回的年化收益率，实际收益以锁仓订单为准" :size="12" />
                   </div>
                   <div class="ef-apy">{{ effectiveRate(p) }}%</div>
                 </div>
@@ -184,13 +174,13 @@ function scrollToList() {
                   <div class="ef-icon-wrap"><span>{{ productIcon(p) }}</span></div>
                   <div class="ef-info">
                     <div class="ef-name">{{ p.name }}</div>
-                    <div class="ef-meta">锁定 {{ p.lockupDays }} 天 · 起投 U {{ formatAmount(p.minAmount) }}</div>
+                    <div class="ef-meta">锁定 {{ p.lockDays }} 天 · 起投 U {{ formatAmount(p.minAmount) }}</div>
                   </div>
                 </div>
                 <div class="ef-right">
                   <div class="ef-apy-row">
                     <span class="ef-apy-label">APY</span>
-                    <InfoTooltip text="APY = 年化收益率。含基准 + VIP 加成，日结到不可提现桶" :size="12" />
+                    <InfoTooltip text="APY = 后端返回的年化收益率，实际收益以锁仓订单为准" :size="12" />
                   </div>
                   <div class="ef-apy">{{ effectiveRate(p) }}%</div>
                 </div>

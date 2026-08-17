@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { financeApi } from '@shared';
+import * as financeApi from '@/service/api/finance';
 import LockupCard from '@/components/finance/lockup-card.vue';
 import EarlyUnlockModal from '@/components/finance/early-unlock-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -12,24 +12,24 @@ const userStore = useUserStore();
 const walletStore = useWalletStore();
 const router = useRouter();
 
-const activeKey = ref<Api.FinanceProduct.LockupStatus>('active');
-const orders = ref<Api.FinanceProduct.LockupOrder[]>([]);
+const activeKey = ref<Api.RealFinance.OrderStatus>('HOLDING');
+const orders = ref<Api.RealFinance.FinanceOrderVO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
-const allCounts = ref<Record<Api.FinanceProduct.LockupStatus, number>>({
-  active: 0,
-  matured: 0,
-  early_unlocked: 0,
-  cancelled: 0
+const allCounts = ref<Record<Api.RealFinance.OrderStatus, number>>({
+  HOLDING: 0,
+  SETTLED: 0,
+  REDEEMED: 0,
+  CANCELED: 0
 });
 const unlockModalOpen = ref(false);
-const unlockTarget = ref<Api.FinanceProduct.LockupOrder>();
+const unlockTarget = ref<Api.RealFinance.FinanceOrderVO>();
 
-const TABS: { key: Api.FinanceProduct.LockupStatus; label: string }[] = [
-  { key: 'active', label: '持仓中' },
-  { key: 'matured', label: '已到期' },
-  { key: 'early_unlocked', label: '提前解锁' },
-  { key: 'cancelled', label: '已取消' }
+const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
+  { key: 'HOLDING', label: '持仓中' },
+  { key: 'SETTLED', label: '已到期' },
+  { key: 'REDEEMED', label: '提前赎回' },
+  { key: 'CANCELED', label: '已取消' }
 ];
 
 async function load() {
@@ -37,7 +37,7 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const r = await financeApi.fetchMyLockups(userStore.currentUser.id, activeKey.value);
+    const r = await financeApi.fetchFinanceOrders({ pageNo: 1, pageSize: 50, status: activeKey.value });
     orders.value = r.records;
   } catch {
     orders.value = [];
@@ -51,7 +51,7 @@ async function loadCounts() {
   if (!userStore.currentUser) return;
   try {
     const all = await Promise.all(
-      TABS.map(t => financeApi.fetchMyLockups(userStore.currentUser!.id, t.key).then(r => ({ key: t.key, total: r.total })))
+      TABS.map(t => financeApi.fetchFinanceOrders({ pageNo: 1, pageSize: 1, status: t.key }).then(r => ({ key: t.key, total: r.total })))
     );
     all.forEach(({ key, total }) => {
       allCounts.value[key] = total;
@@ -67,23 +67,19 @@ onMounted(async () => {
 });
 watch(activeKey, load);
 
-function onUnlock(order: Api.FinanceProduct.LockupOrder) {
+function onUnlock(order: Api.RealFinance.FinanceOrderVO) {
   unlockTarget.value = order;
   unlockModalOpen.value = true;
 }
 
-async function confirmUnlock(order: Api.FinanceProduct.LockupOrder) {
+async function confirmUnlock(order: Api.RealFinance.FinanceOrderVO) {
   try {
-    const r = await financeApi.earlyUnlockMock(order.id);
-    if (r.ok) {
-      Message.success('提前解锁成功，本金已返回可用余额');
-      unlockModalOpen.value = false;
-      await walletStore.refetch();
-      await load();
-      await loadCounts();
-    } else {
-      Message.error(r.message || '解锁失败');
-    }
+    await financeApi.redeemFinance({ id: order.id });
+    Message.success('提前赎回申请成功，本金已返回可用余额');
+    unlockModalOpen.value = false;
+    await walletStore.refetch();
+    await load();
+    await loadCounts();
   } catch {
     Message.error('解锁失败，请稍后重试');
   }
@@ -97,7 +93,7 @@ function handleEmptyAction() {
   router.push('/finance');
 }
 
-const tabBadgeCount = computed(() => (k: Api.FinanceProduct.LockupStatus) => allCounts.value[k]);
+const tabBadgeCount = computed(() => (k: Api.RealFinance.OrderStatus) => allCounts.value[k]);
 </script>
 
 <template>

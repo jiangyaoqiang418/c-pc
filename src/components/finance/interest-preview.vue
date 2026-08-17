@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { formatAmount, formatPoints, formatRate } from '@shared';
-import { calcInterest, calcPoints } from '@shared/mock/data/finance-lockup-orders';
+import { formatAmount, formatRate } from '@shared';
 
 interface Props {
-  product: Api.FinanceProduct.ProductRecord;
-  vipBonusRate: number;
-  vipLevel: Api.User.VipLevel;
+  product: Api.RealFinance.FinanceProductVO;
   availableBalance?: string;
 }
 const props = defineProps<Props>();
@@ -15,11 +12,9 @@ const emit = defineEmits<{ (e: 'subscribe', amount: string): void }>();
 const amount = ref<number>(Number(props.product.minAmount) || 100);
 const submitting = ref(false);
 
-const baseRateNum = computed(() => Number(props.product.baseRate) || 0);
-const effectiveRate = computed(() => baseRateNum.value + props.vipBonusRate);
-const expectedInterest = computed(() => calcInterest(String(amount.value), String(effectiveRate.value), props.product.lockupDays));
-const expectedPoints = computed(() => calcPoints(String(amount.value), props.product.lockupDays));
-const maturityDate = computed(() => new Date(Date.now() + props.product.lockupDays * 86400_000).toLocaleDateString());
+const annualRate = computed(() => Number(props.product.annualRate) || 0);
+const expectedInterest = computed(() => (amount.value * annualRate.value * props.product.lockDays / 365).toFixed(8));
+const maturityDate = computed(() => new Date(Date.now() + props.product.lockDays * 86400_000).toLocaleDateString());
 
 const min = computed(() => Number(props.product.minAmount) || 0);
 const max = computed(() => (props.product.maxAmount ? Number(props.product.maxAmount) : undefined));
@@ -67,13 +62,13 @@ watch(
     <div class="result-row">
       <div class="lbl">综合年化利率</div>
       <div class="val rate">
-        {{ formatRate(effectiveRate / 100) }}
-        <span class="bonus">基准 {{ baseRateNum.toFixed(2) }}% + {{ vipLevel }} 加成 {{ vipBonusRate.toFixed(2) }}%</span>
+        {{ formatRate(annualRate) }}
+        <span class="bonus">以申购时后端返回的年化与锁定天数计算</span>
       </div>
     </div>
     <div class="result-row">
       <div class="lbl">锁定天数</div>
-      <div class="val">{{ product.lockupDays }} 天</div>
+      <div class="val">{{ product.lockDays }} 天</div>
     </div>
     <div class="result-row">
       <div class="lbl">预计到期日</div>
@@ -82,10 +77,6 @@ watch(
     <div class="result-row highlight">
       <div class="lbl">预计利息</div>
       <div class="val interest">+ U {{ formatAmount(expectedInterest) }}</div>
-    </div>
-    <div class="result-row">
-      <div class="lbl">预计积分奖励</div>
-      <div class="val">+ {{ formatPoints(expectedPoints) }} 分</div>
     </div>
 
     <a-button
@@ -100,7 +91,7 @@ watch(
       立即订阅 U {{ formatAmount(amount.toFixed(2)) }}
     </a-button>
 
-    <div class="hint">提前解锁将损失全部预期利息，请确认锁定期。</div>
+    <div class="hint">提前赎回以订单详情返回的可到账利息和违约费为准。</div>
   </a-card>
 </template>
 

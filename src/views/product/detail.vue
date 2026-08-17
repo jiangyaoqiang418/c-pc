@@ -13,6 +13,7 @@ import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import * as productApi from '@/service/api/product';
+import * as reviewApi from '@/service/api/review';
 import { useCartStore } from '@/stores';
 
 const route = useRoute();
@@ -20,8 +21,9 @@ const router = useRouter();
 const cart = useCartStore();
 
 const product = ref<Api.Product.ProductRecord>();
-const reviews = ref<Api.Review.ReviewRecord[]>([]);
-const sellerScore = ref<Api.Review.UserScoreSummary>();
+const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
+const reviewSummary = ref<Api.RealReview.ReviewSummaryDTO>();
+const sellerScore = ref<Api.RealReview.SellerRatingDTO>();
 const sameShop = ref<Api.Product.ProductRecord[]>([]);
 const qty = ref(1);
 const loading = ref(false);
@@ -41,13 +43,20 @@ async function load() {
     if (product.value) {
       productApi.trackProductBrowse(id.value).catch(() => undefined);
       productApi.trackProductView(id.value).catch(() => undefined);
-      reviews.value = [];
-      sellerScore.value = undefined;
+      const [reviewPage, summary, sellerRating] = await Promise.allSettled([
+        reviewApi.fetchStorefrontReviews({ productId: product.value.id, pageNo: 1, pageSize: 20 }),
+        reviewApi.fetchReviewSummary(product.value.id),
+        reviewApi.fetchSellerRating(product.value.sellerId)
+      ]);
+      reviews.value = reviewPage.status === 'fulfilled' ? reviewPage.value.records || [] : [];
+      reviewSummary.value = summary.status === 'fulfilled' ? summary.value : undefined;
+      sellerScore.value = sellerRating.status === 'fulfilled' ? sellerRating.value : undefined;
       sameShop.value = [];
     }
   } catch {
     product.value = undefined;
     reviews.value = [];
+    reviewSummary.value = undefined;
     sellerScore.value = undefined;
     sameShop.value = [];
   } finally {
@@ -121,9 +130,8 @@ async function favorite() {
           <div class="summary">{{ product.summary }}</div>
 
           <div v-if="sellerScore" class="seller-summary">
-            <ReviewStars :score="Number(sellerScore.avgScore)" size="sm" show-score />
-            <span class="rev-count">· {{ sellerScore.receivedTotal }} 条评价</span>
-            <span class="rev-count">· 好评率 <span class="yb-mono">{{ sellerScore.goodRate }}</span></span>
+            <ReviewStars :score="Number(sellerScore.averageScore)" size="sm" show-score />
+            <span class="rev-count">· {{ sellerScore.totalCount }} 条评价</span>
           </div>
 
           <!-- 价格块 (USDT 主 / CNY 副 / 汇率 / 税费 ⓘ) -->
@@ -225,9 +233,8 @@ async function favorite() {
               <div class="seller-stats">
                 <span v-if="sellerScore">
                   <Icon icon="lucide:star" width="12" />
-                  <span class="yb-mono">{{ sellerScore.avgScore }}</span>
-                  · {{ sellerScore.receivedTotal }} 评价
-                  · 好评 {{ sellerScore.goodRate }}
+                  <span class="yb-mono">{{ sellerScore.averageScore }}</span>
+                  · {{ sellerScore.totalCount }} 评价
                 </span>
                 <span v-else class="muted">该买手暂无评价</span>
               </div>
@@ -243,7 +250,7 @@ async function favorite() {
       <div class="tab-card">
         <div class="tab-bar">
           <button
-            v-for="t in [{key:'desc',label:'商品详情'},{key:'spec',label:'规格参数'},{key:'review',label:`用户评价 (${reviews.length})`},{key:'sameshop',label:'同店推荐'}]"
+            v-for="t in [{key:'desc',label:'商品详情'},{key:'spec',label:'规格参数'},{key:'review',label:`用户评价 (${reviewSummary?.totalCount ?? reviews.length})`},{key:'sameshop',label:'同店推荐'}]"
             :key="t.key"
             class="tab"
             :class="{ active: activeTab === t.key }"
@@ -261,13 +268,13 @@ async function favorite() {
           </div>
           <div v-else-if="activeTab === 'review'">
             <div v-if="reviews.length" class="review-list">
-              <div v-for="r in reviews" :key="r.id" class="review-row">
-                <img :src="avatarUrl(r.fromUserId)" :alt="r.fromUserName" class="rev-avatar" />
+              <div v-for="r in reviews" :key="r.reviewId" class="review-row">
+                <img :src="avatarUrl(0)" :alt="r.userName" class="rev-avatar" />
                 <div class="rev-body">
                   <div class="rev-head">
-                    <span class="rev-user">{{ r.fromUserName }}</span>
-                    <ReviewStars :score="r.score" size="sm" />
-                    <span class="rev-time yb-mono">{{ new Date(r.createdAt).toLocaleDateString() }}</span>
+                    <span class="rev-user">{{ r.userName || '匿名用户' }}</span>
+                    <ReviewStars :score="r.productScore" size="sm" />
+                    <span class="rev-time yb-mono">{{ r.createdAt ? new Date(Number(r.createdAt)).toLocaleDateString() : '—' }}</span>
                   </div>
                   <div class="rev-text">{{ r.content }}</div>
                 </div>

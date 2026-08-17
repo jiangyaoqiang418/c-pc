@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
@@ -24,12 +24,15 @@ const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.RechargeVO>();
 const detailTarget = ref<Api.RealWallet.RechargeVO>();
 const loadingChains = ref(false);
+const loadingAddress = ref(false);
 const loadError = ref('');
+const addressError = ref('');
 const recordError = ref('');
 const detailError = ref('');
 
 const chainOptions = ref<Api.RealWallet.RechargeChainVO[]>([]);
 const selectedChain = computed(() => chainOptions.value.find(item => item.chain === chain.value));
+const rechargeAddress = ref<Api.RealWallet.RechargeAddressVO>();
 
 const statusColor = computed(() => (status?: string) => {
   if (status === 'CONFIRMED') return 'green';
@@ -82,6 +85,27 @@ async function loadChains() {
     loadError.value = '充值链加载失败，请稍后重试';
   } finally {
     loadingChains.value = false;
+  }
+}
+
+async function loadRechargeAddress(chainCode = chain.value) {
+  if (!chainCode) {
+    rechargeAddress.value = undefined;
+    return;
+  }
+  loadingAddress.value = true;
+  addressError.value = '';
+  rechargeAddress.value = undefined;
+  try {
+    const address = await realWalletApi.fetchRechargeAddress(chainCode);
+    if (chainCode === chain.value) rechargeAddress.value = address;
+  } catch {
+    if (chainCode === chain.value) {
+      rechargeAddress.value = undefined;
+      addressError.value = '专属充值地址加载失败，请稍后重试';
+    }
+  } finally {
+    if (chainCode === chain.value) loadingAddress.value = false;
   }
 }
 
@@ -151,6 +175,7 @@ function queryRecords() {
 }
 
 onMounted(loadAll);
+watch(chain, () => void loadRechargeAddress());
 </script>
 
 <template>
@@ -179,17 +204,19 @@ onMounted(loadAll);
                 </a-form-item>
               </a-col>
             </a-row>
-            <div v-if="selectedChain?.depositAddress" class="direct-address">
+            <div v-if="rechargeAddress?.address" class="direct-address">
               <div class="direct-address-head">
                 <div>
-                  <div class="address-label">{{ selectedChain.label }}（{{ selectedChain.chain }}）专属充值地址</div>
-                  <div class="address-value direct-address-value">{{ selectedChain.depositAddress }}</div>
+                  <div class="address-label">{{ selectedChain?.label || rechargeAddress.chain }}（{{ selectedChain?.chain || rechargeAddress.chain }}）专属充值地址</div>
+                  <div class="address-value direct-address-value">{{ rechargeAddress.address }}</div>
                 </div>
-                <a-button size="small" @click="copy(selectedChain.depositAddress)">复制地址</a-button>
+                <a-button size="small" @click="copy(rechargeAddress.address)">复制地址</a-button>
               </div>
-              <div v-if="selectedChain.minAmount" class="minimum-hint">建议最低充值金额：{{ selectedChain.minAmount }} USDT</div>
+              <div v-if="rechargeAddress.memo" class="minimum-hint">Memo / Tag：{{ rechargeAddress.memo }}</div>
+              <div v-if="rechargeAddress.minAmount" class="minimum-hint">建议最低充值金额：{{ rechargeAddress.minAmount }} USDT</div>
+              <div v-if="rechargeAddress.minConfirmations" class="minimum-hint">到账确认数：{{ rechargeAddress.minConfirmations }}</div>
             </div>
-            <a-alert v-else-if="selectedChain" type="warning" class="direct-address" title="当前充值链暂未返回专属地址，请稍后重新加载。" />
+            <a-alert v-else-if="selectedChain && !loadingAddress" type="warning" class="direct-address" :title="addressError || '当前充值链暂未返回专属地址，请稍后重新加载。'" />
             <a-alert type="warning" class="chain-alert" title="请务必使用所选链转账；到账状态以链上确认和平台审核结果为准。" />
             <div class="optional-order">
               <div>

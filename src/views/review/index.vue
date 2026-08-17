@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { reviewApi } from '@shared';
+import * as reviewApi from '@/service/api/review';
 import ReviewCard from '@/components/review/review-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
@@ -8,7 +8,7 @@ import { useUserStore } from '@/stores';
 const userStore = useUserStore();
 
 const activeKey = ref<'sent' | 'received'>('sent');
-const list = ref<Api.Review.ReviewRecord[]>([]);
+const list = ref<Api.RealReview.ReviewDTO[]>([]);
 const loading = ref(false);
 
 const isBuyer = computed(() => !!userStore.currentUser?.isBuyer);
@@ -17,11 +17,10 @@ async function load() {
   if (!userStore.currentUser) return;
   loading.value = true;
   try {
-    const params: { fromUserId?: number; toUserId?: number; size: number } = { size: 30 };
-    if (activeKey.value === 'sent') params.fromUserId = userStore.currentUser.id;
-    else params.toUserId = userStore.currentUser.id;
-    const r = await reviewApi.fetchMyReviews(params);
-    list.value = r.records;
+    const r = activeKey.value === 'sent'
+      ? await reviewApi.fetchMyReviews({ pageNo: 1, pageSize: 30 })
+      : await reviewApi.fetchReceivedReviews({ pageNo: 1, pageSize: 30 });
+    list.value = r.records || [];
   } finally {
     loading.value = false;
   }
@@ -44,7 +43,7 @@ watch(activeKey, load);
     <div class="list-wrap">
       <a-spin :loading="loading" style="width: 100%">
         <template v-if="list.length">
-          <ReviewCard v-for="r in list" :key="r.id" :review="r" />
+          <ReviewCard v-for="r in list" :key="r.reviewId" :review="r" />
         </template>
         <EmptyState
           v-else

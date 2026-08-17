@@ -3,7 +3,7 @@ declare namespace Api.RealNotify {
   type ConversationRole = 'CUSTOMER' | 'SELLER' | 'ADMIN' | string;
   type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'ORDER_CARD' | 'SYSTEM' | string;
   type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE';
-  type SocketEventType = 'IM_MESSAGE' | 'IM_READ' | 'IM_RECALL' | 'NOTIFICATION' | 'PONG' | string;
+  type SocketEventType = 'READY' | 'IM_MESSAGE' | 'IM_READ' | 'IM_RECALL' | 'NOTIFICATION' | 'PONG' | string;
 
   interface PageQuery {
     pageNo?: number;

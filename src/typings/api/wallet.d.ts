@@ -55,6 +55,16 @@ declare namespace Api.RealWallet {
     enabled: boolean;
   }
 
+  interface RechargeAddressVO {
+    chain: string;
+    address: string;
+    tokenContract?: string;
+    decimals?: number;
+    memo?: string;
+    minAmount?: string | number;
+    minConfirmations?: number;
+  }
+
   interface RechargePageQuery {
     pageNo?: number;
     pageSize?: number;

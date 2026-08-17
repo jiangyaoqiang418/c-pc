@@ -13,7 +13,8 @@ export type NotifyRealtimeEvent =
 
 type RealtimeListener = (event: NotifyRealtimeEvent) => void;
 
-const HEARTBEAT_MS = 30_000;
+const HEARTBEAT_MS = 25_000;
+const READY_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_MS = 30_000;
 const listeners = new Set<RealtimeListener>();
 
@@ -37,6 +38,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
 
   let socket: WebSocket | undefined;
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  let readyTimer: ReturnType<typeof setTimeout> | undefined;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   let reconnectAttempt = 0;
   let missedPongs = 0;
@@ -76,6 +78,11 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     missedPongs = 0;
   }
 
+  function clearReadyTimeout() {
+    if (readyTimer) clearTimeout(readyTimer);
+    readyTimer = undefined;
+  }
+
   function startHeartbeat() {
     clearHeartbeat();
     heartbeatTimer = setInterval(() => {
@@ -112,6 +119,15 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       missedPongs = 0;
       return;
     }
+    if (type === 'READY') {
+      clearReadyTimeout();
+      socketState.value = 'open';
+      reconnectAttempt = 0;
+      startHeartbeat();
+      refreshUnreadCounts();
+      emit({ type: 'SYNC' });
+      return;
+    }
     if (type === 'IM_MESSAGE') {
       emit({ type, payload: framePayload<Api.RealNotify.ImMessageVO>(frame) });
       return;
@@ -141,11 +157,9 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     socket = new WebSocket(realtimeURL(token));
 
     socket.onopen = () => {
-      socketState.value = 'open';
-      reconnectAttempt = 0;
-      startHeartbeat();
-      refreshUnreadCounts();
-      emit({ type: 'SYNC' });
+      readyTimer = setTimeout(() => {
+        if (socket?.readyState === WebSocket.OPEN) socket.close(4001, 'ready timeout');
+      }, READY_TIMEOUT_MS);
     };
     socket.onmessage = event => {
       if (typeof event.data === 'string') handleFrame(event.data);
@@ -155,6 +169,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     };
     socket.onclose = () => {
       socket = undefined;
+      clearReadyTimeout();
       clearHeartbeat();
       socketState.value = 'closed';
       scheduleReconnect();
@@ -165,6 +180,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     manuallyClosed = true;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
+    clearReadyTimeout();
     clearHeartbeat();
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'logout');
     socket = undefined;

@@ -9,8 +9,18 @@ export function notificationOrderId(notification: Pick<Api.RealNotify.Notificati
 }
 
 export function notificationRoute(notification: Pick<Api.RealNotify.NotificationVO, 'bizType' | 'bizId'>) {
-  const orderId = notificationOrderId(notification);
-  return orderId ? { name: 'order-detail' as const, params: { id: orderId } } : undefined;
+  const bizId = notification.bizId === undefined || notification.bizId === null || notification.bizId === ''
+    ? undefined
+    : String(notification.bizId);
+  const type = String(notification.bizType || '').toUpperCase();
+  if (type === 'ORDER' && bizId) return { name: 'order-detail' as const, params: { id: bizId } };
+  if (type === 'RECHARGE') return { name: 'wallet-deposit' as const };
+  if (type === 'WITHDRAW') return { name: 'wallet-withdraw' as const };
+  if (type === 'KYC') return { name: 'kyc' as const };
+  if (type === 'BUYER_APPLICATION') return { name: 'buyer-apply' as const };
+  if (type === 'FINANCE' && bizId) return { name: 'finance-lockup-detail' as const, params: { id: bizId } };
+  if (type === 'PRODUCT_REVIEW') return { name: 'review-list' as const };
+  return undefined;
 }
 
 /** 从独立订单群返回消息中心时保留当前会话选中态。 */
