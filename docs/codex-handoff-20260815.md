@@ -211,7 +211,14 @@ pnpm dev --host 0.0.0.0
 - 已执行：`pnpm typecheck`、`pnpm test`（5 文件、14 项）、`pnpm check:swagger`、`pnpm build`、`git diff --check`，均通过；构建只有既有 Arco 大包警告。
 - Chrome 当前未连接到可控会话，因此理财申购/赎回、评价图片上传/提交/评分回读，以及双账号 IM 实时到达尚未标记为浏览器真实回归通过。
 - 2026-08-17 以有效 C 端 token 实测：理财产品/订单、我的评价、待评价接口均返回 `code=1`；Notify 自检接口正常，但 WebSocket Upgrade 返回 nginx `400 Bad Request`，不是 `101`。WebSocket 验收仍要求有效 token 握手返回 `101`、首帧 `READY`、PING/PONG 和双账号无刷新送达；未修复前禁止以前端本地消息冒充成功。
-- 2026-08-17 Chrome 回归：`mamba` 登录本地 C-PC 后，`/finance` 正常读取理财总览和空产品列表，`/finance/my-lockups` 正常显示四个订单状态和空态；`/review` 的“我发出的”和“我收到的（买手）”均正常读取并展示空态，浏览器控制台无 error。该账号当前没有可申购产品、锁仓订单或可评价订单，故申购、赎回、带图提交评价及评分摘要变化仍缺可写测试数据，不能标记为真实写读闭环。
+- 2026-08-17 Chrome 回归（构造数据前）：`mamba` 登录本地 C-PC 后，`/finance` 正常读取理财总览和空产品列表，`/finance/my-lockups` 正常显示四个订单状态和空态；`/review` 的“我发出的”和“我收到的（买手）”均正常读取并展示空态，浏览器控制台无 error。当时无可申购产品、锁仓订单或可评价订单；随后评价数据已按 §13 构造并完成写读回归，理财写链路仍缺可用产品。
+
+## 13. 2026-08-17 评价真实写读闭环
+
+- 新建 QA 订单：mamba 购买 john 的商品 `测试数据3`（商品 `2086331622220189697`）；订单 `2089329381831430145` 按 `create-batch → group/pay → ship → confirm` 完成，最终状态 `COMPLETED`。
+- mamba 已创建真实评价 `2089329581404803074`：商品分与买手服务分均为 5，状态 `PUBLISHED`；john 已真实回复。商品评分摘要由 `0 条 / 0.00` 变为 `1 条 / 5.00`。
+- Chrome 双账号回归：mamba 的“我发出的”及 john 的“我收到的（买手）”均展示评价和回复；商品详情页显示 `5.0 / 1 条评价`，评价 Tab 正确展示内容，控制台无 error。
+- 本次评价不含图片；带图上传仍可用 `POST /order/files/upload?dir=review`，如需验证上传链路需另建 QA 订单后提交，避免对已评价订单重复写入。
 - 后端修复说明列出的提现 `payoutId/payoutStatus/dispatchedAt/submittedAt/blockHeight/networkFee/networkFeeSymbol`，尚未出现在本次实时 user Swagger 的 `WithdrawVO`；前端暂不猜测字段，待 Swagger 发布后再补详情展示。
 
 ## 9. 新 Codex 接手后的推荐首轮动作
