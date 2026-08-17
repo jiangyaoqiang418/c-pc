@@ -55,6 +55,12 @@ function expectProperties(schema, fields, label) {
   if (missing.length) throw new Error(`${label} 缺少字段：${missing.join(', ')}`);
 }
 
+function expectParameters(operationDefinition, names, label) {
+  const actual = new Map((operationDefinition.parameters || []).map(parameter => [parameter.name, parameter]));
+  const missing = names.filter(name => !actual.has(name));
+  if (missing.length) throw new Error(`${label} 缺少参数：${missing.join(', ')}`);
+}
+
 function countOperations(document) {
   return Object.values(document.paths || {}).reduce(
     (total, pathItem) => total + Object.keys(pathItem).filter(key => ['get', 'post', 'put', 'delete', 'patch'].includes(key)).length,
@@ -132,6 +138,8 @@ expectRequired(reviewReply, ['reviewId', 'content'], '买手回复评价');
 const reviewAppeal = requestSchema(order, operation(order, '/reviews/appeals/create', 'post'));
 expectRequired(reviewAppeal, ['reviewId', 'reason'], '买手评价申诉');
 operation(order, '/reviews/delete', 'delete');
+const reviewDetail = operation(order, '/reviews/detail', 'get');
+expectParameters(reviewDetail, ['id'], '评价详情');
 
 const createDemand = requestSchema(order, operation(order, '/demands/create', 'post'));
 expectRequired(

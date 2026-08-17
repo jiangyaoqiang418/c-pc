@@ -218,7 +218,8 @@ pnpm dev --host 0.0.0.0
 - 新建 QA 订单：mamba 购买 john 的商品 `测试数据3`（商品 `2086331622220189697`）；订单 `2089329381831430145` 按 `create-batch → group/pay → ship → confirm` 完成，最终状态 `COMPLETED`。
 - mamba 已创建真实评价 `2089329581404803074`：商品分与买手服务分均为 5，状态 `PUBLISHED`；john 已真实回复。商品评分摘要由 `0 条 / 0.00` 变为 `1 条 / 5.00`。
 - Chrome 双账号回归：mamba 的“我发出的”及 john 的“我收到的（买手）”均展示评价和回复；商品详情页显示 `5.0 / 1 条评价`，评价 Tab 正确展示内容，控制台无 error。
-- 本次评价不含图片；带图上传仍可用 `POST /order/files/upload?dir=review`，如需验证上传链路需另建 QA 订单后提交，避免对已评价订单重复写入。
+- 后续补充带图评价：新建第二笔 QA 订单，上传 `tmp/qa-review-20260817.svg` 至 `POST /order/files/upload?dir=review` 后提交评价 `2089334331034652673`。详情回读 `hasImage=true`、图片数 1；商品摘要为 2 条评价、1 条带图、均分 5.00，Chrome 商品评价 Tab 已展示缩略图。
+- `pnpm check:swagger` 已新增 `/reviews/detail?id=` 参数检查，避免把历史 `reviewId` 参数名误用于最新契约。
 
 ## 14. 2026-08-17 理财锁仓真实写读闭环
 
@@ -226,6 +227,7 @@ pnpm dev --host 0.0.0.0
 - mamba 已真实申购 100 U，生成锁仓订单 `2089331730658451457`；接口回读 `HOLDING`、本金 `100.00000000`、年化 `0.06000000`、锁定期 `30`，理财总览持仓本金为 100 U。
 - Chrome 回归：产品详情正确展示起投/利息预估；“我的锁仓 → 持仓中”展示订单、本金、6% 年化、剩余 30 天，并能打开提前赎回确认信息。
 - 已真实提前赎回该订单：接口回读状态 `REDEEMED`，可用余额从 `99999016.00000000` 回升至 `99999116.00000000`；Chrome “提前赎回”标签显示 1 条已赎回订单。理财申购、锁仓、赎回与资金回读闭环通过。
+- 本轮申购、赎回均产生真实站内通知：`FINANCE + 锁仓订单 bizId + finance_subscribed/finance_redeemed` 字段齐全，Chrome 通知中心已回显内容。通知跳转由既有单测覆盖到锁仓订单路由。
 - 后端修复说明列出的提现 `payoutId/payoutStatus/dispatchedAt/submittedAt/blockHeight/networkFee/networkFeeSymbol`，尚未出现在本次实时 user Swagger 的 `WithdrawVO`；前端暂不猜测字段，待 Swagger 发布后再补详情展示。
 
 ## 9. 新 Codex 接手后的推荐首轮动作
