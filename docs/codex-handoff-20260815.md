@@ -210,7 +210,7 @@ pnpm dev --host 0.0.0.0
 
 - 已执行：`pnpm typecheck`、`pnpm test`（5 文件、14 项）、`pnpm check:swagger`、`pnpm build`、`git diff --check`，均通过；构建只有既有 Arco 大包警告。
 - Chrome 当前未连接到可控会话，因此理财申购/赎回、评价图片上传/提交/评分回读，以及双账号 IM 实时到达尚未标记为浏览器真实回归通过。
-- Notify `GET /back/im/status` 已纳入契约检查；WebSocket 验收仍要求有效 token 握手返回 `101`、首帧 `READY`、PING/PONG 和双账号无刷新送达。若仍非 `101`，记录为网关/反代问题，禁止以前端本地消息冒充成功。
+- 2026-08-17 以有效 C 端 token 实测：理财产品/订单、我的评价、待评价接口均返回 `code=1`；Notify 自检接口正常，但 WebSocket Upgrade 返回 nginx `400 Bad Request`，不是 `101`。WebSocket 验收仍要求有效 token 握手返回 `101`、首帧 `READY`、PING/PONG 和双账号无刷新送达；未修复前禁止以前端本地消息冒充成功。
 - 后端修复说明列出的提现 `payoutId/payoutStatus/dispatchedAt/submittedAt/blockHeight/networkFee/networkFeeSymbol`，尚未出现在本次实时 user Swagger 的 `WithdrawVO`；前端暂不猜测字段，待 Swagger 发布后再补详情展示。
 
 ## 9. 新 Codex 接手后的推荐首轮动作
