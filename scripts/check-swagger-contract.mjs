@@ -85,6 +85,8 @@ const rechargeConfirmResponse = responseDataSchema(user, rechargeConfirmOperatio
 expectProperties(rechargeConfirmResponse, ['rechargeId', 'amount', 'txHash', 'status', 'confirmedAt', 'testData'], '测试充值到账响应');
 
 operation(user, '/recharge/address', 'get');
+const withdrawDetail = responseDataSchema(user, operation(user, '/withdraw/detail', 'get'));
+expectProperties(withdrawDetail, ['id', 'amount', 'fee', 'actualAmount', 'status', 'paidAt', 'confirmedAt'], '提现详情响应');
 ['/finance/products/list', '/finance/products/detail', '/finance/orders/overview', '/finance/orders/detail'].forEach(path => operation(user, path, 'get'));
 const financeSubscribe = requestSchema(user, operation(user, '/finance/orders/subscribe', 'post'));
 expectRequired(financeSubscribe, ['productId', 'amount'], '理财申购');

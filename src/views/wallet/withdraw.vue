@@ -52,6 +52,10 @@ function formatTime(value?: string | number) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
 }
 
+function formatMoney(value?: string | number) {
+  return value === undefined || value === null ? '—' : `U ${formatAmount(value)}`;
+}
+
 function getId(result: Api.RealWallet.WithdrawVO | string | number) {
   return typeof result === 'object' ? result.id : result;
 }
@@ -166,7 +170,9 @@ onMounted(loadAll);
       <a-descriptions :column="2" :data="[
         { label: '申请编号', value: String(createdWithdrawal.id) },
         { label: '状态', value: createdWithdrawal.statusText || createdWithdrawal.status || 'REVIEWING' },
-        { label: '金额', value: 'U ' + formatAmount(createdWithdrawal.amount) },
+        { label: '转出金额', value: formatMoney(createdWithdrawal.amount) },
+        { label: '手续费', value: formatMoney(createdWithdrawal.fee) },
+        { label: '实际到账', value: formatMoney(createdWithdrawal.actualAmount) },
         { label: '创建时间', value: formatTime(createdWithdrawal.createdAt) }
       ]" />
     </a-card>
@@ -185,7 +191,8 @@ onMounted(loadAll);
         <template #columns>
           <a-table-column title="申请编号" data-index="id" :width="220" />
           <a-table-column title="链" data-index="chain" :width="120" />
-          <a-table-column title="金额" :width="130"><template #cell="{ record }">U {{ formatAmount(record.amount) }}</template></a-table-column>
+          <a-table-column title="转出金额" :width="130"><template #cell="{ record }">{{ formatMoney(record.amount) }}</template></a-table-column>
+          <a-table-column title="实际到账" :width="130"><template #cell="{ record }">{{ formatMoney(record.actualAmount) }}</template></a-table-column>
           <a-table-column title="状态" :width="140"><template #cell="{ record }"><a-tag :color="record.status === 'SUCCESS' ? 'green' : record.status === 'REJECTED' ? 'red' : 'orange'">{{ record.statusText || record.status || 'REVIEWING' }}</a-tag></template></a-table-column>
           <a-table-column title="创建时间"><template #cell="{ record }">{{ formatTime(record.createdAt) }}</template></a-table-column>
           <a-table-column title="操作" :width="90"><template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template></a-table-column>
@@ -218,12 +225,15 @@ onMounted(loadAll);
           { label: '申请编号', value: String(detail.id) },
           { label: '链', value: detail.chain },
           { label: '目标地址', value: detail.toAddress },
-          { label: '金额', value: 'U ' + formatAmount(detail.amount) },
+          { label: '转出金额', value: formatMoney(detail.amount) },
+          { label: '手续费', value: formatMoney(detail.fee) },
+          { label: '实际到账', value: formatMoney(detail.actualAmount) },
           { label: '状态', value: detail.statusText || detail.status || 'REVIEWING' },
           { label: '审核意见', value: detail.reviewComment || '—' },
           { label: '失败原因', value: detail.failReason || '—' },
           { label: '交易哈希', value: detail.txHash || '—' },
           { label: '创建时间', value: formatTime(detail.createdAt) },
+          { label: '打款时间', value: formatTime(detail.paidAt) },
           { label: '确认时间', value: formatTime(detail.confirmedAt) }
         ]" />
         <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTarget && showDetail(detailTarget)" />

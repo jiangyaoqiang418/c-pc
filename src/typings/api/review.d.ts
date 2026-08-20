@@ -22,6 +22,8 @@ declare namespace Api.RealReview {
     status: ReviewStatus;
     statusText?: string;
     rejectReason?: string;
+    reviewerId?: string | number;
+    reviewedAt?: string | number;
     replyContent?: string;
     repliedAt?: string | number;
     appealId?: string | number;
@@ -63,5 +65,25 @@ declare namespace Api.RealReview {
   interface ReviewSubmitParams { orderId: string | number; productScore: number; sellerScore: number; content?: string; images?: string[]; anonymous?: boolean; }
   interface ReviewReplyParams { reviewId: string | number; content: string; }
   interface ReviewAppealParams { reviewId: string | number; reason: string; evidenceImages?: string[]; }
+  interface ReviewAppealDTO {
+    appealId: string | number;
+    reviewId: string | number;
+    productId?: string | number;
+    productTitle?: string;
+    sellerId?: string | number;
+    sellerName?: string;
+    reason: string;
+    evidenceImages?: string[];
+    status: AppealStatus;
+    statusText?: string;
+    handleRemark?: string;
+    handlerId?: string | number;
+    appliedAt?: string | number;
+    handledAt?: string | number;
+    reviewProductScore?: number;
+    reviewContent?: string;
+    reviewStatus?: ReviewStatus;
+    createdAt?: string | number;
+  }
   interface PageResult<T> { records: T[]; total: number; current?: number; size?: number; pageNo?: number; pageSize?: number; }
 }

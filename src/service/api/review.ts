@@ -33,7 +33,10 @@ export function createReviewAppeal(params: Api.RealReview.ReviewAppealParams) {
 }
 
 export function fetchMyReviewAppeals(params: Api.RealReview.PageQuery = {}) {
-  return realOrderRequest.post<Api.RealReview.PageResult<unknown>, Api.RealReview.PageQuery>('/reviews/appeals/mine/page', params);
+  return realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewAppealDTO>, Api.RealReview.PageQuery>(
+    '/reviews/appeals/mine/page',
+    params
+  );
 }
 
 export function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery) {

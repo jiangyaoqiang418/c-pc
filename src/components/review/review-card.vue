@@ -5,12 +5,21 @@ import ReviewStars from '@/components/common/review-stars.vue';
 
 interface Props {
   review: Api.RealReview.ReviewDTO;
+  audience: 'sent' | 'received';
+  actionLoading?: string;
 }
 const props = defineProps<Props>();
+const emit = defineEmits<{
+  (e: 'reply', review: Api.RealReview.ReviewDTO): void;
+  (e: 'appeal', review: Api.RealReview.ReviewDTO): void;
+  (e: 'delete', review: Api.RealReview.ReviewDTO): void;
+}>();
 
 const router = useRouter();
 
 const isHidden = computed(() => ['HIDDEN', 'REJECTED'].includes(props.review.status));
+const canReply = computed(() => props.audience === 'received' && props.review.status === 'PUBLISHED' && !props.review.replyContent);
+const canAppeal = computed(() => props.audience === 'received' && ['PUBLISHED', 'HIDDEN'].includes(props.review.status) && !props.review.appealId);
 const statusMeta = computed(() => ({
   PENDING: { label: '待审核', color: 'orange' }, PUBLISHED: { label: '已发布', color: 'green' },
   REJECTED: { label: '已驳回', color: 'red' }, HIDDEN: { label: '已隐藏', color: 'gray' }
@@ -51,6 +60,18 @@ function goOrder() {
         <span class="from">— {{ review.userName || '匿名用户' }} · 订单 {{ review.orderNo || review.orderId }}</span>
       </div>
     </template>
+    <div v-if="audience === 'sent' || canReply || canAppeal" class="actions">
+      <a-popconfirm
+        v-if="audience === 'sent'"
+        content="删除后无法恢复，确认删除这条评价吗？"
+        type="warning"
+        @ok="emit('delete', review)"
+      >
+        <a-button type="text" status="danger" size="mini" :loading="actionLoading === String(review.reviewId)">删除评价</a-button>
+      </a-popconfirm>
+      <a-button v-if="canReply" type="text" size="mini" :loading="actionLoading === String(review.reviewId)" @click="emit('reply', review)">回复评价</a-button>
+      <a-button v-if="canAppeal" type="text" size="mini" :loading="actionLoading === String(review.reviewId)" @click="emit('appeal', review)">发起申诉</a-button>
+    </div>
   </a-card>
 </template>
 
@@ -136,5 +157,11 @@ function goOrder() {
 .appeal-pending {
   color: #165dff;
   font-size: 12px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
 }
 </style>

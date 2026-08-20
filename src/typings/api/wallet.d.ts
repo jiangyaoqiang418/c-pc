@@ -101,11 +101,14 @@ declare namespace Api.RealWallet {
     chain: string;
     toAddress: string;
     amount: string | number;
+    fee?: string | number;
+    actualAmount?: string | number;
     txHash?: string;
     status?: WithdrawStatus;
     statusText?: string;
     reviewComment?: string;
     failReason?: string;
+    paidAt?: string | number;
     confirmedAt?: string | number;
     createdAt?: string | number;
   }
