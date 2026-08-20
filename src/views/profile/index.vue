@@ -208,7 +208,7 @@ const orderTabsMeta = computed(() => [
         <a-card class="ann-card" :body-style="{ padding: '20px 24px' }">
           <div class="card-head">
             <div class="card-title">平台公告</div>
-            <a-link disabled>公告中心 · Phase 3</a-link>
+            <a-link @click="router.push('/announcement')">公告中心</a-link>
           </div>
           <div v-for="a in announcements" :key="a.id" class="ann-row">
             <div class="ann-title">📢 {{ a.title }}</div>

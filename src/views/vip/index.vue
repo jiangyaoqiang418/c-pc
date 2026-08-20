@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { formatPoints } from '@shared';
 import * as pointApi from '@/service/api/point';
 import * as vipApi from '@/service/api/vip';
@@ -8,6 +9,7 @@ import VipBenefitsTable from '@/components/vip/vip-benefits-table.vue';
 import { useUserStore } from '@/stores';
 
 const userStore = useUserStore();
+const router = useRouter();
 
 const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
 const configs = ref<Api.Vip.LevelConfig[]>([]);
@@ -120,7 +122,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
             </div>
           </div>
           <div class="rules-foot">
-            <a-link disabled>查看积分明细 · Phase 4</a-link>
+            <a-link @click="router.push('/points')">查看积分明细</a-link>
           </div>
         </a-card>
       </template>

@@ -134,6 +134,11 @@ function goAftersale() {
     router.push({ name: 'aftersale-create', params: { orderId: String(order.value.id) } });
   }
 }
+
+function contactShopper() {
+  if (!order.value) return;
+  router.push({ name: 'im-order-group', params: { orderCode: order.value.code } });
+}
 </script>
 
 <template>
@@ -147,7 +152,7 @@ function goAftersale() {
               <div class="hero-code">订单号：{{ order.code }}</div>
               <div class="hero-meta">创建于 {{ new Date(order.createdAt).toLocaleString() }} · 买手 {{ order.shopperName }}</div>
             </div>
-            <OrderActions :order="order" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" />
+            <OrderActions :order="order" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" />
           </div>
         </a-card>
 

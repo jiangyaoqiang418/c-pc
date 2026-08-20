@@ -27,13 +27,7 @@ const actions = computed(() => {
     a.push({ type: 'cancel', label: '取消订单', emit: () => emit('cancel') });
   }
   if (s === 'PROCURING' || s === 'PROCURED') {
-    a.push({
-      type: 'cs',
-      label: '联系买手',
-      emit: () => emit('cs'),
-      disabled: true,
-      tip: '三方群 IM 将在 Phase 3 实现'
-    });
+    a.push({ type: 'cs', label: '联系买手', emit: () => emit('cs') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
   if (s === 'IN_TRANSIT') {

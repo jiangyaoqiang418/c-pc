@@ -71,6 +71,10 @@ function aftersale() {
     router.push({ name: 'aftersale-create', params: { orderId: String(props.order.id) } });
   }
 }
+
+function contactShopper() {
+  router.push({ name: 'im-order-group', params: { orderCode: props.order.code } });
+}
 </script>
 
 <template>
@@ -93,7 +97,7 @@ function aftersale() {
         <div class="amount-usdt">≈ {{ formatCny(order.totalAmount) }}</div>
       </div>
       <div class="op" @click.stop>
-        <OrderActions :order="order" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" />
+        <OrderActions :order="order" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" />
       </div>
     </div>
   </a-card>
