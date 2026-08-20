@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
@@ -46,7 +46,7 @@ async function load() {
       pageSize,
       orderNo: orderNo.value.trim() || undefined,
       status: activeStatus.value
-    });
+    }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
     refunds.value = response.records || [];
     total.value = response.total;
@@ -72,6 +72,7 @@ function reset() {
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, () => {
   current.value = 1;
   load();

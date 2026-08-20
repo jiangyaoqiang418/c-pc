@@ -48,6 +48,11 @@ function handleLogoutMessage(message: string, modal: boolean) {
   redirectToLogin();
 }
 
+/** 演示会话没有真实 token，真实接口失败时不应被当作登录失效清理。 */
+export function shouldRedirectAfterAuthenticationFailure(options: Pick<RequestOptions, 'skipAuthRedirect'>, hasAccessToken: boolean) {
+  return hasAccessToken && !options.skipAuthRedirect;
+}
+
 class RealRequest {
   private config: RequestConfig;
 
@@ -98,7 +103,7 @@ class RealRequest {
       const isLogout = this.config.logoutCodes.includes(code);
       const isModalLogout = this.config.modalLogoutCodes.includes(code);
 
-      if ((isLogout || isModalLogout) && token && !options.skipAuthRedirect) {
+      if ((isLogout || isModalLogout) && shouldRedirectAfterAuthenticationFailure(options, !!token)) {
         handleLogoutMessage(message, isModalLogout);
       } else if (options.showError !== false) {
         Message.error(message);

@@ -118,6 +118,7 @@ export async function fetchStorefrontProducts(q: {
   minPrice?: number;
   maxPrice?: number;
   sort?: 'sales' | 'price-asc' | 'price-desc' | 'newest' | 'reviews';
+  signal?: AbortSignal;
 }) {
   const sortMap = {
     sales: 'DEFAULT',
@@ -139,7 +140,7 @@ export async function fetchStorefrontProducts(q: {
     afterSaleType: q.aftersaleType ? fromAfterSaleType(q.aftersaleType) : undefined,
     overseasClearance: q.overseasCustoms,
     sortBy: sortMap[q.sort || 'sales']
-  });
+  }, { signal: q.signal });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,

@@ -20,10 +20,11 @@ export async function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}
 /**
  * 买手仅可查看卖出商品的售后申请；审核与退款资金处理均由平台后台完成。
  */
-export async function fetchSoldRefunds(params: Api.RealRefund.RefundPageQuery = {}) {
+export async function fetchSoldRefunds(params: Api.RealRefund.RefundPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.post<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
     '/orders/refunds/sold/page',
-    params
+    params,
+    options
   );
   return normalizePage(page);
 }

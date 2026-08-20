@@ -137,11 +137,13 @@ function submit() {
       <div class="photos">
         <div v-for="(u, i) in form.photoUrls" :key="u" class="photo-item">
           <img :src="u" :alt="`评价图片 ${i + 1}`" />
-          <button class="remove" @click="removePhoto(i)">✕</button>
+          <button class="remove" type="button" :aria-label="`删除评价图片 ${i + 1}`" :title="`删除评价图片 ${i + 1}`" @click="removePhoto(i)">✕</button>
         </div>
         <button
           v-if="form.photoUrls.length < MAX_PHOTOS"
           class="add"
+          type="button"
+          aria-label="上传评价图片"
           :disabled="uploading"
           @click="choosePhoto"
         >
@@ -226,6 +228,11 @@ function submit() {
   border-radius: 50%;
   cursor: pointer;
   font-size: 10px;
+}
+.remove:focus-visible,
+.add:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 .add {
   width: 80px;

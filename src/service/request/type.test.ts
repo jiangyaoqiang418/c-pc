@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isAuthenticationFailure, RequestError } from './type';
+import { shouldRedirectAfterAuthenticationFailure } from '.';
 
 describe('登录失效判定', () => {
   it('仅识别明确的 HTTP 或业务登录失效响应', () => {
@@ -12,5 +13,13 @@ describe('登录失效判定', () => {
     expect(isAuthenticationFailure(new TypeError('Failed to fetch'))).toBe(false);
     expect(isAuthenticationFailure(new RequestError('服务繁忙', { status: 500 }))).toBe(false);
     expect(isAuthenticationFailure(new RequestError('参数错误', { code: '400' }))).toBe(false);
+  });
+});
+
+describe('登录失效跳转边界', () => {
+  it('仅真实 token 会话才跳转登录页', () => {
+    expect(shouldRedirectAfterAuthenticationFailure({}, true)).toBe(true);
+    expect(shouldRedirectAfterAuthenticationFailure({}, false)).toBe(false);
+    expect(shouldRedirectAfterAuthenticationFailure({ skipAuthRedirect: true }, true)).toBe(false);
   });
 });

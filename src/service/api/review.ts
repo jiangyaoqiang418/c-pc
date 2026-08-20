@@ -5,8 +5,8 @@ function normalizePage<T>(page: Api.RealReview.PageResult<T>) {
   return { ...page, total: toPageTotal(page.total) };
 }
 
-export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}) {
-  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewableOrderVO>, Api.RealReview.PageQuery>('/reviews/reviewable/page', params);
+export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewableOrderVO>, Api.RealReview.PageQuery>('/reviews/reviewable/page', params, options);
   return normalizePage(page);
 }
 
@@ -14,13 +14,13 @@ export function submitReview(params: Api.RealReview.ReviewSubmitParams) {
   return realOrderRequest.post<string | number, Api.RealReview.ReviewSubmitParams>('/reviews/create', params);
 }
 
-export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}) {
-  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/mine/page', params);
+export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/mine/page', params, options);
   return normalizePage(page);
 }
 
-export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuery = {}) {
-  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/received/page', params);
+export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal } = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/received/page', params, options);
   return normalizePage(page);
 }
 
@@ -40,16 +40,17 @@ export function createReviewAppeal(params: Api.RealReview.ReviewAppealParams) {
   return realOrderRequest.post<string | number, Api.RealReview.ReviewAppealParams>('/reviews/appeals/create', params);
 }
 
-export async function fetchMyReviewAppeals(params: Api.RealReview.PageQuery = {}) {
+export async function fetchMyReviewAppeals(params: Api.RealReview.PageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewAppealDTO>, Api.RealReview.PageQuery>(
     '/reviews/appeals/mine/page',
-    params
+    params,
+    options
   );
   return normalizePage(page);
 }
 
-export async function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery) {
-  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ProductReviewPageQuery>('/storefront/reviews/page', params);
+export async function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery, options: { signal?: AbortSignal } = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ProductReviewPageQuery>('/storefront/reviews/page', params, options);
   return normalizePage(page);
 }
 

@@ -167,6 +167,7 @@ export async function fetchWalletLedger(q: {
   current?: number;
   size?: number;
   types?: Api.Wallet.TxnType[];
+  signal?: AbortSignal;
 }) {
   const firstType = q.types?.[0];
   const biz = firstType ? typeToBiz[firstType] : undefined;
@@ -178,7 +179,7 @@ export async function fetchWalletLedger(q: {
     pageSize: q.size || 20,
     bizGroup: biz?.bizGroup,
     bizType: biz?.bizType
-  });
+  }, { signal: q.signal });
   let records = page.records.map(toTxn);
   if (q.types?.length && q.types.length > 1) records = records.filter(item => q.types!.includes(item.type));
   return {
@@ -192,10 +193,11 @@ export async function fetchWalletLedger(q: {
 export async function fetchWalletLedgersByTypes(q: {
   size?: number;
   types: Api.Wallet.TxnType[];
+  signal?: AbortSignal;
 }) {
   const types = [...new Set(q.types)];
   const pages = await Promise.all(
-    types.map(type => fetchWalletLedger({ current: 1, size: q.size || 20, types: [type] }))
+    types.map(type => fetchWalletLedger({ current: 1, size: q.size || 20, types: [type], signal: q.signal }))
   );
   const recordsById = new Map<string, Api.Wallet.Txn>();
   pages.forEach(page => {

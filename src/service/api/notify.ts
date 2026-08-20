@@ -4,11 +4,11 @@ import { toPageTotal } from './page';
 // notify 服务的鉴权问题不应清空整站登录态；调用方仍会收到真实错误并自行展示。
 const notifyRequestOptions = { skipAuthRedirect: true };
 
-export async function fetchNotifications(params: Api.RealNotify.NotificationPageQuery = {}) {
+export async function fetchNotifications(params: Api.RealNotify.NotificationPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.NotificationVO>, Api.RealNotify.NotificationPageQuery>(
     '/notifications/page',
     params,
-    notifyRequestOptions
+    { ...notifyRequestOptions, signal: options.signal }
   );
   return { ...page, total: toPageTotal(page.total) };
 }

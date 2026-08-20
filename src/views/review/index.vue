@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import * as reviewApi from '@/service/api/review';
 import ReviewCard from '@/components/review/review-card.vue';
@@ -51,7 +51,7 @@ async function load() {
   loadError.value = '';
   try {
     if (isAppealTab.value) {
-      const result = await reviewApi.fetchMyReviewAppeals({ pageNo: current.value, pageSize });
+      const result = await reviewApi.fetchMyReviewAppeals({ pageNo: current.value, pageSize }, { signal: isCurrent.signal });
       if (!isCurrent()) return;
       appeals.value = result.records || [];
       total.value = result.total;
@@ -65,8 +65,8 @@ async function load() {
       hasImage: hasImage.value
     };
     const result = activeKey.value === 'sent'
-      ? await reviewApi.fetchMyReviews(params)
-      : await reviewApi.fetchReceivedReviews(params);
+      ? await reviewApi.fetchMyReviews(params, { signal: isCurrent.signal })
+      : await reviewApi.fetchReceivedReviews(params, { signal: isCurrent.signal });
     if (!isCurrent()) return;
     reviews.value = result.records || [];
     total.value = result.total;
@@ -171,6 +171,7 @@ watch(isBuyer, value => {
   if (!value && activeKey.value !== 'sent') activeKey.value = 'sent';
 });
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 </script>
 
 <template>

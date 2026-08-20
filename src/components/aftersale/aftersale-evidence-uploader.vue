@@ -61,9 +61,9 @@ function remove(i: number) {
     <input ref="inputRef" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
     <div v-for="(u, i) in modelValue" :key="u" class="cell">
       <img :src="u" :alt="`售后凭证 ${i + 1}`" />
-      <button class="remove" @click="remove(i)">✕</button>
+      <button class="remove" type="button" :aria-label="`删除售后凭证 ${i + 1}`" :title="`删除售后凭证 ${i + 1}`" @click="remove(i)">✕</button>
     </div>
-    <button v-if="modelValue.length < max" class="add" :disabled="uploading" @click="pickFile">
+    <button v-if="modelValue.length < max" class="add" type="button" aria-label="添加售后凭证图片" :disabled="uploading" @click="pickFile">
       {{ uploading ? '上传中…' : '+ 添加图片' }}
     </button>
     <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP · 上传失败不会保留本地占位图</div>
@@ -106,6 +106,11 @@ function remove(i: number) {
   border-radius: 50%;
   cursor: pointer;
   font-size: 11px;
+}
+.remove:focus-visible,
+.add:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 .add {
   width: 96px;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
@@ -78,7 +78,8 @@ async function load() {
       overseasCustoms: filter.overseasCustoms,
       minPrice: filter.minPrice,
       maxPrice: filter.maxPrice,
-      sort: filter.sort
+      sort: filter.sort,
+      signal: isCurrent.signal
     });
     if (!isCurrent()) return;
     list.value = r.records;
@@ -122,6 +123,7 @@ onMounted(() => {
   syncFromQuery();
   load();
 });
+onBeforeUnmount(requestGuard.invalidate);
 
 watch(
   () => route.fullPath,

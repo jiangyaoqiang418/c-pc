@@ -19,4 +19,17 @@ describe('最新请求保护', () => {
 
     expect(pending()).toBe(false);
   });
+
+  it('开始新请求或失效时取消上一读取请求', () => {
+    const guard = createLatestRequestGuard();
+    const first = guard.begin();
+    const second = guard.begin();
+
+    expect(first.signal.aborted).toBe(true);
+    expect(second.signal.aborted).toBe(false);
+
+    guard.invalidate();
+
+    expect(second.signal.aborted).toBe(true);
+  });
 });

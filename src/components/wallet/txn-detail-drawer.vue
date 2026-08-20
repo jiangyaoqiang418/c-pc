@@ -66,17 +66,17 @@ function copy(text?: string) {
         <div v-if="txn.chainTxHash" class="chain-row">
           <span class="k">交易哈希</span>
           <span class="v yb-mono" :title="txn.chainTxHash">{{ shortAddress(txn.chainTxHash, 10, 8) }}</span>
-          <button class="copy-btn" @click="copy(txn.chainTxHash)"><Icon icon="lucide:copy" width="12" /></button>
+          <button class="copy-btn" type="button" title="复制交易哈希" aria-label="复制交易哈希" @click="copy(txn.chainTxHash)"><Icon icon="lucide:copy" width="12" /></button>
         </div>
         <div v-if="txn.fromAddress" class="chain-row">
           <span class="k">来源地址</span>
           <span class="v yb-mono">{{ shortAddress(txn.fromAddress) }}</span>
-          <button class="copy-btn" @click="copy(txn.fromAddress)"><Icon icon="lucide:copy" width="12" /></button>
+          <button class="copy-btn" type="button" title="复制来源地址" aria-label="复制来源地址" @click="copy(txn.fromAddress)"><Icon icon="lucide:copy" width="12" /></button>
         </div>
         <div v-if="txn.toAddress" class="chain-row">
           <span class="k">目标地址</span>
           <span class="v yb-mono">{{ shortAddress(txn.toAddress) }}</span>
-          <button class="copy-btn" @click="copy(txn.toAddress)"><Icon icon="lucide:copy" width="12" /></button>
+          <button class="copy-btn" type="button" title="复制目标地址" aria-label="复制目标地址" @click="copy(txn.toAddress)"><Icon icon="lucide:copy" width="12" /></button>
         </div>
       </div>
     </template>
@@ -204,5 +204,9 @@ function copy(text?: string) {
 .copy-btn:hover {
   border-color: var(--yb-ink);
   color: var(--yb-ink);
+}
+.copy-btn:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 </style>

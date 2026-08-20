@@ -150,10 +150,17 @@ onBeforeUnmount(() => {
   <div class="input-area">
     <div class="toolbar">
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
-      <button class="tool-btn" :disabled="disabled || submitting || uploading" @click="chooseImage">
+      <button class="tool-btn" type="button" title="上传聊天图片" aria-label="上传聊天图片" :disabled="disabled || submitting || uploading" @click="chooseImage">
         {{ uploading ? '图片上传中…' : '🖼 图片' }}
       </button>
-      <button class="tool-btn voice-btn" :disabled="disabled || submitting || uploading || !canRecord" @click="recording ? stopRecording() : startRecording()">
+      <button
+        class="tool-btn voice-btn"
+        type="button"
+        :title="recording ? '结束录音' : '录制语音'"
+        :aria-label="recording ? '结束录音' : '录制语音'"
+        :disabled="disabled || submitting || uploading || !canRecord"
+        @click="recording ? stopRecording() : startRecording()"
+      >
         {{ recording ? `■ 结束录音 ${recordingSeconds}s` : uploading ? '语音上传中…' : '🎙 语音' }}
       </button>
     </div>
@@ -199,6 +206,10 @@ onBeforeUnmount(() => {
 .tool-btn:hover:not(:disabled) {
   background: #f7f8fa;
   color: var(--bw-brand-primary);
+}
+.tool-btn:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 .tool-btn:disabled {
   color: #c9cdd4;

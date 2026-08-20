@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import TxnRow from '@/components/wallet/txn-row.vue';
@@ -68,7 +68,8 @@ async function load() {
     const r = await walletApi.fetchWalletLedger({
       current: current.value,
       size: size.value,
-      types: filter.types.length ? filter.types : undefined
+      types: filter.types.length ? filter.types : undefined,
+      signal: isCurrent.signal
     });
     let records = r.records;
     if (filter.bucket) records = records.filter(t => t.bucketFrom === filter.bucket || t.bucketTo === filter.bucket);
@@ -100,6 +101,7 @@ onMounted(() => {
   applyQueryParams();
   load();
 });
+onBeforeUnmount(requestGuard.invalidate);
 
 watch(
   () => userStore.currentAudience,

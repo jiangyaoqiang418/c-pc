@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { Message, Modal } from '@arco-design/web-vue';
@@ -30,7 +30,7 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value });
+    const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
     records.value = response.records || [];
     total.value = response.total || 0;
@@ -138,6 +138,7 @@ notifyStore.subscribe(event => {
 });
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 </script>
 
 <template>
