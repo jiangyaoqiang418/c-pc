@@ -60,6 +60,7 @@
 ### 文档与状态口径
 
 - 接口计划和核对记录统一放 `docs/`，说明使用中文，技术标识保持原样。
+- `docs/` 目录只允许保留 `api-integration-plan.md` 和 `api-swagger-match-matrix.md`；未经用户明确允许，不得在该目录新增任何文件。
 - 共用 Swagger 入口以 `docs/api-integration-plan.md` 记录为准，地址变化只维护文档，不凭记忆修改代码。
 - “Swagger 接口存在”“API 已封装”“页面已调用”“真实接口已验证”必须分开描述。
 - 文档中的待对接项和治理标记不自动授权修改页面、Mock、类型或接口映射。
