@@ -20,13 +20,11 @@ async function submit() {
   }
   submitting.value = true;
   try {
-    try {
-      await userStore.loginWithPassword(form);
-      Message.success(`欢迎回来，${userStore.displayName}`);
-      router.push(redirect);
-    } catch {
-      // 请求层已展示错误；保留邮箱和密码输入，便于用户在网络恢复后直接重试。
-    }
+    await userStore.loginWithPassword(form);
+    Message.success(`欢迎回来，${userStore.displayName}`);
+    router.push(redirect);
+  } catch {
+    // 请求层已展示错误；保留邮箱和密码输入，便于用户在网络恢复后直接重试。
   } finally {
     submitting.value = false;
   }
@@ -35,13 +33,12 @@ async function submit() {
 async function oneClick(userId: number) {
   submitting.value = true;
   try {
-    try {
-      await userStore.login(userId);
-      Message.success('已登录演示账号');
-      router.push(redirect);
-    } catch {
-      // 演示账号初始化失败时保留当前登录页，避免未处理回调。
-    }
+    await userStore.login(userId);
+    Message.success('已登录演示账号');
+    router.push(redirect);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '演示账号初始化失败，请稍后重试';
+    Message.error(message);
   } finally {
     submitting.value = false;
   }

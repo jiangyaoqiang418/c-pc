@@ -98,7 +98,7 @@ class RealRequest {
       const isLogout = this.config.logoutCodes.includes(code);
       const isModalLogout = this.config.modalLogoutCodes.includes(code);
 
-      if ((isLogout || isModalLogout) && !options.skipAuthRedirect) {
+      if ((isLogout || isModalLogout) && token && !options.skipAuthRedirect) {
         handleLogoutMessage(message, isModalLogout);
       } else if (options.showError !== false) {
         Message.error(message);

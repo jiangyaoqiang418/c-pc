@@ -6,7 +6,7 @@
 
 - 实时 Swagger：`admin 159/160`、`user 41/41`、`order 57/59`、`notify 17/17`（路径/操作）；`pnpm check:swagger` 已通过。下文 2026-08-01 至 2026-08-13 的数量和 A/B/C/D 统计均为历史扫描快照，不作为当前接口数量。
 - 真实 API 已覆盖主交易、地址、钱包、买手保证金、KYC、理财、评价、仅退款、IM REST 与通知。页面仍使用 Mock 的业务能力只剩 CMS 内容、AI 导购和演示账号切换。
-- 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger。
+- 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger。演示账号无真实 Token 时，真实接口失败保留当前演示会话并展示错误态，不再误跳登录页。
 - 尚未完整验收：提现真实打款/到账、秒杀报名写入、WebSocket 实时到达；CMS、AI 没有 C 端契约，继续保留 Mock，不伪造真实成功。
 
 ## 扫描范围与 Swagger 快照
