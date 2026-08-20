@@ -6,6 +6,7 @@ import OrderCard from '@/components/order/order-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
+import * as reviewApi from '@/service/api/review';
 
 const userStore = useUserStore();
 const router = useRouter();
@@ -35,6 +36,7 @@ const size = ref(8);
 const loading = ref(false);
 const loadError = ref('');
 const counts = ref<Record<string, number>>({});
+const reviewableOrderIds = ref(new Set<string>());
 
 const role = computed(() => (userStore.isBuyerActive ? 'shopper' : 'customer'));
 
@@ -63,6 +65,19 @@ async function load() {
   }
 }
 
+async function loadReviewableOrders() {
+  if (!userStore.currentUser || role.value === 'shopper') {
+    reviewableOrderIds.value = new Set();
+    return;
+  }
+  try {
+    const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 });
+    reviewableOrderIds.value = new Set(result.records.map(item => String(item.orderId)));
+  } catch {
+    reviewableOrderIds.value = new Set();
+  }
+}
+
 async function loadCounts() {
   if (!userStore.currentUser) return;
   if (role.value === 'shopper') return;
@@ -74,8 +89,7 @@ async function loadCounts() {
 }
 
 onMounted(async () => {
-  await load();
-  await loadCounts();
+  await Promise.all([load(), loadCounts(), loadReviewableOrders()]);
 });
 
 watch(activeKey, () => {
@@ -88,6 +102,7 @@ watch(
   () => {
     current.value = 1;
     load();
+    loadReviewableOrders();
   }
 );
 
@@ -132,7 +147,7 @@ function handleEmptyAction() {
     <div class="orders">
       <a-spin :loading="loading" style="width: 100%">
         <div v-if="orders.length">
-          <OrderCard v-for="o in orders" :key="o.id" :order="o" @changed="onChanged" />
+          <OrderCard v-for="o in orders" :key="o.id" :order="o" :reviewable="reviewableOrderIds.has(String(o.id))" @changed="onChanged" />
         </div>
         <EmptyState
           v-else

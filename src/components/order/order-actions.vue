@@ -4,8 +4,9 @@ import { computed } from 'vue';
 interface Props {
   order: Api.Order.OrderRecord;
   variant?: 'card' | 'detail';
+  reviewable?: boolean;
 }
-const props = withDefaults(defineProps<Props>(), { variant: 'card' });
+const props = withDefaults(defineProps<Props>(), { variant: 'card', reviewable: false });
 
 const emit = defineEmits<{
   (e: 'pay'): void;
@@ -39,7 +40,7 @@ const actions = computed(() => {
     a.push({ type: 'confirm', label: '签字确认', primary: true, emit: () => emit('confirm') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
-  if (s === 'COMPLETED' || s === 'WARRANTY') {
+  if ((s === 'COMPLETED' || s === 'WARRANTY') && props.reviewable) {
     a.push({ type: 'review', label: '写评价', emit: () => emit('review') });
   }
   if (s === 'IN_AFTERSALE') {

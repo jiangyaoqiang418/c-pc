@@ -9,11 +9,15 @@ import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import OrderTimeline from '@/components/order/order-timeline.vue';
 import OrderActions from '@/components/order/order-actions.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
+import * as reviewApi from '@/service/api/review';
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
 const order = ref<Api.Order.OrderRecord>();
+const reviewable = ref(false);
 const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
@@ -25,8 +29,15 @@ async function load() {
   loadError.value = '';
   try {
     order.value = await orderApi.fetchOrderDetail(id.value);
+    if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
+      const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 });
+      reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
+    } else {
+      reviewable.value = false;
+    }
   } catch {
     order.value = undefined;
+    reviewable.value = false;
     loadError.value = '订单详情加载失败，请检查网络后重试';
   } finally {
     loading.value = false;
@@ -152,7 +163,7 @@ function contactShopper() {
               <div class="hero-code">订单号：{{ order.code }}</div>
               <div class="hero-meta">创建于 {{ new Date(order.createdAt).toLocaleString() }} · 买手 {{ order.shopperName }}</div>
             </div>
-            <OrderActions :order="order" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" />
+            <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" />
           </div>
         </a-card>
 

@@ -9,8 +9,9 @@ import * as orderApi from '@/service/api/order';
 
 interface Props {
   order: Api.Order.OrderRecord;
+  reviewable?: boolean;
 }
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { reviewable: false });
 const emit = defineEmits<{ (e: 'changed'): void }>();
 
 const router = useRouter();
@@ -97,7 +98,7 @@ function contactShopper() {
         <div class="amount-usdt">≈ {{ formatCny(order.totalAmount) }}</div>
       </div>
       <div class="op" @click.stop>
-        <OrderActions :order="order" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" />
+        <OrderActions :order="order" :reviewable="reviewable" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" />
       </div>
     </div>
   </a-card>
