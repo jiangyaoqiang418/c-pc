@@ -23,6 +23,7 @@ import {
   Link,
   Modal,
   Pagination,
+  Popconfirm,
   Progress,
   Radio,
   Result,
@@ -61,7 +62,7 @@ app.use(createPinia());
 app.use(router);
 const arcoPlugins: Plugin[] = [
   Alert, Badge, Breadcrumb, Button, Card, Cascader, Checkbox, Collapse, Descriptions, Divider, Drawer, Dropdown,
-  Empty, Form, Grid, Image, Input, InputNumber, Link, Modal, Pagination, Progress, Radio, DatePicker, Result, Select,
+  Empty, Form, Grid, Image, Input, InputNumber, Link, Modal, Pagination, Popconfirm, Progress, Radio, DatePicker, Result, Select,
   Space, Spin, Steps, Switch, Table, Tabs, Tag, Textarea, Timeline, Tooltip, Tree
 ];
 arcoPlugins.forEach(plugin => app.use(plugin));
