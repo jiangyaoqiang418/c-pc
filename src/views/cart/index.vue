@@ -77,7 +77,7 @@ onMounted(() => {
             />
           </div>
           <div class="col-product">
-            <img v-if="item.product" :src="item.product.images?.[0]?.url || `https://picsum.photos/seed/${item.productId}/80/80`" class="cover" />
+            <img v-if="item.product" :src="item.product.images?.[0]?.url || `https://picsum.photos/seed/${item.productId}/80/80`" :alt="item.product.title || '商品图片'" class="cover" />
             <div class="product-info">
               <div class="product-title">{{ item.product?.title || '商品已删除' }}</div>
               <div class="product-tags">

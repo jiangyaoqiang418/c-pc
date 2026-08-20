@@ -42,7 +42,7 @@ function onMove(e: MouseEvent) {
       @mouseleave="hovering = false"
       @mousemove="onMove"
     >
-      <img :src="mainUrl" class="main-img" />
+      <img :src="mainUrl" alt="商品图片" class="main-img" />
       <div v-if="hovering" class="lens" :style="{
         left: mouseRatio.x * 100 + '%',
         top: mouseRatio.y * 100 + '%'

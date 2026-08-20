@@ -53,7 +53,7 @@ function goOrder() {
     <template v-else>
       <div class="content">{{ review.content }}</div>
       <div v-if="review.images?.length" class="photos">
-        <img v-for="u in review.images" :key="u" :src="u" />
+        <img v-for="(u, index) in review.images" :key="u" :src="u" :alt="`评价图片 ${index + 1}`" />
       </div>
       <div v-if="review.replyContent" class="reply">买手回复：{{ review.replyContent }}</div>
       <div class="meta">

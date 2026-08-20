@@ -60,7 +60,7 @@ function remove(i: number) {
   <div class="evidence">
     <input ref="inputRef" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
     <div v-for="(u, i) in modelValue" :key="u" class="cell">
-      <img :src="u" />
+      <img :src="u" :alt="`售后凭证 ${i + 1}`" />
       <button class="remove" @click="remove(i)">✕</button>
     </div>
     <button v-if="modelValue.length < max" class="add" :disabled="uploading" @click="pickFile">

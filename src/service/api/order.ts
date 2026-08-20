@@ -1,9 +1,6 @@
 import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
-
-function toTotal(value?: string | number) {
-  return Number(value || 0);
-}
+import { toPageTotal } from './page';
 
 export async function fetchMyOrders(q: Api.Order.ListQuery) {
   const statuses = [...new Set(q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] || [])];
@@ -32,7 +29,7 @@ export async function fetchMyOrders(q: Api.Order.ListQuery) {
   return {
     current: q.current || 1,
     size: q.size || 10,
-    total: pages.reduce((sum, page) => sum + toTotal(page.total), 0),
+    total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
     records
   };
 }
@@ -59,7 +56,7 @@ async function countOrdersByStatus(
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
       >(url, { pageNo: 1, pageSize: 1, status: realStatus }, { showError: options.showError });
-      return [frontStatus, toTotal(page.total)] as const;
+      return [frontStatus, toPageTotal(page.total)] as const;
     })
   );
   entries.forEach(([status, count]) => {

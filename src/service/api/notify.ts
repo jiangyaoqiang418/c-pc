@@ -1,14 +1,16 @@
 import { realNotifyRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 // notify 服务的鉴权问题不应清空整站登录态；调用方仍会收到真实错误并自行展示。
 const notifyRequestOptions = { skipAuthRedirect: true };
 
-export function fetchNotifications(params: Api.RealNotify.NotificationPageQuery = {}) {
-  return realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.NotificationVO>, Api.RealNotify.NotificationPageQuery>(
+export async function fetchNotifications(params: Api.RealNotify.NotificationPageQuery = {}) {
+  const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.NotificationVO>, Api.RealNotify.NotificationPageQuery>(
     '/notifications/page',
     params,
     notifyRequestOptions
   );
+  return { ...page, total: toPageTotal(page.total) };
 }
 
 export function fetchUnreadNotificationCount() {
@@ -34,12 +36,13 @@ export function clearNotifications() {
   return realNotifyRequest.delete<boolean>('/notifications/clear', notifyRequestOptions);
 }
 
-export function fetchConversations(params: Api.RealNotify.PageQuery = {}) {
-  return realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImConversationVO>, Api.RealNotify.PageQuery>(
+export async function fetchConversations(params: Api.RealNotify.PageQuery = {}) {
+  const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImConversationVO>, Api.RealNotify.PageQuery>(
     '/im/conversations/page',
     params,
     notifyRequestOptions
   );
+  return { ...page, total: toPageTotal(page.total) };
 }
 
 export function fetchOrderConversation(orderId: string | number) {
@@ -49,12 +52,13 @@ export function fetchOrderConversation(orderId: string | number) {
   });
 }
 
-export function fetchConversationMessages(params: Api.RealNotify.ImMessagePageQuery) {
-  return realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>, Api.RealNotify.ImMessagePageQuery>(
+export async function fetchConversationMessages(params: Api.RealNotify.ImMessagePageQuery) {
+  const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>, Api.RealNotify.ImMessagePageQuery>(
     '/im/messages/page',
     params,
     notifyRequestOptions
   );
+  return { ...page, total: toPageTotal(page.total) };
 }
 
 export function fetchIncrementalMessages(params: Api.RealNotify.ImIncrementalQuery) {

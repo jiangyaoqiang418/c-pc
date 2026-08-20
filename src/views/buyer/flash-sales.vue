@@ -143,7 +143,7 @@ onMounted(load);
             <a-table-column title="商品" :width="260">
               <template #cell="{ record }">
                 <div class="product-cell">
-                  <img v-if="record.image" :src="record.image" />
+                  <img v-if="record.image" :src="record.image" :alt="record.title || '秒杀商品'" />
                   <span>{{ record.title }}</span>
                 </div>
               </template>

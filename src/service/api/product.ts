@@ -1,4 +1,5 @@
 import { realOrderRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 function toAfterSaleType(value?: string): Api.Product.AftersaleType {
   if (value === 'NONE') return 'none';
@@ -142,7 +143,7 @@ export async function fetchStorefrontProducts(q: {
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
-    total: Number(page.total || 0),
+    total: toPageTotal(page.total),
     records: page.records.map(toStorefrontProductRecord)
   };
 }
@@ -240,7 +241,7 @@ export async function fetchMyFavorites(q: { current?: number; size?: number } = 
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
-    total: page.total,
+    total: toPageTotal(page.total),
     records: page.records.map(toProductRecord)
   };
 }
@@ -281,7 +282,7 @@ export async function fetchMyProducts(q: {
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 50,
-    total: page.total,
+    total: toPageTotal(page.total),
     records: page.records.map(toProductRecord)
   };
 }

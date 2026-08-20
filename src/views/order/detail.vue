@@ -199,7 +199,7 @@ function contactShopper() {
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">商品信息</div>
           <div class="goods-row">
-            <img :src="order.productCover || `https://picsum.photos/seed/${order.productId}/120/120`" class="cover" />
+            <img :src="order.productCover || `https://picsum.photos/seed/${order.productId}/120/120`" :alt="order.productTitle || '商品图片'" class="cover" />
             <div class="info">
               <div class="title" @click="router.push({ name: 'product-detail', params: { id: String(order.productId) } })">
                 {{ order.productTitle }}

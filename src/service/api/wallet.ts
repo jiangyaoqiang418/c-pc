@@ -1,4 +1,5 @@
 import { realUserRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 const bucketMap: Record<string, keyof Api.Wallet.InternalAccount> = {
   AVAILABLE: 'available',
@@ -183,7 +184,7 @@ export async function fetchWalletLedger(q: {
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
-    total: page.total,
+    total: toPageTotal(page.total),
     records
   };
 }
@@ -208,7 +209,7 @@ export async function fetchWalletLedgersByTypes(q: {
     .slice(0, q.size || 20);
 
   return {
-    total: pages.reduce((sum, page) => sum + page.total, 0),
+    total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
     records
   };
 }
@@ -240,7 +241,7 @@ export async function fetchRechargePage(params: Api.RealWallet.RechargePageQuery
   return {
     current: page.current || page.pageNo || params.pageNo || 1,
     size: page.size || page.pageSize || params.pageSize || 10,
-    total: page.total || 0,
+    total: toPageTotal(page.total),
     records: page.records || []
   };
 }
@@ -264,7 +265,7 @@ export async function fetchWithdrawPage(params: Api.RealWallet.WithdrawPageQuery
   return {
     current: page.current || page.pageNo || params.pageNo || 1,
     size: page.size || page.pageSize || params.pageSize || 10,
-    total: page.total || 0,
+    total: toPageTotal(page.total),
     records: page.records || []
   };
 }

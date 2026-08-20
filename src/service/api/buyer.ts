@@ -1,4 +1,5 @@
 import { realUserRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 export function fetchBuyerApplication() {
   return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application');
@@ -42,7 +43,7 @@ export async function fetchBuyerDepositLedger(params: Api.RealBuyer.DepositLedge
   return {
     current: page.current || page.pageNo || params.pageNo || 1,
     size: page.size || page.pageSize || params.pageSize || 20,
-    total: Number(page.total || 0),
+    total: toPageTotal(page.total),
     records: (page.records || []).map(toDepositTxn)
   };
 }

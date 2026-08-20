@@ -415,7 +415,7 @@ watch(activeTab, async () => {
               <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
               <div v-else-if="groups.length" class="conv-list chat-scroll">
                 <div v-for="conversation in groups" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
-                  <img v-if="conversation.peerAvatar" :src="conversation.peerAvatar" class="avatar image" />
+                  <img v-if="conversation.peerAvatar" :src="conversation.peerAvatar" :alt="conversation.peerName || '会话头像'" class="avatar image" />
                   <div v-else class="avatar group">{{ (conversation.peerName || conversation.title || '订').slice(0, 1) }}</div>
                   <div class="info">
                     <div class="conv-title-row">
@@ -455,7 +455,7 @@ watch(activeTab, async () => {
           <div v-if="selectedConversation" class="conversation">
               <div class="conversation-header">
                 <div class="header-product">
-                  <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" />
+                  <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" />
                   <div><div class="cs-title">{{ selectedConversation.productTitle || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.orderNo ? `订单 ${selectedConversation.orderNo}` : `业务 ID ${selectedConversation.bizId || '—'}` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
                 </div>
                 <div class="header-actions"><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" @click="deleteSelectedConversation">删除会话</a-link></div>

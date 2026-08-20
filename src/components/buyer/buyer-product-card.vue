@@ -87,7 +87,7 @@ function onDelete() {
         >
           {{ product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}
         </a-button>
-        <a-button size="small" disabled>编辑 · Phase 4 增量</a-button>
+        <a-button size="small" disabled>编辑（暂未开放）</a-button>
         <a-button size="small" status="danger" type="outline" @click="onDelete">删除</a-button>
       </div>
     </div>

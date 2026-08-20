@@ -163,7 +163,7 @@ function cancel() {
             <p class="desc">"{{ request.appeal }}"</p>
 
             <div v-if="request.evidenceUrls?.length" class="evi">
-              <img v-for="u in request.evidenceUrls" :key="u" :src="u" />
+              <img v-for="(u, index) in request.evidenceUrls" :key="u" :src="u" :alt="`求购凭证 ${index + 1}`" />
             </div>
           </a-card>
 

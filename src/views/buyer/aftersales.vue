@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const activeKey = ref('all');
@@ -13,6 +14,7 @@ const loadError = ref('');
 const current = ref(1);
 const pageSize = 10;
 const total = ref(0);
+const requestGuard = createLatestRequestGuard();
 
 const statusDefs = [
   { key: 'all', label: '全部' },
@@ -35,6 +37,7 @@ function formatTime(value?: string | number) {
 }
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
@@ -44,14 +47,16 @@ async function load() {
       orderNo: orderNo.value.trim() || undefined,
       status: activeStatus.value
     });
+    if (!isCurrent()) return;
     refunds.value = response.records || [];
-    total.value = Number(response.total || 0);
+    total.value = response.total;
   } catch {
+    if (!isCurrent()) return;
     refunds.value = [];
     total.value = 0;
     loadError.value = '卖出商品售后加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 

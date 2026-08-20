@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const route = useRoute();
@@ -24,6 +25,7 @@ const current = ref(1);
 const size = ref(20);
 const loading = ref(false);
 const loadError = ref('');
+const requestGuard = createLatestRequestGuard();
 
 const sortOptions = [
   { value: 'sales', label: '综合销量' },
@@ -63,6 +65,7 @@ function syncFromQuery() {
 }
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
@@ -77,14 +80,16 @@ async function load() {
       maxPrice: filter.maxPrice,
       sort: filter.sort
     });
+    if (!isCurrent()) return;
     list.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     total.value = 0;
     loadError.value = '商品列表加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 

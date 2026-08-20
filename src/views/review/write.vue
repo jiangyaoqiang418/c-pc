@@ -83,7 +83,7 @@ function handleEmptyAction() {
 
         <a-card class="order-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
           <div class="order-row">
-            <img :src="order.productCover || `https://picsum.photos/seed/${order.productId}/80/80`" class="cover" />
+            <img :src="order.productCover || `https://picsum.photos/seed/${order.productId}/80/80`" :alt="order.productTitle || '商品图片'" class="cover" />
             <div class="info">
               <div class="title">{{ order.productTitle }}</div>
               <div class="meta">买手 {{ order.shopperName }} · 总额 U {{ formatAmount(order.totalAmount) }}</div>

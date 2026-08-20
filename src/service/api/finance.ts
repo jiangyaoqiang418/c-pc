@@ -1,4 +1,5 @@
 import { realUserRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 export function fetchFinanceProducts() {
   return realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list');
@@ -26,5 +27,5 @@ export function fetchFinanceOrderDetail(id: string | number) {
 
 export async function fetchFinanceOrders(params: Api.RealFinance.FinanceOrderPageQuery = {}) {
   const page = await realUserRequest.post<Api.RealFinance.PageResult<Api.RealFinance.FinanceOrderVO>, Api.RealFinance.FinanceOrderPageQuery>('/finance/orders/page', params);
-  return { records: page.records || [], total: page.total || 0, current: page.current || page.pageNo || params.pageNo || 1, size: page.size || page.pageSize || params.pageSize || 20 };
+  return { records: page.records || [], total: toPageTotal(page.total), current: page.current || page.pageNo || params.pageNo || 1, size: page.size || page.pageSize || params.pageSize || 20 };
 }

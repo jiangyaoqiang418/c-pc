@@ -79,7 +79,7 @@ const orderCard = computed(() => {
 
   <div v-else-if="isOrderCard" class="msg-row center">
     <button v-if="orderCard" class="order-card" @click="orderCard.orderId && emit('open-order', orderCard.orderId)">
-      <img v-if="orderCard.productImage" :src="orderCard.productImage" class="order-cover" />
+      <img v-if="orderCard.productImage" :src="orderCard.productImage" alt="订单商品" class="order-cover" />
       <div class="order-card-body">
         <div class="order-title">{{ orderCard.productTitle || '订单卡片' }}</div>
         <div class="order-meta">订单号 {{ orderCard.orderNo || '—' }}</div>
@@ -100,7 +100,7 @@ const orderCard = computed(() => {
 
     <div v-if="isImage && msg.mediaUrl" class="bubble media" :class="side">
       <button type="button" class="media-image-button" :aria-label="'预览图片：' + (msg.content || '聊天图片')" @click="emit('preview-image', msg.mediaUrl)">
-        <img :src="msg.mediaUrl" class="media-img" />
+        <img :src="msg.mediaUrl" alt="图片消息" class="media-img" />
       </button>
     </div>
     <div v-else-if="isVoice" class="bubble media voice" :class="side">

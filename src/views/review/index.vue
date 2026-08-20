@@ -6,6 +6,7 @@ import ReviewCard from '@/components/review/review-card.vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 type ReviewTab = 'sent' | 'received' | 'appeals';
 
@@ -27,6 +28,7 @@ const replyTarget = ref<Api.RealReview.ReviewDTO>();
 const appealTarget = ref<Api.RealReview.ReviewDTO>();
 const replyContent = ref('');
 const appealForm = reactive({ reason: '', evidenceImages: [] as string[] });
+const requestGuard = createLatestRequestGuard();
 
 const isBuyer = computed(() => !!userStore.currentUser?.isBuyer);
 const isAppealTab = computed(() => activeKey.value === 'appeals');
@@ -44,13 +46,15 @@ function resetAndLoad() {
 
 async function load() {
   if (!userStore.currentUser) return;
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
     if (isAppealTab.value) {
       const result = await reviewApi.fetchMyReviewAppeals({ pageNo: current.value, pageSize });
+      if (!isCurrent()) return;
       appeals.value = result.records || [];
-      total.value = Number(result.total || 0);
+      total.value = result.total;
       return;
     }
 
@@ -63,12 +67,14 @@ async function load() {
     const result = activeKey.value === 'sent'
       ? await reviewApi.fetchMyReviews(params)
       : await reviewApi.fetchReceivedReviews(params);
+    if (!isCurrent()) return;
     reviews.value = result.records || [];
-    total.value = Number(result.total || 0);
+    total.value = result.total;
   } catch {
+    if (!isCurrent()) return;
     loadError.value = isAppealTab.value ? '评价申诉加载失败，请稍后重试' : '评价列表加载失败，请稍后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 

@@ -249,7 +249,7 @@ async function doSubmit() {
         </div>
         <div class="goods-list">
           <div v-for="item in items" :key="item.productId" class="goods-row">
-            <img :src="item.product?.images?.[0]?.url || `https://picsum.photos/seed/${item.productId}/80/80`" class="cover" />
+            <img :src="item.product?.images?.[0]?.url || `https://picsum.photos/seed/${item.productId}/80/80`" :alt="item.product?.title || '商品图片'" class="cover" />
             <div class="info">
               <div class="title">{{ item.product?.title }}</div>
               <div class="tags">

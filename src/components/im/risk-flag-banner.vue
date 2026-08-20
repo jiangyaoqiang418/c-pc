@@ -11,7 +11,7 @@ defineProps<Props>();
     <span class="text">
       本群存在 <strong>{{ count }}</strong> 条风险消息，平台已介入监管。请勿私下交易，所有付款必须经由平台担保完成。
     </span>
-    <a-link disabled class="link">查看风控规则 · Phase 4</a-link>
+    <a-link disabled class="link">查看风控规则（暂未开放）</a-link>
   </div>
 </template>
 

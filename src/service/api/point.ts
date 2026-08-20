@@ -1,4 +1,5 @@
 import { realAdminRequest, realUserRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 const behaviorMap: Partial<Record<string, Api.Point.BehaviorCode>> = {
   CONSUME: 'CONSUME',
@@ -93,7 +94,7 @@ export async function fetchMyPointLogs(q: {
   return {
     current: result.current || page.pageNo || q.current || 1,
     size: result.size || page.pageSize || q.size || 20,
-    total: result.total,
+    total: toPageTotal(result.total),
     records
   };
 }
@@ -118,7 +119,7 @@ export async function fetchMyPointAppeals(q: Api.RealPoint.PointAppealPageQuery)
   return {
     current: result.current || page.pageNo || q.pageNo || 1,
     size: result.size || page.pageSize || q.pageSize || 20,
-    total: result.total,
+    total: toPageTotal(result.total),
     records: result.records
   };
 }

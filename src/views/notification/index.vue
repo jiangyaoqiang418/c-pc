@@ -8,6 +8,7 @@ import { useNotifyStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import { sameBusinessId } from '@/utils/im';
 import { notificationRoute } from '@/utils/notification';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const notifyStore = useNotifyStore();
@@ -20,23 +21,27 @@ const pageSize = 20;
 const total = ref(0);
 const readingAll = ref(false);
 const clearing = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 const hasUnread = computed(() => records.value.some(item => !item.readFlag));
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
     const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value });
+    if (!isCurrent()) return;
     records.value = response.records || [];
     total.value = response.total || 0;
     await notifyStore.refreshUnreadCounts();
   } catch {
+    if (!isCurrent()) return;
     records.value = [];
     total.value = 0;
     loadError.value = '通知加载失败，请检查网络后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 

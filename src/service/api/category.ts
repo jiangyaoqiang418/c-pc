@@ -1,4 +1,5 @@
 import { realOrderRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
 function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.Category.CategoryNode {
   const id = node.id as unknown as number;
@@ -43,7 +44,7 @@ export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryAp
   return {
     current: result.current || result.pageNo || q.pageNo || 1,
     size: result.size || result.pageSize || q.pageSize || 20,
-    total: result.total,
+    total: toPageTotal(result.total),
     records: result.records
   };
 }

@@ -134,8 +134,8 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
                 <pre class="body-text">{{ a.body }}</pre>
                 <div class="article-footer">
                   这篇文章对您有帮助吗？
-                  <a-link disabled>👍 有用 · Phase 4</a-link>
-                  <a-link disabled>👎 没帮助 · Phase 4</a-link>
+                  <a-link disabled>👍 有用（暂未开放）</a-link>
+                  <a-link disabled>👎 没帮助（暂未开放）</a-link>
                 </div>
               </div>
             </div>

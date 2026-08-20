@@ -136,7 +136,7 @@ function submit() {
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onPhotoSelected" />
       <div class="photos">
         <div v-for="(u, i) in form.photoUrls" :key="u" class="photo-item">
-          <img :src="u" :alt="'photo-' + i" />
+          <img :src="u" :alt="`评价图片 ${i + 1}`" />
           <button class="remove" @click="removePhoto(i)">✕</button>
         </div>
         <button

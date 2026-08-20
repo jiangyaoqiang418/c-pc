@@ -8,6 +8,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as walletApi from '@/service/api/wallet';
 import { walletLedgerCsv } from '@/utils/wallet-csv';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,7 @@ const loading = ref(false);
 const loadError = ref('');
 const drawerTxn = ref<Api.Wallet.Txn>();
 const drawerOpen = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
   { label: '链上', types: ['DEPOSIT_IN', 'WITHDRAW_OUT'] },
@@ -59,6 +61,7 @@ function applyQueryParams() {
 
 async function load() {
   if (!userStore.currentUser) return;
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
@@ -80,14 +83,16 @@ async function load() {
           (t.chainTxHash || '').toLowerCase().includes(kw)
       );
     }
+    if (!isCurrent()) return;
     list.value = records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     total.value = 0;
     loadError.value = '资金流水加载失败，请检查网络后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 

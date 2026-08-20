@@ -1,19 +1,27 @@
 import { realOrderRequest } from '@/service/request';
+import { toPageTotal } from './page';
 
-export function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}) {
-  return realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewableOrderVO>, Api.RealReview.PageQuery>('/reviews/reviewable/page', params);
+function normalizePage<T>(page: Api.RealReview.PageResult<T>) {
+  return { ...page, total: toPageTotal(page.total) };
+}
+
+export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewableOrderVO>, Api.RealReview.PageQuery>('/reviews/reviewable/page', params);
+  return normalizePage(page);
 }
 
 export function submitReview(params: Api.RealReview.ReviewSubmitParams) {
   return realOrderRequest.post<string | number, Api.RealReview.ReviewSubmitParams>('/reviews/create', params);
 }
 
-export function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}) {
-  return realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/mine/page', params);
+export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/mine/page', params);
+  return normalizePage(page);
 }
 
-export function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuery = {}) {
-  return realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/received/page', params);
+export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuery = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/received/page', params);
+  return normalizePage(page);
 }
 
 export function fetchReviewDetail(id: string | number) {
@@ -32,15 +40,17 @@ export function createReviewAppeal(params: Api.RealReview.ReviewAppealParams) {
   return realOrderRequest.post<string | number, Api.RealReview.ReviewAppealParams>('/reviews/appeals/create', params);
 }
 
-export function fetchMyReviewAppeals(params: Api.RealReview.PageQuery = {}) {
-  return realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewAppealDTO>, Api.RealReview.PageQuery>(
+export async function fetchMyReviewAppeals(params: Api.RealReview.PageQuery = {}) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewAppealDTO>, Api.RealReview.PageQuery>(
     '/reviews/appeals/mine/page',
     params
   );
+  return normalizePage(page);
 }
 
-export function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery) {
-  return realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ProductReviewPageQuery>('/storefront/reviews/page', params);
+export async function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery) {
+  const page = await realOrderRequest.post<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ProductReviewPageQuery>('/storefront/reviews/page', params);
+  return normalizePage(page);
 }
 
 export function fetchReviewSummary(productId: string | number) {

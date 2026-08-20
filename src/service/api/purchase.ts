@@ -1,4 +1,5 @@
 import { realOrderRequest } from '@/service/request';
+import { toPageTotal } from './page';
 import { fetchCategoryTree } from './category';
 
 let categoryPathCache: Map<string, string> | undefined;
@@ -90,7 +91,7 @@ async function mapPage(page: Api.Common.PaginatingQueryRecord<Api.RealPurchase.P
   return {
     current: page.current || page.pageNo || 1,
     size: page.size || page.pageSize || 20,
-    total: page.total,
+    total: toPageTotal(page.total),
     records: await Promise.all(page.records.map(toPurchaseRequest))
   };
 }
