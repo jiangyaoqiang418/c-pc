@@ -103,6 +103,12 @@ function sessionName(sessionId: string) {
   return sessions.value.find(item => item.id === sessionId)?.name || sessionId;
 }
 
+function formatTime(value?: string | number) {
+  if (!value) return '—';
+  const date = new Date(typeof value === 'number' || /^\d+$/.test(value) ? Number(value) : value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
+
 onMounted(load);
 </script>
 
@@ -130,7 +136,7 @@ onMounted(load);
       <div v-else-if="activeTab === 'sessions'" class="session-grid">
         <a-card v-for="session in sessions" :key="session.id" :bordered="false" class="session-card">
           <div class="session-title">{{ session.name }}</div>
-          <div class="session-time">{{ session.startTime }} 至 {{ session.endTime }}</div>
+          <div class="session-time">{{ formatTime(session.startTime) }} 至 {{ formatTime(session.endTime) }}</div>
           <div class="session-meta">已报名商品 {{ session.itemCount || 0 }} 件</div>
           <a-button type="primary" long @click="openEnroll(session)">选择商品报名</a-button>
         </a-card>
@@ -158,7 +164,7 @@ onMounted(load);
               <template #cell="{ record }">U {{ formatAmount(record.flashPrice || record.price || 0) }}</template>
             </a-table-column>
             <a-table-column title="秒杀库存" data-index="flashStock" :width="120" />
-            <a-table-column title="结束时间" data-index="sessionEndTime" :width="180" />
+            <a-table-column title="结束时间" :width="180"><template #cell="{ record }">{{ formatTime(record.sessionEndTime) }}</template></a-table-column>
             <a-table-column title="操作" :width="100">
               <template #cell="{ record }"><a-button type="text" status="danger" @click="cancel(record)">取消报名</a-button></template>
             </a-table-column>
