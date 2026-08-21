@@ -19,7 +19,7 @@ const orderCounts = ref<Record<string, number>>({});
 const loading = ref(false);
 const loadError = ref('');
 const drawerOpen = ref(false);
-const drawerTxn = ref<Api.Wallet.Txn>();
+const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const account = computed(() => walletStore.account);
 const transferOpen = ref(false);
 const transferKind = ref<'pay' | 'refund'>('pay');
@@ -101,7 +101,7 @@ async function submitDepositTransfer() {
   }
 }
 
-function openTxn(t: Api.Wallet.Txn) {
+function openTxn(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }

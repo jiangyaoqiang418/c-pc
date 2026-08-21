@@ -6,7 +6,7 @@ import { getAccessToken, isAuthenticationFailure } from '@/service/request';
 import { useCartStore } from './cart';
 
 export const useUserStore = defineStore('bw-user', () => {
-  const currentUser = ref<Api.User.UserRecord | undefined>();
+  const currentUser = ref<Api.User.UserRecord | Api.RealSession.UserRecord | undefined>();
   const currentAudience = ref<Audience>('customer');
   const initialized = ref(false);
 

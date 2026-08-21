@@ -2,7 +2,7 @@ import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { toPageTotal } from './page';
 
-export async function fetchMyOrders(q: Api.Order.ListQuery) {
+export async function fetchMyOrders(q: Api.RealOrder.ListQuery) {
   const statuses = [...new Set(q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] || [])];
   const url = q.shopperId ? '/orders/sold/page' : '/orders/bought/page';
   const requestPage = (status?: Api.RealOrder.OrderStatus) => realOrderRequest.post<

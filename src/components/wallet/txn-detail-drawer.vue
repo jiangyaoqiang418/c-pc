@@ -6,7 +6,7 @@ import { enums, formatAmount, shortAddress } from '@shared';
 
 interface Props {
   visible: boolean;
-  txn?: Api.Wallet.Txn;
+  txn?: Api.RealWallet.DisplayLedger;
 }
 const props = defineProps<Props>();
 defineEmits<{ (e: 'update:visible', v: boolean): void }>();

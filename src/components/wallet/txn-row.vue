@@ -3,11 +3,11 @@ import { computed } from 'vue';
 import { enums, formatAmount } from '@shared';
 
 interface Props {
-  txn: Api.Wallet.Txn;
+  txn: Api.RealWallet.DisplayLedger;
   compact?: boolean;
 }
 const props = defineProps<Props>();
-defineEmits<{ (e: 'detail', txn: Api.Wallet.Txn): void }>();
+defineEmits<{ (e: 'detail', txn: Api.RealWallet.DisplayLedger): void }>();
 
 const isIn = computed(() => props.txn.direction === 'in');
 const typeLabel = computed(() => props.txn.testData ? '测试模拟到账' : enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type);

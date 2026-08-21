@@ -86,7 +86,7 @@ export function productImageUrls(productId: number, count = 5, size = 720, categ
 }
 
 /** 用户头像 —— DiceBear personas （SVG，稳定 CDN，无需注册） */
-export function avatarUrl(userId: number, style: 'personas' | 'avataaars' | 'bottts' | 'notionists' = 'notionists'): string {
+export function avatarUrl(userId: string | number, style: 'personas' | 'avataaars' | 'bottts' | 'notionists' = 'notionists'): string {
   return `https://api.dicebear.com/7.x/${style}/svg?seed=youbao-${userId}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf,f6efe4`;
 }
 

@@ -1,4 +1,18 @@
 declare namespace Api.RealWallet {
+  type Id = string | number;
+
+  /** 真实钱包展示模型，不复用仅支持 number ID 的 Mock 钱包类型。 */
+  type Account = Omit<Api.Wallet.InternalAccount, 'userId'> & {
+    userId: Id;
+  };
+
+  type Ledger = Omit<Api.Wallet.Txn, 'id' | 'userId'> & {
+    id: Id;
+    userId: Id;
+  };
+
+  type DisplayLedger = Api.Wallet.Txn | Ledger;
+
   interface WalletBucketVO {
     type: string;
     name?: string;

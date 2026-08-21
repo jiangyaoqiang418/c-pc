@@ -14,10 +14,10 @@ const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const txns = ref<Api.Wallet.Txn[]>([]);
+const txns = ref<Api.RealWallet.Ledger[]>([]);
 const loading = ref(false);
 const drawerOpen = ref(false);
-const drawerTxn = ref<Api.Wallet.Txn>();
+const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 
 async function loadAll() {
   if (!userStore.currentUser) return;
@@ -49,7 +49,7 @@ const bucketsWithPct = computed(() =>
   }))
 );
 
-function openTxn(t: Api.Wallet.Txn) {
+function openTxn(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }

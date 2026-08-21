@@ -14,13 +14,13 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
-const list = ref<Api.Wallet.Txn[]>([]);
+const list = ref<Api.RealWallet.Ledger[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(20);
 const loading = ref(false);
 const loadError = ref('');
-const drawerTxn = ref<Api.Wallet.Txn>();
+const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
 const requestGuard = createLatestRequestGuard();
 
@@ -120,7 +120,7 @@ function reset() {
   load();
 }
 
-function openDetail(t: Api.Wallet.Txn) {
+function openDetail(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }

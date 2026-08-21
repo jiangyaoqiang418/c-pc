@@ -14,7 +14,7 @@ const router = useRouter();
 const userStore = useUserStore();
 
 const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
-const totalAssets = ref<{ total: string; account?: Api.Wallet.InternalAccount }>();
+const totalAssets = ref<{ total: string; account?: Api.RealWallet.Account }>();
 const orderCounts = ref<Record<string, number>>({});
 const announcements = ref<Api.Cms.Announcement[]>([]);
 const editVisible = ref(false);

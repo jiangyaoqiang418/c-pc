@@ -1,7 +1,7 @@
 import { realUserRequest } from '@/service/request';
 import { toPageTotal } from './page';
 
-const bucketMap: Record<string, keyof Api.Wallet.InternalAccount> = {
+const bucketMap: Record<string, keyof Api.RealWallet.Account> = {
   AVAILABLE: 'available',
   available: 'available',
   NON_WITHDRAWABLE: 'nonWithdrawable',
@@ -21,9 +21,9 @@ const bucketMap: Record<string, keyof Api.Wallet.InternalAccount> = {
   depositGuaranteed: 'depositGuaranteed'
 };
 
-function emptyAccount(userId: number | string): Api.Wallet.InternalAccount {
+function emptyAccount(userId: Api.RealSession.Id): Api.RealWallet.Account {
   return {
-    userId: userId as unknown as number,
+    userId,
     userName: '',
     available: '0',
     nonWithdrawable: '0',
@@ -39,7 +39,7 @@ function emptyAccount(userId: number | string): Api.Wallet.InternalAccount {
   };
 }
 
-function toAccount(userId: number | string, wallet: Api.RealWallet.WalletVO) {
+function toAccount(userId: Api.RealSession.Id, wallet: Api.RealWallet.WalletVO): Api.RealWallet.Account {
   const account = emptyAccount(userId);
   wallet.distribution?.forEach(bucket => {
     const key = bucketMap[bucket.type];
@@ -114,7 +114,7 @@ function toIso(value?: string | number) {
   return value;
 }
 
-function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.Wallet.Txn {
+function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
   const bucketFrom = dto.fromType ? bucketMapReverse[dto.fromType] : undefined;
   const bucketTo = dto.toType ? bucketMapReverse[dto.toType] : undefined;
   const direction: Api.Wallet.Txn['direction'] = bucketTo && !bucketFrom ? 'in' : 'out';
@@ -124,8 +124,8 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.Wallet.Txn {
   const chainTxHash = remark?.match(/(?:txHash=|交易哈希[：:])([^\s，,]+)/i)?.[1];
 
   return {
-    id: dto.id as unknown as number,
-    userId: dto.userId as unknown as number,
+    id: dto.id,
+    userId: dto.userId,
     userName: '',
     type,
     direction,
@@ -140,7 +140,7 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.Wallet.Txn {
   };
 }
 
-export async function fetchWalletOverview(userId: number | string) {
+export async function fetchWalletOverview(userId: Api.RealSession.Id) {
   const wallet = await realUserRequest.get<Api.RealWallet.WalletVO>('/wallet/overview');
   const account = toAccount(userId, wallet);
 
@@ -199,7 +199,7 @@ export async function fetchWalletLedgersByTypes(q: {
   const pages = await Promise.all(
     types.map(type => fetchWalletLedger({ current: 1, size: q.size || 20, types: [type], signal: q.signal }))
   );
-  const recordsById = new Map<string, Api.Wallet.Txn>();
+  const recordsById = new Map<string, Api.RealWallet.Ledger>();
   pages.forEach(page => {
     page.records.forEach(record => {
       const key = String(record.id);

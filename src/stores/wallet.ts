@@ -19,11 +19,11 @@ export const useWalletStore = defineStore('bw-wallet', () => {
   const buyerWallet = ref<Api.Buyer.Wallet | undefined>();
   const totalAssets = ref<string>('0');
   const today = ref<{ depositIn: string; withdrawOut: string; internalVolume: string }>();
-  const account = ref<Api.Wallet.InternalAccount | undefined>();
+  const account = ref<Api.RealWallet.Account | undefined>();
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
 
-  async function fetchWallet(userId: number) {
+  async function fetchWallet(userId: Api.RealSession.Id) {
     if (!userId) return;
     loading.value = true;
     try {

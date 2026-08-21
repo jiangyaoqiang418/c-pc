@@ -22,9 +22,9 @@ function toUserRecord(
   profile: Api.RealAuth.UserProfileVO,
   fallback?: Partial<Api.RealAuth.LoginVO>,
   pointAccount?: Api.RealPoint.UserPointVO
-): Api.User.UserRecord {
+): Api.RealSession.UserRecord {
   const roles = profile.roles || [];
-  const id = (profile.userId || fallback?.userId || '') as unknown as number;
+  const id = profile.userId || fallback?.userId || '';
   const points = Number(pointAccount?.points ?? profile.points ?? 0);
   const isBuyer = hasBuyerRole(roles);
   const roleInfo = isBuyer ? pointAccount?.buyer : pointAccount?.customer;

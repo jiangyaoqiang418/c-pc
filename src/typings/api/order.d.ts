@@ -64,6 +64,14 @@ declare namespace Api.RealOrder {
     status?: OrderStatus;
   }
 
+  interface ListQuery {
+    current?: number;
+    size?: number;
+    statuses?: Api.Order.OrderStatus[];
+    shopperId?: Api.RealSession.Id;
+    customerId?: Api.RealSession.Id;
+  }
+
   interface OrderIdParams {
     id: string | number;
   }

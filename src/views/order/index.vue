@@ -46,7 +46,7 @@ async function load() {
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const params: Api.Order.ListQuery = {
+    const params: Api.RealOrder.ListQuery = {
       current: current.value,
       size: size.value,
       statuses: tab?.statuses

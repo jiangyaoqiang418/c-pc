@@ -15,8 +15,8 @@ const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const recentTxns = ref<Api.Wallet.Txn[]>([]);
-const drawerTxn = ref<Api.Wallet.Txn>();
+const recentTxns = ref<Api.RealWallet.Ledger[]>([]);
+const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
 
 async function loadAll() {
@@ -45,7 +45,7 @@ const bucketsWithPct = computed(() =>
   }))
 );
 
-function openDetail(t: Api.Wallet.Txn) {
+function openDetail(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }
