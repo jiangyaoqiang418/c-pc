@@ -33,10 +33,10 @@ function toIso(value?: string | number) {
   return value;
 }
 
-export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.Product.ProductRecord {
-  const id = dto.id as unknown as number;
-  const sellerId = dto.sellerId as unknown as number;
-  const categoryId = dto.categoryId as unknown as number;
+export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduct.Record {
+  const id = dto.id;
+  const sellerId = dto.sellerId;
+  const categoryId = dto.categoryId;
   const status = toProductStatus(dto.status);
   const createdAt = toIso(dto.createdAt);
   const updatedAt = toIso(dto.updatedAt) || createdAt;
@@ -71,14 +71,14 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.Product.Pr
   };
 }
 
-function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Api.Product.ProductRecord {
+function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Api.RealProduct.Record {
   return {
-    id: dto.id as unknown as number,
+    id: dto.id,
     code: String(dto.id || ''),
     title: dto.title,
-    sellerId: dto.sellerId as unknown as number,
+    sellerId: dto.sellerId || '',
     sellerName: dto.sellerName || `买手 ${dto.sellerId || ''}`,
-    categoryId: dto.categoryId as unknown as number,
+    categoryId: dto.categoryId || '',
     categoryPath: dto.categoryName || String(dto.categoryId || ''),
     price: String(dto.price ?? 0),
     stock: dto.stock ?? 0,
@@ -157,15 +157,15 @@ async function fetchStorefrontPage(url: string, pageSize = 20) {
   return page.records.map(toProductRecord);
 }
 
-function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.Product.ProductRecord {
+function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProduct.Record {
   const createdAt = toIso(dto.sessionEndTime);
   return {
-    id: dto.productId as unknown as number,
+    id: dto.productId,
     code: String(dto.productId || ''),
     title: dto.title,
-    sellerId: 0,
+    sellerId: '',
     sellerName: '',
-    categoryId: 0,
+    categoryId: '',
     categoryPath: '限时秒杀',
     price: String(dto.flashPrice ?? dto.price ?? 0),
     stock: dto.stock ?? dto.flashStock ?? 0,

@@ -19,7 +19,7 @@ const filter = reactive({
   sort: 'sales' as 'sales' | 'price-asc' | 'price-desc' | 'newest' | 'reviews'
 });
 
-const list = ref<Api.Product.ProductRecord[]>([]);
+const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(20);

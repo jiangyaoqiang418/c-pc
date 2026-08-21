@@ -8,7 +8,7 @@ import * as productApi from '@/service/api/product';
 const activeTab = ref<'sessions' | 'mine'>('sessions');
 const sessions = ref<Api.RealFlashSale.SessionDTO[]>([]);
 const enrollments = ref<Api.RealFlashSale.EnrollmentDTO[]>([]);
-const products = ref<Api.Product.ProductRecord[]>([]);
+const products = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const submitting = ref(false);

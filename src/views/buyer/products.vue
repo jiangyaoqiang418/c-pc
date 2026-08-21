@@ -29,7 +29,7 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
-const products = ref<Api.Product.ProductRecord[]>([]);
+const products = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const keyword = ref('');
@@ -101,7 +101,7 @@ watch(activeKey, () => {
   void load();
 });
 
-async function toggleShelf(p: Api.Product.ProductRecord) {
+async function toggleShelf(p: Api.RealProduct.Record) {
   if (shelvingId.value !== undefined) return;
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
   shelvingId.value = p.id;
@@ -116,7 +116,7 @@ async function toggleShelf(p: Api.Product.ProductRecord) {
   }
 }
 
-function onDelete(p: Api.Product.ProductRecord) {
+function onDelete(p: Api.RealProduct.Record) {
   void p;
   Message.warning('当前真实接口暂不支持买手删除商品');
 }

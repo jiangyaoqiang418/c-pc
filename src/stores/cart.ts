@@ -11,7 +11,7 @@ export interface CartItem {
 }
 
 export interface EnrichedCartItem extends CartItem {
-  product?: Api.Product.ProductRecord;
+  product?: Api.RealProduct.DisplayRecord;
   available: boolean;
   subtotal: string;
   shippingFee: string;
@@ -28,7 +28,7 @@ export function cartStorageKey(ownerId?: CartOwnerId) {
 
 export const useCartStore = defineStore('bw-cart', () => {
   const items = ref<CartItem[]>([]);
-  const products = ref<Record<string, Api.Product.ProductRecord>>({});
+  const products = ref<Record<string, Api.RealProduct.DisplayRecord>>({});
   const initialized = ref(false);
   const ownerId = ref<CartOwnerId>();
 
@@ -81,7 +81,7 @@ export const useCartStore = defineStore('bw-cart', () => {
     };
   }
 
-  function upsertProduct(product: Api.Product.ProductRecord) {
+  function upsertProduct(product: Api.RealProduct.DisplayRecord) {
     products.value[String(product.id)] = product;
   }
 
@@ -95,7 +95,7 @@ export const useCartStore = defineStore('bw-cart', () => {
     }));
   }
 
-  function add(productId: string | number, qty = 1, product?: Api.Product.ProductRecord) {
+  function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord) {
     if (product) upsertProduct(product);
     const exist = items.value.find(i => i.productId === productId);
     if (exist) {

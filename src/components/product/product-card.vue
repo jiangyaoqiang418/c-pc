@@ -7,7 +7,7 @@ import { productImageUrl } from '@shared/utils/image';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 
 interface Props {
-  product: Api.Product.ProductRecord;
+  product: Api.RealProduct.DisplayRecord;
 }
 const props = defineProps<Props>();
 

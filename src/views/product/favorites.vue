@@ -7,7 +7,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
 
 const router = useRouter();
-const list = ref<Api.Product.ProductRecord[]>([]);
+const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(12);
@@ -31,7 +31,7 @@ async function load() {
   }
 }
 
-function cancelFavorite(product: Api.Product.ProductRecord) {
+function cancelFavorite(product: Api.RealProduct.Record) {
   Modal.confirm({
     title: '取消收藏？',
     content: `确认将「${product.title}」移出收藏列表吗？`,

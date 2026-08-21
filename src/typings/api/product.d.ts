@@ -1,4 +1,14 @@
 declare namespace Api.RealProduct {
+  type Id = string | number;
+
+  type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId'> & {
+    id: Id;
+    sellerId: Id;
+    categoryId: Id;
+  };
+
+  type DisplayRecord = Api.Product.ProductRecord | Record;
+
   type AfterSaleType = 'SEVEN_DAY_NO_REASON' | 'NONE' | 'SHOP_WARRANTY' | 'NATIONAL_WARRANTY';
   type ProductStatus = 'REVIEWING' | 'REJECTED' | 'ON_SALE' | 'OFF_SHELF' | 'FROZEN';
 

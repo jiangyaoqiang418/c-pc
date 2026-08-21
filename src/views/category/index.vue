@@ -22,7 +22,7 @@ interface TreeData {
 const tree = ref<CategoryNode[]>([]);
 const selectedKeys = ref<string[]>([]);
 const expandedKeys = ref<string[]>([]);
-const products = ref<Api.Product.ProductRecord[]>([]);
+const products = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const loading = ref(false);
 const treeLoading = ref(false);

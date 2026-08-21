@@ -20,11 +20,11 @@ const route = useRoute();
 const router = useRouter();
 const cart = useCartStore();
 
-const product = ref<Api.Product.ProductRecord>();
+const product = ref<Api.RealProduct.Record>();
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
 const reviewSummary = ref<Api.RealReview.ReviewSummaryDTO>();
 const sellerScore = ref<Api.RealReview.SellerRatingDTO>();
-const sameShop = ref<Api.Product.ProductRecord[]>([]);
+const sameShop = ref<Api.RealProduct.Record[]>([]);
 const qty = ref(1);
 const loading = ref(false);
 const favoriting = ref(false);

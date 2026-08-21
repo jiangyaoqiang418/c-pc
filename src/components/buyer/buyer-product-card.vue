@@ -5,12 +5,12 @@ import { enums, formatAmount } from '@shared';
 import PriceTag from '@/components/product/price-tag.vue';
 
 interface Props {
-  product: Api.Product.ProductRecord;
+  product: Api.RealProduct.DisplayRecord;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'toggle-shelf', product: Api.Product.ProductRecord): void;
-  (e: 'delete', product: Api.Product.ProductRecord): void;
+  (e: 'toggle-shelf', product: Api.RealProduct.DisplayRecord): void;
+  (e: 'delete', product: Api.RealProduct.DisplayRecord): void;
 }>();
 
 const cover = computed(() => props.product.images?.[0]?.url || `https://picsum.photos/seed/${props.product.id}/300/300`);

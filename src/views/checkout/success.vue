@@ -9,7 +9,7 @@ import * as realOrderApi from '@/service/api/order';
 const route = useRoute();
 const router = useRouter();
 const order = ref<Api.RealOrder.Record>();
-const recommends = ref<Api.Product.ProductRecord[]>([]);
+const recommends = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
 const errorMessage = ref('');
 

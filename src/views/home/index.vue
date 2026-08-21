@@ -11,10 +11,10 @@ import * as realProductApi from '@/service/api/product';
 
 const router = useRouter();
 
-const hot = ref<Api.Product.ProductRecord[]>([]);
-const newest = ref<Api.Product.ProductRecord[]>([]);
-const flash = ref<Api.Product.ProductRecord[]>([]);
-const recommendations = ref<Api.Product.ProductRecord[]>([]);
+const hot = ref<Api.RealProduct.Record[]>([]);
+const newest = ref<Api.RealProduct.Record[]>([]);
+const flash = ref<Api.RealProduct.Record[]>([]);
+const recommendations = ref<Api.RealProduct.Record[]>([]);
 const banners = ref<Api.RealProduct.BannerDTO[]>([]);
 const flashEndAt = ref<string | number>();
 const now = ref(Date.now());
