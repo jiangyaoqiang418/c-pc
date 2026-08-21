@@ -49,11 +49,11 @@ function toShippingCarrier(code?: string): Api.Order.ShippingCarrier | undefined
 }
 
 /** 将订单服务 DTO 映射为页面模型；不得伪造后端没有返回的履约字段。 */
-export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.Order.OrderRecord {
-  const id = dto.orderId as unknown as number;
-  const customerId = dto.customerId as unknown as number;
-  const shopperId = dto.sellerId as unknown as number;
-  const productId = dto.productId as unknown as number;
+export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record {
+  const id = dto.orderId;
+  const customerId = dto.customerId || '';
+  const shopperId = dto.sellerId || '';
+  const productId = dto.productId || '';
   const createdAt = toIso(dto.createdAt) || new Date().toISOString();
   const unitPrice = String(dto.unitPrice ?? dto.originalAmount ?? dto.totalAmount ?? 0);
   const totalAmount = String(dto.totalAmount ?? unitPrice);

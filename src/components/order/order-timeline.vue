@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 interface Props {
-  order: Api.Order.OrderRecord;
+  order: Api.RealOrder.DisplayRecord;
 }
 const props = defineProps<Props>();
 
@@ -13,7 +13,7 @@ interface Step {
   time?: string;
 }
 
-const STAGES: { key: string; label: string; matchedBy: (s: Api.Order.OrderStatus, o: Api.Order.OrderRecord) => boolean; timeField: (o: Api.Order.OrderRecord) => string | undefined }[] = [
+const STAGES: { key: string; label: string; matchedBy: (s: Api.Order.OrderStatus, o: Api.RealOrder.DisplayRecord) => boolean; timeField: (o: Api.RealOrder.DisplayRecord) => string | undefined }[] = [
   { key: 'created', label: '创建', matchedBy: () => true, timeField: o => o.createdAt },
   { key: 'paid', label: '付款', matchedBy: s => s !== 'PENDING_PAYMENT' && s !== 'CANCELLED', timeField: o => o.paidAt },
   { key: 'procuring', label: '采购中', matchedBy: s => ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM', 'COMPLETED', 'WARRANTY', 'IN_AFTERSALE', 'ARCHIVED'].includes(s), timeField: o => o.paidAt },

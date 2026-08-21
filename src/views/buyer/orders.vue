@@ -26,7 +26,7 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
-const orders = ref<Api.Order.OrderRecord[]>([]);
+const orders = ref<Api.RealOrder.Record[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const current = ref(1);
@@ -34,11 +34,11 @@ const size = ref(10);
 const total = ref(0);
 const priceModalOpen = ref(false);
 const priceSubmitting = ref(false);
-const priceOrder = ref<Api.Order.OrderRecord>();
+const priceOrder = ref<Api.RealOrder.Record>();
 const priceAmount = ref<number>();
 const shippingModalOpen = ref(false);
 const shippingSubmitting = ref(false);
-const shippingOrder = ref<Api.Order.OrderRecord>();
+const shippingOrder = ref<Api.RealOrder.Record>();
 
 async function load() {
   if (!userStore.currentUser) return;
@@ -73,7 +73,7 @@ function onUploadProof() {
   Message.info('采购凭证绑定订单接口暂未提供');
 }
 
-function onUploadShipping(order: Api.Order.OrderRecord) {
+function onUploadShipping(order: Api.RealOrder.Record) {
   shippingOrder.value = order;
   shippingModalOpen.value = true;
 }
@@ -99,7 +99,7 @@ async function shipOrder(orderId: string | number, trackingNo: string, carrier: 
   }
 }
 
-function openPriceModal(order: Api.Order.OrderRecord) {
+function openPriceModal(order: Api.RealOrder.Record) {
   priceOrder.value = order;
   priceAmount.value = Number(order.totalAmount);
   priceModalOpen.value = true;

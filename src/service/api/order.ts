@@ -16,7 +16,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery) {
   const pages = statuses.length > 1
     ? await Promise.all(statuses.map(status => requestPage(status)))
     : [await requestPage(statuses[0])];
-  const recordsById = new Map<string, Api.Order.OrderRecord>();
+  const recordsById = new Map<string, Api.RealOrder.Record>();
   pages.forEach(page => {
     page.records.map(toOrderRecord).forEach(record => {
       if (!q.statuses?.length || q.statuses.includes(record.status)) recordsById.set(String(record.id), record);

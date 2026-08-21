@@ -14,7 +14,7 @@ const router = useRouter();
 const userStore = useUserStore();
 
 const orderId = computed(() => String(route.params.orderId));
-const order = ref<Api.Order.OrderRecord>();
+const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
 const submitting = ref(false);
 const loadError = ref('');

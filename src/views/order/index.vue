@@ -29,7 +29,7 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
-const orders = ref<Api.Order.OrderRecord[]>([]);
+const orders = ref<Api.RealOrder.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(8);

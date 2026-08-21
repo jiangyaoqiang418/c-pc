@@ -68,19 +68,24 @@ const DEFAULT_POOL = PRODUCT_IMAGE_POOL.服饰内衣;
  * 商品图 URL —— 按类别取 Unsplash 精选图，同商品 id 稳定返回同图
  * 图片会自动 resize + crop + 质量压缩
  */
-export function productImageUrl(productId: number, size = 720, categoryPath?: string): string {
+function stablePoolIndex(id: string | number, length: number) {
+  return Array.from(String(id)).reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % length, 0);
+}
+
+export function productImageUrl(productId: string | number, size = 720, categoryPath?: string): string {
   const rootCategory = categoryPath?.split('/')[0]?.trim();
   const pool = (rootCategory && PRODUCT_IMAGE_POOL[rootCategory]) || DEFAULT_POOL;
-  const photoId = pool[productId % pool.length];
+  const photoId = pool[stablePoolIndex(productId, pool.length)];
   return `https://images.unsplash.com/photo-${photoId}?w=${size}&h=${size}&fit=crop&auto=format&q=80`;
 }
 
 /** 一个商品多张图 (gallery) —— 从同类池里选相邻的 count 张 */
-export function productImageUrls(productId: number, count = 5, size = 720, categoryPath?: string): string[] {
+export function productImageUrls(productId: string | number, count = 5, size = 720, categoryPath?: string): string[] {
   const rootCategory = categoryPath?.split('/')[0]?.trim();
   const pool = (rootCategory && PRODUCT_IMAGE_POOL[rootCategory]) || DEFAULT_POOL;
+  const start = stablePoolIndex(productId, pool.length);
   return Array.from({ length: count }, (_, i) => {
-    const photoId = pool[(productId + i) % pool.length];
+    const photoId = pool[(start + i) % pool.length];
     return `https://images.unsplash.com/photo-${photoId}?w=${size}&h=${size}&fit=crop&auto=format&q=80`;
   });
 }

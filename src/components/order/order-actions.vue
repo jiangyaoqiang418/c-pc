@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 interface Props {
-  order: Api.Order.OrderRecord;
+  order: Api.RealOrder.DisplayRecord;
   variant?: 'card' | 'detail';
   reviewable?: boolean;
 }

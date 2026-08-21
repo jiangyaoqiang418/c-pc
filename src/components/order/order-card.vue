@@ -8,7 +8,7 @@ import OrderActions from './order-actions.vue';
 import * as orderApi from '@/service/api/order';
 
 interface Props {
-  order: Api.Order.OrderRecord;
+  order: Api.RealOrder.DisplayRecord;
   reviewable?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), { reviewable: false });

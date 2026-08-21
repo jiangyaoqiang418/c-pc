@@ -1,4 +1,32 @@
 declare namespace Api.RealOrder {
+  type Id = string | number;
+
+  /** 真实订单展示模型，与仅支持 number ID 的 Mock 订单模型隔离。 */
+  type Record = Omit<
+    Api.Order.OrderRecord,
+    | 'id'
+    | 'groupId'
+    | 'productId'
+    | 'customerId'
+    | 'shopperId'
+    | 'activeAftersaleId'
+    | 'paymentTxnId'
+    | 'settleTxnId'
+    | 'pledgeTxnId'
+  > & {
+    id: Id;
+    groupId?: Id;
+    productId: Id;
+    customerId: Id;
+    shopperId: Id;
+    activeAftersaleId?: Id;
+    paymentTxnId?: Id;
+    settleTxnId?: Id;
+    pledgeTxnId?: Id;
+  };
+
+  type DisplayRecord = Api.Order.OrderRecord | Record;
+
   type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPED' | 'REFUND_REVIEW' | 'REFUNDED' | 'COMPLETED' | 'CANCELED';
 
   interface OrderDTO {
@@ -68,8 +96,8 @@ declare namespace Api.RealOrder {
     current?: number;
     size?: number;
     statuses?: Api.Order.OrderStatus[];
-    shopperId?: Api.RealSession.Id;
-    customerId?: Api.RealSession.Id;
+    shopperId?: Id;
+    customerId?: Id;
   }
 
   interface OrderIdParams {

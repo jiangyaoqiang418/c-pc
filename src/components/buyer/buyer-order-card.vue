@@ -7,13 +7,13 @@ import { productImageUrl } from '@shared/utils/image';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 
 interface Props {
-  order: Api.Order.OrderRecord;
+  order: Api.RealOrder.DisplayRecord;
 }
 const props = defineProps<Props>();
 defineEmits<{
-  (e: 'change-price', order: Api.Order.OrderRecord): void;
-  (e: 'upload-proof', order: Api.Order.OrderRecord): void;
-  (e: 'upload-shipping', order: Api.Order.OrderRecord): void;
+  (e: 'change-price', order: Api.RealOrder.DisplayRecord): void;
+  (e: 'upload-proof', order: Api.RealOrder.DisplayRecord): void;
+  (e: 'upload-shipping', order: Api.RealOrder.DisplayRecord): void;
 }>();
 
 const router = useRouter();

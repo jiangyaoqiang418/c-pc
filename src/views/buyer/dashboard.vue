@@ -16,7 +16,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const pendingOrders = ref<Api.Order.OrderRecord[]>([]);
+const pendingOrders = ref<Api.RealOrder.Record[]>([]);
 const claimable = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
 const orderCounts = ref<Record<string, number>>({});
 const claimableTotal = ref(0);

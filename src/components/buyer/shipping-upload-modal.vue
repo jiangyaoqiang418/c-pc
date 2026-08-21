@@ -5,7 +5,7 @@ import { enums } from '@shared';
 
 interface Props {
   visible: boolean;
-  order?: Api.Order.OrderRecord;
+  order?: Api.RealOrder.Record;
   submitting?: boolean;
 }
 const props = defineProps<Props>();

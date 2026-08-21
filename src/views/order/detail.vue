@@ -16,7 +16,7 @@ import * as reviewApi from '@/service/api/review';
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
-const order = ref<Api.Order.OrderRecord>();
+const order = ref<Api.RealOrder.Record>();
 const reviewable = ref(false);
 const loading = ref(false);
 const loadError = ref('');

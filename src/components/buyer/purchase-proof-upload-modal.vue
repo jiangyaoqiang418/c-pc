@@ -5,12 +5,12 @@ import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence
 
 interface Props {
   visible: boolean;
-  order?: Api.Order.OrderRecord;
+  order?: Api.RealOrder.Record;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
-  (e: 'confirm', orderId: number, imageUrl: string): void;
+  (e: 'confirm', orderId: string | number, imageUrl: string): void;
 }>();
 
 const images = ref<string[]>([]);
