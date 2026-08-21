@@ -14,7 +14,7 @@ const router = useRouter();
 const userStore = useUserStore();
 
 const id = computed(() => String(route.params.id || ''));
-const request = ref<Api.PurchaseRequest.PurchaseRequest>();
+const request = ref<Api.RealPurchase.Record>();
 const pushLogs = ref<Api.PurchaseRequest.PushLog[]>([]);
 const loading = ref(false);
 const loadError = ref('');

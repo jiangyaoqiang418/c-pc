@@ -12,7 +12,7 @@ import { useUserStore } from '@/stores';
 const router = useRouter();
 const userStore = useUserStore();
 
-const list = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const list = ref<Api.RealPurchase.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(15);
@@ -50,7 +50,7 @@ async function load() {
 }
 onMounted(load);
 
-async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
+async function onClaim(req: Api.RealPurchase.Record) {
   if (!userStore.currentUser) {
     Message.warning('请先登录后再接单');
     router.push({ name: 'login', query: { redirect: '/purchase/hall' } });

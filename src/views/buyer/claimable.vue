@@ -11,7 +11,7 @@ import { useUserStore } from '@/stores';
 const router = useRouter();
 const userStore = useUserStore();
 
-const list = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const list = ref<Api.RealPurchase.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(10);
@@ -39,7 +39,7 @@ async function load() {
 }
 onMounted(load);
 
-async function onClaim(req: Api.PurchaseRequest.PurchaseRequest) {
+async function onClaim(req: Api.RealPurchase.Record) {
   if (!user.value || claimingId.value !== undefined) return;
   claimingId.value = req.id;
   try {

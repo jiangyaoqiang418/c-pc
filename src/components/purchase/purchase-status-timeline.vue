@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 
 interface Props {
-  request: Api.PurchaseRequest.PurchaseRequest;
+  request: Api.RealPurchase.DisplayRecord;
 }
 const props = defineProps<Props>();
 

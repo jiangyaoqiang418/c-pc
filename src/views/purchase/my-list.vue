@@ -27,9 +27,9 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
-const list = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const list = ref<Api.RealPurchase.Record[]>([]);
 const loading = ref(false);
-const allList = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const allList = ref<Api.RealPurchase.Record[]>([]);
 const loadError = ref('');
 const cancelingId = ref<string | number>();
 
@@ -80,7 +80,7 @@ const counts = computed(() => {
   return c;
 });
 
-function onCancel(req: Api.PurchaseRequest.PurchaseRequest) {
+function onCancel(req: Api.RealPurchase.Record) {
   Modal.confirm({
     title: '撤销求购？',
     content: '撤销后该求购将不可恢复',

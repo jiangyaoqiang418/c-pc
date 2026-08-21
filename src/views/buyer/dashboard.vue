@@ -17,7 +17,7 @@ const userStore = useUserStore();
 const walletStore = useWalletStore();
 
 const pendingOrders = ref<Api.RealOrder.Record[]>([]);
-const claimable = ref<Api.PurchaseRequest.PurchaseRequest[]>([]);
+const claimable = ref<Api.RealPurchase.Record[]>([]);
 const orderCounts = ref<Record<string, number>>({});
 const claimableTotal = ref(0);
 const loading = ref(false);

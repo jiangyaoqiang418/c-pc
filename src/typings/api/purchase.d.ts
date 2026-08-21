@@ -1,4 +1,20 @@
 declare namespace Api.RealPurchase {
+  type Id = string | number;
+
+  type Record = Omit<
+    Api.PurchaseRequest.PurchaseRequest,
+    'id' | 'customerId' | 'categoryId' | 'pushedToBuyerIds' | 'claimedBy' | 'relatedOrderId'
+  > & {
+    id: Id;
+    customerId: Id;
+    categoryId: Id;
+    pushedToBuyerIds: Id[];
+    claimedBy?: Id;
+    relatedOrderId?: Id;
+  };
+
+  type DisplayRecord = Api.PurchaseRequest.PurchaseRequest | Record;
+
   type DemandStatus = string;
 
   interface PurchaseDemandVO {

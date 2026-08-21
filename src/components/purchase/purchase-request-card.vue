@@ -6,7 +6,7 @@ import { enums, formatAmount } from '@shared';
 import PushTierBadge from './push-tier-badge.vue';
 
 interface Props {
-  request: Api.PurchaseRequest.PurchaseRequest;
+  request: Api.RealPurchase.DisplayRecord;
   mode?: 'hall' | 'mine';
   canClaim?: boolean;
   claiming?: boolean;
@@ -14,8 +14,8 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), { mode: 'hall', canClaim: false, claiming: false, canceling: false });
 defineEmits<{
-  (e: 'claim', req: Api.PurchaseRequest.PurchaseRequest): void;
-  (e: 'cancel', req: Api.PurchaseRequest.PurchaseRequest): void;
+  (e: 'claim', req: Api.RealPurchase.DisplayRecord): void;
+  (e: 'cancel', req: Api.RealPurchase.DisplayRecord): void;
 }>();
 
 const router = useRouter();

@@ -55,15 +55,15 @@ async function getCategoryPath(id?: string) {
   return categoryPathCache.get(id) || id;
 }
 
-async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promise<Api.PurchaseRequest.PurchaseRequest> {
-  const id = dto.id as unknown as number;
-  const categoryId = dto.categoryId as unknown as number;
+async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promise<Api.RealPurchase.Record> {
+  const id = dto.id;
+  const categoryId = dto.categoryId;
   const claimedBuyerId = dto.takenBy;
 
   return {
     id,
     code: `PUR-${dto.id}`,
-    customerId: dto.buyerId as unknown as number,
+    customerId: dto.buyerId || '',
     customerName: '',
     productTitle: dto.title,
     productDescription: dto.description || '',
@@ -77,11 +77,11 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     appeal: dto.demandNote || dto.description || '',
     status: toStatus(dto.status),
     claimExpiresAt: toIso(dto.expireAt),
-    pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId as unknown as number] : [],
-    claimedBy: claimedBuyerId as unknown as number | undefined,
+    pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId] : [],
+    claimedBy: claimedBuyerId,
     claimedByName: claimedBuyerId ? `买手 ${claimedBuyerId}` : undefined,
     claimedAt: toIso(dto.takenAt),
-    relatedOrderId: dto.orderId as unknown as number | undefined,
+    relatedOrderId: dto.orderId,
     relatedOrderCode: dto.orderId ? String(dto.orderId) : undefined,
     createdAt: toIso(dto.createdAt)
   };
@@ -122,7 +122,7 @@ export async function fetchMyPurchases(
     pageSize: q.size || 30
   });
   const mapped = await mapPage(page);
-  mapped.records = mapped.records.map(item => ({ ...item, customerId: customerId as unknown as number }));
+  mapped.records = mapped.records.map(item => ({ ...item, customerId }));
   if (statuses?.length) mapped.records = mapped.records.filter(item => statuses.includes(item.status));
   return mapped;
 }
