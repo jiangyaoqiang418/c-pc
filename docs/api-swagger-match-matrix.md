@@ -6,7 +6,7 @@
 
 - 实时 Swagger：`admin 159/160`、`user 41/41`、`order 57/59`、`notify 17/17`（路径/操作）；`pnpm check:swagger` 已通过。下文 2026-08-01 至 2026-08-13 的数量和 A/B/C/D 统计均为历史扫描快照，不作为当前接口数量。
 - 真实 API 已覆盖主交易、地址、钱包、买手保证金、KYC、理财、评价、仅退款、IM REST 与通知。页面仍使用 Mock 的业务能力只剩 CMS 内容、AI 导购和演示账号切换。
-- 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；提现 `POST /user/withdraw/create` 已完成测试申请、后台驳回返还，以及审核通过后 PC“待打款”回读。评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger；订单列表和详情的“写评价”入口新增 `/order/reviews/reviewable/page` 真实可评价校验，仅顾客且仅未评价订单显示。顾客评价提交/删除、买手回复、买手申诉、后台裁定和前台状态回读均已完成。演示账号无真实 Token 时，真实接口失败保留当前演示会话并展示错误态，不再误跳登录页。分页读取的 `total` 统一在 API adapter 转为数值，业务 Long ID 保持原值。真实会话、钱包账户、流水、订单和商品展示已从 Mock `number` ID 模型隔离，改用 `Api.RealSession` / `Api.RealWallet` / `Api.RealOrder` / `Api.RealProduct` 的原值 ID 类型。
+- 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；提现 `POST /user/withdraw/create` 已完成测试申请、后台驳回返还，以及审核通过后 PC“待打款”回读。评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger；订单列表和详情的“写评价”入口新增 `/order/reviews/reviewable/page` 真实可评价校验，仅顾客且仅未评价订单显示。顾客评价提交/删除、买手回复、买手申诉、后台裁定和前台状态回读均已完成。演示账号无真实 Token 时，真实接口失败保留当前演示会话并展示错误态，不再误跳登录页。分页读取的 `total` 统一在 API adapter 转为数值，业务 Long ID 保持原值。真实会话、钱包账户、流水、订单、商品、求购、买手押金、积分流水和 VIP 状态已从 Mock `number` ID 模型隔离，改用对应 `Api.Real*` 的原值 ID 类型。
 - 本批秒杀真实回归：后台创建启用 QA 场次，买手为在售商品以 `90 U / 库存 1` 提交报名并在“我的报名”回读，取消报名后列表恢复空态；后台场次已停用保留 QA 记录。`sessionEndTime` 的毫秒时间戳已在页面统一格式化为本地时间。
 - 尚未完整验收：提现真实打款/链上到账、WebSocket 实时到达；后台提现 UI 已恢复打款入口，但其要求真实 TRON 交易哈希，不能伪造哈希或以直接调用资金接口替代页面回归。CMS、AI 没有 C 端契约，继续保留 Mock，不伪造真实成功。
 - 本轮 Chrome 全量只读巡检覆盖 39 个静态路由及订单、评价、商品、订单群、求购、仅退款等动态详情场景；当前真实测试账号下均无新增控制台 warning/error、空白页或异常路由跳转。历史详情必须从所属列表进入后再判断数据可见性，直接访问时的“订单不存在/会话不存在”是后端权限或数据归属的明确失败态，不以此误判页面异常。

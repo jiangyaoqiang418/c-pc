@@ -1,4 +1,16 @@
 declare namespace Api.RealVip {
+  interface Status {
+    userId: string | number;
+    audience: Api.Vip.Audience;
+    level: Api.Vip.Level;
+    vipLevel: Api.Vip.Level;
+    points: number;
+    nextThreshold?: number;
+    pointsToNext: number;
+    benefits: Api.Vip.CustomerBenefits | Api.Vip.BuyerBenefits;
+    config?: Api.Vip.LevelConfig;
+  }
+
   interface VipDimMetaVO {
     code: string;
     name: string;

@@ -79,7 +79,7 @@ export async function fetchVipConfigs() {
   return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig(role, row)));
 }
 
-export async function fetchMyVipStatus(userId: number | string) {
+export async function fetchMyVipStatus(userId: string | number): Promise<Api.RealVip.Status> {
   const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account');
   const customer = account.customer;
   const buyer = account.buyer;
@@ -89,7 +89,7 @@ export async function fetchMyVipStatus(userId: number | string) {
   const points = Number(account.points || 0);
 
   return {
-    userId: (account.userId || userId) as unknown as number,
+    userId: account.userId || userId,
     audience,
     level: normalizeLevel(current?.level),
     vipLevel: normalizeLevel(current?.level),

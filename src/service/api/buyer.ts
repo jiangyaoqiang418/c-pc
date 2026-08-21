@@ -9,13 +9,13 @@ export function submitBuyerApplication(params: Api.RealBuyer.BuyerApplyParams) {
   return realUserRequest.post<void, Api.RealBuyer.BuyerApplyParams>('/buyer/apply', params);
 }
 
-function toDepositTxn(dto: Api.RealBuyer.DepositLedgerDTO): Api.Wallet.Txn {
+function toDepositTxn(dto: Api.RealBuyer.DepositLedgerDTO): Api.RealBuyer.DepositLedger {
   const isRelease = dto.bizType === 'REFUND' || dto.bizType === 'UNFREEZE';
   const isDeduct = dto.bizType === 'DEDUCT';
 
   return {
-    id: dto.id as unknown as number,
-    userId: dto.userId as unknown as number,
+    id: dto.id,
+    userId: dto.userId,
     userName: '',
     type: isRelease ? 'DEPOSIT_RELEASE' : isDeduct ? 'DEPOSIT_FORFEIT' : 'DEPOSIT_PLEDGE',
     direction: isRelease ? 'in' : 'out',

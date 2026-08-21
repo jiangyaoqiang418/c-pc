@@ -11,7 +11,7 @@ import { useUserStore } from '@/stores';
 const userStore = useUserStore();
 const router = useRouter();
 
-const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const vipStatus = ref<Api.RealVip.Status>();
 const configs = ref<Api.Vip.LevelConfig[]>([]);
 const pointRules = ref<Api.Point.Rule[]>([]);
 const audience = ref<Api.Vip.Audience>('customer');

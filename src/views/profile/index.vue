@@ -13,7 +13,7 @@ import { useUserStore } from '@/stores';
 const router = useRouter();
 const userStore = useUserStore();
 
-const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const vipStatus = ref<Api.RealVip.Status>();
 const totalAssets = ref<{ total: string; account?: Api.RealWallet.Account }>();
 const orderCounts = ref<Record<string, number>>({});
 const announcements = ref<Api.Cms.Announcement[]>([]);

@@ -13,13 +13,13 @@ import { useUserStore } from '@/stores';
 const userStore = useUserStore();
 
 const activeTab = ref<'logs' | 'appeals' | 'rules'>('logs');
-const logs = ref<Api.Point.LogEntry[]>([]);
+const logs = ref<Api.RealPoint.Ledger[]>([]);
 const total = ref(0);
 const current = ref(1);
 const size = ref(20);
 const loading = ref(false);
 const rules = ref<Api.Point.Rule[]>([]);
-const vipStatus = ref<Awaited<ReturnType<typeof vipApi.fetchMyVipStatus>>>();
+const vipStatus = ref<Api.RealVip.Status>();
 const appeals = ref<Api.RealPoint.PointAppealDTO[]>([]);
 const appealTotal = ref(0);
 const appealCurrent = ref(1);
@@ -27,7 +27,7 @@ const appealSize = ref(20);
 const appealLoading = ref(false);
 const appealModalOpen = ref(false);
 const appealSubmitting = ref(false);
-const appealTarget = ref<Api.Point.LogEntry>();
+const appealTarget = ref<Api.RealPoint.Ledger>();
 const appealForm = reactive({ reason: '' });
 const appealFilter = reactive<{
   keyword?: string;
@@ -122,7 +122,7 @@ const progressPct = computed(() => {
   return Math.min(100, (user.value.points / vipStatus.value.nextThreshold) * 100);
 });
 
-function openAppeal(log: Api.Point.LogEntry) {
+function openAppeal(log: Api.RealPoint.Ledger) {
   appealTarget.value = log;
   appealForm.reason = '';
   appealModalOpen.value = true;

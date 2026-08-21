@@ -4,10 +4,10 @@ import { formatPoints } from '@shared';
 import PointBehaviorTag from './point-behavior-tag.vue';
 
 interface Props {
-  log: Api.Point.LogEntry;
+  log: Api.RealPoint.Ledger;
 }
 const props = defineProps<Props>();
-defineEmits<{ (e: 'appeal', log: Api.Point.LogEntry): void }>();
+defineEmits<{ (e: 'appeal', log: Api.RealPoint.Ledger): void }>();
 
 const sign = computed(() => (props.log.change > 0 ? '+' : ''));
 const amountColor = computed(() => (props.log.change > 0 ? '#00b42a' : '#f53f3f'));

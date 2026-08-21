@@ -1,4 +1,5 @@
 declare namespace Api.RealBuyer {
+  type DepositLedger = Api.RealWallet.Ledger;
   type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | string;
 
   interface BuyerApplyParams {

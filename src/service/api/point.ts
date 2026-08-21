@@ -40,17 +40,17 @@ function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
   };
 }
 
-function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.Point.LogEntry {
+function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
   return {
-    id: item.id as unknown as number,
-    userId: item.userId as unknown as number,
+    id: item.id,
+    userId: item.userId,
     userName: item.userNickname || '',
     behavior: toBehavior(item.behaviorCode),
     change: Number(item.score || 0),
     balanceAfter: Number(item.balanceAfter || 0),
     refId: item.bizNo,
     isAppealable: !!item.appealable,
-    appealStatus: item.appealStatus?.toLowerCase() as Api.Point.LogEntry['appealStatus'],
+    appealStatus: item.appealStatus?.toLowerCase() as Api.RealPoint.Ledger['appealStatus'],
     createdAt: item.createdAt
   };
 }

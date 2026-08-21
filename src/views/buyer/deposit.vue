@@ -14,12 +14,12 @@ import { useUserStore, useWalletStore } from '@/stores';
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const txns = ref<Api.Wallet.Txn[]>([]);
+const txns = ref<Api.RealBuyer.DepositLedger[]>([]);
 const orderCounts = ref<Record<string, number>>({});
 const loading = ref(false);
 const loadError = ref('');
 const drawerOpen = ref(false);
-const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
+const drawerTxn = ref<Api.RealBuyer.DepositLedger>();
 const account = computed(() => walletStore.account);
 const transferOpen = ref(false);
 const transferKind = ref<'pay' | 'refund'>('pay');
@@ -101,7 +101,7 @@ async function submitDepositTransfer() {
   }
 }
 
-function openTxn(t: Api.RealWallet.DisplayLedger) {
+function openTxn(t: Api.RealBuyer.DepositLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }
