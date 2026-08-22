@@ -7,6 +7,7 @@ import { getUsdtCnyRate } from '@shared/utils/currency';
 import * as financeApi from '@/service/api/finance';
 import { useUserStore, useWalletStore } from '@/stores';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
+import EmptyState from '@/components/common/empty-state.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -44,8 +45,9 @@ const bestApy = computed(() => {
 
 const totalAccruedInterest = computed(() => Number(overview.value?.pendingInterest || 0).toFixed(2));
 
-const featuredProducts = computed(() => products.value.filter(p => p.lockDays <= 30));
-const strategyProducts = computed(() => products.value.filter(p => p.lockDays > 30));
+const availableProducts = computed(() => products.value.filter(p => p.status === 'ON_SALE'));
+const featuredProducts = computed(() => availableProducts.value.filter(p => p.lockDays <= 30));
+const strategyProducts = computed(() => availableProducts.value.filter(p => p.lockDays > 30));
 
 const bars = computed(() => {
   const count = range.value === 'day' ? 6 : range.value === 'week' ? 12 : range.value === 'month' ? 20 : 24;
@@ -189,6 +191,12 @@ function scrollToList() {
             </div>
           </div>
         </template>
+
+        <EmptyState
+          v-if="!featuredProducts.length && !strategyProducts.length && !loading"
+          title="暂无可申购产品"
+          description="当前没有上架中的理财产品，请稍后再试"
+        />
       </section>
     </a-spin>
   </div>

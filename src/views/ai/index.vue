@@ -7,6 +7,7 @@ import type { AiSearchResult } from '@shared/api/ai';
 import AiSuggestionGrid from '@/components/ai/ai-suggestion-grid.vue';
 
 const router = useRouter();
+const DEMO_NOTICE = '当前为本地演示数据，不代表实时 AI 服务或真实商品匹配结果。';
 
 interface BotMsg {
   role: 'bot';
@@ -30,7 +31,7 @@ const PRESETS = ['iPhone 16 Pro', '北海道直邮草莓', '海蓝宝石原石',
 const messages = ref<ChatMsg[]>([
   {
     role: 'bot',
-    fullText: '你好，我是油宝 AI 智能导购。想找什么直接告诉我，我会为你在全球买手网络里匹配最合适的商品。找不到的还可以帮你发起求购，24 小时全球买手接单。',
+    fullText: '你好，这里是油宝 AI 导购演示。你可以体验商品匹配和发起求购入口；当前结果来自本地演示数据，不代表实时买手网络。',
     streamText: '',
     showSuggestions: false,
     done: false
@@ -95,8 +96,8 @@ async function send(text?: string) {
     if (loadingIdx !== -1) messages.value.splice(loadingIdx, 1);
 
     const replyText = result.suggestions.length
-      ? `已为你匹配到 ${result.suggestions.length} 件相关商品，看看有没有心仪的。`
-      : '暂时没找到完全匹配的商品。要不要发起一个求购？全球买手会在 24 小时内响应。';
+      ? `演示数据中匹配到 ${result.suggestions.length} 件相关商品，看看有没有心仪的。`
+      : '演示数据中暂时没有完全匹配的商品。你可以继续体验发起求购入口。';
 
     const botMsg: BotMsg = {
       role: 'bot',
@@ -132,7 +133,7 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
   <div class="ai-chat">
     <header class="chat-nav">
       <h1 class="chat-title">AI 智能导购</h1>
-      <p class="chat-sub">用自然语言告诉我你想要什么，全球买手 24h 接单</p>
+      <p class="chat-sub">{{ DEMO_NOTICE }}</p>
     </header>
 
     <div ref="scrollRef" class="chat-scroll">
@@ -223,7 +224,7 @@ function isUser(m: ChatMsg): m is UserMsg { return m.role === 'user'; }
             <Icon icon="lucide:send" width="16" />
           </button>
         </div>
-        <div class="chat-tip">AI 为你从全球买手商品池匹配 · 找不到自动引导求购</div>
+        <div class="chat-tip">本地演示：商品匹配与求购引导不会调用真实 AI 或商品服务</div>
       </div>
     </footer>
   </div>

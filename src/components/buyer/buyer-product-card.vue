@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message } from '@arco-design/web-vue';
 import { enums, formatAmount } from '@shared';
 import PriceTag from '@/components/product/price-tag.vue';
 
@@ -10,7 +10,6 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'toggle-shelf', product: Api.RealProduct.DisplayRecord): void;
-  (e: 'delete', product: Api.RealProduct.DisplayRecord): void;
 }>();
 
 const cover = computed(() => props.product.images?.[0]?.url || `https://picsum.photos/seed/${props.product.id}/300/300`);
@@ -40,15 +39,6 @@ function toggleShelf() {
   emit('toggle-shelf', props.product);
 }
 
-function onDelete() {
-  Modal.confirm({
-    title: '删除商品？',
-    content: `「${props.product.title}」将从商品池删除，已售出订单不受影响`,
-    okText: '确认删除',
-    okButtonProps: { status: 'danger' },
-    onOk: () => emit('delete', props.product)
-  });
-}
 </script>
 
 <template>
@@ -88,7 +78,7 @@ function onDelete() {
           {{ product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}
         </a-button>
         <a-button size="small" disabled>编辑（暂未开放）</a-button>
-        <a-button size="small" status="danger" type="outline" @click="onDelete">删除</a-button>
+        <a-button size="small" status="danger" type="outline" disabled>删除（暂未开放）</a-button>
       </div>
     </div>
   </div>

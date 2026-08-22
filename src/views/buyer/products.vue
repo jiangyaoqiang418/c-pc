@@ -40,7 +40,7 @@ const size = ref(12);
 const total = ref(0);
 const shelvingId = ref<string | number>();
 
-function mapCategoryOptions(nodes: Api.Category.CategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
+function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
     value: node.id,
     label: node.name,
@@ -116,10 +116,6 @@ async function toggleShelf(p: Api.RealProduct.Record) {
   }
 }
 
-function onDelete(p: Api.RealProduct.Record) {
-  void p;
-  Message.warning('当前真实接口暂不支持买手删除商品');
-}
 </script>
 
 <template>
@@ -162,7 +158,6 @@ function onDelete(p: Api.RealProduct.Record) {
           :key="p.id"
           :product="p"
           @toggle-shelf="toggleShelf"
-          @delete="onDelete"
         />
       </div>
       <EmptyState

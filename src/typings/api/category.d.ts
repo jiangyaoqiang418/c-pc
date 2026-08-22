@@ -11,6 +11,22 @@ declare namespace Api.RealCategory {
     children?: CategoryNodeDTO[];
   }
 
+  interface DisplayCategoryNode {
+    id: string;
+    code: string;
+    name: string;
+    level: 1 | 2 | 3;
+    parentId: string | null;
+    parentPath: string;
+    sort: number;
+    status: '1' | '2';
+    productCount: number;
+    createdAt: string;
+    updatedAt: string;
+    creatorType: 'system' | 'buyer';
+    children?: DisplayCategoryNode[];
+  }
+
   type CategoryApplyStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
   interface CategoryApplyPageQuery {

@@ -1,16 +1,13 @@
 import { realOrderRequest } from '@/service/request';
 import { toPageTotal } from './page';
 
-function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.Category.CategoryNode {
-  const id = node.id as unknown as number;
-  const parentId = (node.parentId ?? null) as unknown as number | null;
-
+function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.RealCategory.DisplayCategoryNode {
   return {
-    id,
+    id: node.id,
     code: String(node.id),
     name: node.name,
     level: node.level,
-    parentId,
+    parentId: node.parentId ?? null,
     parentPath: '',
     sort: node.sortOrder || 0,
     status: node.enabled === false ? '2' : '1',

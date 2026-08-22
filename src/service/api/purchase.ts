@@ -39,7 +39,7 @@ async function getCategoryPath(id?: string) {
   if (!id) return '';
   if (!categoryPathCache) {
     categoryPathCache = new Map();
-    const walk = (nodes: Api.Category.CategoryNode[], path: string[] = []) => {
+    const walk = (nodes: Api.RealCategory.DisplayCategoryNode[], path: string[] = []) => {
       nodes.forEach(node => {
         const next = [...path, node.name];
         categoryPathCache!.set(String(node.id), next.join(' / '));
