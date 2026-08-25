@@ -26,6 +26,13 @@ function toAudience(identity?: string): Api.Point.Audience {
   return 'all';
 }
 
+function toIso(value?: string | number) {
+  if (!value) return '';
+  if (typeof value === 'number') return new Date(value).toISOString();
+  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
+  return value;
+}
+
 function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
   return {
     code: toBehavior(rule.behaviorCode),
@@ -51,7 +58,7 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
     refId: item.bizNo,
     isAppealable: !!item.appealable,
     appealStatus: item.appealStatus?.toLowerCase() as Api.RealPoint.Ledger['appealStatus'],
-    createdAt: item.createdAt
+    createdAt: toIso(item.createdAt)
   };
 }
 
