@@ -23,7 +23,7 @@
 
 - 前端基线：45 个页面、61 个组件、4 个 Store、16 个 Mock API 模块及相关类型；本轮新增 2 个买手页面。
 - 当前实际调用：73 项 Mock API 能力。
-- Knife4j 契约入口：`http://221.128.249.198:8902/doc.html`；后台协作、审核和测试数据操作使用已部署管理站 [https://testhou.merchantsale.store/](https://testhou.merchantsale.store/)，不使用本地后台管理服务。
+- Knife4j 契约入口：`http://221.128.249.198:8902/doc.html`；后台协作、审核和测试数据操作使用已部署管理站 [https://testhou.merchantsale.store/](https://testhou.merchantsale.store/)，不使用本地后台管理服务。后台登录仅使用后台项目文档中明确记录的开发、测试或演示账号，本文不记录凭据。
 - 2026-08-05 实时读取：`admin` 84 路径/85 操作，`user` 19/19，`order` 40/42；Swagger 源站与测试环境的路径、方法和 Schema 结构差异均为 `0`。
 - `notify` 已出现在 `swagger-config` 分组中，但源站与测试环境的 `/notify/v3/api-docs` 均返回 HTTP 404，不计为可用接口。
 - 表中 `/user/...`、`/order/...`、`/admin/...` 用首段标识 Swagger 分组；分组内原始 path 分别从 `/auth/...`、`/orders/...` 等开始，后续同源请求前缀按请求层配置确定。

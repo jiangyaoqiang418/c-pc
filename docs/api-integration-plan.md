@@ -2,7 +2,7 @@
 
 > 本文只维护当前有效状态、已验收能力、剩余缺口和下一步。接口级路径、字段和页面调用详情见 [Swagger 匹配矩阵](./api-swagger-match-matrix.md)，开发规则见 [AGENTS.md](../AGENTS.md)。历史开发过程由 Git 记录，不在本文重复追加日期流水账。
 
-> 后台协作入口固定为 [https://testhou.merchantsale.store/](https://testhou.merchantsale.store/)；需要审核、准备测试数据或后台回读时直接使用该部署站，不启动或访问本地后台管理服务。Knife4j 契约入口单独维护，不与后台管理站混用。
+> 后台协作入口固定为 [https://testhou.merchantsale.store/](https://testhou.merchantsale.store/)；需要审核、准备测试数据或后台回读时直接使用该部署站，不启动或访问本地后台管理服务。后台登录账号以后台项目文档中明确记录的开发、测试或演示账号为准，不在本文复制凭据。Knife4j 契约入口单独维护，不与后台管理站混用。
 
 ## 当前承接状态（2026-08-26）
 

@@ -44,6 +44,7 @@ src/
 
 - C 端与后台系统共用 Swagger / Knife4j：`http://221.128.249.198:8902/doc.html`。
 - 后台协作、审核及测试数据操作统一访问已部署管理站：[https://testhou.merchantsale.store/](https://testhou.merchantsale.store/)；不使用本地后台启动地址。C-PC 的 `localhost:5173` 仅用于本地页面开发和代理验证。
+- 后台登录账号以后台项目文档中明确记录的开发、测试或演示账号为准；不在本项目复制或提交任何凭据。
 - 交互逻辑以前端现有页面为准；路径、字段、类型、枚举、分页和响应结构以后端接口为准。
 - 后续按模块建立 `src/service/request/`、`src/service/api/` 和 `src/typings/api/`，请求职责与后台项目保持一致。
 - 未对接模块继续使用现有 Mock；已切真实接口的模块不自动 fallback Mock。
