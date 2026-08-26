@@ -17,9 +17,9 @@ const form = reactive<Api.RealKyc.SubmitParams>({
   realName: '',
   idType: 'ID_CARD',
   idNo: '',
-  idCardFront: '',
-  idCardBack: '',
-  holdingPhoto: '',
+  idCardFrontFileId: '',
+  idCardBackFileId: '',
+  holdingPhotoFileId: '',
   nationality: '中国'
 });
 
@@ -74,12 +74,37 @@ const statusView = computed(() => {
   };
 });
 
+const previewUrls = ref<Record<string, string>>({});
+
+async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null) {
+  previewUrls.value = {};
+  if (!detail) return;
+  const entries = [
+    ['front', detail.idCardFrontFileId],
+    ['back', detail.idCardBackFileId],
+    ['holding', detail.holdingPhotoFileId]
+  ] as const;
+  const results = await Promise.all(entries.map(async ([key, fileId]) => {
+    if (!fileId) return [key, ''] as const;
+    try {
+      const access = await realKycApi.refreshKycFileAccess(fileId);
+      return [key, access.url] as const;
+    } catch {
+      return [key, ''] as const;
+    }
+  }));
+  previewUrls.value = Object.fromEntries(results.filter(([, url]) => url));
+}
+
 async function load() {
   loading.value = true;
   try {
     await userStore.init();
     await userStore.refreshCurrentUser();
-    if (getAccessToken()) kycDetail.value = await realKycApi.fetchMyKycDetail();
+    if (getAccessToken()) {
+      kycDetail.value = await realKycApi.fetchMyKycDetail();
+      await refreshPrivatePreviews(kycDetail.value);
+    }
   } finally {
     loading.value = false;
   }
@@ -88,11 +113,11 @@ async function load() {
 onMounted(load);
 
 async function submit() {
-  if (!form.realName.trim() || !form.idNo.trim() || !form.idCardFront) {
+  if (!form.realName.trim() || !form.idNo.trim() || !form.idCardFrontFileId) {
     Message.warning('请填写真实姓名、证件号码并上传证件人像面');
     return;
   }
-  if (form.idType === 'ID_CARD' && !form.idCardBack) {
+  if (form.idType === 'ID_CARD' && !form.idCardBackFileId) {
     Message.warning('身份证认证请上传证件国徽面');
     return;
   }
@@ -143,9 +168,16 @@ async function submit() {
             { label: '认证证件', value: kycDetail?.idNo || '—' },
             { label: '提交时间', value: formatTime(kycDetail?.submittedAt) },
             { label: '审核时间', value: formatTime(kycDetail?.reviewedAt) },
+            { label: '证件地址有效期', value: formatTime(kycDetail?.photoUrlExpireAt) },
             { label: '状态来源', value: kycDetail ? '实名认证详情接口' : '当前用户信息接口' }
           ]"
         />
+        <div v-if="Object.keys(previewUrls).length" class="private-previews">
+          <div v-for="([key, url]) in Object.entries(previewUrls)" :key="key" class="private-preview">
+            <span>{{ key === 'front' ? '证件人像面' : key === 'back' ? '证件国徽面' : '手持证件照' }}</span>
+            <a-image :src="url" width="120" height="80" fit="cover" />
+          </div>
+        </div>
 
         <template v-if="status !== 'approved' && status !== 'pending'">
           <a-divider />
@@ -161,9 +193,9 @@ async function submit() {
             </a-row>
             <a-form-item label="证件图片" required extra="身份证须上传正反面；护照至少上传资料页。请勿上传与本人无关的证件。">
               <div class="uploaders">
-                <IdCardUploader v-model="form.idCardFront" side="front" @uploading="uploading = $event" />
-                <IdCardUploader v-if="form.idType === 'ID_CARD'" v-model="form.idCardBack" side="back" @uploading="uploading = $event" />
-                <IdCardUploader v-model="form.holdingPhoto" side="face" @uploading="uploading = $event" />
+                <IdCardUploader v-model="form.idCardFrontFileId" side="front" @uploading="uploading = $event" />
+                <IdCardUploader v-if="form.idType === 'ID_CARD'" v-model="form.idCardBackFileId" side="back" @uploading="uploading = $event" />
+                <IdCardUploader v-model="form.holdingPhotoFileId" side="face" @uploading="uploading = $event" />
               </div>
             </a-form-item>
             <div class="actions"><a-button type="primary" :loading="submitting" :disabled="uploading" @click="submit">提交认证</a-button></div>
@@ -184,6 +216,8 @@ async function submit() {
   background: #fff;
   border-radius: var(--bw-card-radius);
 }
+.private-previews { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+.private-preview { display: flex; flex-direction: column; gap: 6px; color: #4e5969; font-size: 12px; }
 .status-head {
   display: flex;
   gap: 16px;

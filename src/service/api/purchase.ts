@@ -21,7 +21,7 @@ function fromAfterSaleType(value: Api.Product.AftersaleType): Api.RealProduct.Af
 function toStatus(value?: string): Api.PurchaseRequest.RequestStatus {
   const key = value?.toUpperCase();
   if (key === 'OPEN') return 'pushing';
-  if (key === 'PENDING_AUDIT' || key === 'PENDING' || key === 'REVIEWING') return 'pending_audit';
+  if (key === 'PENDING_REVIEW' || key === 'PENDING_AUDIT' || key === 'PENDING' || key === 'REVIEWING') return 'pending_audit';
   if (key === 'REJECTED') return 'rejected';
   if (key === 'CLAIMED' || key === 'TAKEN') return 'claimed';
   if (key === 'VOID' || key === 'CANCELLED' || key === 'CANCELED') return 'cancelled';

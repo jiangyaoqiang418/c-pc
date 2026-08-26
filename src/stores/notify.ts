@@ -23,7 +23,7 @@ function realtimeURL(token: string) {
   const url = new URL(`${base.replace(/\/$/, '')}/im`, window.location.origin);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
   url.searchParams.set('token', token);
-  return url.toString();
+  return { url: url.toString(), protocols: ['im', `im.token.${token}`] };
 }
 
 function framePayload<T>(frame: Api.RealNotify.SocketFrame<unknown>): T {
@@ -154,7 +154,8 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     if (!token || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
     manuallyClosed = false;
     socketState.value = 'connecting';
-    socket = new WebSocket(realtimeURL(token));
+    const realtime = realtimeURL(token);
+    socket = new WebSocket(realtime.url, realtime.protocols);
 
     socket.onopen = () => {
       readyTimer = setTimeout(() => {

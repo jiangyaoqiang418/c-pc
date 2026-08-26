@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { uploadFile } from '@/service/api/product';
+import { uploadImFile } from '@/service/api/notify';
 
 interface Props {
   disabled?: boolean;
@@ -18,8 +18,7 @@ const props = withDefaults(defineProps<Props>(), {
 type OutgoingMessage = {
   type: 'text' | 'image' | 'audio';
   content?: string;
-  mediaUrl?: string;
-  duration?: number;
+  mediaFileId?: string | number;
 };
 
 const emit = defineEmits<{ (e: 'send', payload: OutgoingMessage): void }>();
@@ -82,9 +81,8 @@ async function onImageSelected(event: Event) {
 
   uploading.value = true;
   try {
-    const uploaded = await uploadFile(file, 'im');
-    if (!uploaded.url) throw new Error('上传结果缺少图片地址');
-    emit('send', { type: 'image', mediaUrl: uploaded.url });
+    const uploaded = await uploadImFile(file, 'IM_IMAGE');
+    emit('send', { type: 'image', mediaFileId: uploaded.id });
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '图片上传失败');
   } finally {
@@ -116,9 +114,8 @@ async function startRecording() {
       uploading.value = true;
       try {
         const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
-        const uploaded = await uploadFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }), 'im');
-        if (!uploaded.url) throw new Error('上传结果缺少语音地址');
-        emit('send', { type: 'audio', mediaUrl: uploaded.url, duration });
+        const uploaded = await uploadImFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }), 'IM_VOICE', duration);
+        emit('send', { type: 'audio', mediaFileId: uploaded.id });
       } catch (error) {
         Message.error(error instanceof Error ? error.message : '语音上传失败');
       } finally {

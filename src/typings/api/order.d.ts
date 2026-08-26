@@ -23,11 +23,21 @@ declare namespace Api.RealOrder {
     paymentTxnId?: Id;
     settleTxnId?: Id;
     pledgeTxnId?: Id;
+    logisticsStatus?: LogisticsStatus;
+    logisticsStatusText?: string;
+    carrier?: Carrier;
+    carrierName?: string;
+    eta?: string | number;
+    logisticsException?: string;
+    purchaseNo?: string;
+    purchaseVouchers?: string[];
   };
 
   type DisplayRecord = Api.Order.OrderRecord | Record;
 
   type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPED' | 'REFUND_REVIEW' | 'REFUNDED' | 'COMPLETED' | 'CANCELED';
+  type Carrier = 'SF' | 'JD' | 'EMS' | 'YTO' | 'ZTO' | 'STO' | 'YUNDA' | 'JITU' | 'DHL' | 'UPS' | 'FEDEX' | 'USPS' | 'YAMATO' | 'SAGAWA' | 'JAPAN_POST' | 'OTHER';
+  type LogisticsStatus = 'PENDING_SHIPMENT' | 'SHIPPED' | 'IN_TRANSIT' | 'DELIVERING' | 'SIGNED' | 'EXCEPTION' | 'RETURNED';
 
   interface OrderDTO {
     orderId: string;
@@ -70,6 +80,14 @@ declare namespace Api.RealOrder {
     logisticsCompanyCode?: string;
     trackingNo?: string;
     logisticsNo?: string;
+    logisticsStatus?: LogisticsStatus;
+    logisticsStatusText?: string;
+    carrier?: Carrier;
+    carrierName?: string;
+    eta?: string | number;
+    logisticsException?: string;
+    purchaseNo?: string;
+    purchaseVouchers?: string[];
     shipVouchers?: string[];
     shippedRemark?: string;
     purchaseVoucherUrl?: string;
@@ -129,12 +147,20 @@ declare namespace Api.RealOrder {
 
   interface OrderShipParams {
     id: string | number;
-    logisticsCompany: string;
-    logisticsCompanyCode?: string;
+    carrier: Carrier;
+    carrierName?: string;
     trackingNo: string;
+    eta?: string | number;
+    purchaseNo?: string;
+    purchaseVouchers?: string[];
     shipVouchers?: string[];
     remark?: string;
   }
+
+  interface LogisticsTrackDTO { trackId: string | number; orderId: string | number; trackingNo?: string; occurredAt?: string | number; status: LogisticsStatus; statusText?: string; description: string; location?: string; exceptionNode?: string; source?: string; sourceText?: string; createdAt?: string | number; }
+  interface LogisticsDTO { orderId: string | number; orderNo?: string; logisticsStatus?: LogisticsStatus; logisticsStatusText?: string; carrier?: Carrier; carrierName?: string; trackingNo?: string; eta?: string | number; logisticsException?: string; purchaseNo?: string; purchaseVouchers?: string[]; shipVouchers?: string[]; shippedRemark?: string; shippingFee?: string | number; taxFee?: string | number; shippedAt?: string | number; completedAt?: string | number; tracks?: LogisticsTrackDTO[]; }
+  interface LogisticsTrackParams { orderId: string | number; occurredAt?: string | number; status: LogisticsStatus; description: string; location?: string; exceptionNode?: string; }
+  interface LogisticsExceptionParams { orderId: string | number; exception: string; location?: string; }
 
   interface OrderPriceChangeParams {
     id: string | number;

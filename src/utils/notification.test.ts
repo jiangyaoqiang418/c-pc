@@ -15,15 +15,15 @@ describe('通知与会话跳转', () => {
   });
 
   it('为后端明确提供的业务对象创建跳转目标', () => {
-    expect(notificationRoute({ bizType: 'ORDER', bizId: '2087164523669184512' })).toEqual({
+    expect(notificationRoute({ bizType: 'ORDER', bizId: '2087164523669184512', templateCode: 'order_created' })).toEqual({
       name: 'order-detail',
       params: { id: '2087164523669184512' }
     });
-    expect(notificationRoute({ bizType: 'FINANCE', bizId: '2087164523669184512' })).toEqual({
+    expect(notificationRoute({ bizType: 'FINANCE', bizId: '2087164523669184512', templateCode: 'finance_subscribed' })).toEqual({
       name: 'finance-lockup-detail',
       params: { id: '2087164523669184512' }
     });
-    expect(notificationRoute({ bizType: 'RECHARGE', bizId: '1' })).toEqual({ name: 'wallet-deposit' });
+    expect(notificationRoute({ bizType: 'RECHARGE', bizId: '1', templateCode: 'recharge_confirmed' })).toEqual({ name: 'wallet-deposit', query: { id: '1' } });
     expect(notificationRoute({ bizType: 'REFUND', bizId: '2087164523669184512' })).toBeUndefined();
   });
 });

@@ -68,6 +68,7 @@ declare namespace Api.RealNotify {
     content?: string;
     mediaUrl?: string;
     duration?: number;
+    mediaFileId?: string | number;
     eventType?: string;
     params?: Record<string, unknown>;
     clientMsgId?: string;
@@ -85,9 +86,16 @@ declare namespace Api.RealNotify {
     conversationId: string | number;
     msgType: SendMessageType;
     content?: string;
-    mediaUrl?: string;
-    duration?: number;
+    mediaFileId?: string | number;
     clientMsgId?: string;
+  }
+
+  interface ImFileUploadResult {
+    id: string | number;
+    scene?: string;
+    url?: string;
+    duration?: number;
+    expireAt?: string | number;
   }
 
   interface ImIncrementalQuery {

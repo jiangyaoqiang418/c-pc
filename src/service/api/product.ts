@@ -322,10 +322,16 @@ export async function toggleProductShelf(id: string | number, onShelf: boolean) 
   return { ok: true };
 }
 
-export async function uploadFile(file: File, dir = 'product') {
+export type OrderUploadScene = 'PRODUCT' | 'DEMAND' | 'REVIEW' | 'ORDER_VOUCHER';
+
+export async function uploadFile(file: File, scene: OrderUploadScene) {
   const form = new FormData();
   form.append('file', file);
   return realOrderRequest.post<Api.RealProduct.FileUploadResult, FormData>('/files/upload', form, {
-    params: { dir }
+    params: { scene }
   });
+}
+
+export function deleteProduct(id: string | number) {
+  return realOrderRequest.delete<string | number>('/products/delete', { params: { id } });
 }

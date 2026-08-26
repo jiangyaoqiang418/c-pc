@@ -33,4 +33,9 @@ declare namespace Api.RealVip {
   interface VipConfigVO {
     roles?: VipRoleGridVO[];
   }
+
+  interface VipBenefitVO { code: string; name?: string; unit?: string; value?: string | number; }
+  interface VipCatalogLevelVO { level: string; rank?: number; threshold: string | number; current?: boolean; benefits?: VipBenefitVO[]; }
+  interface VipCatalogRoleVO { role: string; roleText?: string; currentLevel?: string; levels?: VipCatalogLevelVO[]; }
+  interface VipLevelCatalogVO { points?: string | number; logged?: boolean; roles?: VipCatalogRoleVO[]; }
 }

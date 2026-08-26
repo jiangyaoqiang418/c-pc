@@ -169,6 +169,17 @@ async function showDetail(record: Api.RealWallet.RechargeVO) {
   }
 }
 
+async function cancelRecharge(record: Api.RealWallet.RechargeVO) {
+  if (record.status !== 'PENDING') return;
+  try {
+    await realWalletApi.cancelRecharge(record.id);
+    Message.success('充值申报已取消');
+    await loadRecords();
+  } catch {
+    // 请求层已展示后端业务提示。
+  }
+}
+
 function queryRecords() {
   recordCurrent.value = 1;
   void loadRecords();
@@ -274,8 +285,8 @@ watch(chain, () => void loadRechargeAddress());
           <a-table-column title="创建时间">
             <template #cell="{ record }">{{ formatTime(record.createdAt) }}</template>
           </a-table-column>
-          <a-table-column title="操作" :width="90">
-            <template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template>
+          <a-table-column title="操作" :width="150">
+            <template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button><a-button v-if="record.status === 'PENDING'" type="text" status="danger" @click="cancelRecharge(record)">取消申报</a-button></template>
           </a-table-column>
         </template>
         <template #empty><EmptyState :title="recordError || '暂无链上充值记录'" :action-text="recordError ? '重新加载' : undefined" @action="recordError && loadRecords()" /></template>

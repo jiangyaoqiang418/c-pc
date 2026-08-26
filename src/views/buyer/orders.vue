@@ -78,16 +78,11 @@ function onUploadShipping(order: Api.RealOrder.Record) {
   shippingModalOpen.value = true;
 }
 
-async function shipOrder(orderId: string | number, trackingNo: string, carrier: Api.Order.ShippingCarrier) {
+async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   shippingSubmitting.value = true;
   try {
     try {
-      await realOrderApi.shipOrder({
-        id: orderId,
-        logisticsCompany: enums.CARRIER_META[carrier].label,
-        logisticsCompanyCode: carrier,
-        trackingNo
-      });
+      await realOrderApi.shipOrder(params);
       Message.success('发货信息已提交');
       shippingModalOpen.value = false;
       await load();

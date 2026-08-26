@@ -4,10 +4,11 @@
 
 ## 当前状态（2026-08-20）
 
-- 实时 Swagger：`admin 159/160`、`user 41/41`、`order 57/59`、`notify 17/17`（路径/操作）；`pnpm check:swagger` 已通过。下文 2026-08-01 至 2026-08-13 的数量和 A/B/C/D 统计均为历史扫描快照，不作为当前接口数量。
+- 实时 Swagger（2026-08-26）：`admin 178/179`、`user 46/46`、`order 65/67`、`notify 22/22`（路径/操作）；`pnpm check:swagger` 已通过。下文旧数量和 A/B/C/D 统计均为历史扫描快照，不作为当前接口数量。
 - 真实 API 已覆盖主交易、地址、钱包、买手保证金、KYC、理财、评价、仅退款、IM REST 与通知。页面仍使用 Mock 的业务能力只剩 CMS 内容、AI 导购和演示账号切换。
 - 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；提现 `POST /user/withdraw/create` 已完成测试申请、后台驳回返还，以及审核通过后 PC“待打款”回读。评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger；订单列表和详情的“写评价”入口新增 `/order/reviews/reviewable/page` 真实可评价校验，仅顾客且仅未评价订单显示。顾客评价提交/删除、买手回复、买手申诉、后台裁定和前台状态回读均已完成。演示账号无真实 Token 时，真实接口失败保留当前演示会话并展示错误态，不再误跳登录页。分页读取的 `total` 统一在 API adapter 转为数值，业务 Long ID 保持原值。真实会话、钱包账户、流水、订单、商品、求购、买手押金、积分流水和 VIP 状态已从 Mock `number` ID 模型隔离，改用对应 `Api.Real*` 的原值 ID 类型。
 - 本批秒杀真实回归：后台创建启用 QA 场次，买手为在售商品以 `90 U / 库存 1` 提交报名并在“我的报名”回读，取消报名后列表恢复空态；后台场次已停用保留 QA 记录。`sessionEndTime` 的毫秒时间戳已在页面统一格式化为本地时间。
+- 2026-08-26 新契约适配：order 上传统一使用 `scene=PRODUCT/DEMAND/REVIEW/ORDER_VOUCHER`；KYC 使用独立 fileId 上传和短期签名地址刷新；IM 媒体使用独立上传并发送 `mediaFileId`；发货使用 `carrier`、订单凭证和物流/轨迹接口；求购支持 `PENDING_REVIEW/REJECTED`；通知跳转校验 `bizType + bizId + templateCode`；积分规则、VIP 配置、商品删除和充值取消已切 C 端真实接口。
 - 2026-08-25 Chrome 读取复验：积分页真实回读 `john / 100` 积分及 KYC 积分流水；后端 `createdAt` 数字字符串已在 point API adapter 转 ISO，页面不再显示 `Invalid Date`。VIP 页当前等级/积分进度与积分页一致，完整等级权益继续按无 C 端公开配置的降级展示。买手押金页真实回读总额、可担保、已担保均为 `0`，押金流水为空；页面和控制台均无新增异常，不将空态误记为非零押金验收。
 - 尚未完整验收：提现真实打款/链上到账、WebSocket 实时到达；后台提现 UI 已恢复打款入口，但其要求真实 TRON 交易哈希，不能伪造哈希或以直接调用资金接口替代页面回归。CMS、AI 没有 C 端契约，继续保留 Mock，不伪造真实成功。
 - 本轮 Chrome 全量只读巡检覆盖 39 个静态路由及订单、评价、商品、订单群、求购、仅退款等动态详情场景；当前真实测试账号下均无新增控制台 warning/error、空白页或异常路由跳转。历史详情必须从所属列表进入后再判断数据可见性，直接访问时的“订单不存在/会话不存在”是后端权限或数据归属的明确失败态，不以此误判页面异常。
@@ -150,8 +151,8 @@
 | P1 | 分类树 | `GET /order/categories/tree` | API 已封装，公共分类导航和分类页已调用 | 商品列表仍为 Mock，公开商品分页在 P2 处理 |
 | P1 | 积分账户/VIP 当前权益 | `GET /user/points/account` | API 已封装，用户初始化、积分页、VIP 页已调用 | 买手/顾客双身份等级展示需真实账号验证 |
 | P1 | 积分流水/申诉 | `POST /user/points/ledger/page`、`POST /user/points/appeals/submit` | API 已封装，积分页已调用 | 日期、多行为筛选部分仍在前端侧适配 |
-| P1 | 积分规则 | `GET /admin/point-rules/list` | API 已封装，积分页/VIP 页已调用；普通 C 端 token 返回 `-200` 时前端降级展示 | 需后端补 C 端公开规则接口 |
-| P1 | VIP 全量配置 | `GET /admin/vip-configs/get` | API 已封装，VIP 页已调用；普通 C 端 token 返回 `-200` 时前端降级展示 | 需后端补 C 端公开 VIP 配置接口 |
+| P1 | 积分规则 | `GET /user/points/rules` | 已切换 C 端公开接口，积分页/VIP 页调用真实规则 | 非空规则已通过 Chrome 基础回归 |
+| P1 | VIP 全量配置 | `GET /user/points/vip-configs` | 已切换 C 端公开接口，VIP 页调用真实等级/权益配置 | 非空全等级权益已通过 Chrome 基础回归 |
 | P1 | 钱包总览 | `GET /user/wallet/overview` | API 已封装，钱包 Store、钱包首页资产卡、个人中心资产卡已调用 | 最近交易已在 P4 调用真实钱包流水 |
 
 > 已使用真实账号完成 P1 主要页面回归；本轮未执行 `pnpm typecheck` 或 `pnpm build`。
@@ -162,14 +163,14 @@
 |---|---|---|---|---|
 | P2-A/P3 | 公开商品、详情与购物车 | `POST /order/storefront/products/page`、`GET /order/storefront/product/detail?id=` | 商品列表、详情、加购与立即购买均使用真实商品 ID；跨账号已完成真实商品下单、支付、发货、确认收货 | 订单详情仍缺地址、物流原始字段与凭证 |
 | P2-A/P3 | 分类入口商品列表 | `GET /order/categories/tree`、`POST /order/storefront/products/page` | 分类树展示类型以字符串保留原始 Long ID，并透传至真实公开商品分页；分类页不再读取 Mock 商品 | 分类树读取和真实空态已确认；待在售商品验证分类筛选与商品卡 |
-| P2-A | 买手商品列表 | `POST /order/products/my/page` | API 已封装，买手商品管理页已调用；删除入口已明确禁用，不再展示确认删除的伪操作 | 状态映射需真实数据确认；删除商品无接口 |
+| P2-A | 买手商品列表/删除 | `POST /order/products/my/page`、`DELETE /order/products/delete?id=` | 列表已调用真实接口，删除仅允许下架后调用真实删除接口 | 状态映射和删除写入需非空数据复验 |
 | P2-A | 买手创建商品 | `POST /order/products/create`、`GET /order/products/detail?id=` | API 已封装，创建商品页已调用 | 图片上传组件仍需治理为 `bucket/filePath` 结构 |
 | P2-A | 买手上下架 | `PUT /order/products/shelf` | API 已封装，商品卡片上下架已调用 | `ON_SALE/OFF_SHELF` 与前端 shelf/status 拆分需真实返回确认 |
-| P2-A | 文件上传 | `POST /order/files/upload?dir=product` | API 已封装，请求层已支持 `FormData` | 当前页面上传组件未直接改为真实上传闭环 |
+| P2-A | 文件上传 | `POST /order/files/upload?scene=PRODUCT|DEMAND|REVIEW|ORDER_VOUCHER` | 各页面已按业务 scene 调用真实上传 | 非空上传回归需对应测试文件 |
 | P2-A | 发起求购 | `POST /order/demands/create` | API 已封装，发起求购页已调用 | 取消原因、审核字段和图片结构仍需后续补齐 |
 | P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用；普通顾客账号返回无买手权限时页面降级为空态 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
 | P2-A | 我的求购 | `POST /order/demands/my/page` | API 已封装，我的求购页已调用；真实账号 total=1 回归通过 | 后端 VO 未返回 customerId，页面侧按当前用户注入用于撤销判断 |
-| P2-A | 求购详情 | `GET /order/demands/detail?id=` | API 已封装，求购详情页已调用；测试求购 `2082306670605197313` 回归通过 | pushLogs、推送批次、客户/买手名称和审核信息缺失 |
+| P2-A | 求购详情/状态 | `GET /order/demands/detail?id=` | 已映射 `PENDING_REVIEW`、`REJECTED`、审核意见和审核时间，创建后按待审核展示 | pushLogs、推送批次和手动推送接口仍缺 |
 | P2-A | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | API 已封装；2026-07-30 已真实创建并在详情页撤销求购 `2082649312807444481` | `demands/my/page` 未回显该记录，待后端核对；抢单仍依赖真实买手账号、KYC 和后端鉴权 |
 | P2-A | 手动推下一批 | 无 | 页面已改为真实接口暂不支持提示 | 需要后端补推送接口后再接入 |
 

@@ -1,4 +1,4 @@
-import { realAdminRequest, realUserRequest } from '@/service/request';
+import { realUserRequest } from '@/service/request';
 
 const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.Vip.BuyerBenefits> = {
   interestRateBonus: 'interestRateBonus',
@@ -8,7 +8,15 @@ const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.
   withdrawFeeDiscount: 'withdrawFeeDiscount',
   pushIntervalMinutes: 'pushIntervalMinutes',
   transactionFeeDiscount: 'transactionFeeDiscount',
-  productSlotsMax: 'productSlotsMax'
+  productSlotsMax: 'productSlotsMax',
+  C_RATE_BONUS: 'interestRateBonus',
+  C_PURCHASE_CONCURRENCY: 'purchaseConcurrent',
+  C_PURCHASE_PRIORITY: 'purchasePriority',
+  C_AFTERSALE_RESPONSE: 'aftersaleResponse',
+  C_WITHDRAW_FEE_DISCOUNT: 'withdrawFeeDiscount',
+  B_PUSH_INTERVAL: 'pushIntervalMinutes',
+  B_TRADE_FEE_DISCOUNT: 'transactionFeeDiscount',
+  B_PRODUCT_LIMIT: 'productSlotsMax'
 };
 
 function normalizeAudience(role?: string): Api.Vip.Audience {
@@ -72,11 +80,12 @@ function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vi
 }
 
 export async function fetchVipConfigs() {
-  const config = await realAdminRequest.get<Api.RealVip.VipConfigVO>('/vip-configs/get', {
-    showError: false,
-    skipAuthRedirect: true
-  });
-  return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig(role, row)));
+  const config = await realUserRequest.get<Api.RealVip.VipLevelCatalogVO>('/points/vip-configs', { showError: false, skipAuthRedirect: true });
+  return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig({ role: role.role, roleText: role.roleText }, {
+    level: row.level,
+    threshold: row.threshold,
+    benefits: Object.fromEntries((row.benefits || []).map(item => [item.code, item.value || 0]))
+  })));
 }
 
 export async function fetchMyVipStatus(userId: string | number): Promise<Api.RealVip.Status> {

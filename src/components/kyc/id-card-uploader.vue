@@ -1,20 +1,21 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { uploadFile } from '@/service/api/product';
+import { uploadKycFile } from '@/service/api/kyc';
 import { RequestError } from '@/service/request';
 
 interface Props {
   side: 'front' | 'back' | 'face';
-  modelValue?: string;
+  modelValue?: string | number;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'update:modelValue', v: string): void;
+  (e: 'update:modelValue', v: string | number): void;
   (e: 'uploading', v: boolean): void;
 }>();
 
 const uploading = ref(false);
+const previewUrl = ref('');
 const inputRef = ref<HTMLInputElement>();
 
 const sideLabel: Record<'front' | 'back' | 'face', string> = {
@@ -44,8 +45,9 @@ async function onFileChange(event: Event) {
   uploading.value = true;
   emit('uploading', true);
   try {
-    const uploaded = await uploadFile(file, 'kyc');
-    emit('update:modelValue', uploaded.url);
+    const uploaded = await uploadKycFile(file);
+    emit('update:modelValue', String(uploaded.id));
+    previewUrl.value = uploaded.url || '';
     Message.success(`${sideLabel[props.side]}上传成功`);
   } catch (error) {
     const message = error instanceof RequestError ? error.message : '';
@@ -57,6 +59,7 @@ async function onFileChange(event: Event) {
 }
 
 function clear() {
+  previewUrl.value = '';
   emit('update:modelValue', '');
 }
 </script>
@@ -65,7 +68,7 @@ function clear() {
   <div class="id-uploader" :class="{ uploaded: !!modelValue, face: side === 'face' }">
     <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" @change="onFileChange" />
     <div class="preview" @click="pickFile">
-      <img v-if="modelValue" :src="modelValue" :alt="sideLabel[side]" class="img" />
+      <img v-if="previewUrl" :src="previewUrl" :alt="sideLabel[side]" class="img" />
       <div v-else class="placeholder">
         <span>{{ uploading ? '上传中…' : `点击上传${sideLabel[side]}` }}</span>
         <small>JPG / PNG / WebP，≤ 10 MB</small>

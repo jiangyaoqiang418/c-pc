@@ -7,9 +7,9 @@ import { RequestError } from '@/service/request';
 interface Props {
   modelValue?: string[];
   max?: number;
-  dir?: string;
+  scene?: 'REVIEW' | 'DEMAND' | 'PRODUCT' | 'ORDER_VOUCHER';
 }
-const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [], dir: 'evidence' });
+const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [], scene: 'ORDER_VOUCHER' });
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string[]): void;
   (e: 'uploaded', v: Api.RealProduct.FileUploadResult[]): void;
@@ -33,7 +33,7 @@ async function onFileChange(e: Event) {
   const picked = files.slice(0, available);
   uploading.value = true;
   try {
-    const uploaded = await Promise.all(picked.map(file => uploadFile(file, props.dir)));
+    const uploaded = await Promise.all(picked.map(file => uploadFile(file, props.scene)));
     emit('update:modelValue', [...props.modelValue, ...uploaded.map(item => item.url || item.filePath)]);
     emit('uploaded', uploaded);
     Message.success(picked.length > 1 ? `已上传 ${picked.length} 张图片` : '图片已上传');

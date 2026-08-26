@@ -211,7 +211,7 @@ function readText(message: Api.RealNotify.ImMessageVO) {
   return count ? `已读 ${count}` : '未读';
 }
 
-async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaUrl?: string; duration?: number }) {
+async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaFileId?: string | number }) {
   const conversation = selectedConversation.value;
   if (!conversation || messageSending.value) return;
   messageSending.value = true;
@@ -220,8 +220,7 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
     conversationId: conversation.id,
     msgType: payload.type === 'image' ? 'IMAGE' : payload.type === 'audio' ? 'VOICE' : 'TEXT',
     content: payload.content,
-    mediaUrl: payload.mediaUrl,
-    duration: payload.duration,
+    mediaFileId: payload.mediaFileId,
     clientMsgId
   };
   messages.value = mergeMessages(messages.value, createOptimisticMessage(params, {
@@ -252,8 +251,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     conversationId: conversation.id,
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
     content: message.content,
-    mediaUrl: message.mediaUrl,
-    duration: message.duration,
+    mediaFileId: message.mediaFileId,
     clientMsgId
   };
   messages.value = messages.value.map(item => sameBusinessId(item.id, message.id)

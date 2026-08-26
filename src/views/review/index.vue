@@ -258,7 +258,7 @@ onBeforeUnmount(requestGuard.invalidate);
           <a-textarea v-model="appealForm.reason" :max-length="512" show-word-limit placeholder="请说明申诉理由" :rows="4" />
         </a-form-item>
         <a-form-item label="申诉凭证（可选，最多 6 张）">
-          <AftersaleEvidenceUploader v-model="appealForm.evidenceImages" dir="review" :max="6" />
+          <AftersaleEvidenceUploader v-model="appealForm.evidenceImages" scene="REVIEW" :max="6" />
         </a-form-item>
       </a-form>
     </a-modal>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { enums } from '@shared';
+import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 
 interface Props {
   visible: boolean;
@@ -11,22 +11,34 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
-  (e: 'confirm', orderId: string | number, trackingNumber: string, carrier: Api.Order.ShippingCarrier): void;
+  (e: 'confirm', params: Api.RealOrder.OrderShipParams): void;
 }>();
 
 const form = reactive<{
-  carrier: Api.Order.ShippingCarrier;
+  carrier: Api.RealOrder.Carrier;
+  carrierName: string;
   trackingNumber: string;
-}>({ carrier: 'SF_INTL', trackingNumber: '' });
+  eta: string;
+  purchaseNo: string;
+  purchaseVouchers: string[];
+  shipVouchers: string[];
+  remark: string;
+}>({ carrier: 'SF', carrierName: '', trackingNumber: '', eta: '', purchaseNo: '', purchaseVouchers: [], shipVouchers: [], remark: '' });
 
-const CARRIER_OPTIONS: Api.Order.ShippingCarrier[] = ['SF_INTL', 'FEDEX', 'DHL', '4PX', 'EMS'];
+const CARRIER_OPTIONS: Api.RealOrder.Carrier[] = ['SF', 'JD', 'EMS', 'YTO', 'ZTO', 'DHL', 'UPS', 'FEDEX', 'USPS', 'OTHER'];
 
 watch(
   () => props.visible,
   v => {
     if (v) {
-      form.carrier = 'SF_INTL';
+      form.carrier = 'SF';
+      form.carrierName = '';
       form.trackingNumber = '';
+      form.eta = '';
+      form.purchaseNo = '';
+      form.purchaseVouchers = [];
+      form.shipVouchers = [];
+      form.remark = '';
     }
   }
 );
@@ -37,7 +49,21 @@ function submit() {
     Message.warning('请输入有效的运单号（至少 6 位）');
     return;
   }
-  emit('confirm', props.order.id, form.trackingNumber.trim(), form.carrier);
+  if (form.carrier === 'OTHER' && !form.carrierName.trim()) {
+    Message.warning('请选择其他承运商时请填写承运商名称');
+    return;
+  }
+  emit('confirm', {
+    id: props.order.id,
+    carrier: form.carrier,
+    carrierName: form.carrierName.trim() || undefined,
+    trackingNo: form.trackingNumber.trim(),
+    eta: form.eta || undefined,
+    purchaseNo: form.purchaseNo.trim() || undefined,
+    purchaseVouchers: form.purchaseVouchers,
+    shipVouchers: form.shipVouchers,
+    remark: form.remark.trim() || undefined
+  });
 }
 </script>
 
@@ -59,13 +85,19 @@ function submit() {
         <a-form-item label="物流公司" required>
           <a-radio-group v-model="form.carrier">
             <a-radio v-for="c in CARRIER_OPTIONS" :key="c" :value="c">
-              {{ enums.CARRIER_META[c].label }}
+              {{ c }}
             </a-radio>
           </a-radio-group>
         </a-form-item>
         <a-form-item label="运单号" required>
           <a-input v-model="form.trackingNumber" placeholder="请输入运单号" />
         </a-form-item>
+        <a-form-item v-if="form.carrier === 'OTHER'" label="承运商名称" required><a-input v-model="form.carrierName" placeholder="请输入承运商名称" /></a-form-item>
+        <a-form-item label="预计送达时间"><a-date-picker v-model="form.eta" show-time value-format="x" style="width: 100%" /></a-form-item>
+        <a-form-item label="采购单号"><a-input v-model="form.purchaseNo" placeholder="可选，用于采购核对" /></a-form-item>
+        <a-form-item label="采购凭证"><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" /></a-form-item>
+        <a-form-item label="发货凭证"><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" /></a-form-item>
+        <a-form-item label="发货备注"><a-textarea v-model="form.remark" :max-length="500" show-word-limit /></a-form-item>
       </a-form>
     </template>
   </a-modal>

@@ -248,6 +248,10 @@ export async function fetchRechargePage(params: Api.RealWallet.RechargePageQuery
   };
 }
 
+export function cancelRecharge(id: string | number) {
+  return realUserRequest.put<string | number, { id: string | number }>('/recharge/cancel', { id });
+}
+
 export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams) {
   return realUserRequest.post<Api.RealWallet.WithdrawVO | string | number, Api.RealWallet.WithdrawCreateParams>(
     '/withdraw/create',

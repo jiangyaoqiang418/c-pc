@@ -108,6 +108,18 @@ export async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   return { ok: true, message: '' };
 }
 
+export function fetchOrderLogistics(orderId: string | number) {
+  return realOrderRequest.get<Api.RealOrder.LogisticsDTO>('/orders/logistics', { params: { orderId } });
+}
+
+export function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {
+  return realOrderRequest.post<string | number, Api.RealOrder.LogisticsTrackParams>('/orders/logistics/track/create', params);
+}
+
+export function markLogisticsException(params: Api.RealOrder.LogisticsExceptionParams) {
+  return realOrderRequest.put<string | number, Api.RealOrder.LogisticsExceptionParams>('/orders/logistics/exception/mark', params);
+}
+
 export async function cancelOrder(id: string | number) {
   await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/cancel', { id });
   return { ok: true, message: '' };

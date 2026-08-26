@@ -65,8 +65,7 @@ export function createOptimisticMessage(
     senderRole: sender.role,
     msgType: params.msgType,
     content: params.content,
-    mediaUrl: params.mediaUrl,
-    duration: params.duration,
+    mediaFileId: params.mediaFileId,
     clientMsgId: params.clientMsgId,
     createdAt: String(Date.now()),
     pending: true

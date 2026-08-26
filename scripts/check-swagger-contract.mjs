@@ -61,6 +61,19 @@ function expectParameters(operationDefinition, names, label) {
   if (missing.length) throw new Error(`${label} 缺少参数：${missing.join(', ')}`);
 }
 
+function expectParameterEnum(operationDefinition, name, values, label) {
+  const parameter = (operationDefinition.parameters || []).find(item => item.name === name);
+  const actual = parameter?.schema?.enum || [];
+  const missing = values.filter(value => !actual.includes(value));
+  if (missing.length) throw new Error(`${label} 的 ${name} 枚举缺少：${missing.join(', ')}`);
+}
+
+function expectEnum(schema, field, values, label) {
+  const actual = schema.properties?.[field]?.enum || [];
+  const missing = values.filter(value => !actual.includes(value));
+  if (missing.length) throw new Error(`${label} 的 ${field} 枚举缺少：${missing.join(', ')}`);
+}
+
 function countOperations(document) {
   return Object.values(document.paths || {}).reduce(
     (total, pathItem) => total + Object.keys(pathItem).filter(key => ['get', 'post', 'put', 'delete', 'patch'].includes(key)).length,
@@ -78,15 +91,19 @@ const login = requestSchema(user, operation(user, '/auth/login', 'post'));
 expectRequired(login, ['email', 'password'], '邮箱登录');
 operation(user, '/auth/me', 'get');
 
-const rechargeConfirmOperation = operation(user, '/develop/recharge/confirm', 'post');
-const rechargeConfirm = requestSchema(user, rechargeConfirmOperation);
-expectRequired(rechargeConfirm, ['rechargeId'], '测试充值到账');
-const rechargeConfirmResponse = responseDataSchema(user, rechargeConfirmOperation);
-expectProperties(rechargeConfirmResponse, ['rechargeId', 'amount', 'txHash', 'status', 'confirmedAt', 'testData'], '测试充值到账响应');
-
 operation(user, '/recharge/address', 'get');
+const rechargeCancel = requestSchema(user, operation(user, '/recharge/cancel', 'put'));
+expectRequired(rechargeCancel, ['id'], '取消充值申报');
+operation(user, '/points/rules', 'get');
+operation(user, '/points/vip-configs', 'get');
 const withdrawDetail = responseDataSchema(user, operation(user, '/withdraw/detail', 'get'));
 expectProperties(withdrawDetail, ['id', 'amount', 'fee', 'actualAmount', 'status', 'paidAt', 'confirmedAt'], '提现详情响应');
+operation(user, '/kyc/files/upload', 'post');
+operation(user, '/kyc/files/access', 'get');
+const kycSubmit = requestSchema(user, operation(user, '/kyc/submit', 'post'));
+expectRequired(kycSubmit, ['idCardFrontFileId', 'idNo', 'idType', 'realName'], 'KYC 提交');
+const kycDetail = responseDataSchema(user, operation(user, '/kyc/detail', 'get'));
+expectProperties(kycDetail, ['idCardFrontFileId', 'idCardBackFileId', 'holdingPhotoFileId', 'photoUrlExpireAt'], 'KYC 详情');
 ['/finance/products/list', '/finance/products/detail', '/finance/orders/overview', '/finance/orders/detail'].forEach(path => operation(user, path, 'get'));
 const financeSubscribe = requestSchema(user, operation(user, '/finance/orders/subscribe', 'post'));
 expectRequired(financeSubscribe, ['productId', 'amount'], '理财申购');
@@ -109,7 +126,19 @@ const groupPay = requestSchema(order, operation(order, '/orders/group/pay', 'pos
 expectRequired(groupPay, ['orderGroupNo'], '订单组支付');
 
 const ship = requestSchema(order, operation(order, '/orders/ship', 'post'));
-expectRequired(ship, ['id', 'logisticsCompany', 'trackingNo'], '买手发货');
+expectRequired(ship, ['carrier', 'id', 'trackingNo'], '买手发货');
+expectProperties(ship, ['carrier', 'carrierName', 'trackingNo', 'eta', 'purchaseNo', 'purchaseVouchers', 'shipVouchers', 'remark'], '买手发货');
+operation(order, '/files/upload', 'post');
+const orderUpload = operation(order, '/files/upload', 'post');
+expectParameters(orderUpload, ['scene'], 'order 文件上传');
+expectParameterEnum(orderUpload, 'scene', ['PRODUCT', 'DEMAND', 'REVIEW', 'ORDER_VOUCHER'], 'order 文件上传');
+const logistics = responseDataSchema(order, operation(order, '/orders/logistics', 'get'));
+expectProperties(logistics, ['logisticsStatus', 'carrier', 'trackingNo', 'tracks'], '订单物流');
+expectEnum(logistics, 'logisticsStatus', ['PENDING_SHIPMENT', 'SHIPPED', 'IN_TRANSIT', 'DELIVERING', 'SIGNED', 'EXCEPTION', 'RETURNED'], '订单物流');
+const logisticsTrack = requestSchema(order, operation(order, '/orders/logistics/track/create', 'post'));
+expectRequired(logisticsTrack, ['description', 'orderId', 'status'], '物流轨迹登记');
+const logisticsException = requestSchema(order, operation(order, '/orders/logistics/exception/mark', 'put'));
+expectRequired(logisticsException, ['exception', 'orderId'], '物流异常标记');
 
 const confirmReceipt = requestSchema(order, operation(order, '/orders/confirm', 'post'));
 expectRequired(confirmReceipt, ['id'], '确认收货');
@@ -119,7 +148,7 @@ const orderDetailResponse = resolveSchema(order, orderDetail.responses?.['200']?
 const orderDetailDto = resolveSchema(order, orderDetailResponse?.properties?.data);
 expectProperties(
   orderDetailDto,
-  ['receiverName', 'receiverPhone', 'country', 'province', 'city', 'district', 'detailAddress', 'logisticsCompany', 'trackingNo', 'shipVouchers', 'paymentBizNo', 'refundId', 'refundStatus', 'refundAmount'],
+  ['receiverName', 'receiverPhone', 'country', 'province', 'city', 'district', 'detailAddress', 'logisticsCompanyCode', 'trackingNo', 'logisticsStatus', 'eta', 'purchaseNo', 'purchaseVouchers', 'shipVouchers', 'paymentBizNo', 'refundId', 'refundStatus', 'refundAmount'],
   '订单详情'
 );
 
@@ -149,6 +178,11 @@ expectRequired(
   ['addressId', 'afterSaleType', 'budget', 'categoryId', 'demandNote', 'expectDeliveryDays', 'title'],
   '发起求购'
 );
+const demandDetail = responseDataSchema(order, operation(order, '/demands/detail', 'get'));
+expectProperties(demandDetail, ['status', 'statusText', 'reviewComment', 'reviewedAt'], '求购状态与审核信息');
+const demandCancel = requestSchema(order, operation(order, '/demands/cancel', 'post'));
+expectRequired(demandCancel, ['id'], '取消求购');
+expectProperties(demandCancel, ['reason'], '取消求购');
 
 const grabDemand = requestSchema(order, operation(order, '/demands/grab', 'post'));
 expectRequired(grabDemand, ['id'], '抢单');
@@ -187,7 +221,9 @@ if (notifyResponse.status === 404) {
   expectRequired(messagePage, ['conversationId'], '会话消息分页');
   const sendMessage = requestSchema(notify, operation(notify, '/im/messages/send', 'post'));
   expectRequired(sendMessage, ['conversationId', 'msgType'], '发送会话消息');
-  expectProperties(sendMessage, ['content', 'mediaUrl', 'duration', 'clientMsgId'], '发送会话消息');
+  expectProperties(sendMessage, ['content', 'mediaFileId', 'clientMsgId'], '发送会话消息');
+  operation(notify, '/im/files/upload', 'post');
+  expectParameterEnum(operation(notify, '/im/files/upload', 'post'), 'scene', ['IM_IMAGE', 'IM_VOICE'], 'IM 文件上传');
   const sendMessageResponse = responseDataSchema(notify, operation(notify, '/im/messages/send', 'post'));
   expectProperties(sendMessageResponse, ['id', 'conversationId', 'msgType', 'clientMsgId', 'recalled'], '发送消息响应');
   const readMessage = requestSchema(notify, operation(notify, '/im/messages/read', 'put'));
@@ -199,7 +235,7 @@ if (notifyResponse.status === 404) {
   const messageSchema = notify.components?.schemas?.ImMessageVO;
   expectProperties(messageSchema, ['senderName', 'senderAvatar', 'eventType', 'params', 'clientMsgId', 'recalled'], '消息响应');
   const notificationSchema = notify.components?.schemas?.NotificationVO;
-  expectProperties(notificationSchema, ['bizType', 'bizId', 'readFlag'], '站内通知响应');
+  expectProperties(notificationSchema, ['bizType', 'bizId', 'templateCode', 'readFlag'], '站内通知响应');
   operation(notify, '/notifications/read-all', 'put');
   operation(notify, '/im/conversations/by-order', 'get');
   operation(notify, '/back/im/status', 'get');

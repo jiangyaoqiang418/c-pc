@@ -17,6 +17,7 @@ const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const order = ref<Api.RealOrder.Record>();
+const logistics = ref<Api.RealOrder.LogisticsDTO>();
 const reviewable = ref(false);
 const loading = ref(false);
 const loadError = ref('');
@@ -29,6 +30,11 @@ async function load() {
   loadError.value = '';
   try {
     order.value = await orderApi.fetchOrderDetail(id.value);
+    try {
+      logistics.value = await orderApi.fetchOrderLogistics(order.value.id);
+    } catch {
+      logistics.value = undefined;
+    }
     if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
       const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 });
       reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
@@ -37,6 +43,7 @@ async function load() {
     }
   } catch {
     order.value = undefined;
+    logistics.value = undefined;
     reviewable.value = false;
     loadError.value = '订单详情加载失败，请检查网络后重试';
   } finally {
@@ -68,23 +75,18 @@ interface TrackEvent {
 }
 
 const trackEvents = computed<TrackEvent[]>(() => {
-  if (!order.value || !order.value.shippedAt) return [];
-  const carrier = order.value.logisticsCompany || '承运方待回传';
-  const trackingNo = order.value.trackingNumber ? ` · 运单号 ${order.value.trackingNumber}` : '';
-  const events: TrackEvent[] = [{
-    time: new Date(order.value.shippedAt).toLocaleString(),
-    location: carrier,
-    description: `买手已发货${trackingNo}`
-  }];
-  if (order.value.deliveredAt) {
-    events.unshift({
-      time: new Date(order.value.deliveredAt).toLocaleString(),
-      location: carrier,
-      description: '订单已签收'
-    });
-  }
-  return events;
+  return (logistics.value?.tracks || []).map(track => ({
+    time: formatTime(track.occurredAt),
+    location: track.location || '—',
+    description: track.description || track.statusText || track.status
+  }));
 });
+
+function formatTime(value?: string | number) {
+  if (!value) return '—';
+  const date = new Date(typeof value === 'number' || /^\d+$/.test(value) ? Number(value) : value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
 
 async function pay() {
   if (!order.value || acting.value) return;
@@ -180,12 +182,12 @@ function contactShopper() {
           <OrderTimeline :order="order" />
         </a-card>
 
-        <a-card v-if="trackEvents.length" class="step-card" :body-style="{ padding: '20px 24px' }">
+        <a-card v-if="logistics && trackEvents.length" class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">物流状态</div>
           <div class="logistics-meta">
-            <a-tag v-if="carrierMeta" :color="carrierMeta.color">{{ carrierMeta.label }}</a-tag>
-            <span v-else class="muted">{{ order.logisticsCompany || '物流公司待回传' }}</span>
-            <span class="muted">运单号 {{ order.trackingNumber }}</span>
+            <a-tag v-if="logistics.logisticsStatusText" color="arcoblue">{{ logistics.logisticsStatusText }}</a-tag>
+            <span class="muted">{{ logistics.carrierName || logistics.carrier || '承运方待回传' }}</span>
+            <span class="muted">运单号 {{ logistics.trackingNo || '—' }}</span>
           </div>
           <a-timeline>
             <a-timeline-item v-for="ev in trackEvents" :key="ev.time">

@@ -60,7 +60,7 @@ async function onPhotoSelected(event: Event) {
   }
   uploading.value = true;
   try {
-    const uploaded = await uploadFile(file, 'review');
+    const uploaded = await uploadFile(file, 'REVIEW');
     if (!uploaded.url) throw new Error('上传结果缺少图片地址');
     form.photoUrls.push(uploaded.url);
   } catch (error) {

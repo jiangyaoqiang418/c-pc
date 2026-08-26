@@ -1,4 +1,4 @@
-import { realAdminRequest, realUserRequest } from '@/service/request';
+import { realUserRequest } from '@/service/request';
 import { toPageTotal } from './page';
 
 const behaviorMap: Partial<Record<string, Api.Point.BehaviorCode>> = {
@@ -63,10 +63,7 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
 }
 
 export async function fetchPointRules() {
-  const list = await realAdminRequest.get<Api.RealPoint.PointRuleVO[]>('/point-rules/list', {
-    showError: false,
-    skipAuthRedirect: true
-  });
+  const list = await realUserRequest.get<Api.RealPoint.PointRuleVO[]>('/points/rules', { showError: false, skipAuthRedirect: true });
   return list.map(toPointRule).sort((a, b) => a.code.localeCompare(b.code));
 }
 

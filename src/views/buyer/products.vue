@@ -116,6 +116,20 @@ async function toggleShelf(p: Api.RealProduct.Record) {
   }
 }
 
+async function deleteProduct(p: Api.RealProduct.Record) {
+  if (p.shelfStatus === 'on-shelf') {
+    Message.warning('请先下架商品后再删除');
+    return;
+  }
+  try {
+    await productApi.deleteProduct(p.id);
+    Message.success('商品已删除');
+    await load();
+  } catch {
+    // 请求层已展示后端业务提示。
+  }
+}
+
 </script>
 
 <template>
@@ -158,6 +172,7 @@ async function toggleShelf(p: Api.RealProduct.Record) {
           :key="p.id"
           :product="p"
           @toggle-shelf="toggleShelf"
+          @delete="deleteProduct"
         />
       </div>
       <EmptyState
