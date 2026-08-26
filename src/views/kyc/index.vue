@@ -13,6 +13,7 @@ const loading = ref(false);
 const submitting = ref(false);
 const uploading = ref(false);
 const kycDetail = ref<Api.RealKyc.KycVO | null>();
+const loadError = ref('');
 const form = reactive<Api.RealKyc.SubmitParams>({
   realName: '',
   idType: 'ID_CARD',
@@ -98,13 +99,21 @@ async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null) {
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     await userStore.init();
     await userStore.refreshCurrentUser();
     if (getAccessToken()) {
-      kycDetail.value = await realKycApi.fetchMyKycDetail();
-      await refreshPrivatePreviews(kycDetail.value);
+      try {
+        kycDetail.value = await realKycApi.fetchMyKycDetail();
+        await refreshPrivatePreviews(kycDetail.value);
+      } catch {
+        kycDetail.value = null;
+        loadError.value = '实名认证资料加载失败，当前状态以账号信息为准。请稍后重试。';
+      }
     }
+  } catch {
+    loadError.value = '实名认证信息加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -155,6 +164,11 @@ async function submit() {
             <p class="status-sub">{{ statusView.description }}</p>
           </div>
         </div>
+
+        <a-alert v-if="loadError" type="warning" class="load-alert" :closable="false">
+          {{ loadError }}
+          <template #action><a-button size="mini" @click="load">重新加载</a-button></template>
+        </a-alert>
 
         <a-divider />
 
@@ -216,6 +230,7 @@ async function submit() {
   background: #fff;
   border-radius: var(--bw-card-radius);
 }
+.load-alert { margin-top: 20px; }
 .private-previews { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
 .private-preview { display: flex; flex-direction: column; gap: 6px; color: #4e5969; font-size: 12px; }
 .status-head {
