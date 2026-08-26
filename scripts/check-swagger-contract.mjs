@@ -95,6 +95,8 @@ operation(user, '/recharge/address', 'get');
 const rechargeCancel = requestSchema(user, operation(user, '/recharge/cancel', 'put'));
 expectRequired(rechargeCancel, ['id'], '取消充值申报');
 operation(user, '/points/rules', 'get');
+const pointRuleSchema = user.components?.schemas?.PointRuleItemVO;
+expectProperties(pointRuleSchema, ['defaultScore', 'defaultDailyCap', 'defaultCumulativeCap', 'defaultEnabled'], '积分规则默认值');
 operation(user, '/points/vip-configs', 'get');
 const withdrawDetail = responseDataSchema(user, operation(user, '/withdraw/detail', 'get'));
 expectProperties(withdrawDetail, ['id', 'amount', 'fee', 'actualAmount', 'status', 'paidAt', 'confirmedAt'], '提现详情响应');
@@ -122,6 +124,9 @@ const createBatchResponse = resolveSchema(
 const orderGroup = resolveSchema(order, createBatchResponse?.properties?.data);
 expectProperties(orderGroup, ['orderGroupNo', 'orderIds'], '合并下单响应');
 
+const productDto = order.components?.schemas?.ProductDTO;
+expectProperties(productDto, ['sellerName', 'categoryName', 'reviewerId', 'reviewedAt'], '商品详情审核信息');
+
 const groupPay = requestSchema(order, operation(order, '/orders/group/pay', 'post'));
 expectRequired(groupPay, ['orderGroupNo'], '订单组支付');
 
@@ -135,6 +140,7 @@ expectParameterEnum(orderUpload, 'scene', ['PRODUCT', 'DEMAND', 'REVIEW', 'ORDER
 const logistics = responseDataSchema(order, operation(order, '/orders/logistics', 'get'));
 expectProperties(logistics, ['logisticsStatus', 'carrier', 'trackingNo', 'tracks'], '订单物流');
 expectEnum(logistics, 'logisticsStatus', ['PENDING_SHIPMENT', 'SHIPPED', 'IN_TRANSIT', 'DELIVERING', 'SIGNED', 'EXCEPTION', 'RETURNED'], '订单物流');
+expectEnum(logistics, 'carrier', ['SF', 'JD', 'EMS', 'YTO', 'ZTO', 'STO', 'YUNDA', 'JITU', 'DHL', 'UPS', 'FEDEX', 'USPS', 'YAMATO', 'SAGAWA', 'JAPAN_POST', 'OTHER'], '订单物流');
 const logisticsTrack = requestSchema(order, operation(order, '/orders/logistics/track/create', 'post'));
 expectRequired(logisticsTrack, ['description', 'orderId', 'status'], '物流轨迹登记');
 const logisticsException = requestSchema(order, operation(order, '/orders/logistics/exception/mark', 'put'));
@@ -235,7 +241,7 @@ if (notifyResponse.status === 404) {
   const messageSchema = notify.components?.schemas?.ImMessageVO;
   expectProperties(messageSchema, ['senderName', 'senderAvatar', 'eventType', 'params', 'clientMsgId', 'recalled'], '消息响应');
   const notificationSchema = notify.components?.schemas?.NotificationVO;
-  expectProperties(notificationSchema, ['bizType', 'bizId', 'templateCode', 'readFlag'], '站内通知响应');
+  expectProperties(notificationSchema, ['bizType', 'bizId', 'templateCode', 'deptId', 'readFlag'], '站内通知响应');
   operation(notify, '/notifications/read-all', 'put');
   operation(notify, '/im/conversations/by-order', 'get');
   operation(notify, '/back/im/status', 'get');

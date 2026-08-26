@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
@@ -8,6 +8,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 const form = reactive<Api.RealWallet.WithdrawCreateParams>({ chain: 'TRON', toAddress: '', amount: 0 });
@@ -119,12 +120,16 @@ async function confirm() {
 
 async function showDetail(record: Api.RealWallet.WithdrawVO) {
   detailTarget.value = record;
+  await openDetail(record.id);
+}
+
+async function openDetail(id: string | number) {
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
   detailError.value = '';
   try {
-    detail.value = await realWalletApi.fetchWithdrawDetail(record.id);
+    detail.value = await realWalletApi.fetchWithdrawDetail(id);
   } catch {
     detailError.value = '转出申请详情加载失败，请稍后重试';
   } finally {
@@ -138,6 +143,9 @@ function queryRecords() {
 }
 
 onMounted(loadAll);
+watch(() => route.query.id, id => {
+  if (id) void openDetail(String(id));
+}, { immediate: true });
 </script>
 
 <template>

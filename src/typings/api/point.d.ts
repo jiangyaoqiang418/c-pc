@@ -35,9 +35,13 @@ declare namespace Api.RealPoint {
     identityText?: string;
     unit?: string;
     description?: string;
-    score: number;
-    dailyCap?: number;
-    cumulativeCap?: number;
+    score: string | number;
+    dailyCap?: string | number;
+    cumulativeCap?: string | number;
+    defaultScore?: string | number;
+    defaultDailyCap?: string | number;
+    defaultCumulativeCap?: string | number;
+    defaultEnabled?: boolean;
     enabled?: boolean;
     appealable?: boolean;
     sort?: number;

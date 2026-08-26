@@ -18,6 +18,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const order = ref<Api.RealOrder.Record>();
 const logistics = ref<Api.RealOrder.LogisticsDTO>();
+const logisticsError = ref('');
 const reviewable = ref(false);
 const loading = ref(false);
 const loadError = ref('');
@@ -28,12 +29,14 @@ const id = computed(() => String(route.params.id || ''));
 async function load() {
   loading.value = true;
   loadError.value = '';
+  logisticsError.value = '';
   try {
     order.value = await orderApi.fetchOrderDetail(id.value);
     try {
       logistics.value = await orderApi.fetchOrderLogistics(order.value.id);
     } catch {
       logistics.value = undefined;
+      logisticsError.value = '物流信息加载失败，请稍后重试。';
     }
     if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
       const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 });
@@ -58,16 +61,6 @@ const aftersaleMeta = computed(() => (order.value ? enums.AFTERSALE_TYPE_META[or
 const carrierMeta = computed(() =>
   order.value?.shippingCarrier ? enums.CARRIER_META[order.value.shippingCarrier] : undefined
 );
-const backendMissingFields = computed(() => {
-  if (!order.value) return [];
-  const fields: string[] = [];
-  if (order.value.shippingAddress === '后端暂未返回收货地址') fields.push('收货地址');
-  if (!order.value.trackingNumber) fields.push('物流信息');
-  if (!order.value.purchaseScreenshotUrl) fields.push('采购凭证');
-  if (!order.value.shippingScreenshotUrl) fields.push('发货凭证');
-  return fields;
-});
-
 interface TrackEvent {
   time: string;
   location: string;
@@ -171,31 +164,27 @@ function contactShopper() {
 
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">订单进度</div>
-          <a-alert
-            v-if="backendMissingFields.length"
-            class="contract-alert"
-            type="warning"
-            :show-icon="false"
-          >
-            后端当前未返回：{{ backendMissingFields.join('、') }}，页面已按默认值降级展示。
+          <a-alert v-if="logisticsError" class="contract-alert" type="error" :closable="false">
+            {{ logisticsError }}<template #action><a-button size="mini" @click="load">重新加载</a-button></template>
           </a-alert>
           <OrderTimeline :order="order" />
         </a-card>
 
-        <a-card v-if="logistics && trackEvents.length" class="step-card" :body-style="{ padding: '20px 24px' }">
+        <a-card v-if="logistics" class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">物流状态</div>
           <div class="logistics-meta">
             <a-tag v-if="logistics.logisticsStatusText" color="arcoblue">{{ logistics.logisticsStatusText }}</a-tag>
             <span class="muted">{{ logistics.carrierName || logistics.carrier || '承运方待回传' }}</span>
             <span class="muted">运单号 {{ logistics.trackingNo || '—' }}</span>
           </div>
-          <a-timeline>
+          <a-timeline v-if="trackEvents.length">
             <a-timeline-item v-for="ev in trackEvents" :key="ev.time">
               <div class="track-desc">{{ ev.description }}</div>
               <div class="track-loc">{{ ev.location }}</div>
               <div class="track-time">{{ ev.time }}</div>
             </a-timeline-item>
           </a-timeline>
+          <div v-else class="muted">{{ logistics.logisticsStatusText || '暂无物流轨迹' }}</div>
         </a-card>
 
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">

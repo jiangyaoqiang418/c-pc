@@ -25,7 +25,10 @@ const form = reactive<{
   remark: string;
 }>({ carrier: 'SF', carrierName: '', trackingNumber: '', eta: '', purchaseNo: '', purchaseVouchers: [], shipVouchers: [], remark: '' });
 
-const CARRIER_OPTIONS: Api.RealOrder.Carrier[] = ['SF', 'JD', 'EMS', 'YTO', 'ZTO', 'DHL', 'UPS', 'FEDEX', 'USPS', 'OTHER'];
+const CARRIER_OPTIONS: Api.RealOrder.Carrier[] = [
+  'SF', 'JD', 'EMS', 'YTO', 'ZTO', 'STO', 'YUNDA', 'JITU',
+  'DHL', 'UPS', 'FEDEX', 'USPS', 'YAMATO', 'SAGAWA', 'JAPAN_POST', 'OTHER'
+];
 
 watch(
   () => props.visible,

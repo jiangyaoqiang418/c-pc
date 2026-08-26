@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
+import LogisticsManageModal from '@/components/buyer/logistics-manage-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
@@ -39,6 +40,9 @@ const priceAmount = ref<number>();
 const shippingModalOpen = ref(false);
 const shippingSubmitting = ref(false);
 const shippingOrder = ref<Api.RealOrder.Record>();
+const logisticsModalOpen = ref(false);
+const logisticsSubmitting = ref(false);
+const logisticsOrder = ref<Api.RealOrder.Record>();
 
 async function load() {
   if (!userStore.currentUser) return;
@@ -76,6 +80,39 @@ function onUploadProof() {
 function onUploadShipping(order: Api.RealOrder.Record) {
   shippingOrder.value = order;
   shippingModalOpen.value = true;
+}
+
+function manageLogistics(order: Api.RealOrder.Record) {
+  logisticsOrder.value = order;
+  logisticsModalOpen.value = true;
+}
+
+async function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {
+  logisticsSubmitting.value = true;
+  try {
+    await realOrderApi.createLogisticsTrack(params);
+    Message.success('物流轨迹已登记');
+    logisticsModalOpen.value = false;
+    await load();
+  } catch {
+    // 请求层已展示后端业务提示，保留表单供修正后重试。
+  } finally {
+    logisticsSubmitting.value = false;
+  }
+}
+
+async function markLogisticsException(params: Api.RealOrder.LogisticsExceptionParams) {
+  logisticsSubmitting.value = true;
+  try {
+    await realOrderApi.markLogisticsException(params);
+    Message.success('物流异常已标记');
+    logisticsModalOpen.value = false;
+    await load();
+  } catch {
+    // 请求层已展示后端业务提示，保留表单供修正后重试。
+  } finally {
+    logisticsSubmitting.value = false;
+  }
 }
 
 async function shipOrder(params: Api.RealOrder.OrderShipParams) {
@@ -141,6 +178,7 @@ async function changePrice() {
             @change-price="openPriceModal"
             @upload-proof="onUploadProof"
             @upload-shipping="onUploadShipping"
+            @manage-logistics="manageLogistics"
           />
         </template>
         <EmptyState
@@ -179,6 +217,13 @@ async function changePrice() {
       :order="shippingOrder"
       :submitting="shippingSubmitting"
       @confirm="shipOrder"
+    />
+    <LogisticsManageModal
+      v-model:visible="logisticsModalOpen"
+      :order="logisticsOrder"
+      :submitting="logisticsSubmitting"
+      @create-track="createLogisticsTrack"
+      @mark-exception="markLogisticsException"
     />
   </div>
 </template>

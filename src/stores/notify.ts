@@ -22,7 +22,6 @@ function realtimeURL(token: string) {
   const base = import.meta.env.VITE_REAL_NOTIFY_BASE_URL || '/api/notify';
   const url = new URL(`${base.replace(/\/$/, '')}/im`, window.location.origin);
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  url.searchParams.set('token', token);
   return { url: url.toString(), protocols: ['im', `im.token.${token}`] };
 }
 
@@ -44,6 +43,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   let missedPongs = 0;
   let manuallyClosed = true;
   let lifecycleBound = false;
+  let heartbeatIntervalMs = HEARTBEAT_MS;
 
   const totalUnreadCount = computed(() => notificationUnreadCount.value + imUnreadCount.value);
 
@@ -83,7 +83,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     readyTimer = undefined;
   }
 
-  function startHeartbeat() {
+  function startHeartbeat(interval = HEARTBEAT_MS) {
     clearHeartbeat();
     heartbeatTimer = setInterval(() => {
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
@@ -93,7 +93,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       }
       socket.send(JSON.stringify({ type: 'PING' }));
       missedPongs += 1;
-    }, HEARTBEAT_MS);
+    }, interval);
   }
 
   function scheduleReconnect() {
@@ -123,7 +123,11 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       clearReadyTimeout();
       socketState.value = 'open';
       reconnectAttempt = 0;
-      startHeartbeat();
+      const serverInterval = Number(frame.heartbeatIntervalMs);
+      heartbeatIntervalMs = Number.isFinite(serverInterval) && serverInterval > 0
+        ? Math.min(HEARTBEAT_MS, serverInterval)
+        : HEARTBEAT_MS;
+      startHeartbeat(heartbeatIntervalMs);
       refreshUnreadCounts();
       emit({ type: 'SYNC' });
       return;
@@ -172,6 +176,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       socket = undefined;
       clearReadyTimeout();
       clearHeartbeat();
+      heartbeatIntervalMs = HEARTBEAT_MS;
       socketState.value = 'closed';
       scheduleReconnect();
     };
@@ -183,6 +188,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     reconnectTimer = undefined;
     clearReadyTimeout();
     clearHeartbeat();
+    heartbeatIntervalMs = HEARTBEAT_MS;
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'logout');
     socket = undefined;
     socketState.value = 'idle';

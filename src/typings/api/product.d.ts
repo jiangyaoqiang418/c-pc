@@ -15,8 +15,10 @@ declare namespace Api.RealProduct {
   interface ProductDTO {
     id: string;
     sellerId: string;
+    sellerName?: string;
     title: string;
     categoryId: string;
+    categoryName?: string;
     price: string | number;
     shippingFee?: string | number;
     taxFee?: string | number;
@@ -28,6 +30,8 @@ declare namespace Api.RealProduct {
     status?: ProductStatus;
     statusText?: string;
     reviewComment?: string;
+    reviewerId?: string;
+    reviewedAt?: string | number;
     salesCount?: string | number;
     viewCount?: string | number;
     favoriteCount?: string | number;

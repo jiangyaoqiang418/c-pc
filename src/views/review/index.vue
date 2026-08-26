@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import * as reviewApi from '@/service/api/review';
 import ReviewCard from '@/components/review/review-card.vue';
@@ -11,6 +12,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 type ReviewTab = 'sent' | 'received' | 'appeals';
 
 const userStore = useUserStore();
+const route = useRoute();
 const activeKey = ref<ReviewTab>('sent');
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
 const appeals = ref<Api.RealReview.ReviewAppealDTO[]>([]);
@@ -26,6 +28,8 @@ const replyVisible = ref(false);
 const appealVisible = ref(false);
 const replyTarget = ref<Api.RealReview.ReviewDTO>();
 const appealTarget = ref<Api.RealReview.ReviewDTO>();
+const notificationReview = ref<Api.RealReview.ReviewDTO>();
+const notificationReviewError = ref('');
 const replyContent = ref('');
 const appealForm = reactive({ reason: '', evidenceImages: [] as string[] });
 const requestGuard = createLatestRequestGuard();
@@ -75,6 +79,16 @@ async function load() {
     loadError.value = isAppealTab.value ? '评价申诉加载失败，请稍后重试' : '评价列表加载失败，请稍后重试';
   } finally {
     if (isCurrent()) loading.value = false;
+  }
+}
+
+async function loadNotificationReview(id: string | number) {
+  notificationReview.value = undefined;
+  notificationReviewError.value = '';
+  try {
+    notificationReview.value = await reviewApi.fetchReviewDetail(id);
+  } catch {
+    notificationReviewError.value = '通知关联的评价详情加载失败，请稍后重试';
   }
 }
 
@@ -170,6 +184,9 @@ watch([status, hasImage], () => {
 watch(isBuyer, value => {
   if (!value && activeKey.value !== 'sent') activeKey.value = 'sent';
 });
+watch(() => route.query.id, id => {
+  if (id) void loadNotificationReview(String(id));
+}, { immediate: true });
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
 </script>
@@ -200,6 +217,14 @@ onBeforeUnmount(requestGuard.invalidate);
     </div>
 
     <div class="list-wrap">
+      <a-alert v-if="notificationReviewError" type="error" :closable="false" class="notification-review-alert">
+        {{ notificationReviewError }}
+        <template #action><a-button size="mini" @click="route.query.id && loadNotificationReview(String(route.query.id))">重新加载</a-button></template>
+      </a-alert>
+      <template v-else-if="notificationReview">
+        <div class="notification-review-title">通知关联评价</div>
+        <ReviewCard :review="notificationReview" audience="received" :action-loading="actionLoading" @reply="openReply" @appeal="openAppeal" />
+      </template>
       <a-spin :loading="loading" style="width: 100%">
         <template v-if="!isAppealTab && reviews.length">
           <ReviewCard
@@ -271,6 +296,8 @@ onBeforeUnmount(requestGuard.invalidate);
 .filters { display: flex; gap: 12px; margin-top: 16px; }
 .filters :deep(.arco-select) { width: 160px; }
 .list-wrap { margin-top: 16px; }
+.notification-review-alert { margin-bottom: 12px; }
+.notification-review-title { margin: 0 0 8px; color: #4e5969; font-size: 13px; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
 .appeal-card { margin-bottom: 12px; border: 1px solid #f2f3f5; }
 .appeal-head { display: flex; justify-content: space-between; gap: 12px; }

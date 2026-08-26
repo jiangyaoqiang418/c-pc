@@ -158,7 +158,7 @@ declare namespace Api.RealOrder {
   }
 
   interface LogisticsTrackDTO { trackId: string | number; orderId: string | number; trackingNo?: string; occurredAt?: string | number; status: LogisticsStatus; statusText?: string; description: string; location?: string; exceptionNode?: string; source?: string; sourceText?: string; createdAt?: string | number; }
-  interface LogisticsDTO { orderId: string | number; orderNo?: string; logisticsStatus?: LogisticsStatus; logisticsStatusText?: string; carrier?: Carrier; carrierName?: string; trackingNo?: string; eta?: string | number; logisticsException?: string; purchaseNo?: string; purchaseVouchers?: string[]; shipVouchers?: string[]; shippedRemark?: string; shippingFee?: string | number; taxFee?: string | number; shippedAt?: string | number; completedAt?: string | number; tracks?: LogisticsTrackDTO[]; }
+  interface LogisticsDTO { orderId: string | number; orderNo?: string; logisticsStatus?: LogisticsStatus | null; logisticsStatusText?: string | null; carrier?: Carrier | null; carrierName?: string | null; trackingNo?: string | null; eta?: string | number | null; logisticsException?: string | null; purchaseNo?: string | null; purchaseVouchers: string[]; shipVouchers: string[]; shippedRemark?: string | null; shippingFee?: string | number | null; taxFee?: string | number | null; shippedAt?: string | number | null; completedAt?: string | number | null; tracks: LogisticsTrackDTO[]; }
   interface LogisticsTrackParams { orderId: string | number; occurredAt?: string | number; status: LogisticsStatus; description: string; location?: string; exceptionNode?: string; }
   interface LogisticsExceptionParams { orderId: string | number; exception: string; location?: string; }
 

@@ -40,10 +40,10 @@ function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
     audience: toAudience(rule.identity),
     description: rule.description || '',
     unitLabel: rule.unit || '次',
-    pointsPerUnit: Number(rule.score || 0),
-    enabled: rule.enabled !== false,
-    capDaily: Number(rule.dailyCap || 0),
-    capTotal: Number(rule.cumulativeCap || 0)
+    pointsPerUnit: Number(rule.score ?? rule.defaultScore ?? 0),
+    enabled: rule.enabled ?? rule.defaultEnabled ?? true,
+    capDaily: Number(rule.dailyCap ?? rule.defaultDailyCap ?? 0),
+    capTotal: Number(rule.cumulativeCap ?? rule.defaultCumulativeCap ?? 0)
   };
 }
 

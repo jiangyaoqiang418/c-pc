@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { enums, formatAmount } from '@shared';
-import PushTierBadge from '@/components/purchase/push-tier-badge.vue';
 import PurchaseStatusTimeline from '@/components/purchase/purchase-status-timeline.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
@@ -15,7 +14,6 @@ const userStore = useUserStore();
 
 const id = computed(() => String(route.params.id || ''));
 const request = ref<Api.RealPurchase.Record>();
-const pushLogs = ref<Api.PurchaseRequest.PushLog[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const claiming = ref(false);
@@ -25,12 +23,9 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const r = await purchaseApi.fetchPurchaseDetail(id.value);
-    request.value = r.request;
-    pushLogs.value = r.pushLogs;
+    request.value = await purchaseApi.fetchPurchaseDetail(id.value);
   } catch {
     request.value = undefined;
-    pushLogs.value = [];
     loadError.value = '求购详情加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
@@ -52,11 +47,6 @@ const canClaim = computed(() => {
   if (request.value.status !== 'pushing') return false;
   return userStore.isBuyerActive;
 });
-
-async function pushNext() {
-  if (!request.value) return;
-  Message.warning('当前真实接口暂不支持手动推送下一批');
-}
 
 async function claim() {
   if (!request.value || !userStore.currentUser || claiming.value) return;
@@ -118,7 +108,6 @@ function cancel() {
               <div class="hero-meta">
                 <span class="code">{{ request.code }}</span>
                 <a-tag v-if="statusMeta" :color="statusMeta.color" size="large">{{ statusMeta.label }}</a-tag>
-                <PushTierBadge v-if="request.status === 'pushing' && request.currentPushLevel" :level="request.currentPushLevel" />
               </div>
               <div class="hero-title">{{ request.productTitle }}</div>
               <div class="hero-cat">📂 {{ request.categoryPath }}</div>
@@ -143,6 +132,15 @@ function cancel() {
           </div>
         </a-card>
 
+        <a-alert
+          v-if="request.status === 'rejected'"
+          type="error"
+          class="review-alert"
+          :title="request.reviewComment || '求购审核未通过'"
+        >
+          审核时间：{{ request.reviewedAt ? new Date(request.reviewedAt).toLocaleString() : '—' }}
+        </a-alert>
+
         <div class="layout-2col">
           <a-card class="info-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
             <div class="section-title">求购信息</div>
@@ -151,6 +149,7 @@ function cancel() {
               { label: '接单截止', value: request.claimExpiresAt ? new Date(request.claimExpiresAt).toLocaleString() : '—' },
               { label: '海外过关', value: request.overseasCustoms ? '是' : '否' },
               { label: '售后类型', value: aftersaleMeta?.label || '—' },
+              { label: '审核时间', value: request.reviewedAt ? new Date(request.reviewedAt).toLocaleString() : '—' },
               { label: '创建时间', value: new Date(request.createdAt).toLocaleString() }
             ]" />
 
@@ -173,43 +172,14 @@ function cancel() {
 
             <a-divider />
 
-            <template v-if="request.status === 'pushing'">
-              <div class="section-title">推送轨迹</div>
-              <div class="push-info">
-                <div class="push-row">
-                  <span class="lbl">当前批次</span>
-                  <PushTierBadge v-if="request.currentPushLevel" :level="request.currentPushLevel" />
-                </div>
-                <div class="push-row">
-                  <span class="lbl">已推送买手</span>
-                  <span class="val">{{ request.pushedToBuyerIds?.length || 0 }} 位</span>
-                </div>
-                <div v-if="request.nextPushAt" class="push-row">
-                  <span class="lbl">下一批推送</span>
-                  <span class="val">{{ new Date(request.nextPushAt).toLocaleString() }}</span>
-                </div>
-              </div>
-              <a-button v-if="isMyRequest" class="push-btn" @click="pushNext">手动推送下一批 ›</a-button>
-            </template>
-
             <template v-if="request.status === 'claimed'">
               <div class="section-title">接单信息</div>
               <p class="claimed-info">
                 ✓ 已被买手 <strong>{{ request.claimedByName }}</strong> 接单
+                <span v-if="request.assignedBy" class="order-link">· 后台指派</span>
                 <span v-if="request.relatedOrderCode" class="order-link">· 订单 {{ request.relatedOrderCode }}</span>
               </p>
             </template>
-
-            <div v-if="pushLogs.length" class="push-logs">
-              <div class="section-title">推送日志</div>
-              <a-timeline>
-                <a-timeline-item v-for="log in pushLogs" :key="log.id">
-                  <PushTierBadge :level="log.pushLevel" />
-                  <span class="log-text">推送至 {{ log.buyerIds.length }} 位买手</span>
-                  <div class="log-time">{{ new Date(log.pushedAt).toLocaleString() }} · {{ log.actor }}</div>
-                </a-timeline-item>
-              </a-timeline>
-            </div>
           </a-card>
         </div>
       </template>
@@ -237,6 +207,7 @@ function cancel() {
   border-radius: var(--bw-card-radius);
   margin-bottom: 16px;
 }
+.review-alert { margin-bottom: 16px; }
 .hero-row {
   display: flex;
   justify-content: space-between;
@@ -321,24 +292,6 @@ function cancel() {
   border-radius: 4px;
   object-fit: cover;
 }
-.push-info {
-  background: #f7faff;
-  padding: 12px 16px;
-  border-radius: 4px;
-}
-.push-row {
-  display: flex;
-  justify-content: space-between;
-  margin: 4px 0;
-  font-size: 13px;
-}
-.push-row .lbl {
-  color: #86909c;
-}
-.push-btn {
-  margin-top: 12px;
-  width: 100%;
-}
 .claimed-info {
   color: #00b42a;
   font-size: 14px;
@@ -347,18 +300,5 @@ function cancel() {
   color: #86909c;
   font-family: ui-monospace, monospace;
   margin-left: 4px;
-}
-.push-logs {
-  margin-top: 16px;
-}
-.log-text {
-  font-size: 12px;
-  color: #4e5969;
-  margin-left: 8px;
-}
-.log-time {
-  font-size: 11px;
-  color: #86909c;
-  margin-top: 2px;
 }
 </style>

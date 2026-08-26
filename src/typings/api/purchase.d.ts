@@ -11,6 +11,9 @@ declare namespace Api.RealPurchase {
     pushedToBuyerIds: Id[];
     claimedBy?: Id;
     relatedOrderId?: Id;
+    reviewComment?: string;
+    reviewedAt?: string;
+    assignedBy?: Id;
   };
 
   type DisplayRecord = Api.PurchaseRequest.PurchaseRequest | Record;
@@ -31,6 +34,9 @@ declare namespace Api.RealPurchase {
     demandNote?: string;
     status?: DemandStatus;
     statusText?: string;
+    reviewComment?: string;
+    reviewedAt?: string | number;
+    assignedBy?: string;
     expireAt?: string | number;
     takenBy?: string;
     takenAt?: string | number;

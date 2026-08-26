@@ -14,6 +14,7 @@ defineEmits<{
   (e: 'change-price', order: Api.RealOrder.DisplayRecord): void;
   (e: 'upload-proof', order: Api.RealOrder.DisplayRecord): void;
   (e: 'upload-shipping', order: Api.RealOrder.DisplayRecord): void;
+  (e: 'manage-logistics', order: Api.RealOrder.DisplayRecord): void;
 }>();
 
 const router = useRouter();
@@ -91,12 +92,12 @@ function goIm() {
       >
         <Icon icon="lucide:package" width="14" /> 上传发货
       </button>
-      <span
-        v-else-if="['IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.status)"
-        class="status-note"
-      >
-        <Icon icon="lucide:truck" width="12" /> 等待顾客签收
-      </span>
+      <template v-else-if="['IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.status)">
+        <button class="btn ghost" @click="$emit('manage-logistics', order)">
+          <Icon icon="lucide:route" width="14" /> 物流管理
+        </button>
+        <span class="status-note"><Icon icon="lucide:truck" width="12" /> 等待顾客签收</span>
+      </template>
       <span v-else-if="order.status === 'COMPLETED'" class="status-note success">
         <Icon icon="lucide:check-circle-2" width="12" /> 订单已完成
       </span>

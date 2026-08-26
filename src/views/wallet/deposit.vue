@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
@@ -8,6 +9,7 @@ import { useUserStore, useWalletStore } from '@/stores';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
+const route = useRoute();
 const activeTab = ref<'create' | 'address'>('create');
 const amount = ref(100);
 const chain = ref('');
@@ -156,12 +158,16 @@ async function copy(text?: string) {
 
 async function showDetail(record: Api.RealWallet.RechargeVO) {
   detailTarget.value = record;
+  await openDetail(record.id);
+}
+
+async function openDetail(id: string | number) {
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
   detailError.value = '';
   try {
-    detail.value = await realWalletApi.fetchRechargeDetail(record.id);
+    detail.value = await realWalletApi.fetchRechargeDetail(id);
   } catch {
     detailError.value = '充值订单详情加载失败，请稍后重试';
   } finally {
@@ -187,6 +193,9 @@ function queryRecords() {
 
 onMounted(loadAll);
 watch(chain, () => void loadRechargeAddress());
+watch(() => route.query.id, id => {
+  if (id) void openDetail(String(id));
+}, { immediate: true });
 </script>
 
 <template>

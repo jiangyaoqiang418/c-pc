@@ -25,6 +25,7 @@ declare namespace Api.RealNotify {
     content?: string;
     bizType?: string;
     bizId?: string | number;
+    deptId?: string | number;
     readFlag?: boolean;
     createdAt?: string | number;
   }
@@ -94,6 +95,11 @@ declare namespace Api.RealNotify {
     id: string | number;
     scene?: string;
     url?: string;
+    filePath?: string;
+    bucket?: string;
+    originalName?: string;
+    contentType?: string;
+    size?: number;
     duration?: number;
     expireAt?: string | number;
   }
@@ -139,5 +145,8 @@ declare namespace Api.RealNotify {
     message?: T;
     notification?: T;
     unreadCount?: number;
+    userId?: string | number;
+    serverTime?: string | number;
+    heartbeatIntervalMs?: number;
   }
 }

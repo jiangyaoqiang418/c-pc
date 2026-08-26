@@ -76,6 +76,9 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     evidenceUrls: dto.images || [],
     appeal: dto.demandNote || dto.description || '',
     status: toStatus(dto.status),
+    reviewComment: dto.reviewComment,
+    reviewedAt: toIso(dto.reviewedAt),
+    assignedBy: dto.assignedBy,
     claimExpiresAt: toIso(dto.expireAt),
     pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId] : [],
     claimedBy: claimedBuyerId,
@@ -129,7 +132,7 @@ export async function fetchMyPurchases(
 
 export async function fetchPurchaseDetail(id: string | number) {
   const dto = await realOrderRequest.get<Api.RealPurchase.PurchaseDemandVO>('/demands/detail', { params: { id } });
-  return { request: await toPurchaseRequest(dto), pushLogs: [] as Api.PurchaseRequest.PushLog[] };
+  return toPurchaseRequest(dto);
 }
 
 export async function createPurchase(p: {
@@ -156,7 +159,7 @@ export async function createPurchase(p: {
     demandNote: p.appeal,
     images: p.evidenceUrls || []
   });
-  return (await fetchPurchaseDetail(id)).request;
+  return fetchPurchaseDetail(id);
 }
 
 export async function cancelPurchase(id: string | number) {
