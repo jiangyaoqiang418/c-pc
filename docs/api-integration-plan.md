@@ -81,6 +81,7 @@
 - 通知新编码仅在 `bizType + bizId + templateCode` 三项满足新枚举时跳转；历史空值、旧编码和未知值保持不跳转。
 - IM REST 已完成会话/消息分页、按订单取群、文本/图片发送、已读、撤回、刷新回读和 Long 安全解析。
 - IM 媒体上传已切 `/notify/im/files/upload`，发送消息传 `mediaFileId`，语音时长在上传时提交；WebSocket 使用 `im` 子协议携带 token，收到 `READY.heartbeatIntervalMs` 后按服务端上限协商心跳。2026-08-26 已以隔离 QA 账号验证直连与 Vite 代理均完成 `101 → READY(25000) → PING/PONG`；尚未完成双账号浏览器端无刷新到达、已读、撤回和断线补偿验收。
+- 同日以两组隔离 QA 账号完成真实业务事件回归：文本消息无刷新到达、断线后的 `/im/messages/incr` 补偿、`IM_READ` 与 `IM_RECALL` 均已在对端 WebSocket 收到；测试消息已撤回。浏览器双账号页面会话隔离仍待可同时登录的 C-PC 会话条件。
 
 ## 关键验证证据
 
