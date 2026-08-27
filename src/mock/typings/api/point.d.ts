@@ -29,6 +29,8 @@ declare namespace Api {
       enabled: boolean;
       capDaily: number;
       capTotal: number;
+      /** 后端积分规则展示顺序 */
+      sort?: number;
     }
 
     interface LogEntry {

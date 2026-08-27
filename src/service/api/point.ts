@@ -43,7 +43,8 @@ function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
     pointsPerUnit: Number(rule.score ?? rule.defaultScore ?? 0),
     enabled: rule.enabled ?? rule.defaultEnabled ?? true,
     capDaily: Number(rule.dailyCap ?? rule.defaultDailyCap ?? 0),
-    capTotal: Number(rule.cumulativeCap ?? rule.defaultCumulativeCap ?? 0)
+    capTotal: Number(rule.cumulativeCap ?? rule.defaultCumulativeCap ?? 0),
+    sort: rule.sort
   };
 }
 
@@ -64,7 +65,9 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
 
 export async function fetchPointRules() {
   const list = await realUserRequest.get<Api.RealPoint.PointRuleVO[]>('/points/rules', { showError: false, skipAuthRedirect: true });
-  return list.map(toPointRule).sort((a, b) => a.code.localeCompare(b.code));
+  return list
+    .map(toPointRule)
+    .sort((a, b) => (a.sort ?? Number.MAX_SAFE_INTEGER) - (b.sort ?? Number.MAX_SAFE_INTEGER));
 }
 
 export async function fetchMyPointLogs(q: {
