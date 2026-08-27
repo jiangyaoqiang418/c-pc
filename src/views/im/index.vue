@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
+import RealtimeConnectionStatus from '@/components/im/realtime-connection-status.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
@@ -456,7 +457,7 @@ watch(activeTab, async () => {
                   <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" />
                   <div><div class="cs-title">{{ selectedConversation.productTitle || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.orderNo ? `订单 ${selectedConversation.orderNo}` : `业务 ID ${selectedConversation.bizId || '—'}` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
                 </div>
-                <div class="header-actions"><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" @click="deleteSelectedConversation">删除会话</a-link></div>
+                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" @click="deleteSelectedConversation">删除会话</a-link></div>
             </div>
             <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
               实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
@@ -504,7 +505,7 @@ watch(activeTab, async () => {
 .conv-meta { font-size: 11px; color: #86909c; margin-top: 2px; }.preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conv-time { font-size: 10px; color: #c9cdd4; margin-top: 2px; }
 .chat-pane { display: flex; flex-direction: column; background: #f7f8fa; min-width: 0; min-height: 0; }.chat-spin { flex: 1; min-height: 0; }.chat-spin :deep(.arco-spin) { height: 100%; min-height: 0; }
 .conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }.conversation-header { background: #fff; padding: 12px 20px; border-bottom: 1px solid #f2f3f5; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.header-product { display: flex; align-items: center; gap: 10px; min-width: 0; }.header-product img { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; }.cs-title { font-weight: 600; font-size: 14px; }.cs-sub { margin-top: 3px; font-size: 12px; color: #86909c; }.header-actions { display: flex; gap: 14px; flex-shrink: 0; }
+.header-product { display: flex; align-items: center; gap: 10px; min-width: 0; }.header-product img { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; }.cs-title { font-weight: 600; font-size: 14px; }.cs-sub { margin-top: 3px; font-size: 12px; color: #86909c; }.header-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .realtime-alert { width: calc(100% - 40px); margin: 10px auto 0; box-sizing: border-box; flex: 0 0 auto; }.messages { flex: 1 1 auto; min-height: 0; padding: 16px 20px; overflow-y: auto; overscroll-behavior: contain; }.conversation :deep(.input-area) { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; }.load-older { text-align: center; margin-bottom: 14px; }.empty-msg { text-align: center; color: #86909c; padding: 40px 0; font-size: 13px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }
 @media (max-width: 960px) { .layout { grid-template-columns: 260px minmax(0, 1fr); } .conversation-header { padding: 12px 16px; } .messages { padding: 14px 16px; } .realtime-alert { width: calc(100% - 32px); } }
 @media (max-width: 720px) { .layout { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 160px); min-height: 560px; } .sidebar { max-height: 220px; border-right: 0; border-bottom: 1px solid #f2f3f5; } .header-actions { gap: 10px; } .conversation-header { align-items: flex-start; } .messages { padding: 12px; } .realtime-alert { width: calc(100% - 24px); margin-top: 8px; } }
