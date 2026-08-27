@@ -20,18 +20,22 @@ const loading = ref(false);
 const user = computed(() => userStore.currentUser);
 
 async function load() {
-  if (!user.value) return;
   loading.value = true;
   try {
-    const vip = await vipApi.fetchMyVipStatus(user.value.id);
     const [cfgs, rules] = await Promise.all([
       vipApi.fetchVipConfigs().catch(() => []),
       pointApi.fetchPointRules().catch(() => [])
     ]);
-    vipStatus.value = vip;
     configs.value = cfgs;
     pointRules.value = rules;
-    audience.value = vip?.audience || 'customer';
+    if (user.value) {
+      const vip = await vipApi.fetchMyVipStatus(user.value.id);
+      vipStatus.value = vip;
+      audience.value = vip.audience;
+    } else {
+      vipStatus.value = undefined;
+      audience.value = 'customer';
+    }
   } finally {
     loading.value = false;
   }
@@ -57,9 +61,9 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
 <template>
   <div class="vip-page shop-container">
     <a-spin :loading="loading" style="width: 100%">
-      <template v-if="user && vipStatus">
+      <template v-if="configs.length || pointRules.length">
         <!-- Hero -->
-        <a-card class="hero-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
+        <a-card v-if="user && vipStatus" class="hero-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
           <div class="hero-row">
             <div class="hero-left">
               <div class="hero-meta">
@@ -88,6 +92,15 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
             </div>
           </div>
         </a-card>
+        <a-card v-else class="hero-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
+          <div class="hero-row">
+            <div class="hero-left">
+              <div class="hero-meta"><span class="user-name">VIP 等级与权益</span></div>
+              <div class="hero-progress">登录后可查看当前积分、等级与升级进度。</div>
+            </div>
+            <a-button type="outline" @click="router.push('/login')">登录查看我的等级</a-button>
+          </div>
+        </a-card>
 
         <!-- Audience Switch -->
         <a-card class="switch-card" :body-style="{ padding: '14px 24px' }" :bordered="false">
@@ -96,7 +109,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
             <a-radio-group v-model="audience" type="button" size="medium">
               <a-radio v-for="t in audienceTabs" :key="t.value" :value="t.value">{{ t.label }}</a-radio>
             </a-radio-group>
-            <span v-if="audience === 'buyer' && !user.isBuyer" class="hint">
+            <span v-if="audience === 'buyer' && !user?.isBuyer" class="hint">
               （您当前为顾客身份，仅供查看；如需享受买手特权请先完成 KYC 并申请买手）
             </span>
           </div>
@@ -104,7 +117,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
 
         <!-- Benefits Table -->
         <div class="table-block">
-          <VipBenefitsTable :audience="audience" :current-level="user.vipLevel" :configs="configs" />
+          <VipBenefitsTable :audience="audience" :current-level="vipStatus?.vipLevel" :configs="configs" />
         </div>
 
         <!-- How to upgrade -->
@@ -122,10 +135,11 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
             </div>
           </div>
           <div class="rules-foot">
-            <a-link @click="router.push('/points')">查看积分明细</a-link>
+            <a-link @click="router.push(user ? '/points' : '/login')">{{ user ? '查看积分明细' : '登录后查看积分明细' }}</a-link>
           </div>
         </a-card>
       </template>
+      <a-result v-else-if="!loading" status="warning" title="VIP 配置暂不可用" subtitle="请稍后刷新重试" />
     </a-spin>
   </div>
 </template>

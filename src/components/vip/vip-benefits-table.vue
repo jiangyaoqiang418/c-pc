@@ -4,7 +4,7 @@ import { enums } from '@shared';
 
 interface Props {
   audience: Api.Vip.Audience;
-  currentLevel: Api.User.VipLevel;
+  currentLevel?: Api.User.VipLevel;
   configs: Api.Vip.LevelConfig[];
 }
 const props = defineProps<Props>();

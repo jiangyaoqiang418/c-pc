@@ -153,7 +153,7 @@ const routes: RouteRecordRaw[] = [
     path: '/vip',
     name: 'vip',
     component: () => import('@/views/vip/index.vue'),
-    meta: { layout: 'default', title: 'VIP 特权', requiresAuth: true }
+    meta: { layout: 'default', title: 'VIP 特权' }
   },
 
   // ===== Phase 3 — 售后 / 求购 / 评价 / IM / CMS =====
