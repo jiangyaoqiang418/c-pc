@@ -53,10 +53,41 @@ const filter = reactive<{
 }>({ types: [], keyword: '' });
 
 function applyQueryParams() {
-  const bucket = route.query.bucket as Api.Wallet.Bucket | undefined;
-  const t = route.query.type as Api.Wallet.TxnType | undefined;
-  if (bucket) filter.bucket = bucket;
-  if (t) filter.types = [t];
+  const value = (key: string) => {
+    const query = route.query[key];
+    return Array.isArray(query) ? query[0] : query;
+  };
+  const types = (value('types') || value('type') || '')
+    .split(',')
+    .filter((type): type is Api.Wallet.TxnType => TYPE_GROUPS.some(group => group.types.includes(type as Api.Wallet.TxnType)));
+  const bucket = value('bucket') as Api.Wallet.Bucket | undefined;
+  const from = value('from');
+  const to = value('to');
+  const page = Number(value('page'));
+
+  filter.types = types;
+  filter.bucket = BUCKET_OPTIONS.some(option => option.value === bucket) ? bucket : undefined;
+  filter.dateRange = from || to ? [from || '', to || ''] : undefined;
+  filter.keyword = value('keyword') || '';
+  current.value = Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function currentQuery() {
+  return {
+    ...(filter.types.length ? { types: filter.types.join(',') } : {}),
+    ...(filter.bucket ? { bucket: filter.bucket } : {}),
+    ...(filter.dateRange?.[0] ? { from: filter.dateRange[0] } : {}),
+    ...(filter.dateRange?.[1] ? { to: filter.dateRange[1] } : {}),
+    ...(filter.keyword.trim() ? { keyword: filter.keyword.trim() } : {}),
+    ...(current.value > 1 ? { page: String(current.value) } : {})
+  };
+}
+
+function syncQuery() {
+  const before = route.fullPath;
+  void router.replace({ query: currentQuery() }).then(() => {
+    if (route.fullPath === before) void load();
+  });
 }
 
 async function load() {
@@ -99,9 +130,14 @@ async function load() {
 
 onMounted(() => {
   applyQueryParams();
-  load();
+  void load();
 });
 onBeforeUnmount(requestGuard.invalidate);
+
+watch(() => route.query, () => {
+  applyQueryParams();
+  void load();
+});
 
 watch(
   () => userStore.currentAudience,
@@ -117,7 +153,17 @@ function reset() {
   filter.dateRange = undefined;
   filter.keyword = '';
   current.value = 1;
-  load();
+  syncQuery();
+}
+
+function queryRecords() {
+  current.value = 1;
+  syncQuery();
+}
+
+function changePage(page: number) {
+  current.value = page;
+  syncQuery();
 }
 
 function openDetail(t: Api.RealWallet.DisplayLedger) {
@@ -180,7 +226,7 @@ function handleEmptyAction() {
           </a-col>
         </a-row>
         <div class="filter-actions">
-          <a-button type="primary" @click="(() => { current = 1; load(); })()">查询</a-button>
+          <a-button type="primary" @click="queryRecords">查询</a-button>
           <a-button @click="reset">重置</a-button>
           <a-button :disabled="!list.length" @click="exportCsv">导出 CSV</a-button>
         </div>
@@ -208,7 +254,7 @@ function handleEmptyAction() {
         :current="current"
         :page-size="size"
         show-total
-        @change="(p: number) => { current = p; load(); }"
+        @change="changePage"
       />
     </div>
 
