@@ -44,6 +44,7 @@ const scrollRef = ref<HTMLDivElement>();
 const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
+const deletingConversationId = ref<string | number>();
 
 function hasBizType(conversation: Api.RealNotify.ImConversationVO, type: string) {
   return String(conversation.bizType || '').toUpperCase() === type;
@@ -283,11 +284,15 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
 
 function deleteSelectedConversation() {
   const conversation = selectedConversation.value;
-  if (!conversation) return;
+  if (!conversation || deletingConversationId.value !== undefined) return;
+  deletingConversationId.value = conversation.id;
   Modal.warning({
     title: '删除会话',
     content: '会话仅从你的列表移除；对方再次发消息后会自动恢复，历史消息不会删除。',
     hideCancel: false,
+    onCancel() {
+      deletingConversationId.value = undefined;
+    },
     onOk: async () => {
       try {
         await notifyApi.deleteConversation(conversation.id);
@@ -299,6 +304,8 @@ function deleteSelectedConversation() {
         Message.success('会话已移除');
       } catch {
         // 请求层已展示错误，保留当前会话，避免把删除失败误显示为已移除。
+      } finally {
+        deletingConversationId.value = undefined;
       }
     }
   });
@@ -457,7 +464,7 @@ watch(activeTab, async () => {
                   <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" />
                   <div><div class="cs-title">{{ selectedConversation.productTitle || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.orderNo ? `订单 ${selectedConversation.orderNo}` : `业务 ID ${selectedConversation.bizId || '—'}` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
                 </div>
-                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" @click="deleteSelectedConversation">删除会话</a-link></div>
+                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</a-link></div>
             </div>
             <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
               实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。

@@ -81,14 +81,17 @@ const counts = computed(() => {
 });
 
 function onCancel(req: Api.RealPurchase.Record) {
+  if (cancelingId.value !== undefined) return;
+  cancelingId.value = req.id;
   Modal.confirm({
     title: '撤销求购？',
     content: '撤销后该求购将不可恢复',
     okText: '确认撤销',
     okButtonProps: { status: 'danger' },
+    onCancel() {
+      cancelingId.value = undefined;
+    },
     async onOk() {
-      if (cancelingId.value !== undefined) return;
-      cancelingId.value = req.id;
       try {
         const r = await purchaseApi.cancelPurchase(req.id);
         if (r.ok) {
