@@ -18,13 +18,16 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(20);
 const loading = ref(false);
+const logLoadError = ref('');
 const rules = ref<Api.Point.Rule[]>([]);
+const rulesLoadError = ref('');
 const vipStatus = ref<Api.RealVip.Status>();
 const appeals = ref<Api.RealPoint.PointAppealDTO[]>([]);
 const appealTotal = ref(0);
 const appealCurrent = ref(1);
 const appealSize = ref(20);
 const appealLoading = ref(false);
+const appealLoadError = ref('');
 const appealModalOpen = ref(false);
 const appealSubmitting = ref(false);
 const appealTarget = ref<Api.RealPoint.Ledger>();
@@ -47,6 +50,7 @@ const ALL_BEHAVIORS: Api.Point.BehaviorCode[] = [
 async function loadLogs() {
   if (!userStore.currentUser) return;
   loading.value = true;
+  logLoadError.value = '';
   try {
     const r = await pointApi.fetchMyPointLogs({
       userId: userStore.currentUser.id,
@@ -58,16 +62,22 @@ async function loadLogs() {
     });
     logs.value = r.records;
     total.value = r.total;
+  } catch {
+    logs.value = [];
+    total.value = 0;
+    logLoadError.value = '积分流水加载失败，请检查网络后重试。';
   } finally {
     loading.value = false;
   }
 }
 
 async function loadRules() {
+  rulesLoadError.value = '';
   try {
     rules.value = await pointApi.fetchPointRules();
   } catch {
     rules.value = [];
+    rulesLoadError.value = '积分规则加载失败，请检查网络后重试。';
   }
 }
 
@@ -75,6 +85,7 @@ async function loadAppeals() {
   const userId = userStore.currentUser?.id;
   if (!userId) return;
   appealLoading.value = true;
+  appealLoadError.value = '';
   try {
     const r = await pointApi.fetchMyPointAppeals({
       pageNo: appealCurrent.value,
@@ -85,6 +96,10 @@ async function loadAppeals() {
     });
     appeals.value = r.records;
     appealTotal.value = r.total;
+  } catch {
+    appeals.value = [];
+    appealTotal.value = 0;
+    appealLoadError.value = '积分申诉记录加载失败，请检查网络后重试。';
   } finally {
     appealLoading.value = false;
   }
@@ -231,7 +246,13 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
           <template v-if="logs.length">
             <PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="openAppeal" />
           </template>
-          <EmptyState v-else title="暂无积分流水" description="完成订单 / 评价 / KYC 等可获得积分" />
+          <EmptyState
+            v-else
+            :title="logLoadError || '暂无积分流水'"
+            :description="logLoadError ? '不会把请求失败误显示为没有积分流水。' : '完成订单 / 评价 / KYC 等可获得积分'"
+            :action-text="logLoadError ? '重新加载' : undefined"
+            @action="loadLogs"
+          />
         </a-spin>
       </a-card>
 
@@ -282,7 +303,14 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
             </a-table-column>
             <a-table-column title="提交时间" data-index="createdAt" :width="180" />
           </template>
-          <template #empty><EmptyState title="暂无申诉记录" /></template>
+          <template #empty>
+            <EmptyState
+              :title="appealLoadError || '暂无申诉记录'"
+              :description="appealLoadError ? '不会把请求失败误显示为没有申诉记录。' : undefined"
+              :action-text="appealLoadError ? '重新加载' : undefined"
+              @action="loadAppeals"
+            />
+          </template>
         </a-table>
       </a-card>
 
@@ -298,7 +326,14 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
     </template>
 
     <template v-else>
-      <div class="rules-grid">
+      <EmptyState
+        v-if="rulesLoadError"
+        :title="rulesLoadError"
+        description="不会把请求失败误显示为没有积分规则。"
+        action-text="重新加载"
+        @action="loadRules"
+      />
+      <div v-else class="rules-grid">
         <a-card
           v-for="r in filteredRules"
           :key="r.code"
