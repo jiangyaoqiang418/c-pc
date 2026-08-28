@@ -98,7 +98,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
               <div class="hero-meta"><span class="user-name">VIP 等级与权益</span></div>
               <div class="hero-progress">登录后可查看当前积分、等级与升级进度。</div>
             </div>
-            <a-button type="outline" @click="router.push('/login')">登录查看我的等级</a-button>
+            <a-button type="outline" @click="router.push({ name: 'login' })">登录查看我的等级</a-button>
           </div>
         </a-card>
 
@@ -135,7 +135,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
             </div>
           </div>
           <div class="rules-foot">
-            <a-link @click="router.push(user ? '/points' : '/login')">{{ user ? '查看积分明细' : '登录后查看积分明细' }}</a-link>
+            <a-link @click="router.push(user ? '/points' : { name: 'login' })">{{ user ? '查看积分明细' : '登录后查看积分明细' }}</a-link>
           </div>
         </a-card>
       </template>
