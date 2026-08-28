@@ -21,6 +21,8 @@ const pageSize = 20;
 const total = ref(0);
 const readingAll = ref(false);
 const clearing = ref(false);
+const clearConfirmationOpen = ref(false);
+const deletingId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
 
 const hasUnread = computed(() => records.value.some(item => !item.readFlag));
@@ -95,6 +97,8 @@ async function readAll() {
 }
 
 async function remove(notification: Api.RealNotify.NotificationVO) {
+  if (deletingId.value !== undefined) return;
+  deletingId.value = notification.id;
   try {
     await notifyApi.deleteNotification(notification.id);
     records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
@@ -102,14 +106,21 @@ async function remove(notification: Api.RealNotify.NotificationVO) {
     if (!notification.readFlag) notifyStore.setNotificationUnreadCount(notifyStore.notificationUnreadCount - 1);
   } catch {
     // 请求层已展示错误，保留当前通知，避免把删除失败误显示为成功。
+  } finally {
+    deletingId.value = undefined;
   }
 }
 
 function clearAll() {
+  if (clearing.value || clearConfirmationOpen.value) return;
+  clearConfirmationOpen.value = true;
   Modal.warning({
     title: '清空通知',
     content: '确认清空当前账号的全部站内通知？',
     hideCancel: false,
+    onCancel() {
+      clearConfirmationOpen.value = false;
+    },
     onOk: async () => {
       if (clearing.value) return;
       clearing.value = true;
@@ -123,6 +134,7 @@ function clearAll() {
         // 请求层已展示错误，保留当前列表供用户重试。
       } finally {
         clearing.value = false;
+        clearConfirmationOpen.value = false;
       }
     }
   });
@@ -147,7 +159,7 @@ onBeforeUnmount(requestGuard.invalidate);
       <div><h1>站内通知</h1><p>订单状态、退款和资金结算等平台提醒</p></div>
       <a-space>
         <a-button :disabled="!hasUnread" :loading="readingAll" @click="readAll">全部已读</a-button>
-        <a-button status="danger" :disabled="!records.length" :loading="clearing" @click="clearAll">清空通知</a-button>
+        <a-button status="danger" :disabled="!records.length" :loading="clearing || clearConfirmationOpen" @click="clearAll">清空通知</a-button>
       </a-space>
     </div>
 
@@ -168,7 +180,7 @@ onBeforeUnmount(requestGuard.invalidate);
               <p>{{ notification.content || '—' }}</p>
               <time>{{ formatTime(notification.createdAt) }}</time>
             </button>
-            <a-button type="text" status="danger" size="small" @click="remove(notification)">删除</a-button>
+            <a-button type="text" status="danger" size="small" :loading="sameBusinessId(deletingId, notification.id)" @click="remove(notification)">删除</a-button>
           </div>
         </div>
         <EmptyState

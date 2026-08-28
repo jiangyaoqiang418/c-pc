@@ -15,6 +15,7 @@ const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
 const loadError = ref('');
 const submitting = ref(false);
+const confirmationOpen = ref(false);
 const form = reactive({ reason: '', evidenceImages: [] as string[] });
 const eligible = computed(() => ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.value?.status || ''));
 
@@ -28,13 +29,17 @@ async function load() {
 onMounted(load);
 
 function submit() {
-  if (submitting.value) return;
+  if (submitting.value || confirmationOpen.value) return;
   if (!order.value || !eligible.value) return Message.warning('当前订单状态不可申请仅退款');
   if (!form.reason.trim()) return Message.warning('请填写退款原因');
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '确认申请仅退款？',
     content: '申请将由平台后台审核；审核通过后退款会原路退回钱包。',
     okText: '提交申请',
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
       submitting.value = true;
       try {
@@ -43,7 +48,10 @@ function submit() {
         router.replace({ name: 'aftersale-detail', params: { id: String(refundId) } });
       } catch {
         Message.error('仅退款申请提交失败，请稍后重试');
-      } finally { submitting.value = false; }
+      } finally {
+        submitting.value = false;
+        confirmationOpen.value = false;
+      }
     }
   });
 }
@@ -58,7 +66,7 @@ function submit() {
         <a-alert v-if="!eligible" type="warning" class="notice">仅“待发货”或“待收货”订单可申请仅退款。</a-alert>
         <a-card class="step-card" :bordered="false"><div class="step-title">退款原因</div><a-textarea v-model="form.reason" :max-length="512" show-word-limit :rows="5" placeholder="请说明退款原因，例如商品与描述不符" /></a-card>
         <a-card class="step-card" :bordered="false"><div class="step-title">上传凭证（可选，最多 6 张）</div><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" /></a-card>
-        <a-card class="actions-card" :bordered="false"><a-button @click="router.back()">取消</a-button><a-button type="primary" :disabled="!eligible" :loading="submitting" @click="submit">提交仅退款申请</a-button></a-card>
+        <a-card class="actions-card" :bordered="false"><a-button @click="router.back()">取消</a-button><a-button type="primary" :disabled="!eligible" :loading="submitting || confirmationOpen" @click="submit">提交仅退款申请</a-button></a-card>
       </template>
       <EmptyState v-else-if="!loading" :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />
     </a-spin>

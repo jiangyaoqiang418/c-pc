@@ -17,6 +17,7 @@ const orderId = computed(() => String(route.params.orderId));
 const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
 const submitting = ref(false);
+const confirmationOpen = ref(false);
 const loadError = ref('');
 
 async function load() {
@@ -34,10 +35,14 @@ async function load() {
 onMounted(load);
 
 async function onSubmit(f: { productScore: number; sellerScore: number; content: string; tags: string[]; photoUrls: string[] }) {
-  if (!order.value || !userStore.currentUser) return;
+  if (!order.value || !userStore.currentUser || submitting.value || confirmationOpen.value) return;
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '确认提交评价？',
     content: '评价提交后不可修改，请确认评分和内容。',
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
       submitting.value = true;
       try {
@@ -55,6 +60,7 @@ async function onSubmit(f: { productScore: number; sellerScore: number; content:
         Message.error('提交失败，请稍后重试');
       } finally {
         submitting.value = false;
+        confirmationOpen.value = false;
       }
     }
   });
@@ -91,7 +97,7 @@ function handleEmptyAction() {
           </div>
         </a-card>
 
-        <ReviewForm :submitting="submitting" @submit="onSubmit" />
+        <ReviewForm :submitting="submitting || confirmationOpen" @submit="onSubmit" />
       </template>
 
       <EmptyState
