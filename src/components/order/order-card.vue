@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
@@ -16,46 +16,82 @@ const emit = defineEmits<{ (e: 'changed'): void }>();
 
 const router = useRouter();
 const cover = computed(() => props.order.productCover || `https://picsum.photos/seed/${props.order.productId}/200/200`);
+const acting = ref(false);
+const confirmationOpen = ref(false);
 
 function goDetail() {
   router.push({ name: 'order-detail', params: { id: String(props.order.id) } });
 }
 
 async function pay() {
-  const r = await orderApi.payOrder(props.order.id);
-  if (r.ok) {
-    Message.success('支付成功');
-    emit('changed');
-  } else {
-    Message.error(r.message || '支付失败');
+  if (acting.value || confirmationOpen.value) return;
+  acting.value = true;
+  try {
+    const r = await orderApi.payOrder(props.order.id);
+    if (r.ok) {
+      Message.success('支付成功');
+      emit('changed');
+    } else {
+      Message.error(r.message || '支付失败');
+    }
+  } catch {
+    Message.error('支付请求失败，请稍后重试');
+  } finally {
+    acting.value = false;
   }
 }
 
 function cancel() {
+  if (acting.value || confirmationOpen.value) return;
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '取消订单？',
     content: '取消后订单将不可恢复',
     okText: '确认取消',
     okButtonProps: { status: 'danger' },
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
-      const r = await orderApi.cancelOrder(props.order.id);
-      if (r.ok) {
-        Message.success('订单已取消');
-        emit('changed');
+      acting.value = true;
+      try {
+        const r = await orderApi.cancelOrder(props.order.id);
+        if (r.ok) {
+          Message.success('订单已取消');
+          emit('changed');
+        }
+      } catch {
+        Message.error('取消订单请求失败，请稍后重试');
+      } finally {
+        acting.value = false;
+        confirmationOpen.value = false;
       }
     }
   });
 }
 
 async function confirm() {
+  if (acting.value || confirmationOpen.value) return;
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
-      const r = await orderApi.confirmReceipt(props.order.id);
-      if (r.ok) {
-        Message.success('已确认收货');
-        emit('changed');
+      acting.value = true;
+      try {
+        const r = await orderApi.confirmReceipt(props.order.id);
+        if (r.ok) {
+          Message.success('已确认收货');
+          emit('changed');
+        }
+      } catch {
+        Message.error('确认收货请求失败，请稍后重试');
+      } finally {
+        acting.value = false;
+        confirmationOpen.value = false;
       }
     }
   });
