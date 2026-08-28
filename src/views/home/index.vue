@@ -84,7 +84,7 @@ function goBanner(path?: string) {
 }
 
 function showUnavailableProductList() {
-  Message.info('公开商品列表暂未开放');
+  router.push({ name: 'product-list' });
 }
 </script>
 
