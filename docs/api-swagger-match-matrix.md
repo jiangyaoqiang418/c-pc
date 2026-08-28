@@ -8,6 +8,7 @@
 - 2026-08-29 公开接口复核：分类树、首页推荐、积分规则和 VIP 配置均返回 HTTP 200 / `code=1` 且有非空数据；Banner 与秒杀接口同样成功，但当前返回空数组，页面应维持已有空态而不回退 Mock。
 - 2026-08-29 商品运行时复核：公开商品分页当前 `total=9`，详情接口返回图片、卖家、库存、售后和海外字段；`overseasClearance=true` 与价格排序均成功返回，`NATIONAL_WARRANTY` 当前正常空结果。前端保留真实空态，不把无匹配结果判为接口异常。
 - 2026-08-29 条件复核：admin/user/order/notify 的实时 Swagger 均没有 CMS、内容、公告、帮助、协议或 AI 的 C 端路径；未登录读取充值/提现链配置均返回“未能读取到有效 Token”，无法据此判断账号专属地址或创建 `PENDING` 申报，仍需有效测试会话后继续。
+- 2026-08-29 求购大厅运行时复核：`POST /order/demands/hall/page` 在无 Token 时返回认证失败，不是“暂无求购”的真实空结果；页面已把请求失败与空态分离，并提供重新加载入口。
 - 真实 API 已覆盖主交易、地址、钱包、买手保证金、KYC、理财、评价、仅退款、IM REST 与通知。页面仍使用 Mock 的业务能力只剩 CMS 内容、AI 导购和演示账号切换。
 - 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；提现 `POST /user/withdraw/create` 已完成测试申请、后台驳回返还，以及审核通过后 PC“待打款”回读。评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger；订单列表和详情的“写评价”入口新增 `/order/reviews/reviewable/page` 真实可评价校验，仅顾客且仅未评价订单显示。顾客评价提交/删除、买手回复、买手申诉、后台裁定和前台状态回读均已完成。演示账号无真实 Token 时，真实接口失败保留当前演示会话并展示错误态，不再误跳登录页。分页读取的 `total` 统一在 API adapter 转为数值，业务 Long ID 保持原值。真实会话、钱包账户、流水、订单、商品、求购、买手押金、积分流水和 VIP 状态已从 Mock `number` ID 模型隔离，改用对应 `Api.Real*` 的原值 ID 类型。
 - 本批秒杀真实回归：后台创建启用 QA 场次，买手为在售商品以 `90 U / 库存 1` 提交报名并在“我的报名”回读，取消报名后列表恢复空态；后台场次已停用保留 QA 记录。`sessionEndTime` 的毫秒时间戳已在页面统一格式化为本地时间。
@@ -176,7 +177,7 @@
 | P2-A | 买手上下架 | `PUT /order/products/shelf` | API 已封装，商品卡片上下架已调用 | `ON_SALE/OFF_SHELF` 与前端 shelf/status 拆分需真实返回确认 |
 | P2-A | 文件上传 | `POST /order/files/upload?scene=PRODUCT|DEMAND|REVIEW|ORDER_VOUCHER` | 各页面已按业务 scene 调用真实上传 | 非空上传回归需对应测试文件 |
 | P2-A | 发起求购 | `POST /order/demands/create` | API 已封装，发起求购页已调用 | 取消原因、审核字段和图片结构仍需后续补齐 |
-| P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用；普通顾客账号返回无买手权限时页面降级为空态 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
+| P2-A | 求购大厅 | `POST /order/demands/hall/page` | API 已封装，求购大厅已调用；认证或权限失败展示可重试失败态，真实无记录才展示空态 | 预算区间和期望天数为前端侧过滤，后端分页不支持这些参数 |
 | P2-A | 我的求购 | `POST /order/demands/my/page` | API 已封装，我的求购页已调用；真实账号 total=1 回归通过 | 后端 VO 未返回 customerId，页面侧按当前用户注入用于撤销判断 |
 | P2-A | 求购详情/状态 | `GET /order/demands/detail?id=` | 已映射 `PENDING_REVIEW`、`REJECTED`、审核意见和审核时间，创建后按待审核展示 | pushLogs、推送批次和手动推送接口仍缺 |
 | P2-A | 取消/抢单 | `POST /order/demands/cancel`、`POST /order/demands/grab` | API 已封装；2026-07-30 已真实创建并在详情页撤销求购 `2082649312807444481` | `demands/my/page` 未回显该记录，待后端核对；抢单仍依赖真实买手账号、KYC 和后端鉴权 |
@@ -197,7 +198,7 @@
 | P2-A | 发起求购 | `/order/demands/create` 成功，生成 `2082306670605197313` | 后端写入成功 | 通过 |
 | P2-A | 我的求购 | `/order/demands/my/page` 成功，total=1 | 页面显示测试求购、金额 `U199.00`、撤销入口 | 通过 |
 | P2-A | 求购详情 | `/order/demands/detail` 成功，状态 `OPEN` | 前端映射为“推送中” | 通过 |
-| P2-A | 求购大厅 | 普通账号调用返回“请先申请成为买手” | 页面降级为空态，无未捕获错误 | 符合普通账号权限 |
+| P2-A | 求购大厅 | 普通账号调用返回“请先申请成为买手” | 权限失败不再误展示为空态；可重新加载，无未捕获错误 | 符合普通账号权限 |
 | P2-A | 商品榜单 | 公开榜单接口成功但 total=0 | 无真实商品可回显 | 待商品数据 |
 | P2-A | 买手能力 | 未测 | 当前账号非买手 | 待买手账号 |
 

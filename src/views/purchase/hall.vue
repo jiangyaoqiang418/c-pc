@@ -22,6 +22,7 @@ const minBudget = ref<number>();
 const maxBudget = ref<number>();
 const expDaysFilter = ref<number | undefined>();
 const claimingId = ref<string | number>();
+const loadError = ref('');
 
 const canClaim = computed(() => {
   if (!userStore.currentUser) return false;
@@ -30,6 +31,7 @@ const canClaim = computed(() => {
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await purchaseApi.fetchHall({
       current: current.value,
@@ -45,6 +47,7 @@ async function load() {
   } catch {
     list.value = [];
     total.value = 0;
+    loadError.value = '求购大厅加载失败，请检查登录状态或网络后重试。';
   } finally {
     loading.value = false;
   }
@@ -218,7 +221,14 @@ function reset() {
           @claim="onClaim"
         />
       </div>
-      <EmptyState v-else icon="lucide:inbox" title="暂无进行中的求购" description="求购任务每 10 分钟刷新一批，请稍后再来" />
+      <EmptyState
+        v-else
+        icon="lucide:inbox"
+        :title="loadError || '暂无进行中的求购'"
+        :description="loadError ? '不会把请求失败误显示为没有求购。' : '求购任务每 10 分钟刷新一批，请稍后再来'"
+        :action-text="loadError ? '重新加载' : undefined"
+        @action="load"
+      />
 
       <div v-if="total > size" class="pagination-bar">
         <a-pagination
