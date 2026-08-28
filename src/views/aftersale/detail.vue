@@ -7,13 +7,13 @@ import * as refundApi from '@/service/api/refund';
 
 const route = useRoute(); const router = useRouter();
 const id = computed(() => String(route.params.id || ''));
-const refund = ref<Api.RealRefund.RefundDTO>(); const loading = ref(false); const loadError = ref(''); const cancelling = ref(false);
+const refund = ref<Api.RealRefund.RefundDTO>(); const loading = ref(false); const loadError = ref(''); const cancelling = ref(false); const cancellationPending = ref(false);
 const labels: Record<string, string> = { APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
 const canCancel = computed(() => String(refund.value?.status) === 'APPLYING');
 const formatTime = (value?: string | number) => value ? new Date(typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value).toLocaleString() : '—';
 async function load() { loading.value = true; loadError.value = ''; try { refund.value = await refundApi.fetchRefundDetail(id.value); } catch { refund.value = undefined; loadError.value = '退款申请详情加载失败，请稍后重试'; } finally { loading.value = false; } }
 onMounted(load); watch(() => route.params.id, load);
-function cancel() { if (!refund.value || cancelling.value) return; Modal.confirm({ title:'撤销仅退款申请？', content:'撤销后订单将恢复到申请前状态。', okButtonProps:{status:'danger'}, async onOk(){ cancelling.value = true; try { await refundApi.cancelRefund(refund.value!.refundId); Message.success('已撤销退款申请'); await load(); } catch { Message.error('撤销退款申请失败，请稍后重试'); } finally { cancelling.value = false; } } }); }
+function cancel() { if (!refund.value || cancelling.value || cancellationPending.value) return; cancellationPending.value = true; Modal.confirm({ title:'撤销仅退款申请？', content:'撤销后订单将恢复到申请前状态。', okButtonProps:{status:'danger'}, onCancel(){ cancellationPending.value = false; }, async onOk(){ cancelling.value = true; try { await refundApi.cancelRefund(refund.value!.refundId); Message.success('已撤销退款申请'); await load(); } catch { Message.error('撤销退款申请失败，请稍后重试'); } finally { cancelling.value = false; cancellationPending.value = false; } } }); }
 </script>
 
 <template>

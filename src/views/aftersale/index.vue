@@ -12,6 +12,7 @@ const refunds = ref<Api.RealRefund.RefundDTO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const cancellingId = ref<string | number>();
+const cancellationPending = ref(false);
 const statusDefs = [
   { key: 'all', label: '全部' }, { key: 'APPLYING', label: '待平台审核' },
   { key: 'AGREED', label: '已同意' }, { key: 'REJECTED', label: '已驳回' }, { key: 'CANCELED', label: '已撤销' }
@@ -30,12 +31,13 @@ async function load() {
 onMounted(load); watch(activeKey, load);
 
 function cancel(row: Api.RealRefund.RefundDTO) {
-  if (cancellingId.value) return;
-  Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, async onOk() {
+  if (cancellingId.value || cancellationPending.value) return;
+  cancellationPending.value = true;
+  Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { cancellationPending.value = false; }, async onOk() {
     cancellingId.value = row.refundId;
     try { await refundApi.cancelRefund(row.refundId); Message.success('已撤销退款申请'); await load(); }
     catch { Message.error('撤销退款申请失败，请稍后重试'); }
-    finally { cancellingId.value = undefined; }
+    finally { cancellingId.value = undefined; cancellationPending.value = false; }
   }});
 }
 </script>

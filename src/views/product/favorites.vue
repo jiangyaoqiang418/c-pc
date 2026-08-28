@@ -13,6 +13,7 @@ const current = ref(1);
 const size = ref(12);
 const loading = ref(false);
 const cancelingId = ref<string>();
+const cancellationPendingId = ref<string>();
 const loadError = ref('');
 
 async function load() {
@@ -32,12 +33,18 @@ async function load() {
 }
 
 function cancelFavorite(product: Api.RealProduct.Record) {
+  const productId = String(product.id);
+  if (cancelingId.value || cancellationPendingId.value) return;
+  cancellationPendingId.value = productId;
   Modal.confirm({
     title: '取消收藏？',
     content: `确认将「${product.title}」移出收藏列表吗？`,
     okText: '确认取消',
+    onCancel() {
+      cancellationPendingId.value = undefined;
+    },
     async onOk() {
-      cancelingId.value = String(product.id);
+      cancelingId.value = productId;
       try {
         await productApi.cancelProductFavorite(product.id);
         if (list.value.length === 1 && current.value > 1) current.value -= 1;
@@ -47,6 +54,7 @@ function cancelFavorite(product: Api.RealProduct.Record) {
         // 请求层已展示错误，保留当前收藏项，避免把取消失败误显示为成功。
       } finally {
         cancelingId.value = undefined;
+        cancellationPendingId.value = undefined;
       }
     }
   });

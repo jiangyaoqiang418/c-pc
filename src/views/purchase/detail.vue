@@ -18,6 +18,7 @@ const loading = ref(false);
 const loadError = ref('');
 const claiming = ref(false);
 const canceling = ref(false);
+const cancellationPending = ref(false);
 
 async function load() {
   loading.value = true;
@@ -67,13 +68,16 @@ async function claim() {
 }
 
 function cancel() {
-  if (!request.value) return;
+  if (!request.value || canceling.value || cancellationPending.value) return;
+  cancellationPending.value = true;
   Modal.confirm({
     title: '撤销求购？',
     content: '撤销后不可恢复',
     okButtonProps: { status: 'danger' },
+    onCancel() {
+      cancellationPending.value = false;
+    },
     async onOk() {
-      if (canceling.value) return;
       canceling.value = true;
       try {
         const r = await purchaseApi.cancelPurchase(request.value!.id);
@@ -87,6 +91,7 @@ function cancel() {
         // 请求层已展示错误，保留当前求购供用户重试。
       } finally {
         canceling.value = false;
+        cancellationPending.value = false;
       }
     }
   });
