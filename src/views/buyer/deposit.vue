@@ -75,6 +75,7 @@ function createIdempotencyKey() {
 }
 
 async function submitDepositTransfer() {
+  if (transferring.value) return;
   if (!transferAmount.value || transferAmount.value <= 0) {
     Message.warning('请输入正确的保证金金额');
     return;
