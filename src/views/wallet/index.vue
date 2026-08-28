@@ -18,12 +18,23 @@ const walletStore = useWalletStore();
 const recentTxns = ref<Api.RealWallet.Ledger[]>([]);
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
+const loading = ref(false);
+const loadError = ref('');
 
 async function loadAll() {
   if (!userStore.currentUser) return;
-  await walletStore.fetchWallet(userStore.currentUser.id);
-  const r = await realWalletApi.fetchWalletLedger({ current: 1, size: 5 });
-  recentTxns.value = r.records;
+  loading.value = true;
+  loadError.value = '';
+  try {
+    await walletStore.fetchWallet(userStore.currentUser.id);
+    const r = await realWalletApi.fetchWalletLedger({ current: 1, size: 5 });
+    recentTxns.value = r.records;
+  } catch {
+    recentTxns.value = [];
+    loadError.value = '钱包数据加载失败，请检查网络后重试。';
+  } finally {
+    loading.value = false;
+  }
 }
 
 onMounted(loadAll);
@@ -53,6 +64,10 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
 
 <template>
   <div class="wallet-page">
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-error">
+      {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
     <!-- ============ Hero (白底 · BiyaPay 风) ============ -->
     <section class="hero">
       <div class="hero-top">
@@ -135,7 +150,14 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
       <div v-if="recentTxns.length" class="txn-list">
         <TxnRow v-for="t in recentTxns" :key="t.id" :txn="t" @detail="openDetail" />
       </div>
-      <EmptyState v-else icon="lucide:receipt" title="暂无交易" description="完成链上充值 / 消费后这里会显示资金动态" />
+      <EmptyState
+        v-else
+        icon="lucide:receipt"
+        :title="loadError || '暂无交易'"
+        :description="loadError ? '未使用本地数据替代失败的真实接口。' : '完成链上充值 / 消费后这里会显示资金动态'"
+        :action-text="loadError ? '重新加载' : undefined"
+        @action="loadError ? loadAll() : undefined"
+      />
     </section>
 
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
@@ -146,6 +168,9 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
 .wallet-page {
   padding: 0;
   padding-bottom: 40px;
+}
+.load-error {
+  margin-bottom: 16px;
 }
 
 /* ========== Hero ========== */

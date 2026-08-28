@@ -17,8 +17,11 @@ const vipStatus = ref<Api.RealVip.Status>();
 const totalAssets = ref<{ total: string; account?: Api.RealWallet.Account }>();
 const orderCounts = ref<Record<string, number>>({});
 const announcements = ref<Api.Cms.Announcement[]>([]);
+const loading = ref(false);
+const loadError = ref('');
 const editVisible = ref(false);
 const savingProfile = ref(false);
+let profileLoadVersion = 0;
 const editForm = reactive<Api.RealAuth.ProfileUpdateParams>({
   nickname: '',
   phone: '',
@@ -36,16 +39,28 @@ const registeredDate = computed(() => {
 async function loadProfile() {
   const uid = user.value?.id;
   if (!uid) return;
-  const [vip, assets, counts, anns] = await Promise.all([
+  const version = ++profileLoadVersion;
+  loading.value = true;
+  loadError.value = '';
+  vipStatus.value = undefined;
+  totalAssets.value = undefined;
+  orderCounts.value = {};
+  announcements.value = [];
+  const [vip, assets, counts, anns] = await Promise.allSettled([
     vipApi.fetchMyVipStatus(uid),
     realWalletApi.fetchWalletOverview(uid),
     realOrderApi.countMyOrdersByStatus(),
     cmsApi.fetchAnnouncements({ size: 3 })
   ]);
-  vipStatus.value = vip;
-  totalAssets.value = { total: assets.total, account: assets.account };
-  orderCounts.value = counts;
-  announcements.value = anns.records.slice(0, 3);
+  if (version !== profileLoadVersion) return;
+  if (vip.status === 'fulfilled') vipStatus.value = vip.value;
+  if (assets.status === 'fulfilled') totalAssets.value = { total: assets.value.total, account: assets.value.account };
+  if (counts.status === 'fulfilled') orderCounts.value = counts.value;
+  if (anns.status === 'fulfilled') announcements.value = anns.value.records.slice(0, 3);
+  if ([vip, assets, counts].some(result => result.status === 'rejected')) {
+    loadError.value = '部分账户数据加载失败，请稍后重试。';
+  }
+  loading.value = false;
 }
 
 onMounted(loadProfile);
@@ -60,6 +75,7 @@ function openEditProfile() {
 }
 
 async function saveProfile() {
+  if (savingProfile.value) return;
   if (!editForm.nickname?.trim()) {
     Message.warning('请输入昵称');
     return;
@@ -130,6 +146,10 @@ const orderTabsMeta = computed(() => [
 <template>
   <div class="profile-page shop-container">
     <div v-if="user" class="layout">
+      <a-alert v-if="loadError" type="error" :closable="false" class="load-error">
+        {{ loadError }}
+        <template #action><a-button size="mini" :loading="loading" @click="loadProfile">重新加载</a-button></template>
+      </a-alert>
       <section class="left">
         <a-card class="user-card" :body-style="{ padding: '24px' }">
           <div class="user-head">
@@ -237,6 +257,9 @@ const orderTabsMeta = computed(() => [
 <style scoped>
 .profile-page {
   padding-top: 16px;
+}
+.load-error {
+  grid-column: 1 / -1;
 }
 .layout {
   display: grid;

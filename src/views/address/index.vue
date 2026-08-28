@@ -79,7 +79,7 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
 }
 
 async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'createdAt' | 'updatedAt'>) {
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser || submitting.value) return;
   submitting.value = true;
   try {
     const params: Api.RealAddress.AddressSaveParams = {

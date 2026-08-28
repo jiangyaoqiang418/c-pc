@@ -47,6 +47,7 @@ async function loadApplication() {
 }
 
 async function submit() {
+  if (submitting.value) return;
   if (!form.realName.trim() || !form.contact.trim()) {
     Message.warning('请填写真实姓名和联系方式');
     return;

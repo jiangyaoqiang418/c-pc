@@ -129,6 +129,7 @@ function openAppeal(log: Api.RealPoint.Ledger) {
 }
 
 async function submitAppeal() {
+  if (appealSubmitting.value) return;
   const reason = appealForm.reason.trim();
   if (!appealTarget.value || reason.length < 10) {
     Message.warning('原因至少 10 字');
