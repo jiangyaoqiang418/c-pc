@@ -29,6 +29,7 @@ const selectedAddr = ref<{
 const wallet = ref<Api.User.WalletSummary>();
 const agreed = ref(false);
 const submitting = ref(false);
+const confirmationPending = ref(false);
 const backendSelfPurchaseProductIds = ref<string[]>([]);
 
 interface PendingCheckout {
@@ -131,6 +132,7 @@ onMounted(async () => {
 });
 
 async function submit() {
+  if (submitting.value || confirmationPending.value) return;
   if (selfSoldItems.value.length) {
     Message.error(`不能购买自己发布的商品：${selfSoldTitles.value}`);
     return;
@@ -152,6 +154,7 @@ async function submit() {
     return;
   }
   if (overseasItems.value.length > 0) {
+    confirmationPending.value = true;
     const confirmed = await new Promise<boolean>(resolve => {
       Modal.confirm({
         title: '海外直邮商品提醒',
@@ -162,6 +165,7 @@ async function submit() {
         onCancel: () => resolve(false)
       });
     });
+    confirmationPending.value = false;
     if (!confirmed) return;
   }
   await doSubmit();
@@ -339,7 +343,7 @@ async function doSubmit() {
             <span class="grand">{{ formatUsdt(grandTotal) }}</span>
             <span class="grand-usdt">≈ {{ formatCny(grandTotal) }}</span>
           </div>
-          <a-button type="primary" size="large" :loading="submitting" :disabled="!agreed || selfSoldItems.length > 0" @click="submit">
+          <a-button type="primary" size="large" :loading="submitting || confirmationPending" :disabled="!agreed || selfSoldItems.length > 0" @click="submit">
             提交订单
           </a-button>
         </div>

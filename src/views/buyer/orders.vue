@@ -88,6 +88,7 @@ function manageLogistics(order: Api.RealOrder.Record) {
 }
 
 async function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {
+  if (logisticsSubmitting.value) return;
   logisticsSubmitting.value = true;
   try {
     await realOrderApi.createLogisticsTrack(params);
@@ -102,6 +103,7 @@ async function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) 
 }
 
 async function markLogisticsException(params: Api.RealOrder.LogisticsExceptionParams) {
+  if (logisticsSubmitting.value) return;
   logisticsSubmitting.value = true;
   try {
     await realOrderApi.markLogisticsException(params);
@@ -116,6 +118,7 @@ async function markLogisticsException(params: Api.RealOrder.LogisticsExceptionPa
 }
 
 async function shipOrder(params: Api.RealOrder.OrderShipParams) {
+  if (shippingSubmitting.value) return;
   shippingSubmitting.value = true;
   try {
     try {

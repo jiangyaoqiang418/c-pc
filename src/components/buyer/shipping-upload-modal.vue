@@ -47,7 +47,7 @@ watch(
 );
 
 function submit() {
-  if (!props.order) return;
+  if (!props.order || props.submitting) return;
   if (!form.trackingNumber || form.trackingNumber.length < 6) {
     Message.warning('请输入有效的运单号（至少 6 位）');
     return;

@@ -9,6 +9,7 @@ import { useUserStore } from '@/stores';
 const router = useRouter();
 const userStore = useUserStore();
 const submitting = ref(false);
+const confirmationOpen = ref(false);
 
 async function onSubmit(form: {
   title: string;
@@ -23,10 +24,14 @@ async function onSubmit(form: {
   description: string;
   images: Api.RealProduct.ProductImageParam[];
 }) {
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser || submitting.value || confirmationOpen.value) return;
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '确认提交商品审核？',
     content: '提交后将进入平台审核，预计 24h 内出结果。审核期间商品默认下架。',
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
       submitting.value = true;
       try {
@@ -51,6 +56,7 @@ async function onSubmit(form: {
         }
       } finally {
         submitting.value = false;
+        confirmationOpen.value = false;
       }
     }
   });
@@ -67,7 +73,7 @@ async function onSubmit(form: {
     <a-card class="form-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
       <h2 class="page-title">创建商品</h2>
       <p class="hint">填写商品信息，提交后平台审核通过即可上架销售。</p>
-      <BuyerProductForm :submitting="submitting" @submit="onSubmit" />
+      <BuyerProductForm :submitting="submitting || confirmationOpen" @submit="onSubmit" />
     </a-card>
   </div>
 </template>

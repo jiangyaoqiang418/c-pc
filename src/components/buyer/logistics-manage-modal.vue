@@ -44,7 +44,7 @@ watch(() => props.visible, visible => {
 });
 
 function submitTrack() {
-  if (!props.order) return;
+  if (!props.order || props.submitting) return;
   if (!track.description.trim()) {
     Message.warning('请填写物流轨迹说明');
     return;
@@ -59,7 +59,7 @@ function submitTrack() {
 }
 
 function submitException() {
-  if (!props.order) return;
+  if (!props.order || props.submitting) return;
   if (!exception.description.trim()) {
     Message.warning('请填写异常说明');
     return;
