@@ -39,6 +39,7 @@ const current = ref(1);
 const size = ref(12);
 const total = ref(0);
 const shelvingId = ref<string | number>();
+const deletingId = ref<string | number>();
 
 function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
@@ -117,16 +118,20 @@ async function toggleShelf(p: Api.RealProduct.Record) {
 }
 
 async function deleteProduct(p: Api.RealProduct.Record) {
+  if (deletingId.value !== undefined || shelvingId.value !== undefined) return;
   if (p.shelfStatus === 'on-shelf') {
     Message.warning('请先下架商品后再删除');
     return;
   }
+  deletingId.value = p.id;
   try {
     await productApi.deleteProduct(p.id);
     Message.success('商品已删除');
     await load();
   } catch {
     // 请求层已展示后端业务提示。
+  } finally {
+    deletingId.value = undefined;
   }
 }
 
@@ -171,6 +176,8 @@ async function deleteProduct(p: Api.RealProduct.Record) {
           v-for="p in products"
           :key="p.id"
           :product="p"
+          :shelving="shelvingId === p.id"
+          :deleting="deletingId === p.id"
           @toggle-shelf="toggleShelf"
           @delete="deleteProduct"
         />

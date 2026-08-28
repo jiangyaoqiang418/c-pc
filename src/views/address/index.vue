@@ -16,6 +16,7 @@ const editing = ref<Partial<Api.RealAddress.AddressRecord>>();
 const submitting = ref(false);
 const defaultingId = ref<string | number>();
 const deletingId = ref<string | number>();
+const deletionPending = ref(false);
 
 async function load() {
   if (!userStore.currentUser) return;
@@ -57,13 +58,17 @@ async function setDefault(a: Api.RealAddress.AddressRecord) {
 }
 
 function onDelete(a: Api.RealAddress.AddressRecord) {
+  if (deletingId.value !== undefined || deletionPending.value) return;
+  deletionPending.value = true;
   Modal.confirm({
     title: '删除地址？',
     content: `${a.receiverName} · ${a.detail}`,
     okText: '确认删除',
     okButtonProps: { status: 'danger' },
+    onCancel() {
+      deletionPending.value = false;
+    },
     async onOk() {
-      if (deletingId.value !== undefined) return;
       deletingId.value = a.id;
       try {
         await realAddressApi.deleteAddress(a.id);
@@ -73,6 +78,7 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
         // 请求层已展示错误，保留当前地址，避免删除失败却从页面消失。
       } finally {
         deletingId.value = undefined;
+        deletionPending.value = false;
       }
     }
   });

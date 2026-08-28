@@ -6,8 +6,10 @@ import PriceTag from '@/components/product/price-tag.vue';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
+  shelving?: boolean;
+  deleting?: boolean;
 }
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), { shelving: false, deleting: false });
 const emit = defineEmits<{
   (e: 'toggle-shelf', product: Api.RealProduct.DisplayRecord): void;
   (e: 'delete', product: Api.RealProduct.DisplayRecord): void;
@@ -33,6 +35,7 @@ const SHELF_LABEL: Record<Api.Product.ShelfStatus, { label: string; color: strin
 const shelfMeta = computed(() => SHELF_LABEL[props.product.shelfStatus]);
 
 function toggleShelf() {
+  if (props.shelving || props.deleting) return;
   if (props.product.status !== 'NORMAL') {
     Message.warning('仅正常状态商品可上下架');
     return;
@@ -74,12 +77,14 @@ function toggleShelf() {
           v-if="product.status === 'NORMAL'"
           size="small"
           :type="product.shelfStatus === 'on-shelf' ? 'outline' : 'primary'"
+          :loading="shelving"
+          :disabled="deleting"
           @click="toggleShelf"
         >
           {{ product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}
         </a-button>
         <a-button size="small" disabled>编辑（暂未开放）</a-button>
-        <a-button size="small" status="danger" type="outline" @click="emit('delete', product)">删除</a-button>
+        <a-button size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving" @click="emit('delete', product)">删除</a-button>
       </div>
     </div>
   </div>

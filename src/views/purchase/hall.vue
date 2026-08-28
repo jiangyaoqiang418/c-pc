@@ -21,6 +21,7 @@ const keyword = ref('');
 const minBudget = ref<number>();
 const maxBudget = ref<number>();
 const expDaysFilter = ref<number | undefined>();
+const claimingId = ref<string | number>();
 
 const canClaim = computed(() => {
   if (!userStore.currentUser) return false;
@@ -51,18 +52,26 @@ async function load() {
 onMounted(load);
 
 async function onClaim(req: Api.RealPurchase.Record) {
+  if (claimingId.value !== undefined) return;
   if (!userStore.currentUser) {
     Message.warning('请先登录后再接单');
     router.push({ name: 'login', query: { redirect: '/purchase/hall' } });
     return;
   }
-  const r = await purchaseApi.claimRequest(req.id);
-  if (r.ok) {
-    Message.success('接单成功');
-    load();
-    router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
-  } else {
-    Message.error(r.message || '接单失败');
+  claimingId.value = req.id;
+  try {
+    const r = await purchaseApi.claimRequest(req.id);
+    if (r.ok) {
+      Message.success('接单成功');
+      await load();
+      router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
+    } else {
+      Message.error(r.message || '接单失败');
+    }
+  } catch {
+    // 请求层已展示错误，保留当前求购供用户重试。
+  } finally {
+    claimingId.value = undefined;
   }
 }
 
@@ -205,6 +214,7 @@ function reset() {
           :request="r"
           mode="hall"
           :can-claim="canClaim"
+          :claiming="String(claimingId) === String(r.id)"
           @claim="onClaim"
         />
       </div>
