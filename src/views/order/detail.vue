@@ -23,6 +23,7 @@ const reviewable = ref(false);
 const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
+const confirmationOpen = ref(false);
 
 const id = computed(() => String(route.params.id || ''));
 
@@ -93,11 +94,15 @@ async function pay() {
 }
 
 function cancel() {
-  if (!order.value || acting.value) return;
+  if (!order.value || acting.value || confirmationOpen.value) return;
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '取消订单？',
     content: '取消后订单将不可恢复',
     okButtonProps: { status: 'danger' },
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
       acting.value = true;
       try {
@@ -105,16 +110,23 @@ function cancel() {
         if (r.ok) { Message.success('订单已取消'); await load(); }
         else Message.error(r.message || '取消订单失败');
       } catch { Message.error('取消订单请求失败，请稍后重试'); }
-      finally { acting.value = false; }
+      finally {
+        acting.value = false;
+        confirmationOpen.value = false;
+      }
     }
   });
 }
 
 function confirm() {
-  if (!order.value || acting.value) return;
+  if (!order.value || acting.value || confirmationOpen.value) return;
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
       acting.value = true;
       try {
@@ -122,7 +134,10 @@ function confirm() {
         if (r.ok) { Message.success('已确认收货'); await load(); }
         else Message.error(r.message || '确认收货失败');
       } catch { Message.error('确认收货请求失败，请稍后重试'); }
-      finally { acting.value = false; }
+      finally {
+        acting.value = false;
+        confirmationOpen.value = false;
+      }
     }
   });
 }

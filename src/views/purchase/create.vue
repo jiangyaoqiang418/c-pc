@@ -45,6 +45,7 @@ const form = reactive<{
 });
 
 const submitting = ref(false);
+const confirmationOpen = ref(false);
 const categoryLoadError = ref('');
 
 function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
@@ -82,6 +83,7 @@ const CNY_RATE = 7.18;
 const budgetCny = computed(() => formatAmount((form.budgetAmount * CNY_RATE).toFixed(2)));
 
 async function submit() {
+  if (submitting.value || confirmationOpen.value) return;
   if (!form.productTitle.trim()) {
     Message.warning('请填写商品标题');
     return;
@@ -101,9 +103,13 @@ async function submit() {
   }
   if (!userStore.currentUser) return;
 
+  confirmationOpen.value = true;
   Modal.confirm({
     title: '确认发起求购？',
     content: `预算 U ${form.budgetAmount} · 期望 ${form.expectedDays} 天内发货`,
+    onCancel() {
+      confirmationOpen.value = false;
+    },
     async onOk() {
       submitting.value = true;
       try {
@@ -129,6 +135,7 @@ async function submit() {
         }
       } finally {
         submitting.value = false;
+        confirmationOpen.value = false;
       }
     }
   });
@@ -261,9 +268,9 @@ async function submit() {
         <button class="btn ghost" @click="router.back()">
           <Icon icon="lucide:x" width="14" /> 取消
         </button>
-        <button class="btn primary" :disabled="submitting" @click="submit">
+        <button class="btn primary" :disabled="submitting || confirmationOpen" @click="submit">
           <Icon icon="lucide:send" width="14" />
-          {{ submitting ? '提交中…' : '立即提交求购' }}
+          {{ submitting || confirmationOpen ? '提交中…' : '立即提交求购' }}
         </button>
       </div>
     </a-form>

@@ -12,6 +12,7 @@ const products = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const submitting = ref(false);
+const cancelingEnrollmentKey = ref('');
 const modalOpen = ref(false);
 const form = reactive<{
   sessionId: string;
@@ -50,6 +51,7 @@ function openEnroll(session: Api.RealFlashSale.SessionDTO) {
 }
 
 async function submit() {
+  if (submitting.value) return;
   if (!form.productId) {
     Message.warning('请选择报名商品');
     return;
@@ -84,9 +86,15 @@ async function submit() {
 }
 
 function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
+  const key = `${item.sessionId}:${item.productId}`;
+  if (cancelingEnrollmentKey.value) return;
+  cancelingEnrollmentKey.value = key;
   Modal.confirm({
     title: '取消秒杀报名？',
     content: `确认取消「${item.title}」的本场报名？`,
+    onCancel() {
+      cancelingEnrollmentKey.value = '';
+    },
     async onOk() {
       try {
         await flashSaleApi.cancelFlashSaleEnrollment(item.sessionId, item.productId);
@@ -94,6 +102,8 @@ function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
         await load();
       } catch {
         // 请求层已展示业务错误，避免未处理的确认回调异常。
+      } finally {
+        cancelingEnrollmentKey.value = '';
       }
     }
   });
@@ -166,7 +176,7 @@ onMounted(load);
             <a-table-column title="秒杀库存" data-index="flashStock" :width="120" />
             <a-table-column title="结束时间" :width="180"><template #cell="{ record }">{{ formatTime(record.sessionEndTime) }}</template></a-table-column>
             <a-table-column title="操作" :width="100">
-              <template #cell="{ record }"><a-button type="text" status="danger" @click="cancel(record)">取消报名</a-button></template>
+              <template #cell="{ record }"><a-button type="text" status="danger" :loading="cancelingEnrollmentKey === `${record.sessionId}:${record.productId}`" @click="cancel(record)">取消报名</a-button></template>
             </a-table-column>
           </template>
         </a-table>
