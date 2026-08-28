@@ -122,6 +122,7 @@ async function load() {
 onMounted(load);
 
 async function submit() {
+  if (submitting.value) return;
   if (!form.realName.trim() || !form.idNo.trim() || !form.idCardFrontFileId) {
     Message.warning('请填写真实姓名、证件号码并上传证件人像面');
     return;

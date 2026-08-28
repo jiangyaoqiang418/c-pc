@@ -99,6 +99,7 @@ function openReply(review: Api.RealReview.ReviewDTO) {
 }
 
 async function submitReply() {
+  if (actionLoading.value) return;
   const content = replyContent.value.trim();
   if (!replyTarget.value || !content) {
     Message.warning('请输入回复内容');
@@ -129,6 +130,7 @@ function openAppeal(review: Api.RealReview.ReviewDTO) {
 }
 
 async function submitAppeal() {
+  if (actionLoading.value) return;
   const reason = appealForm.reason.trim();
   if (!appealTarget.value || !reason) {
     Message.warning('请输入申诉理由');
@@ -156,6 +158,7 @@ async function submitAppeal() {
 }
 
 async function removeReview(review: Api.RealReview.ReviewDTO) {
+  if (actionLoading.value) return;
   actionLoading.value = String(review.reviewId);
   try {
     await reviewApi.deleteReview(review.reviewId);
