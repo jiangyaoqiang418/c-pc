@@ -40,7 +40,10 @@ async function load() {
     loading.value = false;
   }
 }
-onMounted(load);
+onMounted(async () => {
+  await userStore.init();
+  await load();
+});
 watch(() => userStore.currentUser?.id, load);
 
 const progressPct = computed(() => {
