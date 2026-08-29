@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message, Modal } from '@arco-design/web-vue';
 import * as realAddressApi from '@/service/api/address';
 import AddressForm from '@/components/profile/address-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 
@@ -17,21 +18,39 @@ const submitting = ref(false);
 const defaultingId = ref<string | number>();
 const deletingId = ref<string | number>();
 const deletionPending = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
-  if (!userStore.currentUser) return;
+  const currentUser = userStore.currentUser;
+  if (!currentUser) {
+    requestGuard.invalidate();
+    list.value = [];
+    loadError.value = '';
+    return;
+  }
+  const isCurrent = requestGuard.begin();
+  const userId = currentUser.id;
   loading.value = true;
   loadError.value = '';
   try {
-    list.value = await realAddressApi.fetchMyAddresses();
+    const addresses = await realAddressApi.fetchMyAddresses({ signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+    list.value = addresses;
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     loadError.value = '地址列表加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  list.value = [];
+  void load();
+});
 
 function openAdd() {
   editing.value = {};

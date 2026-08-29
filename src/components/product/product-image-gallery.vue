@@ -12,6 +12,7 @@ const activeIdx = ref(0);
 const hovering = ref(false);
 const mouseRatio = ref({ x: 0, y: 0 });
 const containerRef = ref<HTMLDivElement>();
+const failedUrls = ref(new Set<string>());
 
 const list = computed<Api.Product.ProductMedia[]>(() => {
   if (props.images?.length) return props.images;
@@ -22,15 +23,22 @@ const list = computed<Api.Product.ProductMedia[]>(() => {
 
 const hasRealImages = computed(() => Boolean(props.images?.length));
 
-const mainUrl = computed(() => list.value[activeIdx.value]?.url || list.value[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
+const imageSource = (url?: string) => url && !failedUrls.value.has(url) ? url : PRODUCT_IMAGE_PLACEHOLDER;
+const mainUrl = computed(() => imageSource(list.value[activeIdx.value]?.url || list.value[0]?.url));
 
 watch(
   () => props.images?.map(image => `${image.url}:${image.sort}`).join('|') || '',
   () => {
     activeIdx.value = 0;
     hovering.value = false;
+    failedUrls.value = new Set();
   }
 );
+
+function onImageError(url?: string) {
+  if (!url || failedUrls.value.has(url)) return;
+  failedUrls.value = new Set(failedUrls.value).add(url);
+}
 
 function onMove(e: MouseEvent) {
   if (!containerRef.value) return;
@@ -50,7 +58,7 @@ function onMove(e: MouseEvent) {
       @mouseleave="hovering = false"
       @mousemove="onMove"
     >
-      <img :src="mainUrl" alt="商品图片" class="main-img" />
+      <img :src="mainUrl" alt="商品图片" class="main-img" @error="onImageError(list[activeIdx]?.url || list[0]?.url)" />
       <div v-if="hovering && hasRealImages" class="lens" :style="{
         left: mouseRatio.x * 100 + '%',
         top: mouseRatio.y * 100 + '%'
@@ -68,7 +76,7 @@ function onMove(e: MouseEvent) {
         :class="{ active: activeIdx === i }"
         @mouseenter="activeIdx = i"
       >
-        <img :src="img.url" :alt="img.name" />
+        <img :src="imageSource(img.url)" :alt="img.name" @error="onImageError(img.url)" />
       </div>
     </div>
   </div>
