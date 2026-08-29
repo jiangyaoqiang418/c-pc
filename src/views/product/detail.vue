@@ -293,16 +293,20 @@ async function favorite() {
 
       <!-- Tabs -->
       <div class="tab-card">
-        <div class="tab-bar">
+        <div class="tab-bar" role="tablist" aria-label="商品信息">
           <button
             v-for="t in [{key:'desc',label:'商品详情'},{key:'spec',label:'规格参数'},{key:'review',label:`用户评价 (${reviewSummary?.totalCount ?? reviews.length})`},{key:'sameshop',label:'同店推荐'}]"
             :key="t.key"
+            type="button"
             class="tab"
             :class="{ active: activeTab === t.key }"
+            :id="`product-tab-${t.key}`"
+            role="tab"
+            :aria-selected="activeTab === t.key"
             @click="activeTab = t.key as any"
           >{{ t.label }}</button>
         </div>
-        <div class="tab-body">
+        <div class="tab-body" role="tabpanel" :aria-labelledby="`product-tab-${activeTab}`">
           <div v-if="activeTab === 'desc'" class="desc-block" v-html="product.description || '<p>暂无详情</p>'" />
           <div v-else-if="activeTab === 'spec'" class="spec-list">
             <div class="spec-row"><span class="k">商品编号</span><span class="v yb-mono">{{ product.code }}</span></div>
@@ -744,6 +748,10 @@ async function favorite() {
   margin-bottom: -1px;
 }
 .tab:hover { color: var(--yb-ink); }
+.tab:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: -2px;
+}
 .tab.active {
   color: var(--yb-ink);
   border-bottom-color: var(--yb-ink);

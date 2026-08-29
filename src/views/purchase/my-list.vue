@@ -185,12 +185,14 @@ function onCancel(req: Api.RealPurchase.Record) {
     </section>
 
     <!-- ============ Tab Pills (自定义) ============ -->
-    <section class="tabs-bar">
+    <section class="tabs-bar" role="tablist" aria-label="我的求购状态">
       <button
         v-for="t in TABS"
         :key="t.key"
+        type="button"
         class="tab-pill"
         :class="{ active: activeKey === t.key }"
+        :id="`purchase-tab-${t.key}`"
         role="tab"
         :aria-selected="activeKey === t.key"
         @click="activeKey = t.key"
@@ -202,7 +204,8 @@ function onCancel(req: Api.RealPurchase.Record) {
 
     <!-- ============ 列表 ============ -->
     <a-spin :loading="loading" style="width: 100%">
-      <div v-if="list.length" class="req-grid">
+      <div class="tab-panel" role="tabpanel" :aria-labelledby="`purchase-tab-${activeKey}`">
+        <div v-if="list.length" class="req-grid">
         <PurchaseRequestCard
           v-for="r in list"
           :key="r.id"
@@ -211,15 +214,16 @@ function onCancel(req: Api.RealPurchase.Record) {
           :canceling="String(cancelingId) === String(r.id)"
           @cancel="onCancel"
         />
+        </div>
+        <EmptyState
+          v-else
+          icon="lucide:inbox"
+          :title="loadError || '暂无该状态下的求购'"
+          :description="loadError ? '不会把请求失败误显示为没有求购。' : '想要平台没有的商品？发起求购，全球买手为您代购'"
+          :action-text="loadError ? '重新加载' : '发起求购'"
+          @action="loadError ? load() : router.push('/purchase/create')"
+        />
       </div>
-      <EmptyState
-        v-else
-        icon="lucide:inbox"
-        :title="loadError || '暂无该状态下的求购'"
-        :description="loadError ? '不会把请求失败误显示为没有求购。' : '想要平台没有的商品？发起求购，全球买手为您代购'"
-        :action-text="loadError ? '重新加载' : '发起求购'"
-        @action="loadError ? load() : router.push('/purchase/create')"
-      />
     </a-spin>
   </div>
 </template>
@@ -332,6 +336,10 @@ function onCancel(req: Api.RealPurchase.Record) {
 .tab-pill:hover {
   background: var(--yb-bg);
   color: var(--yb-ink);
+}
+.tab-pill:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
 }
 .tab-pill.active {
   background: var(--yb-brand-pink);
