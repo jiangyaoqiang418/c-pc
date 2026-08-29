@@ -163,7 +163,8 @@ const quickEntries = computed<QuickEntry[]>(() => [
 ]);
 
 function orderCount(status: string) {
-  return Number(orderCounts.value[status] || 0);
+  const count = Number(orderCounts.value[status] || 0);
+  return Number.isFinite(count) && count >= 0 ? Math.floor(count) : 0;
 }
 
 const orderTabsMeta = computed(() => [
