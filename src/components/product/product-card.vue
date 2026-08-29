@@ -28,7 +28,14 @@ function onImgError(e: Event) {
 </script>
 
 <template>
-  <div class="pc-product-card" @click="goDetail">
+  <div
+    class="pc-product-card"
+    role="button"
+    tabindex="0"
+    @click="goDetail"
+    @keydown.enter="goDetail"
+    @keydown.space.prevent="goDetail"
+  >
     <div class="cover-wrap">
       <img :src="cover" :alt="product.title" class="cover" loading="lazy" @error="onImgError" />
       <div v-if="product.overseasCustoms" class="badge overseas">
@@ -71,6 +78,10 @@ function onImgError(e: Event) {
 .pc-product-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--yb-shadow-glow);
+}
+.pc-product-card:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: -2px;
 }
 .cover-wrap {
   position: relative;

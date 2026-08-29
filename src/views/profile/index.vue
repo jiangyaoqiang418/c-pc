@@ -220,7 +220,7 @@ const orderTabsMeta = computed(() => [
             <a-link @click="router.push('/order')">查看全部 ›</a-link>
           </div>
           <div class="order-stats">
-            <div v-for="o in orderTabsMeta" :key="o.label" class="stat" @click="router.push('/order')">
+            <div v-for="o in orderTabsMeta" :key="o.label" class="stat" role="button" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">
               <div class="stat-num">{{ o.count }}</div>
               <div class="stat-label">{{ o.label }}</div>
             </div>
@@ -235,7 +235,11 @@ const orderTabsMeta = computed(() => [
               :key="q.key"
               class="quick-cell"
               :class="{ disabled: q.phase }"
+              role="button"
+              tabindex="0"
               @click="q.go()"
+              @keydown.enter="q.go()"
+              @keydown.space.prevent="q.go()"
             >
               <span class="emoji">{{ q.emoji }}</span>
               <span class="label">{{ q.label }}</span>
@@ -396,6 +400,11 @@ const orderTabsMeta = computed(() => [
 }
 .stat:hover {
   background: #f3f7ff;
+}
+.stat:focus-visible,
+.quick-cell:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: -2px;
 }
 .stat-num {
   font-size: 20px;

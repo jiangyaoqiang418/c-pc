@@ -18,7 +18,15 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
 </script>
 
 <template>
-  <div class="ann-card" :class="{ pinned: announcement.pinned }" @click="$emit('open', announcement)">
+  <div
+    class="ann-card"
+    :class="{ pinned: announcement.pinned }"
+    role="button"
+    tabindex="0"
+    @click="$emit('open', announcement)"
+    @keydown.enter="$emit('open', announcement)"
+    @keydown.space.prevent="$emit('open', announcement)"
+  >
     <div class="head">
       <span class="emoji">{{ meta.emoji }}</span>
       <a-tag :color="meta.color" size="small">{{ meta.label }}</a-tag>
@@ -49,6 +57,10 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
 .ann-card:hover {
   border-left-color: var(--bw-brand-primary);
   box-shadow: 0 4px 12px rgba(22, 93, 255, 0.08);
+}
+.ann-card:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: -2px;
 }
 .ann-card.pinned {
   border-left-color: #f53f3f;
