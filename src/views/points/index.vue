@@ -59,8 +59,10 @@ async function loadLogs() {
   const currentUser = userStore.currentUser;
   if (!currentUser) {
     logsGuard.invalidate();
+    loading.value = false;
     logs.value = [];
     total.value = 0;
+    logLoadError.value = '';
     return;
   }
   const isCurrent = logsGuard.begin();
@@ -115,8 +117,10 @@ async function loadAppeals() {
   const userId = userStore.currentUser?.id;
   if (!userId) {
     appealsGuard.invalidate();
+    appealLoading.value = false;
     appeals.value = [];
     appealTotal.value = 0;
+    appealLoadError.value = '';
     return;
   }
   const isCurrent = appealsGuard.begin();
@@ -152,7 +156,11 @@ async function loadAppeals() {
 async function loadInitial() {
   if (disposed) return;
   const uid = userStore.currentUser?.id;
-  if (!uid) return;
+  if (!uid) {
+    vipGuard.invalidate();
+    vipStatus.value = undefined;
+    return;
+  }
   const isCurrent = vipGuard.begin();
   try {
     const nextVipStatus = await vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal });
@@ -181,6 +189,10 @@ onBeforeUnmount(() => {
 watch(() => userStore.currentUser?.id, () => {
   if (disposed) return;
   appealWriteVersion += 1;
+  logsGuard.invalidate();
+  appealsGuard.invalidate();
+  rulesGuard.invalidate();
+  vipGuard.invalidate();
   current.value = 1;
   appealCurrent.value = 1;
   logs.value = [];

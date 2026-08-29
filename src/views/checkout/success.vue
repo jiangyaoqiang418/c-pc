@@ -25,7 +25,10 @@ async function load() {
   order.value = undefined;
   recommends.value = [];
   errorMessage.value = '';
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined) {
+    loading.value = false;
+    return;
+  }
   if (!orderId.value) {
     errorMessage.value = '缺少订单编号';
     return;

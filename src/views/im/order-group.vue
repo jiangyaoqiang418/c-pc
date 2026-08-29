@@ -80,7 +80,14 @@ async function load() {
   const isCurrent = requestGuard.begin();
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined) {
+    loading.value = false;
+    conversation.value = undefined;
+    messages.value = [];
+    hasOlder.value = false;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   pageNo.value = 1;

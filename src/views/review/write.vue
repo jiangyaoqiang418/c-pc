@@ -28,7 +28,12 @@ let writeVersion = 0;
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
-  if (!userId) return;
+  if (!userId) {
+    loading.value = false;
+    order.value = undefined;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

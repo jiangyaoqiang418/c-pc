@@ -40,6 +40,7 @@ async function loadAll() {
     txns.value = [];
     orderCounts.value = {};
     loadError.value = '';
+    loading.value = false;
     return;
   }
   const isCurrent = requestGuard.begin();

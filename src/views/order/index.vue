@@ -71,7 +71,13 @@ function syncQuery(replace = false) {
 async function load() {
   const isCurrent = ordersGuard.begin();
   const user = userStore.currentUser;
-  if (!user) return;
+  if (!user) {
+    loading.value = false;
+    orders.value = [];
+    total.value = 0;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {
@@ -121,7 +127,10 @@ async function loadReviewableOrders() {
 
 async function loadCounts() {
   const isCurrent = countsGuard.begin();
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser) {
+    counts.value = {};
+    return;
+  }
   if (role.value === 'shopper') {
     counts.value = {};
     return;

@@ -36,7 +36,12 @@ function formatTime(value?: string | number) {
 async function loadApplication() {
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
-  if (!userId) return;
+  if (!userId) {
+    loading.value = false;
+    application.value = undefined;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

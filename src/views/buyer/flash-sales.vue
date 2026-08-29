@@ -32,7 +32,14 @@ const selectedProduct = computed(() => products.value.find(item => String(item.i
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
-  if (!userId) return;
+  if (!userId) {
+    loading.value = false;
+    sessions.value = [];
+    enrollments.value = [];
+    products.value = [];
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

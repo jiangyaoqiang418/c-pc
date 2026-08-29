@@ -106,6 +106,10 @@ async function loadAll() {
     createdWithdrawal.value = undefined;
     detail.value = undefined;
     loadError.value = '';
+    loadingRecords.value = false;
+    detailLoading.value = false;
+    recordError.value = '';
+    detailError.value = '';
     return;
   }
   const isCurrent = requestGuard.begin();

@@ -27,7 +27,13 @@ const id = computed(() => String(route.params.id));
 async function loadAll() {
   const isCurrent = requestGuard.begin();
   const user = userStore.currentUser;
-  if (!user) return;
+  if (!user) {
+    loading.value = false;
+    product.value = undefined;
+    loadError.value = '';
+    walletLoadError.value = '';
+    return;
+  }
   const targetId = id.value;
   if (product.value && String(product.value.id) !== targetId) product.value = undefined;
   loading.value = true;

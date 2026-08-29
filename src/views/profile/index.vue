@@ -41,7 +41,17 @@ const registeredDate = computed(() => {
 
 async function loadProfile() {
   const uid = user.value?.id;
-  if (!uid) return;
+  if (!uid) {
+    profileRequestGuard.invalidate();
+    profileLoadVersion += 1;
+    loading.value = false;
+    vipStatus.value = undefined;
+    totalAssets.value = undefined;
+    orderCounts.value = {};
+    announcements.value = [];
+    loadError.value = '';
+    return;
+  }
   const isCurrent = profileRequestGuard.begin();
   const version = ++profileLoadVersion;
   loading.value = true;

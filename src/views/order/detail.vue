@@ -36,7 +36,15 @@ async function load() {
   const isCurrent = requestGuard.begin();
   const requestedId = id.value;
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined) {
+    loading.value = false;
+    order.value = undefined;
+    logistics.value = undefined;
+    reviewable.value = false;
+    loadError.value = '';
+    logisticsError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   logisticsError.value = '';

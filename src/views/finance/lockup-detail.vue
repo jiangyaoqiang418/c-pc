@@ -42,7 +42,12 @@ const daysPassed = computed(() => {
 async function load() {
   const isCurrent = requestGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined) {
+    loading.value = false;
+    order.value = undefined;
+    loadError.value = '';
+    return;
+  }
   const requestedId = id.value;
   loading.value = true;
   loadError.value = '';

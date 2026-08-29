@@ -55,7 +55,13 @@ function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Arra
 
 async function load() {
   const isCurrent = requestGuard.begin();
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser) {
+    loading.value = false;
+    products.value = [];
+    total.value = 0;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

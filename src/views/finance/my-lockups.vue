@@ -42,7 +42,12 @@ const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
 async function load() {
   if (disposed) return;
   const isCurrent = requestGuard.begin();
-  if (!userStore.currentUser || disposed) return;
+  if (!userStore.currentUser || disposed) {
+    loading.value = false;
+    orders.value = [];
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

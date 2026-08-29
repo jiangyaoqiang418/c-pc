@@ -29,6 +29,7 @@ async function loadAll() {
     overview.value = undefined;
     productLoadError.value = false;
     loadError.value = '';
+    loading.value = false;
     return;
   }
   const isCurrent = requestGuard.begin();

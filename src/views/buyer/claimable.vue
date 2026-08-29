@@ -27,7 +27,13 @@ let writeVersion = 0;
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = String(user.value?.id || '');
-  if (!userId) return;
+  if (!userId) {
+    loading.value = false;
+    list.value = [];
+    total.value = 0;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

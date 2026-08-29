@@ -78,7 +78,13 @@ function syncQuery() {
 async function load() {
   const isCurrent = requestGuard.begin();
   const user = userStore.currentUser;
-  if (!user) return;
+  if (!user) {
+    loading.value = false;
+    orders.value = [];
+    total.value = 0;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

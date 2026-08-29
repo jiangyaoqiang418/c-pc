@@ -41,6 +41,7 @@ async function loadAll() {
     claimableTotal.value = undefined;
     orderCounts.value = {};
     countsLoaded.value = false;
+    loading.value = false;
     return;
   }
   const isCurrent = requestGuard.begin();

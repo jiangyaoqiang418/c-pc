@@ -149,6 +149,14 @@ async function loadAll() {
     recentDeposits.value = [];
     recordTotal.value = 0;
     detail.value = undefined;
+    loadingRecords.value = false;
+    loadingChains.value = false;
+    loadingAddress.value = false;
+    detailLoading.value = false;
+    loadError.value = '';
+    addressError.value = '';
+    recordError.value = '';
+    detailError.value = '';
     return;
   }
   const isCurrent = requestGuard.begin();

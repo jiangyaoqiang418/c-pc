@@ -43,7 +43,10 @@ async function loadAll() {
   if (disposed) return;
   const user = userStore.currentUser;
   const isCurrent = allListGuard.begin();
-  if (!user || disposed) return;
+  if (!user || disposed) {
+    allList.value = [];
+    return;
+  }
   try {
     const r = await purchaseApi.fetchMyPurchases(user.id, undefined, { signal: isCurrent.signal });
     if (!isCurrent()) return;
@@ -59,7 +62,12 @@ async function load() {
   if (disposed) return;
   const user = userStore.currentUser;
   const isCurrent = listGuard.begin();
-  if (!user || disposed) return;
+  if (!user || disposed) {
+    loading.value = false;
+    list.value = [];
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {
