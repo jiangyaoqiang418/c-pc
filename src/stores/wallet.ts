@@ -41,6 +41,18 @@ export const useWalletStore = defineStore('bw-wallet', () => {
       today.value = overview.today;
       account.value = overview.account;
       lastFetchedAt.value = Date.now();
+    } catch (error) {
+      const userStore = useUserStore();
+      // 仅清理当前账号、当前请求仍有效时的旧快照；被切换/失效的请求不能影响新账号。
+      if (isCurrent() && version === requestVersion && String(userStore.currentUser?.id) === String(userId)) {
+        summary.value = undefined;
+        buyerWallet.value = undefined;
+        totalAssets.value = '0';
+        today.value = undefined;
+        account.value = undefined;
+        lastFetchedAt.value = 0;
+      }
+      throw error;
     } finally {
       if (isCurrent() && version === requestVersion) loading.value = false;
     }
