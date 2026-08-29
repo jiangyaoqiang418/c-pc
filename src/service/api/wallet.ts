@@ -1,5 +1,6 @@
 import { realUserRequest } from '@/service/request';
 import { toPageTotal } from './page';
+import { toIsoDate } from './date';
 
 const bucketMap: Record<string, keyof Api.RealWallet.Account> = {
   AVAILABLE: 'available',
@@ -151,13 +152,6 @@ const typeToBiz: Partial<Record<Api.Wallet.TxnType, WalletBizSelector[]>> = {
   FEE_DEDUCT: [{ bizType: 'FEE_DEDUCT' }]
 };
 
-function toIso(value?: string | number) {
-  if (!value) return '';
-  if (typeof value === 'number') return new Date(value).toISOString();
-  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
-  return value;
-}
-
 function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
   const bucketFrom = dto.fromType ? bucketMapReverse[dto.fromType] : undefined;
   const bucketTo = dto.toType ? bucketMapReverse[dto.toType] : undefined;
@@ -187,7 +181,7 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
     remark,
     chainTxHash,
     testData,
-    createdAt: toIso(dto.createdAt)
+    createdAt: toIsoDate(dto.createdAt)
   };
 }
 

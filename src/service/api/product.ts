@@ -1,5 +1,6 @@
 import { realOrderRequest } from '@/service/request';
 import { toPageTotal } from './page';
+import { toIsoDate } from './date';
 
 function toAfterSaleType(value?: string): Api.Product.AftersaleType {
   if (value === 'NONE') return 'none';
@@ -26,20 +27,13 @@ function toShelfStatus(status?: string): Api.Product.ShelfStatus {
   return status === 'ON_SALE' ? 'on-shelf' : 'off-shelf';
 }
 
-function toIso(value?: string | number) {
-  if (!value) return '';
-  if (typeof value === 'number') return new Date(value).toISOString();
-  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
-  return value;
-}
-
 export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduct.Record {
   const id = dto.id;
   const sellerId = dto.sellerId;
   const categoryId = dto.categoryId;
   const status = toProductStatus(dto.status);
-  const createdAt = toIso(dto.createdAt);
-  const updatedAt = toIso(dto.updatedAt) || createdAt;
+  const createdAt = toIsoDate(dto.createdAt);
+  const updatedAt = toIsoDate(dto.updatedAt) || createdAt;
 
   return {
     id,
@@ -172,7 +166,7 @@ async function fetchStorefrontPage(url: string, pageSize = 20, options: { signal
 }
 
 function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProduct.Record {
-  const createdAt = toIso(dto.sessionEndTime);
+  const createdAt = toIsoDate(dto.sessionEndTime);
   return {
     id: dto.productId,
     code: String(dto.productId || ''),

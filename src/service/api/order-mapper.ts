@@ -1,3 +1,5 @@
+import { toIsoDate } from './date';
+
 export const statusMap: Record<string, Api.Order.OrderStatus> = {
   CREATED: 'PENDING_PAYMENT',
   PAID: 'PROCURING',
@@ -21,13 +23,6 @@ export const reverseStatusMap: Partial<Record<Api.Order.OrderStatus, Api.RealOrd
   ARCHIVED: undefined,
   CANCELLED: 'CANCELED'
 };
-
-function toIso(value?: string | number) {
-  if (!value) return '';
-  if (typeof value === 'number') return new Date(value).toISOString();
-  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
-  return value;
-}
 
 function toShippingAddress(dto: Api.RealOrder.OrderDTO) {
   if (dto.shippingAddress || dto.receiverAddress) return dto.shippingAddress || dto.receiverAddress || '';
@@ -54,7 +49,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
   const customerId = dto.customerId || '';
   const shopperId = dto.sellerId || '';
   const productId = dto.productId || '';
-  const createdAt = toIso(dto.createdAt) || new Date().toISOString();
+  const createdAt = toIsoDate(dto.createdAt) || new Date().toISOString();
   const unitPrice = String(dto.unitPrice ?? dto.originalAmount ?? dto.totalAmount ?? 0);
   const totalAmount = String(dto.totalAmount ?? unitPrice);
 
@@ -90,7 +85,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     logisticsStatusText: dto.logisticsStatusText,
     carrier: dto.logisticsCompanyCode as Api.RealOrder.Carrier | undefined,
     carrierName: dto.logisticsCompany,
-    eta: toIso(dto.eta),
+    eta: toIsoDate(dto.eta),
     logisticsException: dto.logisticsException,
     purchaseNo: dto.purchaseNo,
     purchaseVouchers: dto.purchaseVouchers,
@@ -100,9 +95,9 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     refundAmount: dto.refundAmount === undefined ? undefined : String(dto.refundAmount),
     priceHistory: [],
     createdAt,
-    paidAt: toIso(dto.paidAt) || undefined,
-    shippedAt: toIso(dto.shippedAt) || undefined,
-    deliveredAt: toIso(dto.completedAt) || undefined,
-    archivedAt: dto.status === 'REFUNDED' || dto.status === 'CANCELED' ? toIso(dto.completedAt) : undefined
+    paidAt: toIsoDate(dto.paidAt) || undefined,
+    shippedAt: toIsoDate(dto.shippedAt) || undefined,
+    deliveredAt: toIsoDate(dto.completedAt) || undefined,
+    archivedAt: dto.status === 'REFUNDED' || dto.status === 'CANCELED' ? toIsoDate(dto.completedAt) : undefined
   };
 }

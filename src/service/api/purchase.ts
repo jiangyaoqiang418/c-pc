@@ -1,6 +1,7 @@
 import { realOrderRequest } from '@/service/request';
 import { toPageTotal } from './page';
 import { fetchCategoryTree } from './category';
+import { toIsoDate } from './date';
 
 let categoryPathCache: Map<string, string> | undefined;
 let categoryPathCachePromise: Promise<Map<string, string>> | undefined;
@@ -27,13 +28,6 @@ function toStatus(value?: string): Api.PurchaseRequest.RequestStatus {
   if (key === 'CLAIMED' || key === 'TAKEN') return 'claimed';
   if (key === 'VOID' || key === 'CANCELLED' || key === 'CANCELED') return 'cancelled';
   return 'pushing';
-}
-
-function toIso(value?: string | number) {
-  if (!value) return '';
-  if (typeof value === 'number') return new Date(value).toISOString();
-  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
-  return value;
 }
 
 async function getCategoryPath(id?: string) {
@@ -85,16 +79,16 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     appeal: dto.demandNote || dto.description || '',
     status: toStatus(dto.status),
     reviewComment: dto.reviewComment,
-    reviewedAt: toIso(dto.reviewedAt),
+    reviewedAt: toIsoDate(dto.reviewedAt),
     assignedBy: dto.assignedBy,
-    claimExpiresAt: toIso(dto.expireAt),
+    claimExpiresAt: toIsoDate(dto.expireAt),
     pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId] : [],
     claimedBy: claimedBuyerId,
     claimedByName: claimedBuyerId ? `买手 ${claimedBuyerId}` : undefined,
-    claimedAt: toIso(dto.takenAt),
+    claimedAt: toIsoDate(dto.takenAt),
     relatedOrderId: dto.orderId,
     relatedOrderCode: dto.orderId ? String(dto.orderId) : undefined,
-    createdAt: toIso(dto.createdAt)
+    createdAt: toIsoDate(dto.createdAt)
   };
 }
 

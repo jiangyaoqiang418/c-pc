@@ -1,5 +1,6 @@
 import { realUserRequest } from '@/service/request';
 import { toPageTotal } from './page';
+import { toIsoDate } from './date';
 
 export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
   return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application', options);
@@ -24,14 +25,8 @@ function toDepositTxn(dto: Api.RealBuyer.DepositLedgerDTO): Api.RealBuyer.Deposi
     bucketFrom: isRelease ? 'depositAvailable' : 'available',
     bucketTo: isRelease ? 'available' : 'depositAvailable',
     remark: dto.remark || dto.bizNo || dto.bizType,
-    createdAt: toIso(dto.createdAt)
+    createdAt: toIsoDate(dto.createdAt)
   };
-}
-
-function toIso(value?: string | number) {
-  if (!value) return '';
-  if (typeof value === 'number' || /^\d+$/.test(value)) return new Date(Number(value)).toISOString();
-  return value;
 }
 
 export async function fetchBuyerDepositLedger(

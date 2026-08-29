@@ -1,6 +1,7 @@
 import { realUserRequest } from '@/service/request';
 import { isWithinDateRange } from '@/utils/date-range';
 import { toPageTotal } from './page';
+import { toIsoDate } from './date';
 
 const behaviorMap: Partial<Record<string, Api.Point.BehaviorCode>> = {
   CONSUME: 'CONSUME',
@@ -25,13 +26,6 @@ function toAudience(identity?: string): Api.Point.Audience {
   if (value === 'buyer') return 'buyer';
   if (value === 'customer') return 'customer';
   return 'all';
-}
-
-function toIso(value?: string | number) {
-  if (!value) return '';
-  if (typeof value === 'number') return new Date(value).toISOString();
-  if (/^\d+$/.test(value)) return new Date(Number(value)).toISOString();
-  return value;
 }
 
 function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
@@ -60,7 +54,7 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
     refId: item.bizNo,
     isAppealable: !!item.appealable,
     appealStatus: item.appealStatus?.toLowerCase() as Api.RealPoint.Ledger['appealStatus'],
-    createdAt: toIso(item.createdAt)
+    createdAt: toIsoDate(item.createdAt)
   };
 }
 
