@@ -65,10 +65,32 @@ async function loadSection(section: HomeSection, task: (signal: AbortSignal, isC
     await task(isCurrent.signal, isCurrent);
   } catch {
     if (!isCurrent()) return;
+    clearSectionData(section);
     sectionErrors[section] = '加载失败';
   } finally {
     if (isCurrent()) sectionLoading[section] = false;
   }
+}
+
+function clearSectionData(section: HomeSection) {
+  if (section === 'banners') {
+    banners.value = [];
+    return;
+  }
+  if (section === 'recommendations') {
+    recommendations.value = [];
+    return;
+  }
+  if (section === 'hot') {
+    hot.value = [];
+    return;
+  }
+  if (section === 'newest') {
+    newest.value = [];
+    return;
+  }
+  flash.value = [];
+  flashEndAt.value = undefined;
 }
 
 const sectionLoaders: Record<HomeSection, () => Promise<void>> = {
