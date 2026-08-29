@@ -19,6 +19,9 @@ const defaultingId = ref<string | number>();
 const deletingId = ref<string | number>();
 const deletionPending = ref(false);
 const requestGuard = createLatestRequestGuard();
+let defaultWriteVersion = 0;
+let deleteWriteVersion = 0;
+let submitWriteVersion = 0;
 
 async function load() {
   const currentUser = userStore.currentUser;
@@ -45,9 +48,23 @@ async function load() {
   }
 }
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  defaultWriteVersion += 1;
+  deleteWriteVersion += 1;
+  submitWriteVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  defaultWriteVersion += 1;
+  deleteWriteVersion += 1;
+  submitWriteVersion += 1;
+  submitting.value = false;
+  defaultingId.value = undefined;
+  deletingId.value = undefined;
+  deletionPending.value = false;
+  modalOpen.value = false;
+  editing.value = undefined;
   list.value = [];
   void load();
 });
@@ -64,20 +81,31 @@ function openEdit(a: Api.RealAddress.AddressRecord) {
 
 async function setDefault(a: Api.RealAddress.AddressRecord) {
   if (defaultingId.value !== undefined) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const addressId = a.id;
+  const operation = ++defaultWriteVersion;
+  const isCurrentWrite = () => operation === defaultWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   defaultingId.value = a.id;
   try {
-    await realAddressApi.setDefaultAddress(a.id);
+    await realAddressApi.setDefaultAddress(addressId);
+    if (!isCurrentWrite()) return;
     Message.success('已设为默认');
     await load();
   } catch {
     // 请求层已展示错误，保留当前默认地址状态供用户重试。
   } finally {
-    defaultingId.value = undefined;
+    if (operation === defaultWriteVersion) defaultingId.value = undefined;
   }
 }
 
 function onDelete(a: Api.RealAddress.AddressRecord) {
   if (deletingId.value !== undefined || deletionPending.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const addressId = a.id;
+  const operation = ++deleteWriteVersion;
+  const isCurrentWrite = () => operation === deleteWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   deletionPending.value = true;
   Modal.confirm({
     title: '删除地址？',
@@ -85,19 +113,28 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
     okText: '确认删除',
     okButtonProps: { status: 'danger' },
     onCancel() {
+      deleteWriteVersion += 1;
       deletionPending.value = false;
     },
     async onOk() {
-      deletingId.value = a.id;
+      deletingId.value = addressId;
+      if (!isCurrentWrite()) {
+        deletingId.value = undefined;
+        deletionPending.value = false;
+        return;
+      }
       try {
-        await realAddressApi.deleteAddress(a.id);
+        await realAddressApi.deleteAddress(addressId);
+        if (!isCurrentWrite()) return;
         Message.success('已删除');
         await load();
       } catch {
         // 请求层已展示错误，保留当前地址，避免删除失败却从页面消失。
       } finally {
-        deletingId.value = undefined;
-        deletionPending.value = false;
+        if (operation === deleteWriteVersion) {
+          deletingId.value = undefined;
+          deletionPending.value = false;
+        }
       }
     }
   });
@@ -105,6 +142,10 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
 
 async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'createdAt' | 'updatedAt'>) {
   if (!userStore.currentUser || submitting.value) return;
+  const requestedUserId = userStore.currentUser.id;
+  const operation = ++submitWriteVersion;
+  const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const editingId = editing.value?.id;
   submitting.value = true;
   try {
     const params: Api.RealAddress.AddressSaveParams = {
@@ -122,16 +163,17 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
       tag: editing.value?.tag
     };
     try {
-      if (editing.value?.id) await realAddressApi.updateAddress(params);
+      if (editingId) await realAddressApi.updateAddress(params);
       else await realAddressApi.createAddress(params);
-      Message.success(editing.value?.id ? '已更新' : '已添加');
+      if (!isCurrentWrite()) return;
+      Message.success(editingId ? '已更新' : '已添加');
       modalOpen.value = false;
       await load();
     } catch {
       // 请求层已展示错误，保留表单供用户修改后重试。
     }
   } finally {
-    submitting.value = false;
+    if (operation === submitWriteVersion) submitting.value = false;
   }
 }
 </script>

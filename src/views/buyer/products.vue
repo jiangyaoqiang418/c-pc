@@ -43,6 +43,7 @@ const shelvingId = ref<string | number>();
 const deletingId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
 const categoryGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
@@ -115,6 +116,7 @@ onMounted(() => {
   void Promise.all([load(), loadCategories()]);
 });
 onBeforeUnmount(() => {
+  writeVersion += 1;
   requestGuard.invalidate();
   categoryGuard.invalidate();
 });
@@ -124,7 +126,10 @@ watch(activeKey, () => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  writeVersion += 1;
   requestGuard.invalidate();
+  shelvingId.value = undefined;
+  deletingId.value = undefined;
   products.value = [];
   total.value = 0;
   current.value = 1;
@@ -133,17 +138,23 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 
 async function toggleShelf(p: Api.RealProduct.Record) {
-  if (shelvingId.value !== undefined) return;
+  if (shelvingId.value !== undefined || deletingId.value !== undefined) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const productId = p.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
-  shelvingId.value = p.id;
+  shelvingId.value = productId;
   try {
-    await productApi.toggleProductShelf(p.id, nextOnShelf);
+    await productApi.toggleProductShelf(productId, nextOnShelf);
+    if (!isCurrentWrite()) return;
     Message.success(nextOnShelf ? '已上架' : '已下架');
     await load();
   } catch {
-    Message.error(nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
+    if (isCurrentWrite()) Message.error(nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
   } finally {
-    shelvingId.value = undefined;
+    if (operation === writeVersion) shelvingId.value = undefined;
   }
 }
 
@@ -153,15 +164,21 @@ async function deleteProduct(p: Api.RealProduct.Record) {
     Message.warning('请先下架商品后再删除');
     return;
   }
-  deletingId.value = p.id;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const productId = p.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  deletingId.value = productId;
   try {
-    await productApi.deleteProduct(p.id);
+    await productApi.deleteProduct(productId);
+    if (!isCurrentWrite()) return;
     Message.success('商品已删除');
     await load();
   } catch {
     // 请求层已展示后端业务提示。
   } finally {
-    deletingId.value = undefined;
+    if (operation === writeVersion) deletingId.value = undefined;
   }
 }
 

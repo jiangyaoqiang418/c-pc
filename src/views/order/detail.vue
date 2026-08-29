@@ -14,6 +14,7 @@ import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { sameBusinessId } from '@/utils/im';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +28,7 @@ const loadError = ref('');
 const acting = ref(false);
 const confirmationOpen = ref(false);
 const requestGuard = createLatestRequestGuard();
+let actionVersion = 0;
 
 const id = computed(() => String(route.params.id || ''));
 
@@ -39,8 +41,9 @@ async function load() {
   loadError.value = '';
   logisticsError.value = '';
   try {
-    order.value = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
+    const nextOrder = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    order.value = nextOrder;
     try {
       logistics.value = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
       if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
@@ -68,9 +71,13 @@ async function load() {
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  actionVersion += 1;
+  requestGuard.invalidate();
+});
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  actionVersion += 1;
   requestGuard.invalidate();
   order.value = undefined;
   logistics.value = undefined;
@@ -109,17 +116,28 @@ function formatTime(value?: string | number) {
 
 async function pay() {
   if (!order.value || acting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedOrderId = order.value.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++actionVersion;
+  const isCurrentAction = () => operation === actionVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(order.value?.id, requestedOrderId);
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(order.value.id);
+    const r = await orderApi.payOrder(requestedOrderId);
+    if (!isCurrentAction()) return;
     if (r.ok) { Message.success('支付成功'); await load(); }
     else Message.error(r.message || '支付失败');
-  } catch { Message.error('支付请求失败，请稍后重试'); }
-  finally { acting.value = false; }
+  } catch { if (isCurrentAction()) Message.error('支付请求失败，请稍后重试'); }
+  finally { if (operation === actionVersion) acting.value = false; }
 }
 
 function cancel() {
   if (!order.value || acting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedOrderId = order.value.id;
+  if (requestedUserId === undefined) return;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '取消订单？',
@@ -129,15 +147,26 @@ function cancel() {
       confirmationOpen.value = false;
     },
     async onOk() {
+      const operation = ++actionVersion;
+      const isCurrentAction = () => operation === actionVersion
+        && String(userStore.currentUser?.id) === String(requestedUserId)
+        && sameBusinessId(order.value?.id, requestedOrderId);
+      if (!isCurrentAction()) {
+        confirmationOpen.value = false;
+        return;
+      }
       acting.value = true;
       try {
-        const r = await orderApi.cancelOrder(order.value!.id);
+        const r = await orderApi.cancelOrder(requestedOrderId);
+        if (!isCurrentAction()) return;
         if (r.ok) { Message.success('订单已取消'); await load(); }
         else Message.error(r.message || '取消订单失败');
-      } catch { Message.error('取消订单请求失败，请稍后重试'); }
+      } catch { if (isCurrentAction()) Message.error('取消订单请求失败，请稍后重试'); }
       finally {
-        acting.value = false;
-        confirmationOpen.value = false;
+        if (operation === actionVersion) {
+          acting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });
@@ -145,6 +174,9 @@ function cancel() {
 
 function confirm() {
   if (!order.value || acting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedOrderId = order.value.id;
+  if (requestedUserId === undefined) return;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认收货？',
@@ -153,15 +185,26 @@ function confirm() {
       confirmationOpen.value = false;
     },
     async onOk() {
+      const operation = ++actionVersion;
+      const isCurrentAction = () => operation === actionVersion
+        && String(userStore.currentUser?.id) === String(requestedUserId)
+        && sameBusinessId(order.value?.id, requestedOrderId);
+      if (!isCurrentAction()) {
+        confirmationOpen.value = false;
+        return;
+      }
       acting.value = true;
       try {
-        const r = await orderApi.confirmReceipt(order.value!.id);
+        const r = await orderApi.confirmReceipt(requestedOrderId);
+        if (!isCurrentAction()) return;
         if (r.ok) { Message.success('已确认收货'); await load(); }
         else Message.error(r.message || '确认收货失败');
-      } catch { Message.error('确认收货请求失败，请稍后重试'); }
+      } catch { if (isCurrentAction()) Message.error('确认收货请求失败，请稍后重试'); }
       finally {
-        acting.value = false;
-        confirmationOpen.value = false;
+        if (operation === actionVersion) {
+          acting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });

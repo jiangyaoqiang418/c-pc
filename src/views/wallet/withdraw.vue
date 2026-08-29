@@ -32,6 +32,7 @@ const detailError = ref('');
 const requestGuard = createLatestRequestGuard();
 const recordsGuard = createLatestRequestGuard();
 const detailGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const chainOptions = [
   { value: 'TRON', label: 'TRC20（USDT-TRON）' },
@@ -129,19 +130,25 @@ function openConfirm() {
 
 async function confirm() {
   if (submitting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     const created = await realWalletApi.createWithdraw({ ...form, toAddress: form.toAddress.trim() });
     const id = getId(created);
-    createdWithdrawal.value = typeof created === 'object' ? created : await realWalletApi.fetchWithdrawDetail(id);
+    const nextWithdrawal = typeof created === 'object' ? created : await realWalletApi.fetchWithdrawDetail(id);
+    if (!isCurrentWrite()) return;
+    createdWithdrawal.value = nextWithdrawal;
     modalOpen.value = false;
     Message.success('转出申请已提交，请等待平台审核');
     recordCurrent.value = 1;
     await Promise.all([walletStore.refetch(), loadRecords()]);
   } catch {
-    Message.error('转出申请提交失败，请稍后重试');
+    if (isCurrentWrite()) Message.error('转出申请提交失败，请稍后重试');
   } finally {
-    submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 
@@ -172,12 +179,16 @@ function queryRecords() {
 
 onMounted(loadAll);
 onBeforeUnmount(() => {
+  writeVersion += 1;
   requestGuard.invalidate();
   recordsGuard.invalidate();
   detailGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  writeVersion += 1;
+  submitting.value = false;
+  modalOpen.value = false;
   recentWithdrawals.value = [];
   recordTotal.value = 0;
   createdWithdrawal.value = undefined;

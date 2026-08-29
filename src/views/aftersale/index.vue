@@ -24,6 +24,7 @@ const statusColor: Record<string, string> = { APPLYING: 'orange', AGREED: 'green
 const requestGuard = createLatestRequestGuard();
 const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
 const canCancel = (row: Api.RealRefund.RefundDTO) => String(row.status) === 'APPLYING';
+let writeVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -40,23 +41,38 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(requestGuard.invalidate); watch(activeKey, load);
+onMounted(load); onBeforeUnmount(() => { writeVersion += 1; requestGuard.invalidate(); });
+watch(activeKey, () => {
+  writeVersion += 1;
+  cancellingId.value = undefined;
+  cancellationPending.value = false;
+  void load();
+});
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  writeVersion += 1;
   requestGuard.invalidate();
   refunds.value = [];
   loadError.value = '';
+  cancellingId.value = undefined;
+  cancellationPending.value = false;
   void load();
 });
 
 function cancel(row: Api.RealRefund.RefundDTO) {
   if (cancellingId.value || cancellationPending.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const refundId = row.refundId;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancellationPending.value = true;
-  Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { cancellationPending.value = false; }, async onOk() {
-    cancellingId.value = row.refundId;
-    try { await refundApi.cancelRefund(row.refundId); Message.success('已撤销退款申请'); await load(); }
-    catch { Message.error('撤销退款申请失败，请稍后重试'); }
-    finally { cancellingId.value = undefined; cancellationPending.value = false; }
+  Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { writeVersion += 1; cancellationPending.value = false; }, async onOk() {
+    if (!isCurrentWrite()) { cancellationPending.value = false; return; }
+    cancellingId.value = refundId;
+    try { await refundApi.cancelRefund(refundId); if (!isCurrentWrite()) return; Message.success('已撤销退款申请'); await load(); }
+    catch { if (isCurrentWrite()) Message.error('撤销退款申请失败，请稍后重试'); }
+    finally { if (operation === writeVersion) { cancellingId.value = undefined; cancellationPending.value = false; } }
   }});
 }
 </script>

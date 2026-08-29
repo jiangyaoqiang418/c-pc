@@ -78,6 +78,7 @@ const statusView = computed(() => {
 });
 
 const previewUrls = ref<Record<string, string>>({});
+let writeVersion = 0;
 
 async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null, signal?: AbortSignal, isCurrent?: () => boolean) {
   previewUrls.value = {};
@@ -111,8 +112,9 @@ async function load() {
     if (!userId) return;
     if (getAccessToken()) {
       try {
-        kycDetail.value = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal });
+        const nextDetail = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal });
         if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+        kycDetail.value = nextDetail;
         await refreshPrivatePreviews(kycDetail.value, isCurrent.signal, isCurrent);
       } catch {
         if (!isCurrent()) return;
@@ -129,8 +131,13 @@ async function load() {
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => userStore.currentUser?.id, () => {
+  writeVersion += 1;
+  submitting.value = false;
   requestGuard.invalidate();
   kycDetail.value = null;
   previewUrls.value = {};
@@ -157,6 +164,10 @@ async function submit() {
     Message.warning('证件图片上传中，请稍候');
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     await realKycApi.submitKyc({
@@ -165,10 +176,12 @@ async function submit() {
       idNo: form.idNo.trim(),
       nationality: form.nationality?.trim() || undefined
     });
+    if (!isCurrentWrite()) return;
     await Promise.all([load(), userStore.refreshCurrentUser()]);
+    if (!isCurrentWrite()) return;
     Message.success('实名认证已提交，请等待平台审核');
   } finally {
-    submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 </script>

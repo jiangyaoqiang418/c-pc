@@ -8,6 +8,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { sameBusinessId } from '@/utils/im';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,8 @@ const claiming = ref(false);
 const canceling = ref(false);
 const cancellationPending = ref(false);
 const requestGuard = createLatestRequestGuard();
+let claimWriteVersion = 0;
+let cancelWriteVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -29,8 +32,9 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    request.value = await purchaseApi.fetchPurchaseDetail(requestedId, { signal: isCurrent.signal });
+    const nextRequest = await purchaseApi.fetchPurchaseDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    request.value = nextRequest;
   } catch {
     if (!isCurrent()) return;
     request.value = undefined;
@@ -43,10 +47,18 @@ onMounted(async () => {
   await userStore.init();
   await load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  claimWriteVersion += 1;
+  cancelWriteVersion += 1;
+  requestGuard.invalidate();
+});
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  claimWriteVersion += 1;
+  cancelWriteVersion += 1;
   request.value = undefined;
+  claiming.value = false;
+  canceling.value = false;
   cancellationPending.value = false;
   void load();
 });
@@ -64,9 +76,16 @@ const canClaim = computed(() => {
 
 async function claim() {
   if (!request.value || !userStore.currentUser || claiming.value) return;
+  const requestedUserId = userStore.currentUser.id;
+  const requestedRequestId = request.value.id;
+  const operation = ++claimWriteVersion;
+  const isCurrentWrite = () => operation === claimWriteVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(request.value?.id, requestedRequestId);
   claiming.value = true;
   try {
-    const r = await purchaseApi.claimRequest(request.value.id);
+    const r = await purchaseApi.claimRequest(requestedRequestId);
+    if (!isCurrentWrite()) return;
     if (r.ok) {
       Message.success('接单成功');
       await load();
@@ -76,24 +95,37 @@ async function claim() {
   } catch {
     // 请求层已展示错误，保留当前求购供用户重试。
   } finally {
-    claiming.value = false;
+    if (operation === claimWriteVersion) claiming.value = false;
   }
 }
 
 function cancel() {
   if (!request.value || canceling.value || cancellationPending.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedRequestId = request.value.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++cancelWriteVersion;
+  const isCurrentWrite = () => operation === cancelWriteVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(request.value?.id, requestedRequestId);
   cancellationPending.value = true;
   Modal.confirm({
     title: '撤销求购？',
     content: '撤销后不可恢复',
     okButtonProps: { status: 'danger' },
     onCancel() {
+      cancelWriteVersion += 1;
       cancellationPending.value = false;
     },
     async onOk() {
+      if (!isCurrentWrite()) {
+        cancellationPending.value = false;
+        return;
+      }
       canceling.value = true;
       try {
-        const r = await purchaseApi.cancelPurchase(request.value!.id);
+        const r = await purchaseApi.cancelPurchase(requestedRequestId);
+        if (!isCurrentWrite()) return;
         if (r.ok) {
           Message.success('已撤销');
           await load();
@@ -103,8 +135,10 @@ function cancel() {
       } catch {
         // 请求层已展示错误，保留当前求购供用户重试。
       } finally {
-        canceling.value = false;
-        cancellationPending.value = false;
+        if (operation === cancelWriteVersion) {
+          canceling.value = false;
+          cancellationPending.value = false;
+        }
       }
     }
   });

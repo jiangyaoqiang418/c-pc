@@ -35,6 +35,7 @@ const loadError = ref('');
 const cancelingId = ref<string | number>();
 const allListGuard = createLatestRequestGuard();
 const listGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 async function loadAll() {
   await userStore.init();
@@ -77,11 +78,13 @@ onMounted(async () => {
   await load();
 });
 onBeforeUnmount(() => {
+  writeVersion += 1;
   allListGuard.invalidate();
   listGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, async (next, previous) => {
   if (String(next) === String(previous)) return;
+  writeVersion += 1;
   allListGuard.invalidate();
   listGuard.invalidate();
   allList.value = [];
@@ -104,18 +107,29 @@ const counts = computed(() => {
 
 function onCancel(req: Api.RealPurchase.Record) {
   if (cancelingId.value !== undefined) return;
-  cancelingId.value = req.id;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestId = req.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  cancelingId.value = requestId;
   Modal.confirm({
     title: '撤销求购？',
     content: '撤销后该求购将不可恢复',
     okText: '确认撤销',
     okButtonProps: { status: 'danger' },
     onCancel() {
+      writeVersion += 1;
       cancelingId.value = undefined;
     },
     async onOk() {
+      if (!isCurrentWrite()) {
+        cancelingId.value = undefined;
+        return;
+      }
       try {
-        const r = await purchaseApi.cancelPurchase(req.id);
+        const r = await purchaseApi.cancelPurchase(requestId);
+        if (!isCurrentWrite()) return;
         if (r.ok) {
           Message.success('已撤销');
           await loadAll();
@@ -126,7 +140,7 @@ function onCancel(req: Api.RealPurchase.Record) {
       } catch {
         // 请求层已展示错误，保留当前求购，避免撤销失败却从列表消失。
       } finally {
-        cancelingId.value = undefined;
+        if (operation === writeVersion) cancelingId.value = undefined;
       }
     }
   });

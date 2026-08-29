@@ -10,6 +10,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { sameBusinessId } from '@/utils/im';
 
 const route = useRoute();
 const router = useRouter();
@@ -22,6 +23,7 @@ const submitting = ref(false);
 const confirmationOpen = ref(false);
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -30,8 +32,9 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    order.value = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
+    const nextOrder = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    order.value = nextOrder;
   } catch {
     if (!isCurrent()) return;
     order.value = undefined;
@@ -41,8 +44,14 @@ async function load() {
   }
 }
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => [orderId.value, userStore.currentUser?.id], () => {
+  writeVersion += 1;
+  submitting.value = false;
+  confirmationOpen.value = false;
   requestGuard.invalidate();
   order.value = undefined;
   loadError.value = '';
@@ -51,6 +60,8 @@ watch(() => [orderId.value, userStore.currentUser?.id], () => {
 
 async function onSubmit(f: { productScore: number; sellerScore: number; content: string; tags: string[]; photoUrls: string[] }) {
   if (!order.value || !userStore.currentUser || submitting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser.id;
+  const requestedOrderId = order.value.id;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认提交评价？',
@@ -59,23 +70,34 @@ async function onSubmit(f: { productScore: number; sellerScore: number; content:
       confirmationOpen.value = false;
     },
     async onOk() {
+      const operation = ++writeVersion;
+      const isCurrentWrite = () => operation === writeVersion
+        && String(userStore.currentUser?.id) === String(requestedUserId)
+        && sameBusinessId(order.value?.id, requestedOrderId);
+      if (!isCurrentWrite()) {
+        confirmationOpen.value = false;
+        return;
+      }
       submitting.value = true;
       try {
         await reviewApi.submitReview({
-          orderId: order.value!.id,
+          orderId: requestedOrderId,
           productScore: f.productScore,
           sellerScore: f.sellerScore,
           content: f.content.trim() || undefined,
           images: f.photoUrls,
           anonymous: false
         });
+        if (!isCurrentWrite()) return;
         Message.success('评价提交成功');
         router.push('/review');
       } catch {
-        Message.error('提交失败，请稍后重试');
+        if (isCurrentWrite()) Message.error('提交失败，请稍后重试');
       } finally {
-        submitting.value = false;
-        confirmationOpen.value = false;
+        if (operation === writeVersion) {
+          submitting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });

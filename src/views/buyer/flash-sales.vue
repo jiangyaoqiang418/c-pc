@@ -24,6 +24,8 @@ const form = reactive<{
   flashStock?: number;
 }>({ sessionId: '', productId: '' });
 const requestGuard = createLatestRequestGuard();
+let submitWriteVersion = 0;
+let cancelWriteVersion = 0;
 
 const selectedProduct = computed(() => products.value.find(item => String(item.id) === form.productId));
 
@@ -73,15 +75,22 @@ async function submit() {
     Message.warning('秒杀库存至少为 1');
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++submitWriteVersion;
+  const requestedSessionId = form.sessionId;
+  const requestedProductId = form.productId;
+  const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     try {
       await flashSaleApi.enrollFlashSale({
-        sessionId: form.sessionId,
-        productId: form.productId,
+        sessionId: requestedSessionId,
+        productId: requestedProductId,
         flashPrice: form.flashPrice,
         flashStock: form.flashStock
       });
+      if (!isCurrentWrite()) return;
       Message.success('秒杀报名成功');
       modalOpen.value = false;
       activeTab.value = 'mine';
@@ -90,29 +99,39 @@ async function submit() {
       // 请求层已展示业务错误，保留表单供用户修正后重试。
     }
   } finally {
-    submitting.value = false;
+    if (operation === submitWriteVersion) submitting.value = false;
   }
 }
 
 function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
   const key = `${item.sessionId}:${item.productId}`;
   if (cancelingEnrollmentKey.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++cancelWriteVersion;
+  const isCurrentWrite = () => operation === cancelWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancelingEnrollmentKey.value = key;
   Modal.confirm({
     title: '取消秒杀报名？',
     content: `确认取消「${item.title}」的本场报名？`,
     onCancel() {
+      cancelWriteVersion += 1;
       cancelingEnrollmentKey.value = '';
     },
     async onOk() {
+      if (!isCurrentWrite()) {
+        cancelingEnrollmentKey.value = '';
+        return;
+      }
       try {
         await flashSaleApi.cancelFlashSaleEnrollment(item.sessionId, item.productId);
+        if (!isCurrentWrite()) return;
         Message.success('已取消报名');
         await load();
       } catch {
         // 请求层已展示业务错误，避免未处理的确认回调异常。
       } finally {
-        cancelingEnrollmentKey.value = '';
+        if (operation === cancelWriteVersion) cancelingEnrollmentKey.value = '';
       }
     }
   });
@@ -129,8 +148,16 @@ function formatTime(value?: string | number) {
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  submitWriteVersion += 1;
+  cancelWriteVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => userStore.currentUser?.id, () => {
+  submitWriteVersion += 1;
+  cancelWriteVersion += 1;
+  submitting.value = false;
+  cancelingEnrollmentKey.value = '';
   requestGuard.invalidate();
   sessions.value = [];
   enrollments.value = [];

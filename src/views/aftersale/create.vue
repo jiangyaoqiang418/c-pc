@@ -9,6 +9,7 @@ import * as orderApi from '@/service/api/order';
 import * as refundApi from '@/service/api/refund';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { sameBusinessId } from '@/utils/im';
 
 const route = useRoute();
 const router = useRouter();
@@ -22,6 +23,7 @@ const confirmationOpen = ref(false);
 const form = reactive({ reason: '', evidenceImages: [] as string[] });
 const eligible = computed(() => ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.value?.status || ''));
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -30,8 +32,9 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    order.value = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
+    const nextOrder = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    order.value = nextOrder;
   } catch {
     if (!isCurrent()) return;
     order.value = undefined;
@@ -41,8 +44,15 @@ async function load() {
   }
 }
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => [orderId.value, userStore.currentUser?.id], () => {
+  requestGuard.invalidate();
+  writeVersion += 1;
+  submitting.value = false;
+  confirmationOpen.value = false;
   requestGuard.invalidate();
   order.value = undefined;
   loadError.value = '';
@@ -53,6 +63,9 @@ function submit() {
   if (submitting.value || confirmationOpen.value) return;
   if (!order.value || !eligible.value) return Message.warning('当前订单状态不可申请仅退款');
   if (!form.reason.trim()) return Message.warning('请填写退款原因');
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedOrderId = order.value.id;
+  if (requestedUserId === undefined) return;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认申请仅退款？',
@@ -62,16 +75,27 @@ function submit() {
       confirmationOpen.value = false;
     },
     async onOk() {
+      const operation = ++writeVersion;
+      const isCurrentWrite = () => operation === writeVersion
+        && String(userStore.currentUser?.id) === String(requestedUserId)
+        && sameBusinessId(order.value?.id, requestedOrderId);
+      if (!isCurrentWrite()) {
+        confirmationOpen.value = false;
+        return;
+      }
       submitting.value = true;
       try {
-        const refundId = await refundApi.createRefund({ orderId: order.value!.id, reason: form.reason.trim(), evidenceImages: form.evidenceImages });
+        const refundId = await refundApi.createRefund({ orderId: requestedOrderId, reason: form.reason.trim(), evidenceImages: form.evidenceImages });
+        if (!isCurrentWrite()) return;
         Message.success('仅退款申请已提交，等待平台审核');
         router.replace({ name: 'aftersale-detail', params: { id: String(refundId) } });
       } catch {
-        Message.error('仅退款申请提交失败，请稍后重试');
+        if (isCurrentWrite()) Message.error('仅退款申请提交失败，请稍后重试');
       } finally {
-        submitting.value = false;
-        confirmationOpen.value = false;
+        if (operation === writeVersion) {
+          submitting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });

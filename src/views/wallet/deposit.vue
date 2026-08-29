@@ -38,6 +38,8 @@ const recordsGuard = createLatestRequestGuard();
 const chainsGuard = createLatestRequestGuard();
 const addressGuard = createLatestRequestGuard();
 const detailGuard = createLatestRequestGuard();
+let createWriteVersion = 0;
+let cancelWriteVersion = 0;
 
 const chainOptions = ref<Api.RealWallet.RechargeChainVO[]>([]);
 const selectedChain = computed(() => chainOptions.value.find(item => item.chain === chain.value));
@@ -172,22 +174,30 @@ async function createRecharge() {
     Message.warning(`该链单笔最低充值金额为 ${minAmount} USDT`);
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++createWriteVersion;
+  const isCurrentWrite = () => operation === createWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     const created = await realWalletApi.createRecharge({ chain: chainCode, amount: amount.value });
     const id = getId(created);
-    currentRecharge.value = typeof created === 'object' ? created : await realWalletApi.fetchRechargeDetail(id);
-    if (!currentRecharge.value.depositAddress) {
-      currentRecharge.value = await realWalletApi.fetchRechargeDetail(id);
+    let nextRecharge = typeof created === 'object' ? created : await realWalletApi.fetchRechargeDetail(id);
+    if (!isCurrentWrite()) return;
+    if (!nextRecharge.depositAddress) {
+      nextRecharge = await realWalletApi.fetchRechargeDetail(id);
+      if (!isCurrentWrite()) return;
     }
+    currentRecharge.value = nextRecharge;
     activeTab.value = 'address';
     recordCurrent.value = 1;
     await loadRecords();
+    if (!isCurrentWrite()) return;
     Message.success('充值订单已创建，请按收款信息完成链上转账');
   } catch {
-    Message.error('充值订单创建失败，请稍后重试');
+    if (isCurrentWrite()) Message.error('充值订单创建失败，请稍后重试');
   } finally {
-    submitting.value = false;
+    if (operation === createWriteVersion) submitting.value = false;
   }
 }
 
@@ -219,15 +229,20 @@ async function openDetail(id: string | number) {
 
 async function cancelRecharge(record: Api.RealWallet.RechargeVO) {
   if (record.status !== 'PENDING' || cancelingRechargeId.value !== undefined) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++cancelWriteVersion;
+  const isCurrentWrite = () => operation === cancelWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancelingRechargeId.value = record.id;
   try {
     await realWalletApi.cancelRecharge(record.id);
+    if (!isCurrentWrite()) return;
     Message.success('充值申报已取消');
     await loadRecords();
   } catch {
     // 请求层已展示后端业务提示。
   } finally {
-    cancelingRechargeId.value = undefined;
+    if (operation === cancelWriteVersion && isCurrentWrite()) cancelingRechargeId.value = undefined;
   }
 }
 
@@ -238,6 +253,8 @@ function queryRecords() {
 
 onMounted(loadAll);
 onBeforeUnmount(() => {
+  createWriteVersion += 1;
+  cancelWriteVersion += 1;
   requestGuard.invalidate();
   recordsGuard.invalidate();
   chainsGuard.invalidate();
@@ -246,6 +263,10 @@ onBeforeUnmount(() => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  createWriteVersion += 1;
+  cancelWriteVersion += 1;
+  submitting.value = false;
+  cancelingRechargeId.value = undefined;
   chainOptions.value = [];
   chain.value = undefined;
   rechargeAddress.value = undefined;

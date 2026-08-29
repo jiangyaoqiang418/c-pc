@@ -46,6 +46,7 @@ const logsGuard = createLatestRequestGuard();
 const appealsGuard = createLatestRequestGuard();
 const rulesGuard = createLatestRequestGuard();
 const vipGuard = createLatestRequestGuard();
+let appealWriteVersion = 0;
 
 const ALL_BEHAVIORS: Api.Point.BehaviorCode[] = [
   'CONSUME', 'DEPOSIT_IN', 'RECHARGE', 'WITHDRAW', 'FINANCE_HOLD',
@@ -149,8 +150,9 @@ async function loadInitial() {
   if (!uid) return;
   const isCurrent = vipGuard.begin();
   try {
-    vipStatus.value = await vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal });
+    const nextVipStatus = await vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(uid)) return;
+    vipStatus.value = nextVipStatus;
   } catch {
     if (!isCurrent()) return;
     vipStatus.value = undefined;
@@ -161,6 +163,7 @@ async function loadInitial() {
 
 onMounted(loadInitial);
 onBeforeUnmount(() => {
+  appealWriteVersion += 1;
   logsGuard.invalidate();
   appealsGuard.invalidate();
   rulesGuard.invalidate();
@@ -168,6 +171,7 @@ onBeforeUnmount(() => {
 });
 
 watch(() => userStore.currentUser?.id, () => {
+  appealWriteVersion += 1;
   current.value = 1;
   appealCurrent.value = 1;
   logs.value = [];
@@ -175,8 +179,14 @@ watch(() => userStore.currentUser?.id, () => {
   appeals.value = [];
   appealTotal.value = 0;
   vipStatus.value = undefined;
-  loadInitial();
-  if (activeTab.value === 'appeals') loadAppeals();
+  logLoadError.value = '';
+  rulesLoadError.value = '';
+  appealLoadError.value = '';
+  appealTarget.value = undefined;
+  appealModalOpen.value = false;
+  appealSubmitting.value = false;
+  void loadInitial();
+  if (activeTab.value === 'appeals') void loadAppeals();
 });
 
 watch(activeTab, t => {
@@ -203,9 +213,14 @@ async function submitAppeal() {
     Message.warning('原因至少 10 字');
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const appealLogId = appealTarget.value.id;
+  const operation = ++appealWriteVersion;
   appealSubmitting.value = true;
   try {
-    const r = await pointApi.appealPointLog({ logId: appealTarget.value.id, reason });
+    const r = await pointApi.appealPointLog({ logId: appealLogId, reason });
+    if (operation !== appealWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     if (!r.ok) {
       Message.error(r.message || '提交失败');
       return;
@@ -214,7 +229,7 @@ async function submitAppeal() {
     appealModalOpen.value = false;
     await Promise.all([loadLogs(), loadAppeals()]);
   } finally {
-    appealSubmitting.value = false;
+    if (operation === appealWriteVersion) appealSubmitting.value = false;
   }
 }
 

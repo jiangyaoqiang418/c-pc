@@ -23,6 +23,7 @@ const loadError = ref('');
 const editVisible = ref(false);
 const savingProfile = ref(false);
 let profileLoadVersion = 0;
+let profileWriteVersion = 0;
 const profileRequestGuard = createLatestRequestGuard();
 const editForm = reactive<Api.RealAuth.ProfileUpdateParams>({
   nickname: '',
@@ -70,8 +71,12 @@ onMounted(loadProfile);
 onBeforeUnmount(() => {
   profileRequestGuard.invalidate();
   profileLoadVersion += 1;
+  profileWriteVersion += 1;
 });
 watch(() => userStore.currentUser?.id, () => {
+  profileWriteVersion += 1;
+  savingProfile.value = false;
+  editVisible.value = false;
   profileRequestGuard.invalidate();
   void loadProfile();
 });
@@ -90,6 +95,9 @@ async function saveProfile() {
     Message.warning('请输入昵称');
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++profileWriteVersion;
   savingProfile.value = true;
   try {
     await realAuthApi.updateProfile({
@@ -97,11 +105,13 @@ async function saveProfile() {
       phone: editForm.phone?.trim() || undefined,
       avatar: editForm.avatar?.trim() || undefined
     });
+    if (operation !== profileWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     await userStore.refreshCurrentUser();
+    if (operation !== profileWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     editVisible.value = false;
     Message.success('资料已更新');
   } finally {
-    savingProfile.value = false;
+    if (operation === profileWriteVersion) savingProfile.value = false;
   }
 }
 

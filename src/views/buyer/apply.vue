@@ -16,6 +16,7 @@ const form = reactive<Api.RealBuyer.BuyerApplyParams>({
   reason: ''
 });
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const statusMeta = computed(() => {
   const status = application.value?.status;
@@ -39,8 +40,9 @@ async function loadApplication() {
   loading.value = true;
   loadError.value = '';
   try {
-    application.value = await buyerApi.fetchBuyerApplication({ signal: isCurrent.signal });
+    const nextApplication = await buyerApi.fetchBuyerApplication({ signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    application.value = nextApplication;
     if (!application.value && userStore.currentUser) {
       form.contact = userStore.currentUser.phone || '';
     }
@@ -63,6 +65,10 @@ async function submit() {
     Message.warning('申请说明至少填写 10 个字');
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     try {
@@ -71,19 +77,25 @@ async function submit() {
         contact: form.contact.trim(),
         reason: form.reason.trim()
       });
+      if (!isCurrentWrite()) return;
       Message.success('买手申请已提交');
       await loadApplication();
     } catch {
-      Message.error('买手申请提交失败，请稍后重试');
+      if (isCurrentWrite()) Message.error('买手申请提交失败，请稍后重试');
     }
   } finally {
-    submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 
 onMounted(loadApplication);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => userStore.currentUser?.id, () => {
+  writeVersion += 1;
+  submitting.value = false;
   requestGuard.invalidate();
   application.value = undefined;
   loadError.value = '';

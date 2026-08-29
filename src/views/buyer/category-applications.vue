@@ -34,6 +34,7 @@ const form = reactive({
 });
 const requestGuard = createLatestRequestGuard();
 const categoriesGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): CategoryOption[] {
   return nodes.filter(node => node.level < 3).map(node => ({
@@ -97,6 +98,7 @@ function openSubmit() {
 }
 
 async function submit() {
+  if (submitting.value) return;
   if (!form.newName.trim()) {
     Message.warning('请输入新分类名称');
     return;
@@ -105,6 +107,10 @@ async function submit() {
     Message.warning('请输入申请理由');
     return;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     try {
@@ -113,6 +119,7 @@ async function submit() {
         newName: form.newName.trim(),
         reason: form.reason.trim()
       });
+      if (!isCurrentWrite()) return;
       Message.success('分类申请已提交');
       modalOpen.value = false;
       current.value = 1;
@@ -121,7 +128,7 @@ async function submit() {
       // 请求层已展示错误，保留表单内容供用户修正后重试。
     }
   } finally {
-    submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 
@@ -152,10 +159,12 @@ onMounted(() => {
   void loadCategories();
 });
 onBeforeUnmount(() => {
+  writeVersion += 1;
   requestGuard.invalidate();
   categoriesGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, () => {
+  writeVersion += 1;
   requestGuard.invalidate();
   categoriesGuard.invalidate();
   records.value = [];
@@ -163,6 +172,8 @@ watch(() => userStore.currentUser?.id, () => {
   current.value = 1;
   loadError.value = '';
   categoryLoadError.value = '';
+  submitting.value = false;
+  modalOpen.value = false;
   void load();
   void loadCategories();
 });

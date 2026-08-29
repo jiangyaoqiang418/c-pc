@@ -10,6 +10,7 @@ import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
 import { enums } from '@shared';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { sameBusinessId } from '@/utils/im';
 
 const userStore = useUserStore();
 const route = useRoute();
@@ -48,6 +49,9 @@ const logisticsModalOpen = ref(false);
 const logisticsSubmitting = ref(false);
 const logisticsOrder = ref<Api.RealOrder.Record>();
 const requestGuard = createLatestRequestGuard();
+let logisticsWriteVersion = 0;
+let shippingWriteVersion = 0;
+let priceWriteVersion = 0;
 
 function syncFromQuery() {
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
@@ -109,13 +113,21 @@ onMounted(() => {
   syncFromQuery();
   void load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  logisticsWriteVersion += 1;
+  shippingWriteVersion += 1;
+  priceWriteVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => route.fullPath, () => {
   syncFromQuery();
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  logisticsWriteVersion += 1;
+  shippingWriteVersion += 1;
+  priceWriteVersion += 1;
   requestGuard.invalidate();
   orders.value = [];
   total.value = 0;
@@ -127,6 +139,9 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   priceOrder.value = undefined;
   shippingOrder.value = undefined;
   logisticsOrder.value = undefined;
+  priceSubmitting.value = false;
+  shippingSubmitting.value = false;
+  logisticsSubmitting.value = false;
   syncQuery();
 });
 
@@ -156,40 +171,55 @@ function manageLogistics(order: Api.RealOrder.Record) {
 
 async function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {
   if (logisticsSubmitting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++logisticsWriteVersion;
+  const isCurrentWrite = () => operation === logisticsWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   logisticsSubmitting.value = true;
   try {
     await realOrderApi.createLogisticsTrack(params);
+    if (!isCurrentWrite()) return;
     Message.success('物流轨迹已登记');
     logisticsModalOpen.value = false;
     await load();
   } catch {
     // 请求层已展示后端业务提示，保留表单供修正后重试。
   } finally {
-    logisticsSubmitting.value = false;
+    if (operation === logisticsWriteVersion) logisticsSubmitting.value = false;
   }
 }
 
 async function markLogisticsException(params: Api.RealOrder.LogisticsExceptionParams) {
   if (logisticsSubmitting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++logisticsWriteVersion;
+  const isCurrentWrite = () => operation === logisticsWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   logisticsSubmitting.value = true;
   try {
     await realOrderApi.markLogisticsException(params);
+    if (!isCurrentWrite()) return;
     Message.success('物流异常已标记');
     logisticsModalOpen.value = false;
     await load();
   } catch {
     // 请求层已展示后端业务提示，保留表单供修正后重试。
   } finally {
-    logisticsSubmitting.value = false;
+    if (operation === logisticsWriteVersion) logisticsSubmitting.value = false;
   }
 }
 
 async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   if (shippingSubmitting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++shippingWriteVersion;
+  const isCurrentWrite = () => operation === shippingWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   shippingSubmitting.value = true;
   try {
     try {
       await realOrderApi.shipOrder(params);
+      if (!isCurrentWrite()) return;
       Message.success('发货信息已提交');
       shippingModalOpen.value = false;
       await load();
@@ -197,7 +227,7 @@ async function shipOrder(params: Api.RealOrder.OrderShipParams) {
       // 请求层已展示错误，保留发货表单供用户修正后重试。
     }
   } finally {
-    shippingSubmitting.value = false;
+    if (operation === shippingWriteVersion) shippingSubmitting.value = false;
   }
 }
 
@@ -216,10 +246,17 @@ async function changePrice() {
     Message.warning('请输入正确的订单金额');
     return false;
   }
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return false;
+  const operation = ++priceWriteVersion;
+  const isCurrentWrite = () => operation === priceWriteVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(priceOrder.value?.id, orderId);
   priceSubmitting.value = true;
   try {
     try {
       await realOrderApi.changeOrderPrice({ id: orderId, amount });
+      if (!isCurrentWrite()) return false;
       Message.success('订单价格已修改');
       await load();
       return true;
@@ -228,7 +265,7 @@ async function changePrice() {
       return false;
     }
   } finally {
-    priceSubmitting.value = false;
+    if (operation === priceWriteVersion) priceSubmitting.value = false;
   }
 }
 </script>
