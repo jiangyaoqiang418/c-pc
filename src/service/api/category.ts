@@ -24,8 +24,9 @@ export async function fetchCategoryTree(options: { signal?: AbortSignal } = {}) 
   return requireArray<Api.RealCategory.CategoryNodeDTO>(list, '分类树').map(toCategoryNode);
 }
 
-export function fetchRealCategoryTree(options: { signal?: AbortSignal } = {}) {
-  return realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree', options);
+export async function fetchRealCategoryTree(options: { signal?: AbortSignal } = {}) {
+  const list = await realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree', options);
+  return requireArray<Api.RealCategory.CategoryNodeDTO>(list, '分类树');
 }
 
 export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryApplyPageQuery = {}, options: { signal?: AbortSignal } = {}) {
