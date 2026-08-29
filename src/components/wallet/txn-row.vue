@@ -37,7 +37,15 @@ const relativeTime = computed(() => {
 </script>
 
 <template>
-  <div class="txn-row" :class="{ compact }" @click="$emit('detail', txn)">
+  <div
+    class="txn-row"
+    :class="{ compact }"
+    role="button"
+    tabindex="0"
+    @click="$emit('detail', txn)"
+    @keydown.enter="$emit('detail', txn)"
+    @keydown.space.prevent="$emit('detail', txn)"
+  >
     <div class="dir" :class="{ inbound: isIn, outbound: !isIn }">
       <span class="arrow">{{ isIn ? '↑' : '↓' }}</span>
     </div>
@@ -79,6 +87,10 @@ const relativeTime = computed(() => {
 }
 .txn-row:hover {
   background: var(--yb-bg);
+}
+.txn-row:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: -2px;
 }
 .txn-row.compact {
   padding: 12px 0;

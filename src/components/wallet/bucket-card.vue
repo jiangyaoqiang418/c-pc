@@ -38,7 +38,15 @@ function go() {
 
 <template>
   <!-- Row variant (BiyaPay/ether.fi 极简) -->
-  <div v-if="variant === 'row'" class="bucket-row" @click="go">
+  <div
+    v-if="variant === 'row'"
+    class="bucket-row"
+    role="button"
+    tabindex="0"
+    @click="go"
+    @keydown.enter="go"
+    @keydown.space.prevent="go"
+  >
     <div class="row-left">
       <div class="icon-wrap">
         <Icon :icon="iconName" class="row-icon" />
@@ -58,7 +66,15 @@ function go() {
   </div>
 
   <!-- Card variant (兼容旧调用；去色统一米白) -->
-  <div v-else class="bucket-card" @click="go">
+  <div
+    v-else
+    class="bucket-card"
+    role="button"
+    tabindex="0"
+    @click="go"
+    @keydown.enter="go"
+    @keydown.space.prevent="go"
+  >
     <div class="card-head">
       <div class="icon-wrap sm">
         <Icon :icon="iconName" class="row-icon" />
@@ -90,6 +106,11 @@ function go() {
 }
 .bucket-row:hover {
   background: var(--yb-bg);
+}
+.bucket-row:focus-visible,
+.bucket-card:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: -2px;
 }
 .row-left {
   display: flex;

@@ -641,7 +641,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
             <a-tab-pane key="group" :title="`三方群 (${groups.length})`">
               <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
               <div v-else-if="groups.length" class="conv-list chat-scroll">
-                <div v-for="conversation in groups" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
+                <div v-for="conversation in groups" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" role="button" tabindex="0" :aria-current="sameBusinessId(selectedConversationId, conversation.id) ? 'page' : undefined" @click="selectConversation(conversation)" @keydown.enter="selectConversation(conversation)" @keydown.space.prevent="selectConversation(conversation)">
                   <img v-if="conversation.peerAvatar" :src="conversation.peerAvatar" :alt="conversation.peerName || '会话头像'" class="avatar image" />
                   <div v-else class="avatar group">{{ (conversation.peerName || conversation.title || '订').slice(0, 1) }}</div>
                   <div class="info">
@@ -659,7 +659,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
             <a-tab-pane key="cs" title="平台客服">
               <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
               <div v-else-if="csSessions.length" class="conv-list chat-scroll">
-                <div v-for="conversation in csSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
+                <div v-for="conversation in csSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" role="button" tabindex="0" :aria-current="sameBusinessId(selectedConversationId, conversation.id) ? 'page' : undefined" @click="selectConversation(conversation)" @keydown.enter="selectConversation(conversation)" @keydown.space.prevent="selectConversation(conversation)">
                   <div class="avatar cs">客</div><div class="info"><div class="conv-name">{{ conversation.title || '油宝在线客服' }}</div><div class="conv-meta">{{ lastPreview(conversation) }}</div></div>
                 </div>
               </div>
@@ -668,7 +668,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
             <a-tab-pane key="presale" :title="`售前 (${presaleSessions.length})`">
               <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
               <div v-else-if="presaleSessions.length" class="conv-list chat-scroll">
-                <div v-for="conversation in presaleSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" @click="selectConversation(conversation)">
+                <div v-for="conversation in presaleSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" role="button" tabindex="0" :aria-current="sameBusinessId(selectedConversationId, conversation.id) ? 'page' : undefined" @click="selectConversation(conversation)" @keydown.enter="selectConversation(conversation)" @keydown.space.prevent="selectConversation(conversation)">
                   <div class="avatar presale">售</div><div class="info"><div class="conv-name">{{ conversation.title || '售前会话' }}</div><div class="conv-meta">{{ lastPreview(conversation) }}</div></div>
                 </div>
               </div>
@@ -725,6 +725,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 .conv-row { display: flex; gap: 10px; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #f7f8fa; transition: background .15s; }
 .conv-row:hover, .conv-row.active { background: #f3f7ff; }
 .conv-row.active { border-left: 3px solid var(--bw-brand-primary); }
+.conv-row:focus-visible { outline: 2px solid var(--bw-brand-primary); outline-offset: -2px; }
 .avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; flex-shrink: 0; object-fit: cover; }
 .avatar.group { background: #165dff; }.avatar.cs { background: #00b42a; }.avatar.presale { background: #ff7d00; }
 .info { flex: 1; min-width: 0; }.conv-title-row { display: flex; align-items: center; gap: 8px; }
