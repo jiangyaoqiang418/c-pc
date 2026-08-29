@@ -37,11 +37,17 @@ function goIm() {
     </div>
 
     <div class="body">
-      <div class="cover-wrap" @click="goDetail">
+      <div
+        class="cover-wrap"
+        role="link"
+        tabindex="0"
+        @click="goDetail"
+        @keydown.enter="goDetail"
+      >
         <img :src="cover" :alt="order.productTitle" class="cover" />
       </div>
       <div class="info">
-        <div class="title" @click="goDetail">{{ order.productTitle }}</div>
+        <div class="title" role="link" tabindex="0" @click="goDetail" @keydown.enter="goDetail">{{ order.productTitle }}</div>
         <div class="meta-row">
           <span class="tag-chip">
             <Icon icon="lucide:user" width="11" />
@@ -161,6 +167,12 @@ function goIm() {
 }
 .cover-wrap:hover .cover {
   transform: scale(1.06);
+}
+.cover-wrap:focus-visible,
+.title:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 .info {
   display: flex;
