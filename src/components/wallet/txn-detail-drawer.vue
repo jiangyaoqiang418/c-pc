@@ -14,7 +14,9 @@ defineEmits<{ (e: 'update:visible', v: boolean): void }>();
 const isIn = computed(() => props.txn?.direction === 'in');
 const typeLabel = computed(() => {
   if (!props.txn) return '';
-  return props.txn.testData ? '测试模拟到账' : enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type;
+  if (props.txn.testData) return '测试模拟到账';
+  if ('bizTypeText' in props.txn && props.txn.bizTypeText) return props.txn.bizTypeText;
+  return enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type;
 });
 
 function copy(text?: string) {

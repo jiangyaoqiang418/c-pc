@@ -174,6 +174,10 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
     id: dto.id,
     userId: dto.userId,
     userName: '',
+    bizType: dto.bizType,
+    bizTypeText: dto.bizTypeText,
+    bizGroup: dto.bizGroup,
+    bizGroupText: dto.bizGroupText,
     type,
     direction,
     amount: String(dto.amount ?? 0),
@@ -238,9 +242,30 @@ export async function fetchWalletLedger(q: {
     bizGroup: selector?.bizGroup,
     bizType: selector?.bizType
   }, { signal: q.signal });
-  const pages = selectors.length > 1
-    ? await Promise.all(selectors.map(selector => requestPage(selector, 1, current * size)))
-    : [await requestPage(selectors[0])];
+  let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealWallet.WalletLedgerDTO> & { pageNo?: number; pageSize?: number }>;
+  let total = 0;
+  if (selectors.length > 1) {
+    // 先取每个原始业务类型的第一页拿到 total，再按真实页大小分批读取。
+    // 避免用 current * size 触发后端 pageSize 上限，导致深分页漏记录。
+    const firstPages = await Promise.all(selectors.map(selector => requestPage(selector, 1, size)));
+    total = firstPages.reduce((sum, page) => sum + toPageTotal(page.total), 0);
+    const maxPage = Math.max(1, Math.ceil(total / size));
+    if (current > maxPage) return { current, size, total, records: [] as Api.RealWallet.Ledger[] };
+    const extraPages = await Promise.all(
+      selectors.flatMap((selector, index) => {
+        const selectorTotal = toPageTotal(firstPages[index].total);
+        const selectorMaxPage = Math.max(1, Math.ceil(selectorTotal / size));
+        const pageCount = Math.min(current, selectorMaxPage);
+        return Array.from({ length: Math.max(0, pageCount - 1) }, (_, offset) =>
+          requestPage(selector, offset + 2, size)
+        );
+      })
+    );
+    pages = [...firstPages, ...extraPages];
+  } else {
+    pages = [await requestPage(selectors[0])];
+    total = toPageTotal(pages[0].total);
+  }
   const recordsById = new Map<string, Api.RealWallet.Ledger>();
   pages.forEach(page => {
     page.records.map(toTxn).forEach(record => {
@@ -254,7 +279,7 @@ export async function fetchWalletLedger(q: {
   return {
     current,
     size,
-    total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
+    total,
     records
   };
 }

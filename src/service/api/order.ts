@@ -19,9 +19,29 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
       pageSize,
       status
     }, { signal: q.signal });
-  const pages = statuses.length > 1
-    ? await Promise.all(statuses.map(status => requestPage(status, 1, current * size)))
-    : [await requestPage(statuses[0])];
+  let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number }>;
+  let total = 0;
+  if (statuses.length > 1) {
+    // 先读取每个状态的 total，再按真实 pageSize 分批读取，避免后端限制大 pageSize 时深分页缺页。
+    const firstPages = await Promise.all(statuses.map(status => requestPage(status, 1, size)));
+    total = firstPages.reduce((sum, page) => sum + toPageTotal(page.total), 0);
+    const maxPage = Math.max(1, Math.ceil(total / size));
+    if (current > maxPage) return { current, size, total, records: [] as Api.RealOrder.Record[] };
+    const extraPages = await Promise.all(
+      statuses.flatMap((status, index) => {
+        const statusTotal = toPageTotal(firstPages[index].total);
+        const statusMaxPage = Math.max(1, Math.ceil(statusTotal / size));
+        const pageCount = Math.min(current, statusMaxPage);
+        return Array.from({ length: Math.max(0, pageCount - 1) }, (_, offset) =>
+          requestPage(status, offset + 2, size)
+        );
+      })
+    );
+    pages = [...firstPages, ...extraPages];
+  } else {
+    pages = [await requestPage(statuses[0])];
+    total = toPageTotal(pages[0].total);
+  }
   const recordsById = new Map<string, Api.RealOrder.Record>();
   pages.forEach(page => {
     page.records.map(toOrderRecord).forEach(record => {
@@ -36,7 +56,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
   return {
     current,
     size,
-    total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
+    total,
     records
   };
 }

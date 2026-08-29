@@ -12,7 +12,7 @@ const walletStore = useWalletStore();
 const route = useRoute();
 const activeTab = ref<'create' | 'address'>('create');
 const amount = ref(100);
-const chain = ref('');
+const chain = ref<string>();
 const submitting = ref(false);
 const loadingRecords = ref(false);
 const currentRecharge = ref<Api.RealWallet.RechargeVO>();
@@ -80,7 +80,7 @@ async function loadChains() {
     const chains = await realWalletApi.fetchRechargeChains();
     chainOptions.value = chains.filter(item => item.enabled);
     if (!chainOptions.value.some(item => item.chain === chain.value)) {
-      chain.value = chainOptions.value[0]?.chain || '';
+      chain.value = chainOptions.value[0]?.chain;
     }
   } catch {
     chainOptions.value = [];
@@ -123,7 +123,8 @@ async function createRecharge() {
     Message.warning('请输入正确的充值金额');
     return;
   }
-  if (!selectedChain.value) {
+  const chainCode = selectedChain.value?.chain;
+  if (!chainCode) {
     Message.warning('当前没有可用充值链');
     return;
   }
@@ -134,7 +135,7 @@ async function createRecharge() {
   }
   submitting.value = true;
   try {
-    const created = await realWalletApi.createRecharge({ chain: chain.value, amount: amount.value });
+    const created = await realWalletApi.createRecharge({ chain: chainCode, amount: amount.value });
     const id = getId(created);
     currentRecharge.value = typeof created === 'object' ? created : await realWalletApi.fetchRechargeDetail(id);
     if (!currentRecharge.value.depositAddress) {

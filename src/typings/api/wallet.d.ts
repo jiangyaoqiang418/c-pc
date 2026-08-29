@@ -9,6 +9,11 @@ declare namespace Api.RealWallet {
   type Ledger = Omit<Api.Wallet.Txn, 'id' | 'userId'> & {
     id: Id;
     userId: Id;
+    /** 后端原始业务分类，保留用于详情、筛选审计和问题定位。 */
+    bizType?: string;
+    bizTypeText?: string;
+    bizGroup?: string;
+    bizGroupText?: string;
   };
 
   type DisplayLedger = Api.Wallet.Txn | Ledger;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
@@ -10,6 +10,7 @@ import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import AssetCompositionChart from '@/components/wallet/asset-composition-chart.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -20,26 +21,36 @@ const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
 const loading = ref(false);
 const loadError = ref('');
+const requestGuard = createLatestRequestGuard();
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
+  const userId = userStore.currentUser?.id;
+  if (!userId) {
+    requestGuard.invalidate();
+    recentTxns.value = [];
+    loadError.value = '';
+    return;
+  }
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
-  try {
-    await walletStore.fetchWallet(userStore.currentUser.id);
-    const r = await realWalletApi.fetchWalletLedger({ current: 1, size: 5 });
-    recentTxns.value = r.records;
-  } catch {
-    recentTxns.value = [];
+  const [walletResult, ledgerResult] = await Promise.allSettled([
+    walletStore.fetchWallet(userId),
+    realWalletApi.fetchWalletLedger({ current: 1, size: 5, signal: isCurrent.signal })
+  ]);
+  if (!isCurrent()) return;
+  if (ledgerResult.status === 'fulfilled') recentTxns.value = ledgerResult.value.records;
+  else recentTxns.value = [];
+  if (walletResult.status === 'rejected' || ledgerResult.status === 'rejected') {
     loadError.value = '钱包数据加载失败，请检查网络后重试。';
-  } finally {
-    loading.value = false;
   }
+  loading.value = false;
 }
 
 onMounted(loadAll);
 watch(() => userStore.currentAudience, loadAll);
 watch(() => userStore.currentUser?.id, loadAll);
+onBeforeUnmount(requestGuard.invalidate);
 
 import { getUsdtCnyRate } from '@shared/utils/currency';
 const cnyRate = getUsdtCnyRate();

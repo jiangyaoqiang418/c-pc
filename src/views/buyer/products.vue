@@ -68,6 +68,13 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      // 仅回退一次到后端报告的最后有效页，避免超大页码造成空列表或重复请求。
+      current.value = maxPage;
+      void load();
+      return;
+    }
     products.value = r.records;
     total.value = r.total;
   } catch {

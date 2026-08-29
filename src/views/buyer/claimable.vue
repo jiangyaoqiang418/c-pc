@@ -27,6 +27,12 @@ async function load() {
   loadError.value = '';
   try {
     const r = await purchaseApi.fetchHall({ current: current.value, size: size.value });
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      await load();
+      return;
+    }
     list.value = r.records;
     total.value = Number(r.total || 0);
   } catch {

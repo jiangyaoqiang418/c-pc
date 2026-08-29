@@ -1,4 +1,4 @@
-import { clearAccessToken, realUserRequest, setAccessToken } from '@/service/request';
+import { clearAccessToken, getAccessToken, realUserRequest, setAccessToken } from '@/service/request';
 
 function normalizeKycStatus(status?: string): Api.User.KycStatus {
   const value = status?.toLowerCase();
@@ -47,9 +47,20 @@ function toUserRecord(
 
 export async function login(params: Api.RealAuth.LoginParams) {
   const loginResult = await realUserRequest.post<Api.RealAuth.LoginVO>('/auth/login', params);
+  const previousToken = getAccessToken();
   setAccessToken(loginResult.token);
-  const profile = await fetchCurrentUser(loginResult);
-  return { token: loginResult.token, user: profile };
+  try {
+    const profile = await fetchCurrentUser(loginResult);
+    return { token: loginResult.token, user: profile };
+  } catch (error) {
+    // 登录后的会话补全失败时恢复旧 token，避免 UI 仍显示旧账号但请求已切到新账号。
+    // 只有当前 token 仍是本次登录返回的 token 时才恢复，避免并发登录把更新的会话覆盖掉。
+    if (getAccessToken() === loginResult.token) {
+      if (previousToken) setAccessToken(previousToken);
+      else clearAccessToken();
+    }
+    throw error;
+  }
 }
 
 export async function register(params: Api.RealAuth.RegisterParams) {
