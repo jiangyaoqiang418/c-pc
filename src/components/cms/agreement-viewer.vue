@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { cmsApi } from '@shared';
 
 interface Props {
@@ -11,22 +11,35 @@ defineEmits<{ (e: 'update:visible', v: boolean): void }>();
 
 const agreement = ref<Api.Cms.Agreement>();
 const loading = ref(false);
+let loadVersion = 0;
 
 async function load() {
+  const operation = ++loadVersion;
   loading.value = true;
   try {
-    agreement.value = await cmsApi.fetchAgreementCurrent(props.kind);
+    const next = await cmsApi.fetchAgreementCurrent(props.kind);
+    if (operation === loadVersion && props.visible) agreement.value = next;
   } finally {
-    loading.value = false;
+    if (operation === loadVersion) loading.value = false;
   }
 }
 
 watch(
   () => [props.visible, props.kind] as const,
   ([v]) => {
-    if (v) load();
+    loadVersion += 1;
+    if (v) {
+      agreement.value = undefined;
+      load();
+    } else {
+      loading.value = false;
+    }
   }
 );
+
+onBeforeUnmount(() => {
+  loadVersion += 1;
+});
 </script>
 
 <template>

@@ -89,7 +89,7 @@ async function onImageSelected(event: Event) {
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '图片上传失败');
   } finally {
-    uploading.value = false;
+    if (operation === uploadVersion) uploading.value = false;
   }
 }
 
@@ -107,31 +107,35 @@ async function startRecording() {
       return;
     }
     const chunks: BlobPart[] = [];
-    mediaRecorder = new MediaRecorder(stream);
+    const recorder = new MediaRecorder(stream);
+    mediaRecorder = recorder;
     recordingStartedAt = Date.now();
     recordingSeconds.value = 0;
-    mediaRecorder.ondataavailable = event => {
+    recorder.ondataavailable = event => {
       if (event.data.size) chunks.push(event.data);
     };
-    mediaRecorder.onstop = async () => {
+    recorder.onstop = async () => {
       stream.getTracks().forEach(track => track.stop());
+      if (operation !== uploadVersion) return;
       recording.value = false;
       clearRecordingTimer();
       const duration = Math.max(1, Math.round((Date.now() - recordingStartedAt) / 1000));
-      if (!chunks.length || operation !== uploadVersion) return;
+      if (!chunks.length) return;
       uploading.value = true;
       try {
-        const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
         const uploaded = await uploadImFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }), 'IM_VOICE', duration);
         if (operation === uploadVersion && !props.disabled) emit('send', { type: 'audio', mediaFileId: uploaded.id });
       } catch (error) {
         Message.error(error instanceof Error ? error.message : '语音上传失败');
       } finally {
-        uploading.value = false;
-        mediaRecorder = undefined;
+        if (operation === uploadVersion) {
+          uploading.value = false;
+          mediaRecorder = undefined;
+        }
       }
     };
-    mediaRecorder.start();
+    recorder.start();
     recording.value = true;
     recordingTimer = setInterval(() => {
       recordingSeconds.value = Math.floor((Date.now() - recordingStartedAt) / 1000);
