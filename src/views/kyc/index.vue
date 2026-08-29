@@ -170,16 +170,24 @@ async function submit() {
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
-    await realKycApi.submitKyc({
-      ...form,
-      realName: form.realName.trim(),
-      idNo: form.idNo.trim(),
-      nationality: form.nationality?.trim() || undefined
-    });
+    try {
+      await realKycApi.submitKyc({
+        ...form,
+        realName: form.realName.trim(),
+        idNo: form.idNo.trim(),
+        nationality: form.nationality?.trim() || undefined
+      });
+    } catch {
+      // 请求层已展示业务错误，保留表单供用户修正后重试。
+      return;
+    }
     if (!isCurrentWrite()) return;
-    await Promise.all([load(), userStore.refreshCurrentUser()]);
+    const [, userRefresh] = await Promise.allSettled([load(), userStore.refreshCurrentUser()]);
     if (!isCurrentWrite()) return;
     Message.success('实名认证已提交，请等待平台审核');
+    if (userRefresh.status === 'rejected') {
+      Message.warning('认证已提交，但账号状态刷新失败，请稍后重新加载');
+    }
   } finally {
     if (operation === writeVersion) submitting.value = false;
   }

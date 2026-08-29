@@ -142,13 +142,26 @@ async function confirm() {
   try {
     const created = await realWalletApi.createWithdraw({ ...form, toAddress: form.toAddress.trim() });
     const id = getId(created);
-    const nextWithdrawal = typeof created === 'object' ? created : await realWalletApi.fetchWithdrawDetail(id);
+    let nextWithdrawal: Api.RealWallet.WithdrawVO | undefined = typeof created === 'object' ? created : undefined;
+    let detailReadFailed = false;
+    if (!nextWithdrawal) {
+      try {
+        nextWithdrawal = await realWalletApi.fetchWithdrawDetail(id);
+      } catch {
+        // 申请已经创建成功，详情回读失败不能把成功写入误报为提交失败。
+        detailReadFailed = true;
+      }
+    }
     if (!isCurrentWrite()) return;
     createdWithdrawal.value = nextWithdrawal;
     modalOpen.value = false;
     Message.success('转出申请已提交，请等待平台审核');
     recordCurrent.value = 1;
-    await Promise.all([walletStore.refetch(), loadRecords()]);
+    const [walletRefresh] = await Promise.allSettled([walletStore.refetch(), loadRecords()]);
+    if (!isCurrentWrite()) return;
+    if (detailReadFailed || walletRefresh.status === 'rejected') {
+      Message.warning('转出申请已提交，但部分数据刷新失败，请稍后重新加载');
+    }
   } catch {
     if (isCurrentWrite()) Message.error('转出申请提交失败，请稍后重试');
   } finally {
