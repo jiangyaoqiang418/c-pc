@@ -1,4 +1,5 @@
 import { clearAccessToken, getAccessToken, realUserRequest, setAccessToken } from '@/service/request';
+import { toFiniteNumber } from './number';
 
 function normalizeKycStatus(status?: string): Api.User.KycStatus {
   const value = status?.toLowerCase();
@@ -25,7 +26,7 @@ function toUserRecord(
 ): Api.RealSession.UserRecord {
   const roles = profile.roles || [];
   const id = profile.userId || fallback?.userId || '';
-  const points = Number(pointAccount?.points ?? profile.points ?? 0);
+  const points = toFiniteNumber(pointAccount?.points ?? profile.points ?? 0);
   const isBuyer = hasBuyerRole(roles);
   const roleInfo = isBuyer ? pointAccount?.buyer : pointAccount?.customer;
 

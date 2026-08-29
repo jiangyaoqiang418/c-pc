@@ -1,6 +1,7 @@
 import { realOrderRequest } from '@/service/request';
 import { toPageTotal } from './page';
 import { toIsoDate } from './date';
+import { toFiniteNumber } from './number';
 
 function toAfterSaleType(value?: string): Api.Product.AftersaleType {
   if (value === 'NONE') return 'none';
@@ -54,9 +55,9 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     overseasCustoms: !!dto.overseasClearance,
     status,
     shelfStatus: toShelfStatus(dto.status),
-    salesCount: Number(dto.salesCount || 0),
-    viewCount: Number(dto.viewCount || 0),
-    favoriteCount: Number(dto.favoriteCount || 0),
+    salesCount: toFiniteNumber(dto.salesCount || 0),
+    viewCount: toFiniteNumber(dto.viewCount || 0),
+    favoriteCount: toFiniteNumber(dto.favoriteCount || 0),
     draftAuditOpinion: dto.reviewComment,
     createdAt,
     submittedAt: createdAt,
@@ -85,7 +86,7 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
     overseasCustoms: !!dto.overseasClearance,
     status: 'NORMAL',
     shelfStatus: 'on-shelf',
-    salesCount: Number(dto.salesCount || 0),
+    salesCount: toFiniteNumber(dto.salesCount || 0),
     viewCount: 0,
     favoriteCount: 0,
     createdAt: '',
@@ -186,7 +187,7 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
     overseasCustoms: false,
     status: 'NORMAL',
     shelfStatus: 'on-shelf',
-    salesCount: Number(dto.salesCount || 0),
+    salesCount: toFiniteNumber(dto.salesCount || 0),
     viewCount: 0,
     favoriteCount: 0,
     createdAt,

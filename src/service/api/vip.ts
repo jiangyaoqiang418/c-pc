@@ -1,4 +1,5 @@
 import { realUserRequest } from '@/service/request';
+import { toFiniteNumber, toOptionalFiniteNumber } from './number';
 
 const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.Vip.BuyerBenefits> = {
   interestRateBonus: 'interestRateBonus',
@@ -54,7 +55,7 @@ function toConfig(role: Api.RealVip.VipRoleGridVO, row: Api.RealVip.VipLevelRowV
   Object.entries(benefits).forEach(([code, value]) => {
     const key = benefitCodeMap[code];
     if (key && key in target) {
-      (target as unknown as Record<string, number>)[key] = Number(value || 0);
+      (target as unknown as Record<string, number>)[key] = toFiniteNumber(value || 0);
     }
   });
 
@@ -62,7 +63,7 @@ function toConfig(role: Api.RealVip.VipRoleGridVO, row: Api.RealVip.VipLevelRowV
     audience,
     level: normalizeLevel(row.level),
     label: normalizeLevel(row.level),
-    threshold: Number(row.threshold || 0),
+    threshold: toFiniteNumber(row.threshold || 0),
     customerBenefits: audience === 'customer' ? target as Api.Vip.CustomerBenefits : undefined,
     buyerBenefits: audience === 'buyer' ? target as Api.Vip.BuyerBenefits : undefined
   };
@@ -73,7 +74,7 @@ function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vi
   info?.benefits?.forEach(item => {
     const key = benefitCodeMap[item.code];
     if (key && key in target) {
-      (target as unknown as Record<string, number>)[key] = Number(item.value || 0);
+      (target as unknown as Record<string, number>)[key] = toFiniteNumber(item.value || 0);
     }
   });
   return target;
@@ -98,8 +99,8 @@ export async function fetchMyVipStatus(userId: string | number, options: { signa
   const buyer = account.buyer;
   const audience: Api.Vip.Audience = buyer ? 'buyer' : 'customer';
   const current = audience === 'buyer' ? buyer : customer;
-  const nextThreshold = current?.nextThreshold == null ? undefined : Number(current.nextThreshold);
-  const points = Number(account.points || 0);
+  const nextThreshold = toOptionalFiniteNumber(current?.nextThreshold);
+  const points = toFiniteNumber(account.points || 0);
 
   return {
     userId: account.userId || userId,

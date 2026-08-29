@@ -2,6 +2,7 @@ import { realUserRequest } from '@/service/request';
 import { isWithinDateRange } from '@/utils/date-range';
 import { toPageTotal } from './page';
 import { toIsoDate } from './date';
+import { toFiniteNumber } from './number';
 
 const behaviorMap: Partial<Record<string, Api.Point.BehaviorCode>> = {
   CONSUME: 'CONSUME',
@@ -35,10 +36,10 @@ function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
     audience: toAudience(rule.identity),
     description: rule.description || '',
     unitLabel: rule.unit || '次',
-    pointsPerUnit: Number(rule.score ?? rule.defaultScore ?? 0),
+    pointsPerUnit: toFiniteNumber(rule.score ?? rule.defaultScore ?? 0),
     enabled: rule.enabled ?? rule.defaultEnabled ?? true,
-    capDaily: Number(rule.dailyCap ?? rule.defaultDailyCap ?? 0),
-    capTotal: Number(rule.cumulativeCap ?? rule.defaultCumulativeCap ?? 0),
+    capDaily: toFiniteNumber(rule.dailyCap ?? rule.defaultDailyCap ?? 0),
+    capTotal: toFiniteNumber(rule.cumulativeCap ?? rule.defaultCumulativeCap ?? 0),
     sort: rule.sort
   };
 }
@@ -49,8 +50,8 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
     userId: item.userId,
     userName: item.userNickname || '',
     behavior: toBehavior(item.behaviorCode),
-    change: Number(item.score || 0),
-    balanceAfter: Number(item.balanceAfter || 0),
+    change: toFiniteNumber(item.score || 0),
+    balanceAfter: toFiniteNumber(item.balanceAfter || 0),
     refId: item.bizNo,
     isAppealable: !!item.appealable,
     appealStatus: item.appealStatus?.toLowerCase() as Api.RealPoint.Ledger['appealStatus'],
