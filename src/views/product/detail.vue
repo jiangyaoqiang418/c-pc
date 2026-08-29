@@ -140,9 +140,21 @@ async function favorite() {
     <template v-if="product">
       <!-- Breadcrumb -->
       <nav class="bread">
-        <span @click="router.push('/')">首页</span>
+        <span
+          role="link"
+          tabindex="0"
+          @click="router.push('/')"
+          @keydown.enter="router.push('/')"
+          @keydown.space.prevent="router.push('/')"
+        >首页</span>
         <Icon icon="lucide:chevron-right" width="12" />
-        <span @click="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })">
+        <span
+          role="link"
+          tabindex="0"
+          @click="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })"
+          @keydown.enter="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })"
+          @keydown.space.prevent="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })"
+        >
           {{ product.categoryPath }}
         </span>
         <Icon icon="lucide:chevron-right" width="12" />
@@ -355,6 +367,11 @@ async function favorite() {
   transition: color 0.15s;
 }
 .bread span:hover { color: var(--yb-ink); }
+.bread span[role="link"]:focus-visible {
+  outline: 2px solid var(--yb-gold);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
 .bread .current { color: var(--yb-ink); cursor: default; }
 .bread .current:hover { color: var(--yb-ink); }
 
