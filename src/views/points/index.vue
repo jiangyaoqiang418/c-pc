@@ -47,6 +47,7 @@ const appealsGuard = createLatestRequestGuard();
 const rulesGuard = createLatestRequestGuard();
 const vipGuard = createLatestRequestGuard();
 let appealWriteVersion = 0;
+let disposed = false;
 
 const ALL_BEHAVIORS: Api.Point.BehaviorCode[] = [
   'CONSUME', 'DEPOSIT_IN', 'RECHARGE', 'WITHDRAW', 'FINANCE_HOLD',
@@ -54,6 +55,7 @@ const ALL_BEHAVIORS: Api.Point.BehaviorCode[] = [
 ];
 
 async function loadLogs() {
+  if (disposed) return;
   const currentUser = userStore.currentUser;
   if (!currentUser) {
     logsGuard.invalidate();
@@ -94,6 +96,7 @@ async function loadLogs() {
 }
 
 async function loadRules() {
+  if (disposed) return;
   const isCurrent = rulesGuard.begin();
   rulesLoadError.value = '';
   try {
@@ -108,6 +111,7 @@ async function loadRules() {
 }
 
 async function loadAppeals() {
+  if (disposed) return;
   const userId = userStore.currentUser?.id;
   if (!userId) {
     appealsGuard.invalidate();
@@ -146,6 +150,7 @@ async function loadAppeals() {
 }
 
 async function loadInitial() {
+  if (disposed) return;
   const uid = userStore.currentUser?.id;
   if (!uid) return;
   const isCurrent = vipGuard.begin();
@@ -157,12 +162,15 @@ async function loadInitial() {
     if (!isCurrent()) return;
     vipStatus.value = undefined;
   }
+  if (disposed || !isCurrent()) return;
   await loadLogs();
+  if (disposed || !isCurrent()) return;
   await loadRules();
 }
 
 onMounted(loadInitial);
 onBeforeUnmount(() => {
+  disposed = true;
   appealWriteVersion += 1;
   logsGuard.invalidate();
   appealsGuard.invalidate();
@@ -171,6 +179,7 @@ onBeforeUnmount(() => {
 });
 
 watch(() => userStore.currentUser?.id, () => {
+  if (disposed) return;
   appealWriteVersion += 1;
   current.value = 1;
   appealCurrent.value = 1;
@@ -190,6 +199,7 @@ watch(() => userStore.currentUser?.id, () => {
 });
 
 watch(activeTab, t => {
+  if (disposed) return;
   if (t === 'rules' && !rules.value.length) loadRules();
   if (t === 'appeals') loadAppeals();
 });
