@@ -149,7 +149,13 @@ async function submit() {
           :key="a.id"
           class="address-row"
           :class="{ active: isSelected(a) }"
+          role="radio"
+          tabindex="0"
+          :aria-checked="isSelected(a)"
+          :aria-label="`${a.receiverName}，${a.receiverPhone}，${a.detail}`"
           @click="onSelect(a)"
+          @keydown.enter="onSelect(a)"
+          @keydown.space.prevent="onSelect(a)"
         >
           <div class="row-radio">
             <span class="radio-dot" :class="{ checked: isSelected(a) }" />
@@ -217,6 +223,10 @@ async function submit() {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.address-row:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 .address-row {
   display: flex;

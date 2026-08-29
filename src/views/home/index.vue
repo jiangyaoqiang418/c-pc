@@ -196,7 +196,12 @@ function showUnavailableProductList() {
           v-if="heroBanner"
           class="hero-single"
           :style="{ backgroundImage: `url(${heroBanner.image})` }"
+          :role="heroBanner.pathTo ? 'link' : undefined"
+          :tabindex="heroBanner.pathTo ? 0 : undefined"
+          :aria-label="heroBanner.pathTo ? `查看活动：${heroBanner.title}` : undefined"
           @click="goBanner(heroBanner.pathTo)"
+          @keydown.enter="goBanner(heroBanner.pathTo)"
+          @keydown.space.prevent="goBanner(heroBanner.pathTo)"
         >
           <div class="hero-overlay" />
           <div class="hero-content">
@@ -384,6 +389,10 @@ function showUnavailableProductList() {
   background-size: cover;
   background-position: center;
   cursor: pointer;
+}
+.hero-single:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 3px;
 }
 .hero-unavailable {
   min-height: 320px;

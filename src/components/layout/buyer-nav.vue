@@ -29,6 +29,10 @@ function isActive(item: BuyerNavItem): boolean {
   return route.name === item.name || route.path === item.path;
 }
 
+function go(item: BuyerNavItem) {
+  router.push(item.path);
+}
+
 function exitBuyer() {
   userStore.setAudience('customer');
   Message.info('已切回顾客视角');
@@ -46,7 +50,12 @@ function exitBuyer() {
           :key="item.name"
           class="nav-item"
           :class="{ active: isActive(item) }"
-          @click="router.push(item.path)"
+          role="link"
+          tabindex="0"
+          :aria-current="isActive(item) ? 'page' : undefined"
+          @click="go(item)"
+          @keydown.enter="go(item)"
+          @keydown.space.prevent="go(item)"
         >
           <span class="emoji">{{ item.emoji }}</span>
           <span>{{ item.label }}</span>
@@ -105,6 +114,10 @@ function exitBuyer() {
 .nav-item.active {
   background: #ff7d00;
   color: #fff;
+}
+.nav-item:focus-visible {
+  outline: 2px solid #ff7d00;
+  outline-offset: 2px;
 }
 .emoji {
   font-size: 14px;

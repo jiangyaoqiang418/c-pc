@@ -29,7 +29,13 @@ const TYPES: TypeDef[] = [
       :key="t.type"
       class="type-card"
       :class="{ active: modelValue === t.type }"
+      role="radio"
+      tabindex="0"
+      :aria-checked="modelValue === t.type"
+      :aria-label="enums.AFTERSALE_CASE_TYPE_META[t.type].label"
       @click="$emit('update:modelValue', t.type)"
+      @keydown.enter="$emit('update:modelValue', t.type)"
+      @keydown.space.prevent="$emit('update:modelValue', t.type)"
     >
       <div class="check" v-if="modelValue === t.type">✓</div>
       <div class="emoji">{{ t.emoji }}</div>
@@ -61,6 +67,10 @@ const TYPES: TypeDef[] = [
 .type-card.active {
   border-color: var(--bw-brand-primary);
   background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+}
+.type-card:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 .check {
   position: absolute;

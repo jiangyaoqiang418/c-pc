@@ -37,7 +37,12 @@ function onChange(v: 'customer' | 'buyer') {
     <div
       class="seg"
       :class="{ active: value === 'customer' }"
+      role="button"
+      tabindex="0"
+      :aria-pressed="value === 'customer'"
       @click="onChange('customer')"
+      @keydown.enter="onChange('customer')"
+      @keydown.space.prevent="onChange('customer')"
     >
       <Icon icon="lucide:user" width="13" />
       <span>顾客</span>
@@ -45,7 +50,12 @@ function onChange(v: 'customer' | 'buyer') {
     <div
       class="seg"
       :class="{ active: value === 'buyer' }"
+      role="button"
+      tabindex="0"
+      :aria-pressed="value === 'buyer'"
       @click="onChange('buyer')"
+      @keydown.enter="onChange('buyer')"
+      @keydown.space.prevent="onChange('buyer')"
     >
       <Icon icon="lucide:store" width="13" />
       <span>买手</span>
@@ -89,5 +99,9 @@ function onChange(v: 'customer' | 'buyer') {
 }
 .seg.active:hover {
   color: #fff;
+}
+.seg:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
 }
 </style>

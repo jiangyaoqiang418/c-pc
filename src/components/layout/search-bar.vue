@@ -34,7 +34,12 @@ function submit(q?: string) {
         v-for="w in HOT_WORDS"
         :key="w"
         class="hot-word"
+        role="button"
+        tabindex="0"
+        :aria-label="`搜索${w}`"
         @click="submit(w)"
+        @keydown.enter="submit(w)"
+        @keydown.space.prevent="submit(w)"
       >
         {{ w }}
       </span>
@@ -113,5 +118,10 @@ function submit(q?: string) {
 }
 .hot-word:hover {
   color: var(--yb-primary);
+}
+.hot-word:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 </style>
