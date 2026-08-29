@@ -19,6 +19,11 @@ const READY_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_MS = 30_000;
 const listeners = new Set<RealtimeListener>();
 
+function normalizeUnreadCount(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+}
+
 function realtimeURL(token: string) {
   const base = import.meta.env.VITE_REAL_NOTIFY_BASE_URL || '/api/notify';
   const url = new URL(`${base.replace(/\/$/, '')}/im`, window.location.origin);
@@ -75,8 +80,8 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       notifyApi.fetchUnreadMessageCount({ signal: isCurrent.signal })
     ]);
     if (!isCurrent() || version !== unreadRefreshVersion || token !== getAccessToken()) return;
-    if (notificationResult.status === 'fulfilled') notificationUnreadCount.value = notificationResult.value || 0;
-    if (imResult.status === 'fulfilled') imUnreadCount.value = imResult.value || 0;
+    if (notificationResult.status === 'fulfilled') notificationUnreadCount.value = normalizeUnreadCount(notificationResult.value);
+    if (imResult.status === 'fulfilled') imUnreadCount.value = normalizeUnreadCount(imResult.value);
   }
 
   function clearHeartbeat() {
@@ -154,7 +159,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     if (type === 'NOTIFICATION') {
       const payload = framePayload<Api.RealNotify.NotificationSocketPayload>(frame);
       const unreadCount = payload.unreadCount ?? frame.unreadCount;
-      if (typeof unreadCount === 'number') notificationUnreadCount.value = unreadCount;
+      if (unreadCount !== undefined && unreadCount !== null) notificationUnreadCount.value = normalizeUnreadCount(unreadCount);
       else notificationUnreadCount.value += 1;
       emit({ type, payload });
     }
@@ -222,11 +227,11 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   }
 
   function setImUnreadCount(value: number) {
-    imUnreadCount.value = Math.max(0, value);
+    imUnreadCount.value = normalizeUnreadCount(value);
   }
 
   function setNotificationUnreadCount(value: number) {
-    notificationUnreadCount.value = Math.max(0, value);
+    notificationUnreadCount.value = normalizeUnreadCount(value);
   }
 
   return {
