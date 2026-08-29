@@ -13,6 +13,8 @@ const emit = defineEmits<{ (e: 'update:score', value: number): void }>();
 
 const stars = [1, 2, 3, 4, 5];
 const sizePx = computed(() => ({ sm: 12, md: 15, lg: 22 }[props.size]));
+const safeScore = computed(() => (Number.isFinite(props.score) ? props.score : 0));
+const scoreText = computed(() => (Number.isFinite(props.score) ? props.score.toFixed(1) : '—'));
 
 function onClick(i: number) {
   if (props.mode === 'input') emit('update:score', i);
@@ -25,12 +27,12 @@ function onClick(i: number) {
       v-for="i in stars"
       :key="i"
       class="star-slot"
-      :class="{ filled: i <= score, half: i - 0.5 <= score && i > score }"
+      :class="{ filled: i <= safeScore, half: i - 0.5 <= safeScore && i > safeScore }"
       @click="onClick(i)"
     >
-      <Icon :icon="i <= score ? 'lucide:star' : 'lucide:star'" :style="{ fontSize: sizePx + 'px' }" />
+      <Icon :icon="i <= safeScore ? 'lucide:star' : 'lucide:star'" :style="{ fontSize: sizePx + 'px' }" />
     </span>
-    <span v-if="showScore" class="score" :style="{ fontSize: (sizePx - 2) + 'px' }">{{ score.toFixed(1) }}</span>
+    <span v-if="showScore" class="score" :style="{ fontSize: (sizePx - 2) + 'px' }">{{ scoreText }}</span>
   </span>
 </template>
 

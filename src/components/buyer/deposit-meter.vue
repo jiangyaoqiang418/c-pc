@@ -9,8 +9,15 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), { size: 'lg' });
 
-const total = computed(() => Number(props.available) + Number(props.guaranteed));
-const guaranteedPct = computed(() => (total.value > 0 ? Number(props.guaranteed) / total.value : 0));
+function finiteAmount(value: string | number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+const availableAmount = computed(() => finiteAmount(props.available));
+const guaranteedAmount = computed(() => finiteAmount(props.guaranteed));
+const total = computed(() => availableAmount.value + guaranteedAmount.value);
+const guaranteedPct = computed(() => (total.value > 0 ? guaranteedAmount.value / total.value : 0));
 const ringSize = computed(() => (props.size === 'lg' ? 200 : 120));
 const ringHole = computed(() => ringSize.value - 50);
 
@@ -35,7 +42,7 @@ const holeStyle = computed(() => ({
     <div class="ring" :style="ringStyle">
       <div class="hole" :style="holeStyle">
         <div class="lbl">押金总额</div>
-        <div class="total">U {{ formatAmount(total.toFixed(2)) }}</div>
+        <div class="total">U {{ formatAmount(total) }}</div>
       </div>
     </div>
     <div class="legend">

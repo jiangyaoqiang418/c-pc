@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { formatAmount } from '@shared';
+import { formatAmount, formatRate } from '@shared';
 import * as financeApi from '@/service/api/finance';
 import InterestPreview from '@/components/finance/interest-preview.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -132,7 +132,7 @@ function handleEmptyAction() {
             <div class="big-meta">
               <div class="meta-cell">
                 <div class="lbl">基准年化利率</div>
-                <div class="val rate">{{ (Number(product.annualRate) * 100).toFixed(2) }}%</div>
+                <div class="val rate">{{ formatRate(Number(product.annualRate)) }}</div>
               </div>
               <div class="meta-cell">
                 <div class="lbl">锁定期</div>

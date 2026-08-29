@@ -12,14 +12,20 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), { width: 720, height: 220, accruedDays: 0 });
 
-const dailyRate = computed(() => props.effectiveRatePct / 100 / 365);
-const principalNum = computed(() => Number(props.principal) || 0);
+const safeLockupDays = computed(() => Number.isFinite(props.lockupDays) && props.lockupDays > 0 ? props.lockupDays : 1);
+const safeRatePct = computed(() => Number.isFinite(props.effectiveRatePct) ? props.effectiveRatePct : 0);
+const safeAccruedDays = computed(() => Number.isFinite(props.accruedDays) ? Math.max(0, props.accruedDays) : 0);
+const dailyRate = computed(() => safeRatePct.value / 100 / 365);
+const principalNum = computed(() => {
+  const parsed = Number(props.principal);
+  return Number.isFinite(parsed) ? parsed : 0;
+});
 
 function interestAtDay(day: number): number {
   return principalNum.value * dailyRate.value * day;
 }
 
-const totalExpected = computed(() => interestAtDay(props.lockupDays));
+const totalExpected = computed(() => interestAtDay(safeLockupDays.value));
 
 const padL = 56;
 const padR = 24;
@@ -30,12 +36,12 @@ const innerW = computed(() => props.width - padL - padR);
 const innerH = computed(() => props.height - padT - padB);
 
 const path = computed(() => {
-  const steps = Math.min(props.lockupDays, 60);
-  const stepDay = props.lockupDays / steps;
+  const steps = Math.max(1, Math.min(safeLockupDays.value, 60));
+  const stepDay = safeLockupDays.value / steps;
   const parts: string[] = [];
   for (let i = 0; i <= steps; i += 1) {
     const day = i * stepDay;
-    const x = padL + (day / props.lockupDays) * innerW.value;
+    const x = padL + (day / safeLockupDays.value) * innerW.value;
     const y = padT + innerH.value - (interestAtDay(day) / totalExpected.value || 0) * innerH.value;
     parts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
   }
@@ -45,8 +51,8 @@ const path = computed(() => {
 const areaPath = computed(() => `${path.value} L ${padL + innerW.value} ${padT + innerH.value} L ${padL} ${padT + innerH.value} Z`);
 
 const currentPoint = computed(() => {
-  const day = Math.min(props.accruedDays, props.lockupDays);
-  const x = padL + (day / props.lockupDays) * innerW.value;
+  const day = Math.min(safeAccruedDays.value, safeLockupDays.value);
+  const x = padL + (day / safeLockupDays.value) * innerW.value;
   const interest = interestAtDay(day);
   const y = padT + innerH.value - (interest / totalExpected.value || 0) * innerH.value;
   return { x, y, day, interest };
@@ -60,9 +66,9 @@ const yTicks = computed(() => [0, 0.25, 0.5, 0.75, 1].map(r => ({
 const xTicks = computed(() => {
   const count = 5;
   return Array.from({ length: count + 1 }, (_, i) => {
-    const day = (props.lockupDays / count) * i;
+    const day = (safeLockupDays.value / count) * i;
     return {
-      x: padL + (day / props.lockupDays) * innerW.value,
+      x: padL + (day / safeLockupDays.value) * innerW.value,
       label: `D${Math.round(day)}`
     };
   });
@@ -91,7 +97,7 @@ const xTicks = computed(() => {
       <path :d="areaPath" fill="url(#curveGradient)" stroke="none" />
       <path :d="path" stroke="#722ed1" stroke-width="2" fill="none" />
       <!-- Current point -->
-      <g v-if="accruedDays > 0">
+      <g v-if="safeAccruedDays > 0">
         <circle :cx="currentPoint.x" :cy="currentPoint.y" r="5" fill="#722ed1" />
         <line :x1="currentPoint.x" :y1="padT" :x2="currentPoint.x" :y2="padT + innerH" stroke="#722ed1" stroke-dasharray="3 3" stroke-width="1" opacity="0.6" />
         <text :x="currentPoint.x + 8" :y="currentPoint.y - 8" class="current-label" fill="#722ed1">
@@ -107,7 +113,7 @@ const xTicks = computed(() => {
     </svg>
     <div class="legend">
       <span class="dot" />
-      累积利息曲线 · 年化 {{ effectiveRatePct.toFixed(2) }}% · 锁定 {{ lockupDays }} 天 · 本金 U {{ formatAmount(principal) }}
+      累积利息曲线 · 年化 {{ safeRatePct.toFixed(2) }}% · 锁定 {{ safeLockupDays }} 天 · 本金 U {{ formatAmount(principal) }}
     </div>
   </div>
 </template>

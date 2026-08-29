@@ -163,7 +163,7 @@ function handleEmptyAction() {
             <div class="rate-formula">
               <div class="rate-cell">
                 <div class="lbl">年化收益率</div>
-                <div class="val accent">{{ (Number(order.annualRate) * 100).toFixed(2) }}%</div>
+                <div class="val accent">{{ formatRate(Number(order.annualRate)) }}</div>
               </div>
             </div>
           </a-card>
