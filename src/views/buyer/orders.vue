@@ -114,6 +114,21 @@ watch(() => route.fullPath, () => {
   syncFromQuery();
   void load();
 });
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  orders.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  priceModalOpen.value = false;
+  shippingModalOpen.value = false;
+  logisticsModalOpen.value = false;
+  priceOrder.value = undefined;
+  shippingOrder.value = undefined;
+  logisticsOrder.value = undefined;
+  syncQuery();
+});
 
 function onTabChange() {
   current.value = 1;

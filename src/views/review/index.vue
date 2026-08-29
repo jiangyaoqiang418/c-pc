@@ -193,6 +193,25 @@ watch([status, hasImage], () => {
 watch(isBuyer, value => {
   if (!value && activeKey.value !== 'sent') activeKey.value = 'sent';
 });
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  notificationRequestGuard.invalidate();
+  reviews.value = [];
+  appeals.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  notificationReview.value = undefined;
+  notificationReviewError.value = '';
+  replyVisible.value = false;
+  appealVisible.value = false;
+  replyTarget.value = undefined;
+  appealTarget.value = undefined;
+  void load();
+  const id = route.query.id;
+  if (id) void loadNotificationReview(String(id));
+});
 watch(() => route.query.id, id => {
   notificationRequestGuard.invalidate();
   notificationReview.value = undefined;
