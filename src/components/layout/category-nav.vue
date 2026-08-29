@@ -56,6 +56,14 @@ function goCategory(id: string | number) {
   megaOpen.value = false;
 }
 
+function toggleMega() {
+  if (megaOpen.value) {
+    megaOpen.value = false;
+    return;
+  }
+  openMega();
+}
+
 function openMega() {
   if (megaTimer) { clearTimeout(megaTimer); megaTimer = null; }
   megaOpen.value = true;
@@ -76,8 +84,15 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
       <div
         class="cn-all-btn"
         :class="{ open: megaOpen }"
+        role="button"
+        tabindex="0"
+        aria-controls="category-mega-menu"
+        :aria-expanded="megaOpen"
         @mouseenter="openMega"
         @mouseleave="scheduleClose"
+        @click="toggleMega"
+        @keydown.enter.prevent="toggleMega"
+        @keydown.space.prevent="toggleMega"
       >
         <Icon icon="lucide:menu" width="16" />
         <span>全部分类</span>
@@ -101,6 +116,8 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
     <transition name="mega-fade">
       <div
         v-if="megaOpen && categories.length"
+        id="category-mega-menu"
+        role="menu"
         class="cn-mega"
         @mouseenter="openMega"
         @mouseleave="scheduleClose"
@@ -112,8 +129,13 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
               :key="cat.id"
               class="mega-list-item"
               :class="{ active: activeCat?.id === cat.id }"
+              role="menuitem"
+              tabindex="0"
               @mouseenter="hoveredCat = cat"
+              @focus="hoveredCat = cat"
               @click="goCategory(cat.id)"
+              @keydown.enter.prevent="goCategory(cat.id)"
+              @keydown.space.prevent="goCategory(cat.id)"
             >
               {{ cat.name }}
               <Icon icon="lucide:chevron-right" width="12" class="mega-arrow" />
@@ -121,13 +143,24 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
           </ul>
           <div v-if="activeCat" class="mega-detail">
             <div v-for="sub in (activeCat.children || [])" :key="sub.id" class="mega-sub-group">
-              <div class="mega-sub-title" @click="goCategory(sub.id)">{{ sub.name }}</div>
+              <div
+                class="mega-sub-title"
+                role="menuitem"
+                tabindex="0"
+                @click="goCategory(sub.id)"
+                @keydown.enter.prevent="goCategory(sub.id)"
+                @keydown.space.prevent="goCategory(sub.id)"
+              >{{ sub.name }}</div>
               <div class="mega-brand-list">
                 <span
                   v-for="brand in (sub.children || []).slice(0, 10)"
                   :key="brand.id"
                   class="mega-brand"
+                  role="menuitem"
+                  tabindex="0"
                   @click="goCategory(brand.id)"
+                  @keydown.enter.prevent="goCategory(brand.id)"
+                  @keydown.space.prevent="goCategory(brand.id)"
                 >
                   {{ brand.name }}
                 </span>
@@ -177,6 +210,14 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
 }
 .cn-all-btn:hover, .cn-all-btn.open {
   background: var(--yb-primary);
+}
+.cn-all-btn:focus-visible,
+.channel-link:focus-visible,
+.mega-list-item:focus-visible,
+.mega-sub-title:focus-visible,
+.mega-brand:focus-visible {
+  outline: 2px solid var(--yb-primary);
+  outline-offset: 2px;
 }
 .cn-channels {
   display: inline-flex;
