@@ -1,5 +1,5 @@
 import { realOrderRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 import { fetchCategoryTree } from './category';
 import { toIsoDate } from './date';
 
@@ -97,7 +97,7 @@ async function mapPage(page: Api.Common.PaginatingQueryRecord<Api.RealPurchase.P
     current: page.current || page.pageNo || 1,
     size: page.size || page.pageSize || 20,
     total: toPageTotal(page.total),
-    records: await Promise.all(page.records.map(toPurchaseRequest))
+    records: await Promise.all(requireArray<Api.RealPurchase.PurchaseDemandVO>(page.records, '求购分页记录').map(toPurchaseRequest))
   };
 }
 

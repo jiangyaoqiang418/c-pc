@@ -1,5 +1,5 @@
 import { realUserRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 
 const bucketMap: Record<string, keyof Api.RealWallet.Account> = {
@@ -262,7 +262,7 @@ export async function fetchWalletLedger(q: {
   }
   const recordsById = new Map<string, Api.RealWallet.Ledger>();
   pages.forEach(page => {
-    page.records.map(toTxn).forEach(record => {
+    requireArray<Api.RealWallet.WalletLedgerDTO>(page.records, '钱包流水分页记录').map(toTxn).forEach(record => {
       if (!selectedTypes.length || selectedTypes.includes(record.type)) recordsById.set(String(record.id), record);
     });
   });

@@ -1,6 +1,6 @@
 import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
@@ -44,7 +44,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
   }
   const recordsById = new Map<string, Api.RealOrder.Record>();
   pages.forEach(page => {
-    page.records.map(toOrderRecord).forEach(record => {
+    requireArray<Api.RealOrder.OrderDTO>(page.records, '订单分页记录').map(toOrderRecord).forEach(record => {
       if (!q.statuses?.length || requestedStatuses.has(record.status)) recordsById.set(String(record.id), record);
     });
   });

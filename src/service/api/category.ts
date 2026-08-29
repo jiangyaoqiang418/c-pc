@@ -1,5 +1,5 @@
 import { realOrderRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 
 function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.RealCategory.DisplayCategoryNode {
   return {
@@ -21,7 +21,7 @@ function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.RealCategor
 
 export async function fetchCategoryTree(options: { signal?: AbortSignal } = {}) {
   const list = await fetchRealCategoryTree(options);
-  return list.map(toCategoryNode);
+  return requireArray<Api.RealCategory.CategoryNodeDTO>(list, '分类树').map(toCategoryNode);
 }
 
 export function fetchRealCategoryTree(options: { signal?: AbortSignal } = {}) {

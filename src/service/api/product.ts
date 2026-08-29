@@ -1,5 +1,5 @@
 import { realOrderRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
 
@@ -153,7 +153,7 @@ export async function fetchStorefrontProducts(q: {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
     total: toPageTotal(page.total),
-    records: page.records.map(toStorefrontProductRecord)
+    records: requireArray<Api.RealProduct.StorefrontProductVO>(page.records, '商品分页记录').map(toStorefrontProductRecord)
   };
 }
 
@@ -163,7 +163,7 @@ async function fetchStorefrontPage(url: string, pageSize = 20, options: { signal
     { pageNo: 1, pageSize },
     options
   );
-  return page.records.map(toProductRecord);
+  return requireArray<Api.RealProduct.ProductDTO>(page.records, '商品分页记录').map(toProductRecord);
 }
 
 function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProduct.Record {
@@ -200,7 +200,7 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
 export function fetchHomeRecommendations(limit = 20, options: { signal?: AbortSignal } = {}) {
   return realOrderRequest
     .get<Api.RealProduct.ProductDTO[]>('/storefront/recommend', { params: { limit }, ...options })
-    .then(records => records.map(toProductRecord));
+    .then(records => requireArray<Api.RealProduct.ProductDTO>(records, '推荐商品').map(toProductRecord));
 }
 
 export function fetchBestSellers(pageSize = 20, options: { signal?: AbortSignal } = {}) {
@@ -213,7 +213,7 @@ export function fetchNewArrivals(pageSize = 20, options: { signal?: AbortSignal 
 
 export async function fetchFlashSale(limit = 20, options: { signal?: AbortSignal } = {}) {
   const records = await realOrderRequest.get<Api.RealProduct.FlashSaleItemVO[]>('/storefront/flash-sale', { params: { limit }, ...options });
-  return records.map(item => ({ product: toFlashSaleProduct(item), sessionEndTime: item.sessionEndTime }));
+  return requireArray<Api.RealProduct.FlashSaleItemVO>(records, '秒杀商品').map(item => ({ product: toFlashSaleProduct(item), sessionEndTime: item.sessionEndTime }));
 }
 
 export function fetchHomeBanners(options: { signal?: AbortSignal } = {}) {
@@ -252,7 +252,7 @@ export async function fetchMyFavorites(q: { current?: number; size?: number; sig
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
     total: toPageTotal(page.total),
-    records: page.records.map(toProductRecord)
+    records: requireArray<Api.RealProduct.ProductDTO>(page.records, '收藏商品分页记录').map(toProductRecord)
   };
 }
 
@@ -294,7 +294,7 @@ export async function fetchMyProducts(q: {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 50,
     total: toPageTotal(page.total),
-    records: page.records.map(toProductRecord)
+    records: requireArray<Api.RealProduct.ProductDTO>(page.records, '我的商品分页记录').map(toProductRecord)
   };
 }
 

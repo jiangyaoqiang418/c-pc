@@ -1,4 +1,5 @@
 import { realUserRequest } from '@/service/request';
+import { requireArray } from './page';
 
 function toAddressRecord(dto: Api.RealAddress.UserAddressVO): Api.RealAddress.AddressRecord {
   return {
@@ -21,7 +22,7 @@ function toAddressRecord(dto: Api.RealAddress.UserAddressVO): Api.RealAddress.Ad
 
 export async function fetchMyAddresses(options: { signal?: AbortSignal } = {}) {
   const list = await realUserRequest.get<Api.RealAddress.UserAddressVO[]>('/addresses/list', { signal: options.signal });
-  return list.map(toAddressRecord);
+  return requireArray<Api.RealAddress.UserAddressVO>(list, '地址列表').map(toAddressRecord);
 }
 
 export async function createAddress(params: Api.RealAddress.AddressSaveParams) {

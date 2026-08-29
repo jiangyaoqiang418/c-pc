@@ -1,6 +1,6 @@
 import { realUserRequest } from '@/service/request';
 import { isWithinDateRange } from '@/utils/date-range';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
 
@@ -61,7 +61,7 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
 
 export async function fetchPointRules(options: { signal?: AbortSignal } = {}) {
   const list = await realUserRequest.get<Api.RealPoint.PointRuleVO[]>('/points/rules', { ...options, showError: false, skipAuthRedirect: true });
-  return list
+  return requireArray<Api.RealPoint.PointRuleVO>(list, '积分规则')
     .map(toPointRule)
     .sort((a, b) => (a.sort ?? Number.MAX_SAFE_INTEGER) - (b.sort ?? Number.MAX_SAFE_INTEGER));
 }
@@ -84,7 +84,7 @@ export async function fetchMyPointLogs(q: {
       behaviorCode
     }, options
   );
-  let records = result.records.map(toPointLog);
+  let records = requireArray<Api.RealPoint.PointLedgerDTO>(result.records, '积分流水').map(toPointLog);
   if (q.behaviors?.length && !behaviorCode) {
     records = records.filter(item => q.behaviors?.includes(item.behavior));
   }
