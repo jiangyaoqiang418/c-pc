@@ -24,6 +24,7 @@ watch(
 );
 
 function submit() {
+  if (submitting.value) return;
   if (!props.order) return;
   if (!images.value.length) {
     Message.warning('请上传采购截图');

@@ -14,6 +14,7 @@ const submitting = ref(false);
 const redirect = (route.query.redirect as string) || '/';
 
 async function submit() {
+  if (submitting.value) return;
   if (!form.email || !form.password) {
     Message.warning('请输入邮箱与密码');
     return;
@@ -31,6 +32,7 @@ async function submit() {
 }
 
 async function oneClick(userId: number) {
+  if (submitting.value) return;
   submitting.value = true;
   try {
     await userStore.login(userId);

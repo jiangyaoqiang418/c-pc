@@ -11,6 +11,7 @@ const form = reactive({ email: '', nickname: '', password: '', confirm: '' });
 const submitting = ref(false);
 
 async function submit() {
+  if (submitting.value) return;
   if (!form.email || !form.nickname || !form.password) {
     Message.warning('请完善信息');
     return;

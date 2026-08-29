@@ -168,6 +168,7 @@ async function loadAll() {
 }
 
 async function createRecharge() {
+  if (submitting.value) return;
   if (amount.value <= 0) {
     Message.warning('请输入正确的充值金额');
     return;
