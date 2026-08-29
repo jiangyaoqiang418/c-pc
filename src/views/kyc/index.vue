@@ -182,10 +182,16 @@ async function submit() {
       return;
     }
     if (!isCurrentWrite()) return;
-    const [, userRefresh] = await Promise.allSettled([load(), userStore.refreshCurrentUser()]);
+    let refreshFailed = false;
+    try {
+      // load() 已包含一次带取消信号的当前用户刷新，避免重复并发刷新造成旧状态覆盖。
+      await load();
+    } catch {
+      refreshFailed = true;
+    }
     if (!isCurrentWrite()) return;
     Message.success('实名认证已提交，请等待平台审核');
-    if (userRefresh.status === 'rejected') {
+    if (refreshFailed || loadError.value) {
       Message.warning('认证已提交，但账号状态刷新失败，请稍后重新加载');
     }
   } finally {
