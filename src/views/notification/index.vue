@@ -26,6 +26,9 @@ const clearing = ref(false);
 const clearConfirmationOpen = ref(false);
 const deletingId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
+let readAllVersion = 0;
+let deleteVersion = 0;
+let clearVersion = 0;
 
 function syncFromQuery() {
   const rawUnread = Array.isArray(route.query.unread) ? route.query.unread[0] : route.query.unread;
@@ -127,31 +130,39 @@ async function openNotification(notification: Api.RealNotify.NotificationVO) {
 
 async function readAll() {
   if (readingAll.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++readAllVersion;
   readingAll.value = true;
   try {
     await notifyApi.markAllNotificationsRead();
+    if (operation !== readAllVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     records.value.forEach(item => { item.readFlag = true; });
     notifyStore.setNotificationUnreadCount(0);
     Message.success('已全部标记为已读');
   } catch {
     // 请求层已展示错误，保留未读状态供用户重试。
   } finally {
-    readingAll.value = false;
+    if (operation === readAllVersion) readingAll.value = false;
   }
 }
 
 async function remove(notification: Api.RealNotify.NotificationVO) {
   if (deletingId.value !== undefined) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++deleteVersion;
   deletingId.value = notification.id;
   try {
     await notifyApi.deleteNotification(notification.id);
+    if (operation !== deleteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
     total.value = Math.max(0, total.value - 1);
     if (!notification.readFlag) decreaseUnreadCount();
   } catch {
     // 请求层已展示错误，保留当前通知，避免把删除失败误显示为成功。
   } finally {
-    deletingId.value = undefined;
+    if (operation === deleteVersion) deletingId.value = undefined;
   }
 }
 
@@ -163,13 +174,21 @@ function clearAll() {
     content: '确认清空当前账号的全部站内通知？',
     hideCancel: false,
     onCancel() {
+      clearVersion += 1;
       clearConfirmationOpen.value = false;
     },
     onOk: async () => {
       if (clearing.value) return;
+      const requestedUserId = userStore.currentUser?.id;
+      if (requestedUserId === undefined) {
+        clearConfirmationOpen.value = false;
+        return;
+      }
+      const operation = ++clearVersion;
       clearing.value = true;
       try {
         await notifyApi.clearNotifications();
+        if (operation !== clearVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
         records.value = [];
         total.value = 0;
         notifyStore.setNotificationUnreadCount(0);
@@ -177,8 +196,10 @@ function clearAll() {
       } catch {
         // 请求层已展示错误，保留当前列表供用户重试。
       } finally {
-        clearing.value = false;
-        clearConfirmationOpen.value = false;
+        if (operation === clearVersion) {
+          clearing.value = false;
+          clearConfirmationOpen.value = false;
+        }
       }
     }
   });
@@ -204,10 +225,17 @@ watch(() => route.fullPath, () => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  readAllVersion += 1;
+  deleteVersion += 1;
+  clearVersion += 1;
   requestGuard.invalidate();
   records.value = [];
   total.value = 0;
   pageNo.value = 1;
+  readingAll.value = false;
+  clearing.value = false;
+  clearConfirmationOpen.value = false;
+  deletingId.value = undefined;
   loadError.value = '';
   const before = route.fullPath;
   void router.replace({ query: currentQuery() }).then(() => {
