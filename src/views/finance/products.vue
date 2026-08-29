@@ -147,7 +147,7 @@ function scrollToList() {
           <h3 class="sec-title">精选</h3>
           <div class="product-grid">
             <div v-for="p in featuredProducts" :key="p.id" class="ef-card">
-              <div class="ef-head" @click="goDetail(p)">
+              <div class="ef-head" role="button" tabindex="0" @click="goDetail(p)" @keydown.enter="goDetail(p)" @keydown.space.prevent="goDetail(p)">
                 <div class="ef-left">
                   <div class="ef-icon-wrap"><span>{{ productIcon(p) }}</span></div>
                   <div class="ef-info">
@@ -172,7 +172,7 @@ function scrollToList() {
           <h3 class="sec-title">策略金库</h3>
           <div class="product-grid">
             <div v-for="p in strategyProducts" :key="p.id" class="ef-card">
-              <div class="ef-head" @click="goDetail(p)">
+              <div class="ef-head" role="button" tabindex="0" @click="goDetail(p)" @keydown.enter="goDetail(p)" @keydown.space.prevent="goDetail(p)">
                 <div class="ef-left">
                   <div class="ef-icon-wrap"><span>{{ productIcon(p) }}</span></div>
                   <div class="ef-info">
@@ -384,6 +384,11 @@ function scrollToList() {
   align-items: center;
   gap: 16px;
   cursor: pointer;
+}
+.ef-head:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 .ef-left {
   display: flex;
