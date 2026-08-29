@@ -248,7 +248,11 @@ function closeToConversationList() {
 
 notifyStore.subscribe(async event => {
   if (event.type === 'SYNC') {
-    await syncIncremental();
+    try {
+      await syncIncremental();
+    } catch {
+      // 实时补偿读取失败时保留当前消息，等待下一次同步或用户刷新。
+    }
   } else if (event.type === 'IM_MESSAGE' && conversation.value && sameBusinessId(event.payload.conversationId, conversation.value.id)) {
     messages.value = mergeMessages(messages.value, event.payload);
     await reportRead();

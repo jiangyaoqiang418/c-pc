@@ -450,7 +450,11 @@ notifyStore.subscribe(async event => {
     } else if (conversation && !sameBusinessId(message.senderId, userStore.currentUser?.id)) {
       conversation.unreadCount = (conversation.unreadCount || 0) + 1;
     } else if (!conversation) {
-      await loadConversations(false);
+      try {
+        await loadConversations(false);
+      } catch {
+        // 实时事件触发的补偿读取失败不应产生未捕获 Promise，保留当前页面供下次同步。
+      }
     }
     refreshImUnreadFromConversations();
     return;
@@ -463,7 +467,11 @@ notifyStore.subscribe(async event => {
         ? { ...message, ...recalled, recalled: true, content: undefined, mediaUrl: undefined }
         : message);
     }
-    await loadConversations(false);
+    try {
+      await loadConversations(false);
+    } catch {
+      // 撤回事件后的会话列表刷新失败不影响当前消息的撤回展示。
+    }
     return;
   }
   if (event.type === 'IM_READ') {
