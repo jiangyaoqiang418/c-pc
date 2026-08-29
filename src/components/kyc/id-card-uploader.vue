@@ -91,7 +91,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="meta">
       <span class="title">{{ sideLabel[side] }}</span>
-      <a-link v-if="modelValue" status="danger" @click="clear">重新上传</a-link>
+      <a-link v-if="modelValue" role="button" tabindex="0" status="danger" @click="clear" @keydown.enter="clear" @keydown.space.prevent="clear">重新上传</a-link>
       <span v-else class="hint">上传真实证件资料</span>
     </div>
   </div>

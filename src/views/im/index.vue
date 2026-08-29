@@ -631,7 +631,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
         <aside class="sidebar">
           <a-alert v-if="conversationLoadError" type="error" :show-icon="false" class="load-error">
             {{ conversationLoadError }}
-            <template #action><a-link @click="retryConversationLoad">重新加载</a-link></template>
+            <template #action><a-link role="button" tabindex="0" @click="retryConversationLoad" @keydown.enter="retryConversationLoad" @keydown.space.prevent="retryConversationLoad">重新加载</a-link></template>
           </a-alert>
           <div class="sync-bar">
             <span>{{ lastSyncText() }}</span>
@@ -685,14 +685,14 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
                   <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" />
                   <div><div class="cs-title">{{ selectedConversation.productTitle || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.orderNo ? `订单 ${selectedConversation.orderNo}` : `业务 ID ${selectedConversation.bizId || '—'}` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
                 </div>
-                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" @click="openOrderGroup">独立窗口打开</a-link><a-link status="danger" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</a-link></div>
+                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" role="link" tabindex="0" @click="openOrderGroup" @keydown.enter="openOrderGroup">独立窗口打开</a-link><a-link role="button" tabindex="0" status="danger" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation" @keydown.enter="deleteSelectedConversation" @keydown.space.prevent="deleteSelectedConversation">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</a-link></div>
             </div>
             <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
               实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
-              <template #action><a-space size="small"><a-link @click="notifyStore.connect">立即重连</a-link><a-link :loading="restSyncing" @click="refreshRestData">刷新数据</a-link></a-space></template>
+              <template #action><a-space size="small"><a-link role="button" tabindex="0" @click="notifyStore.connect" @keydown.enter="notifyStore.connect" @keydown.space.prevent="notifyStore.connect">立即重连</a-link><a-link role="button" tabindex="0" :loading="restSyncing" @click="refreshRestData" @keydown.enter="refreshRestData" @keydown.space.prevent="refreshRestData">刷新数据</a-link></a-space></template>
             </a-alert>
             <div ref="scrollRef" class="messages chat-scroll">
-                <div v-if="hasOlder" class="load-older"><a-link :loading="loadingOlder" @click="loadOlderMessages">加载更早消息</a-link></div>
+                <div v-if="hasOlder" class="load-older"><a-link role="button" tabindex="0" :loading="loadingOlder" @click="loadOlderMessages" @keydown.enter="loadOlderMessages" @keydown.space.prevent="loadOlderMessages">加载更早消息</a-link></div>
                 <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
                 <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" />
                 <div v-else-if="!messages.length" class="empty-msg">该群暂无消息</div>

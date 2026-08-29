@@ -382,10 +382,10 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
         </div>
         <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
           实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
-          <template #action><a-link @click="notifyStore.connect">立即重连</a-link></template>
+          <template #action><a-link role="button" tabindex="0" @click="notifyStore.connect" @keydown.enter="notifyStore.connect" @keydown.space.prevent="notifyStore.connect">立即重连</a-link></template>
         </a-alert>
         <div ref="scrollRef" class="messages chat-scroll">
-          <div v-if="hasOlder" class="load-older"><a-link :loading="loadingOlder" @click="loadOlderMessages">加载更早消息</a-link></div>
+          <div v-if="hasOlder" class="load-older"><a-link role="button" tabindex="0" :loading="loadingOlder" @click="loadOlderMessages" @keydown.enter="loadOlderMessages" @keydown.space.prevent="loadOlderMessages">加载更早消息</a-link></div>
           <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
           <div v-if="!messages.length" class="empty-msg">该群暂无消息，开始聊天吧 👋</div>
         </div>

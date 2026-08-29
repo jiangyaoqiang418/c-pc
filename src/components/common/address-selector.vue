@@ -142,7 +142,7 @@ async function submit() {
       <div class="address-list">
         <a-alert v-if="loadError" type="error" :show-icon="false">
           {{ loadError }}
-          <template #action><a-link @click="load">重新加载</a-link></template>
+          <template #action><a-link role="button" tabindex="0" @click="load" @keydown.enter="load" @keydown.space.prevent="load">重新加载</a-link></template>
         </a-alert>
         <div
           v-for="a in list"

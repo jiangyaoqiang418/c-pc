@@ -217,7 +217,7 @@ const orderTabsMeta = computed(() => [
         <a-card class="order-stat-card" :body-style="{ padding: '20px 24px' }">
           <div class="card-head">
             <div class="card-title">订单概况</div>
-            <a-link @click="router.push('/order')">查看全部 ›</a-link>
+            <a-link role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')">查看全部 ›</a-link>
           </div>
           <div class="order-stats">
             <div v-for="o in orderTabsMeta" :key="o.label" class="stat" role="button" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">
@@ -264,7 +264,7 @@ const orderTabsMeta = computed(() => [
         <a-card class="ann-card" :body-style="{ padding: '20px 24px' }">
           <div class="card-head">
             <div class="card-title">平台公告</div>
-            <a-link @click="router.push('/announcement')">公告中心</a-link>
+            <a-link role="link" tabindex="0" @click="router.push('/announcement')" @keydown.enter="router.push('/announcement')">公告中心</a-link>
           </div>
           <div v-for="a in announcements" :key="a.id" class="ann-row">
             <div class="ann-title">📢 {{ a.title }}</div>

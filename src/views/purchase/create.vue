@@ -222,7 +222,7 @@ async function submit() {
             check-strictly
           />
           <div v-if="categoryLoadError" class="form-error">
-            {{ categoryLoadError }} <a-link @click="reloadCategories">重新加载</a-link>
+            {{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories" @keydown.enter="reloadCategories" @keydown.space.prevent="reloadCategories">重新加载</a-link>
           </div>
         </a-form-item>
         <a-form-item label="商品描述">

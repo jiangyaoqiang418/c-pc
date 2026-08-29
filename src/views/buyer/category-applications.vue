@@ -251,7 +251,7 @@ watch(() => userStore.currentUser?.id, () => {
             check-strictly
             allow-clear
           />
-          <div v-if="categoryLoadError" class="form-hint">{{ categoryLoadError }} <a-link @click="loadCategories">重新加载</a-link></div>
+          <div v-if="categoryLoadError" class="form-hint">{{ categoryLoadError }} <a-link role="button" tabindex="0" @click="loadCategories" @keydown.enter="loadCategories" @keydown.space.prevent="loadCategories">重新加载</a-link></div>
         </a-form-item>
         <a-form-item label="新分类名称" required>
           <a-input v-model="form.newName" :max-length="50" placeholder="请输入分类名称" />

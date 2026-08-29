@@ -20,7 +20,7 @@ const meta = computed(() => ({
   <div class="realtime-status" :class="`is-${meta.tone}`" role="status" aria-live="polite">
     <span class="status-dot" aria-hidden="true" />
     <span>{{ meta.label }}</span>
-    <a-link v-if="state === 'closed'" size="mini" @click="emit('reconnect')">立即重连</a-link>
+    <a-link v-if="state === 'closed'" role="button" tabindex="0" size="mini" @click="emit('reconnect')" @keydown.enter="emit('reconnect')" @keydown.space.prevent="emit('reconnect')">立即重连</a-link>
   </div>
 </template>
 

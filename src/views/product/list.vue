@@ -185,7 +185,7 @@ function onPageChange(p: number) {
         <span class="price-dash">—</span>
         <a-input-number v-model="filter.maxPrice" :min="0" placeholder="¥ 最高" hide-button class="price-input" />
         <a-button size="small" @click="applyToUrl">确定</a-button>
-        <a-link @click="resetFilters">重置</a-link>
+        <a-link role="button" tabindex="0" @click="resetFilters" @keydown.enter="resetFilters" @keydown.space.prevent="resetFilters">重置</a-link>
       </div>
     </div>
 
