@@ -26,6 +26,11 @@ function sameBusinessId(left: string | number | undefined, right: string | numbe
   return left !== undefined && right !== undefined && String(left) === String(right);
 }
 
+function finiteNonNegative(value: string | number | undefined) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 /** 购物车是账号私有数据，绝不能让本地缓存跨登录用户复用。 */
 export function cartStorageKey(ownerId?: CartOwnerId) {
   return `${STORAGE_KEY.cart}:${ownerId === undefined ? 'anonymous' : String(ownerId)}`;
@@ -71,19 +76,25 @@ export const useCartStore = defineStore('bw-cart', () => {
 
   function enrich(item: CartItem): EnrichedCartItem {
     const product = products.value[String(item.productId)];
-    const available = !!product && product.status === 'NORMAL' && product.shelfStatus === 'on-shelf' && product.stock > 0;
-    const price = product ? Number(product.price) : 0;
-    const shipping = product ? Number(product.shippingFee) : 0;
-    const tax = product ? Number(product.tax) : 0;
-    const subtotal = (price * item.qty).toFixed(2);
-    const lineTotal = (price * item.qty + shipping + tax).toFixed(2);
+    const price = product ? finiteNonNegative(product.price) : undefined;
+    const shipping = product ? finiteNonNegative(product.shippingFee) : undefined;
+    const tax = product ? finiteNonNegative(product.tax) : undefined;
+    const available = !!product
+      && product.status === 'NORMAL'
+      && product.shelfStatus === 'on-shelf'
+      && product.stock > 0
+      && price !== undefined
+      && shipping !== undefined
+      && tax !== undefined;
+    const subtotal = available ? (price! * item.qty).toFixed(2) : '';
+    const lineTotal = available ? (price! * item.qty + shipping! + tax!).toFixed(2) : '';
     return {
       ...item,
       product,
       available,
       subtotal,
-      shippingFee: shipping.toFixed(2),
-      tax: tax.toFixed(2),
+      shippingFee: shipping === undefined ? '' : shipping.toFixed(2),
+      tax: tax === undefined ? '' : tax.toFixed(2),
       lineTotal
     };
   }
