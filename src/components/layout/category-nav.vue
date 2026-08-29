@@ -31,7 +31,11 @@ onMounted(async () => {
   }
 });
 
-onBeforeUnmount(categoryGuard.invalidate);
+onBeforeUnmount(() => {
+  categoryGuard.invalidate();
+  if (megaTimer) clearTimeout(megaTimer);
+  megaTimer = null;
+});
 
 // 业务频道（占位路由）
 const CHANNELS = [

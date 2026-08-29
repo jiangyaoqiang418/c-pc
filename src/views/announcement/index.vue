@@ -15,6 +15,7 @@ const loadError = ref('');
 const drawerVisible = ref(false);
 const drawerAnn = ref<Api.Cms.Announcement>();
 const requestGuard = createLatestRequestGuard();
+let detailVersion = 0;
 
 const TYPES: { key: Api.Cms.AnnouncementType | 'all'; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -47,18 +48,24 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(requestGuard.invalidate);
+onMounted(load); onBeforeUnmount(() => {
+  detailVersion += 1;
+  requestGuard.invalidate();
+});
 watch(activeType, () => {
   current.value = 1;
   load();
 });
 
 async function open(a: Api.Cms.Announcement) {
+  const operation = ++detailVersion;
   try {
-    drawerAnn.value = await cmsApi.fetchAnnouncementDetail(a.id);
+    const next = await cmsApi.fetchAnnouncementDetail(a.id);
+    if (operation !== detailVersion) return;
+    drawerAnn.value = next;
     drawerVisible.value = true;
   } catch {
-    loadError.value = '公告详情加载失败，请稍后重试。';
+    if (operation === detailVersion) loadError.value = '公告详情加载失败，请稍后重试。';
   }
 }
 </script>

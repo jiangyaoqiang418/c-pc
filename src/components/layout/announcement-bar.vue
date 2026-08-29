@@ -25,16 +25,20 @@ onMounted(async () => {
     closed.value = true;
     return;
   }
-  const res = await cmsApi.fetchAnnouncements({ size: 5, audience: 'customer' });
-  if (disposed) return;
-  announcements.value = res.records.filter(a => a.pinned).slice(0, 3);
-  if (!announcements.value.length) {
-    announcements.value = res.records.slice(0, 2);
-  }
-  if (announcements.value.length > 1) {
-    rotationTimer = setInterval(() => {
-      activeIdx.value = (activeIdx.value + 1) % announcements.value.length;
-    }, 5000);
+  try {
+    const res = await cmsApi.fetchAnnouncements({ size: 5, audience: 'customer' });
+    if (disposed) return;
+    announcements.value = res.records.filter(a => a.pinned).slice(0, 3);
+    if (!announcements.value.length) {
+      announcements.value = res.records.slice(0, 2);
+    }
+    if (announcements.value.length > 1) {
+      rotationTimer = setInterval(() => {
+        activeIdx.value = (activeIdx.value + 1) % announcements.value.length;
+      }, 5000);
+    }
+  } catch {
+    if (!disposed) announcements.value = [];
   }
 });
 

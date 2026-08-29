@@ -42,6 +42,7 @@ const scrollRef = ref<HTMLElement>();
 const errorMessage = ref('');
 const failedQuery = ref('');
 let streamTimers: number[] = [];
+let disposed = false;
 
 function scheduleStream(msg: BotMsg, onDone?: () => void) {
   const chars = [...msg.fullText];
@@ -76,11 +77,13 @@ async function scrollBottom() {
 }
 
 onBeforeUnmount(() => {
+  disposed = true;
   streamTimers.forEach(t => window.clearTimeout(t));
   streamTimers = [];
 });
 
 async function send(text?: string) {
+  if (disposed) return;
   const t = (text || input.value).trim();
   if (!t) return;
   errorMessage.value = '';
@@ -92,6 +95,7 @@ async function send(text?: string) {
 
   try {
     const result = await aiApi.aiSearchMock(t);
+    if (disposed) return;
     const loadingIdx = messages.value.findIndex(m => m.role === 'loading');
     if (loadingIdx !== -1) messages.value.splice(loadingIdx, 1);
 
@@ -113,6 +117,7 @@ async function send(text?: string) {
       scrollBottom();
     });
   } catch {
+    if (disposed) return;
     const loadingIdx = messages.value.findIndex(m => m.role === 'loading');
     if (loadingIdx !== -1) messages.value.splice(loadingIdx, 1);
     errorMessage.value = 'AI 导购暂时不可用，请稍后重试。';

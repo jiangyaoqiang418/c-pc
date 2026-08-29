@@ -37,6 +37,7 @@ const submitting = ref(false);
 const confirmationPending = ref(false);
 const backendSelfPurchaseProductIds = ref<string[]>([]);
 let writeVersion = 0;
+let insufficientBalanceTimer: ReturnType<typeof setTimeout> | undefined;
 
 interface PendingCheckout {
   idempotencyKey: string;
@@ -155,6 +156,8 @@ onMounted(load);
 onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
+  if (insufficientBalanceTimer) clearTimeout(insufficientBalanceTimer);
+  insufficientBalanceTimer = undefined;
 });
 watch(() => userStore.currentUser?.id, () => {
   requestGuard.invalidate();
@@ -192,7 +195,11 @@ async function submit() {
       content: '钱包余额不足，请前往钱包链上充值',
       duration: 3500
     });
-    setTimeout(() => router.push('/wallet/deposit'), 600);
+    if (insufficientBalanceTimer) clearTimeout(insufficientBalanceTimer);
+    insufficientBalanceTimer = setTimeout(() => {
+      insufficientBalanceTimer = undefined;
+      void router.push('/wallet/deposit');
+    }, 600);
     return;
   }
   if (overseasItems.value.length > 0) {
