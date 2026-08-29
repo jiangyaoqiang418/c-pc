@@ -17,6 +17,7 @@ const walletStore = useWalletStore();
 
 const txns = ref<Api.RealBuyer.DepositLedger[]>([]);
 const orderCounts = ref<Record<string, number>>({});
+const orderCountsLoaded = ref(false);
 const loading = ref(false);
 const loadError = ref('');
 const drawerOpen = ref(false);
@@ -30,7 +31,8 @@ const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 const maxTransferAmount = computed(() => {
   const value = transferKind.value === 'pay' ? account.value?.available : account.value?.depositAvailable;
-  return Number(value || 0);
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 });
 
 async function loadAll() {
@@ -39,6 +41,7 @@ async function loadAll() {
     requestGuard.invalidate();
     txns.value = [];
     orderCounts.value = {};
+    orderCountsLoaded.value = false;
     loadError.value = '';
     loading.value = false;
     return;
@@ -46,6 +49,7 @@ async function loadAll() {
   const isCurrent = requestGuard.begin();
   const userId = currentUser.id;
   loading.value = true;
+  orderCountsLoaded.value = false;
   loadError.value = '';
   try {
     const [walletResult, txnResult, countsResult] = await Promise.allSettled([
@@ -55,6 +59,7 @@ async function loadAll() {
     ]);
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     txns.value = txnResult.status === 'fulfilled' ? txnResult.value.records : [];
+    orderCountsLoaded.value = countsResult.status === 'fulfilled';
     orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
     if (walletResult.status === 'rejected' || walletStore.account === undefined) {
       loadError.value = '押金账户加载失败，请检查网络后重试。';
@@ -65,6 +70,7 @@ async function loadAll() {
     if (!isCurrent()) return;
     txns.value = [];
     orderCounts.value = {};
+    orderCountsLoaded.value = false;
     loadError.value = '押金信息加载失败，请检查网络后重试。';
   } finally {
     if (isCurrent()) loading.value = false;
@@ -82,18 +88,23 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
   transferOpen.value = false;
   txns.value = [];
   orderCounts.value = {};
+  orderCountsLoaded.value = false;
   void loadAll();
 });
 
-const guaranteedOrderCount = computed(() =>
-  ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM', 'IN_AFTERSALE']
-    .reduce((sum, status) => sum + Number(orderCounts.value[status] || 0), 0)
-);
+const guaranteedOrderCount = computed(() => {
+  if (!orderCountsLoaded.value) return undefined;
+  const values = ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM', 'IN_AFTERSALE']
+    .map(status => Number(orderCounts.value[status]));
+  if (values.some(value => !Number.isFinite(value) || value < 0)) return undefined;
+  return values.reduce((sum, value) => sum + Math.floor(value), 0);
+});
 const depositUtilization = computed(() => {
-  const available = Number(account.value?.depositAvailable || 0);
-  const guaranteed = Number(account.value?.depositGuaranteed || 0);
+  const available = Number(account.value?.depositAvailable);
+  const guaranteed = Number(account.value?.depositGuaranteed);
+  if (!Number.isFinite(available) || available < 0 || !Number.isFinite(guaranteed) || guaranteed < 0) return undefined;
   const total = available + guaranteed;
-  return total > 0 ? ((guaranteed / total) * 100).toFixed(1) : '0.0';
+  return total > 0 ? `${((guaranteed / total) * 100).toFixed(1)}%` : '0.0%';
 });
 
 function openDepositTransfer(kind: 'pay' | 'refund') {
@@ -178,7 +189,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
         <div class="stat-row">
           <div class="stat">
             <div class="stat-label">担保中订单数</div>
-            <div class="stat-val">{{ guaranteedOrderCount }} 笔</div>
+            <div class="stat-val">{{ guaranteedOrderCount ?? '—' }} 笔</div>
           </div>
           <div class="stat">
             <div class="stat-label">已担保押金</div>
@@ -187,7 +198,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
           <div class="stat">
             <div class="stat-label">担保利用率</div>
             <div class="stat-val">
-              {{ depositUtilization }}%
+              {{ depositUtilization ?? '—' }}
             </div>
           </div>
         </div>

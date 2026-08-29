@@ -119,12 +119,17 @@ const depositTotal = computed(() => {
 const depositPctLabel = computed(() => depositPct.value === undefined ? '—' : `${depositPct.value.toFixed(1)}%`);
 
 function orderCount(status: string) {
-  return countsLoaded.value ? Number(orderCounts.value[status] || 0) : undefined;
+  if (!countsLoaded.value) return undefined;
+  const parsed = finiteNonNegative(orderCounts.value[status]);
+  return parsed === undefined ? undefined : Math.floor(parsed);
 }
 
 function sumOrderCounts(...statuses: string[]) {
   if (!countsLoaded.value) return undefined;
-  return statuses.reduce((sum, status) => sum + Number(orderCounts.value[status] || 0), 0);
+  const counts = statuses.map(status => orderCount(status));
+  if (counts.some(count => count === undefined)) return undefined;
+  return counts.filter((count): count is number => count !== undefined)
+    .reduce((sum, count) => sum + count, 0);
 }
 
 const pendingOrderCount = computed(() => sumOrderCounts('PROCURING', 'PROCURED', 'IN_TRANSIT'));
