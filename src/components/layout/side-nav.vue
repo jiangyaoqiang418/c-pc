@@ -57,9 +57,15 @@ function goCategory(id: string | number) {
       :key="cat.id"
       class="cat-row"
       :class="{ hovered: hoveredCatId === cat.id }"
+      role="link"
+      tabindex="0"
+      :aria-expanded="hoveredCatId === cat.id && !!cat.children?.length"
       @mouseenter="hoveredCatId = cat.id"
       @mouseleave="hoveredCatId = null"
       @click="goCategory(cat.id)"
+      @focus="hoveredCatId = cat.id"
+      @keydown.enter="goCategory(cat.id)"
+      @keydown.space.prevent="goCategory(cat.id)"
     >
       <span class="cat-num">{{ String(i + 1).padStart(2, '0') }}</span>
       <span class="cat-name">{{ cat.name }}</span>
@@ -69,7 +75,14 @@ function goCategory(id: string | number) {
       <div v-if="hoveredCatId === cat.id && cat.children?.length" class="mega-menu">
         <div class="mega-inner">
           <div v-for="sub in cat.children" :key="sub.id" class="mega-sub">
-            <div class="mega-sub-title" @click.stop="goCategory(sub.id)">
+            <div
+              class="mega-sub-title"
+              role="link"
+              tabindex="0"
+              @click.stop="goCategory(sub.id)"
+              @keydown.enter.stop="goCategory(sub.id)"
+              @keydown.space.stop.prevent="goCategory(sub.id)"
+            >
               {{ sub.name }}
             </div>
             <div class="mega-brands">
@@ -77,7 +90,11 @@ function goCategory(id: string | number) {
                 v-for="brand in (sub.children || []).slice(0, 10)"
                 :key="brand.id"
                 class="mega-brand"
+                role="link"
+                tabindex="0"
                 @click.stop="goCategory(brand.id)"
+                @keydown.enter.stop="goCategory(brand.id)"
+                @keydown.space.stop.prevent="goCategory(brand.id)"
               >
                 {{ brand.name }}
               </span>
@@ -132,6 +149,12 @@ function goCategory(id: string | number) {
 .cat-row.hovered {
   background: var(--yb-bg);
   color: var(--yb-ink);
+}
+.cat-row:focus-visible,
+.mega-sub-title:focus-visible,
+.mega-brand:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: -2px;
 }
 .cat-num {
   font-family: var(--yb-font-mono);

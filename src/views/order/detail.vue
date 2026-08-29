@@ -294,7 +294,13 @@ function contactShopper() {
           <div class="goods-row">
             <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" />
             <div class="info">
-              <div class="title" @click="router.push({ name: 'product-detail', params: { id: String(order.productId) } })">
+              <div
+                class="title"
+                role="link"
+                tabindex="0"
+                @click="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
+                @keydown.enter="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
+              >
                 {{ order.productTitle }}
               </div>
               <div class="tags">
@@ -481,6 +487,11 @@ function contactShopper() {
 }
 .title:hover {
   color: var(--bw-brand-primary);
+}
+.title:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 .tags {
   margin-top: 8px;
