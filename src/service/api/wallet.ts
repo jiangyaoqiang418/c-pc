@@ -303,22 +303,26 @@ export function createRecharge(params: Api.RealWallet.RechargeCreateParams) {
   );
 }
 
-export function fetchRechargeChains() {
-  return realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains');
+export function fetchRechargeChains(options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', options);
 }
 
-export function fetchRechargeAddress(chain: string) {
-  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { params: { chain } });
+export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...options, params: { chain } });
 }
 
-export function fetchRechargeDetail(id: string | number) {
-  return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { params: { id } });
+export function fetchRechargeDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { ...options, params: { id } });
 }
 
-export async function fetchRechargePage(params: Api.RealWallet.RechargePageQuery = {}) {
+export async function fetchRechargePage(
+  params: Api.RealWallet.RechargePageQuery = {},
+  options: { signal?: AbortSignal } = {}
+) {
   const page = await realUserRequest.post<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
     '/recharge/page',
-    params
+    params,
+    options
   );
   return {
     current: page.current || page.pageNo || params.pageNo || 1,
@@ -339,14 +343,18 @@ export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams) {
   );
 }
 
-export function fetchWithdrawDetail(id: string | number) {
-  return realUserRequest.get<Api.RealWallet.WithdrawVO>('/withdraw/detail', { params: { id } });
+export function fetchWithdrawDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealWallet.WithdrawVO>('/withdraw/detail', { ...options, params: { id } });
 }
 
-export async function fetchWithdrawPage(params: Api.RealWallet.WithdrawPageQuery = {}) {
+export async function fetchWithdrawPage(
+  params: Api.RealWallet.WithdrawPageQuery = {},
+  options: { signal?: AbortSignal } = {}
+) {
   const page = await realUserRequest.post<Api.RealWallet.PageResult<Api.RealWallet.WithdrawVO>, Api.RealWallet.WithdrawPageQuery>(
     '/withdraw/page',
-    params
+    params,
+    options
   );
   return {
     current: page.current || page.pageNo || params.pageNo || 1,

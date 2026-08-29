@@ -1,8 +1,8 @@
 import { realUserRequest } from '@/service/request';
 import { toPageTotal } from './page';
 
-export function fetchFinanceProducts() {
-  return realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list');
+export function fetchFinanceProducts(options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list', options);
 }
 
 export function fetchFinanceProductDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
@@ -17,8 +17,8 @@ export function redeemFinance(params: Api.RealFinance.FinanceRedeemParams) {
   return realUserRequest.post<string | number, Api.RealFinance.FinanceRedeemParams>('/finance/orders/redeem', params);
 }
 
-export function fetchFinanceOverview() {
-  return realUserRequest.get<Api.RealFinance.FinanceOverviewVO>('/finance/orders/overview');
+export function fetchFinanceOverview(options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealFinance.FinanceOverviewVO>('/finance/orders/overview', options);
 }
 
 export function fetchFinanceOrderDetail(id: string | number, options: { signal?: AbortSignal } = {}) {

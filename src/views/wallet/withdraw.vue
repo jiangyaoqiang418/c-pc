@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const route = useRoute();
@@ -28,6 +29,9 @@ const detailTarget = ref<Api.RealWallet.WithdrawVO>();
 const loadError = ref('');
 const recordError = ref('');
 const detailError = ref('');
+const requestGuard = createLatestRequestGuard();
+const recordsGuard = createLatestRequestGuard();
+const detailGuard = createLatestRequestGuard();
 
 const chainOptions = [
   { value: 'TRON', label: 'TRC20（USDT-TRON）' },
@@ -62,6 +66,7 @@ function getId(result: Api.RealWallet.WithdrawVO | string | number) {
 }
 
 async function loadRecords() {
+  const isCurrent = recordsGuard.begin();
   loadingRecords.value = true;
   recordError.value = '';
   try {
@@ -69,22 +74,38 @@ async function loadRecords() {
       pageNo: recordCurrent.value,
       pageSize: recordSize.value,
       status: recordStatus.value
-    });
+    }, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     recentWithdrawals.value = result.records;
     recordTotal.value = result.total;
   } catch {
+    if (!isCurrent()) return;
     recentWithdrawals.value = [];
     recordTotal.value = 0;
     recordError.value = '转出申请加载失败，请稍后重试';
   } finally {
-    loadingRecords.value = false;
+    if (isCurrent()) loadingRecords.value = false;
   }
 }
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
+  const currentUser = userStore.currentUser;
+  if (!currentUser) {
+    requestGuard.invalidate();
+    recordsGuard.invalidate();
+    detailGuard.invalidate();
+    recentWithdrawals.value = [];
+    recordTotal.value = 0;
+    createdWithdrawal.value = undefined;
+    detail.value = undefined;
+    loadError.value = '';
+    return;
+  }
+  const isCurrent = requestGuard.begin();
+  const userId = currentUser.id;
   loadError.value = '';
-  const [wallet] = await Promise.allSettled([walletStore.fetchWallet(userStore.currentUser.id), loadRecords()]);
+  const [wallet] = await Promise.allSettled([walletStore.fetchWallet(userId), loadRecords()]);
+  if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
   if (wallet.status === 'rejected') loadError.value = '钱包余额加载失败，请稍后重试';
 }
 
@@ -124,16 +145,17 @@ async function showDetail(record: Api.RealWallet.WithdrawVO) {
 }
 
 async function openDetail(id: string | number) {
+  const isCurrent = detailGuard.begin();
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
   detailError.value = '';
   try {
-    detail.value = await realWalletApi.fetchWithdrawDetail(id);
+    detail.value = await realWalletApi.fetchWithdrawDetail(id, { signal: isCurrent.signal });
   } catch {
-    detailError.value = '转出申请详情加载失败，请稍后重试';
+    if (isCurrent()) detailError.value = '转出申请详情加载失败，请稍后重试';
   } finally {
-    detailLoading.value = false;
+    if (isCurrent()) detailLoading.value = false;
   }
 }
 
@@ -143,6 +165,19 @@ function queryRecords() {
 }
 
 onMounted(loadAll);
+onBeforeUnmount(() => {
+  requestGuard.invalidate();
+  recordsGuard.invalidate();
+  detailGuard.invalidate();
+});
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  recentWithdrawals.value = [];
+  recordTotal.value = 0;
+  createdWithdrawal.value = undefined;
+  detail.value = undefined;
+  void loadAll();
+});
 watch(() => route.query.id, id => {
   if (id) void openDetail(String(id));
 }, { immediate: true });

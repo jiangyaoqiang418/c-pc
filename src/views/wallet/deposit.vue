@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
@@ -32,6 +33,11 @@ const loadError = ref('');
 const addressError = ref('');
 const recordError = ref('');
 const detailError = ref('');
+const requestGuard = createLatestRequestGuard();
+const recordsGuard = createLatestRequestGuard();
+const chainsGuard = createLatestRequestGuard();
+const addressGuard = createLatestRequestGuard();
+const detailGuard = createLatestRequestGuard();
 
 const chainOptions = ref<Api.RealWallet.RechargeChainVO[]>([]);
 const selectedChain = computed(() => chainOptions.value.find(item => item.chain === chain.value));
@@ -54,6 +60,7 @@ function getId(result: Api.RealWallet.RechargeVO | string | number) {
 }
 
 async function loadRecords() {
+  const isCurrent = recordsGuard.begin();
   loadingRecords.value = true;
   recordError.value = '';
   try {
@@ -61,61 +68,87 @@ async function loadRecords() {
       pageNo: recordCurrent.value,
       pageSize: recordSize.value,
       status: recordStatus.value
-    });
+    }, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     recentDeposits.value = result.records;
     recordTotal.value = result.total;
   } catch {
+    if (!isCurrent()) return;
     recentDeposits.value = [];
     recordTotal.value = 0;
     recordError.value = '充值记录加载失败，请稍后重试';
   } finally {
-    loadingRecords.value = false;
+    if (isCurrent()) loadingRecords.value = false;
   }
 }
 
 async function loadChains() {
+  const isCurrent = chainsGuard.begin();
   loadingChains.value = true;
   loadError.value = '';
   try {
-    const chains = await realWalletApi.fetchRechargeChains();
+    const chains = await realWalletApi.fetchRechargeChains({ signal: isCurrent.signal });
+    if (!isCurrent()) return;
     chainOptions.value = chains.filter(item => item.enabled);
     if (!chainOptions.value.some(item => item.chain === chain.value)) {
       chain.value = chainOptions.value[0]?.chain;
     }
   } catch {
+    if (!isCurrent()) return;
     chainOptions.value = [];
     chain.value = '';
     loadError.value = '充值链加载失败，请稍后重试';
   } finally {
-    loadingChains.value = false;
+    if (isCurrent()) loadingChains.value = false;
   }
 }
 
 async function loadRechargeAddress(chainCode = chain.value) {
+  const isCurrent = addressGuard.begin();
   if (!chainCode) {
     rechargeAddress.value = undefined;
+    loadingAddress.value = false;
     return;
   }
   loadingAddress.value = true;
   addressError.value = '';
   rechargeAddress.value = undefined;
   try {
-    const address = await realWalletApi.fetchRechargeAddress(chainCode);
-    if (chainCode === chain.value) rechargeAddress.value = address;
+    const address = await realWalletApi.fetchRechargeAddress(chainCode, { signal: isCurrent.signal });
+    if (isCurrent() && chainCode === chain.value) rechargeAddress.value = address;
   } catch {
-    if (chainCode === chain.value) {
+    if (isCurrent() && chainCode === chain.value) {
       rechargeAddress.value = undefined;
       addressError.value = '专属充值地址加载失败，请稍后重试';
     }
   } finally {
-    if (chainCode === chain.value) loadingAddress.value = false;
+    if (isCurrent() && chainCode === chain.value) loadingAddress.value = false;
   }
 }
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
-  const [chains, wallet] = await Promise.allSettled([loadChains(), walletStore.fetchWallet(userStore.currentUser.id), loadRecords()]);
-  if (chains.status === 'rejected' || wallet.status === 'rejected') loadError.value ||= '钱包基础信息加载失败，请稍后重试';
+  const currentUser = userStore.currentUser;
+  if (!currentUser) {
+    requestGuard.invalidate();
+    recordsGuard.invalidate();
+    chainsGuard.invalidate();
+    addressGuard.invalidate();
+    detailGuard.invalidate();
+    chainOptions.value = [];
+    chain.value = undefined;
+    rechargeAddress.value = undefined;
+    currentRecharge.value = undefined;
+    recentDeposits.value = [];
+    recordTotal.value = 0;
+    detail.value = undefined;
+    return;
+  }
+  const isCurrent = requestGuard.begin();
+  const userId = currentUser.id;
+  loadError.value = '';
+  const [chains, wallet] = await Promise.allSettled([loadChains(), walletStore.fetchWallet(userId), loadRecords()]);
+  if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+  if (chains.status === 'rejected' || wallet.status === 'rejected') loadError.value = '钱包基础信息加载失败，请稍后重试';
 }
 
 async function createRecharge() {
@@ -164,16 +197,17 @@ async function showDetail(record: Api.RealWallet.RechargeVO) {
 }
 
 async function openDetail(id: string | number) {
+  const isCurrent = detailGuard.begin();
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
   detailError.value = '';
   try {
-    detail.value = await realWalletApi.fetchRechargeDetail(id);
+    detail.value = await realWalletApi.fetchRechargeDetail(id, { signal: isCurrent.signal });
   } catch {
-    detailError.value = '充值订单详情加载失败，请稍后重试';
+    if (isCurrent()) detailError.value = '充值订单详情加载失败，请稍后重试';
   } finally {
-    detailLoading.value = false;
+    if (isCurrent()) detailLoading.value = false;
   }
 }
 
@@ -197,6 +231,24 @@ function queryRecords() {
 }
 
 onMounted(loadAll);
+onBeforeUnmount(() => {
+  requestGuard.invalidate();
+  recordsGuard.invalidate();
+  chainsGuard.invalidate();
+  addressGuard.invalidate();
+  detailGuard.invalidate();
+});
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  chainOptions.value = [];
+  chain.value = undefined;
+  rechargeAddress.value = undefined;
+  currentRecharge.value = undefined;
+  recentDeposits.value = [];
+  recordTotal.value = 0;
+  detail.value = undefined;
+  void loadAll();
+});
 watch(chain, () => void loadRechargeAddress());
 watch(() => route.query.id, id => {
   if (id) void openDetail(String(id));

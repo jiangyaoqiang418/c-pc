@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
@@ -8,6 +8,7 @@ import * as financeApi from '@/service/api/finance';
 import { useUserStore, useWalletStore } from '@/stores';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -18,18 +19,30 @@ const overview = ref<Api.RealFinance.FinanceOverviewVO>();
 const loading = ref(false);
 const loadError = ref('');
 const productLoadError = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 async function loadAll() {
-  if (!userStore.currentUser || loading.value) return;
+  const currentUser = userStore.currentUser;
+  if (!currentUser) {
+    requestGuard.invalidate();
+    products.value = [];
+    overview.value = undefined;
+    productLoadError.value = false;
+    loadError.value = '';
+    return;
+  }
+  const isCurrent = requestGuard.begin();
+  const userId = currentUser.id;
   loading.value = true;
   loadError.value = '';
   productLoadError.value = false;
   try {
     const [productsResult, overviewResult, walletResult] = await Promise.allSettled([
-      financeApi.fetchFinanceProducts(),
-      financeApi.fetchFinanceOverview(),
-      walletStore.fetchWallet(userStore.currentUser.id)
+      financeApi.fetchFinanceProducts({ signal: isCurrent.signal }),
+      financeApi.fetchFinanceOverview({ signal: isCurrent.signal }),
+      walletStore.fetchWallet(userId)
     ]);
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     if (productsResult.status === 'fulfilled') products.value = productsResult.value;
     productLoadError.value = productsResult.status === 'rejected';
     if (overviewResult.status === 'fulfilled') overview.value = overviewResult.value;
@@ -37,10 +50,17 @@ async function loadAll() {
       loadError.value = '部分小金库数据加载失败，请检查网络后重试。';
     }
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(loadAll);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  products.value = [];
+  overview.value = undefined;
+  void loadAll();
+});
 
 const currentBalance = computed(() => walletStore.account?.lockedFinance);
 const cnyEquiv = computed(() => currentBalance.value === undefined
