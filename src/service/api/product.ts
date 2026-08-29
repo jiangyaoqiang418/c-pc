@@ -162,10 +162,11 @@ export async function fetchStorefrontProducts(q: {
   };
 }
 
-async function fetchStorefrontPage(url: string, pageSize = 20) {
+async function fetchStorefrontPage(url: string, pageSize = 20, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.post<Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO>, { pageNo: number; pageSize: number }>(
     url,
-    { pageNo: 1, pageSize }
+    { pageNo: 1, pageSize },
+    options
   );
   return page.records.map(toProductRecord);
 }
@@ -201,27 +202,27 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
   };
 }
 
-export function fetchHomeRecommendations(limit = 20) {
+export function fetchHomeRecommendations(limit = 20, options: { signal?: AbortSignal } = {}) {
   return realOrderRequest
-    .get<Api.RealProduct.ProductDTO[]>('/storefront/recommend', { params: { limit } })
+    .get<Api.RealProduct.ProductDTO[]>('/storefront/recommend', { params: { limit }, ...options })
     .then(records => records.map(toProductRecord));
 }
 
-export function fetchBestSellers(pageSize = 20) {
-  return fetchStorefrontPage('/storefront/best-sellers/page', pageSize);
+export function fetchBestSellers(pageSize = 20, options: { signal?: AbortSignal } = {}) {
+  return fetchStorefrontPage('/storefront/best-sellers/page', pageSize, options);
 }
 
-export function fetchNewArrivals(pageSize = 20) {
-  return fetchStorefrontPage('/storefront/new-arrivals/page', pageSize);
+export function fetchNewArrivals(pageSize = 20, options: { signal?: AbortSignal } = {}) {
+  return fetchStorefrontPage('/storefront/new-arrivals/page', pageSize, options);
 }
 
-export async function fetchFlashSale(limit = 20) {
-  const records = await realOrderRequest.get<Api.RealProduct.FlashSaleItemVO[]>('/storefront/flash-sale', { params: { limit } });
+export async function fetchFlashSale(limit = 20, options: { signal?: AbortSignal } = {}) {
+  const records = await realOrderRequest.get<Api.RealProduct.FlashSaleItemVO[]>('/storefront/flash-sale', { params: { limit }, ...options });
   return records.map(item => ({ product: toFlashSaleProduct(item), sessionEndTime: item.sessionEndTime }));
 }
 
-export function fetchHomeBanners() {
-  return realOrderRequest.get<Api.RealProduct.BannerDTO[]>('/banners/list');
+export function fetchHomeBanners(options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealProduct.BannerDTO[]>('/banners/list', options);
 }
 
 export async function trackProductBrowse(id: string | number) {

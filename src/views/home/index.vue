@@ -8,6 +8,7 @@ import ProductCard from '@/components/product/product-card.vue';
 import SideNav from '@/components/layout/side-nav.vue';
 import RightPanel from '@/components/layout/right-panel.vue';
 import * as realProductApi from '@/service/api/product';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 
@@ -35,6 +36,13 @@ const sectionLoading = reactive<Record<HomeSection, boolean>>({
   newest: false,
   flash: false
 });
+const sectionGuards: Record<HomeSection, ReturnType<typeof createLatestRequestGuard>> = {
+  banners: createLatestRequestGuard(),
+  recommendations: createLatestRequestGuard(),
+  hot: createLatestRequestGuard(),
+  newest: createLatestRequestGuard(),
+  flash: createLatestRequestGuard()
+};
 
 const heroBanner = computed(() => banners.value[0]);
 
@@ -48,34 +56,41 @@ const channelCards = [
   { key: 'brand', title: '油宝京造', sub: '油宝自有品牌', tag: 'BRAND', bg: 'champagne', image: bannerImage(5, 300) }
 ];
 
-async function loadSection(section: HomeSection, task: () => Promise<void>) {
+async function loadSection(section: HomeSection, task: (signal: AbortSignal, isCurrent: () => boolean) => Promise<void>) {
   if (sectionLoading[section]) return;
+  const isCurrent = sectionGuards[section].begin();
   sectionLoading[section] = true;
   sectionErrors[section] = '';
   try {
-    await task();
+    await task(isCurrent.signal, isCurrent);
   } catch {
+    if (!isCurrent()) return;
     sectionErrors[section] = '加载失败';
   } finally {
-    sectionLoading[section] = false;
+    if (isCurrent()) sectionLoading[section] = false;
   }
 }
 
 const sectionLoaders: Record<HomeSection, () => Promise<void>> = {
-  banners: () => loadSection('banners', async () => {
-    banners.value = await realProductApi.fetchHomeBanners();
+  banners: () => loadSection('banners', async (signal, isCurrent) => {
+    const value = await realProductApi.fetchHomeBanners({ signal });
+    if (isCurrent()) banners.value = value;
   }),
-  recommendations: () => loadSection('recommendations', async () => {
-    recommendations.value = await realProductApi.fetchHomeRecommendations();
+  recommendations: () => loadSection('recommendations', async (signal, isCurrent) => {
+    const value = await realProductApi.fetchHomeRecommendations(20, { signal });
+    if (isCurrent()) recommendations.value = value;
   }),
-  hot: () => loadSection('hot', async () => {
-    hot.value = await realProductApi.fetchBestSellers();
+  hot: () => loadSection('hot', async (signal, isCurrent) => {
+    const value = await realProductApi.fetchBestSellers(20, { signal });
+    if (isCurrent()) hot.value = value;
   }),
-  newest: () => loadSection('newest', async () => {
-    newest.value = await realProductApi.fetchNewArrivals();
+  newest: () => loadSection('newest', async (signal, isCurrent) => {
+    const value = await realProductApi.fetchNewArrivals(20, { signal });
+    if (isCurrent()) newest.value = value;
   }),
-  flash: () => loadSection('flash', async () => {
-    const result = await realProductApi.fetchFlashSale();
+  flash: () => loadSection('flash', async (signal, isCurrent) => {
+    const result = await realProductApi.fetchFlashSale(20, { signal });
+    if (!isCurrent()) return;
     flash.value = result.map(item => item.product);
     flashEndAt.value = result.find(item => item.sessionEndTime)?.sessionEndTime;
   })
@@ -108,6 +123,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  Object.values(sectionGuards).forEach(guard => guard.invalidate());
   if (countdownTimer) window.clearInterval(countdownTimer);
 });
 

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { formatAmount } from '@shared';
 import ProductCard from '@/components/product/product-card.vue';
 import * as realProductApi from '@/service/api/product';
 import * as realOrderApi from '@/service/api/order';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -14,8 +15,13 @@ const loading = ref(false);
 const errorMessage = ref('');
 
 const orderId = computed(() => String(route.params.orderId || ''));
+const requestGuard = createLatestRequestGuard();
 
-onMounted(async () => {
+async function load() {
+  const isCurrent = requestGuard.begin();
+  order.value = undefined;
+  recommends.value = [];
+  errorMessage.value = '';
   if (!orderId.value) {
     errorMessage.value = '缺少订单编号';
     return;
@@ -23,9 +29,10 @@ onMounted(async () => {
   loading.value = true;
   try {
     const [orderResult, recommendResult] = await Promise.allSettled([
-      realOrderApi.fetchOrderDetail(orderId.value),
-      realProductApi.fetchHomeRecommendations(4)
+      realOrderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal }),
+      realProductApi.fetchHomeRecommendations(4, { signal: isCurrent.signal })
     ]);
+    if (!isCurrent()) return;
     if (orderResult.status === 'fulfilled') {
       order.value = orderResult.value;
     } else {
@@ -33,8 +40,15 @@ onMounted(async () => {
     }
     if (recommendResult.status === 'fulfilled') recommends.value = recommendResult.value;
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
+}
+
+onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(orderId, () => {
+  requestGuard.invalidate();
+  void load();
 });
 </script>
 
