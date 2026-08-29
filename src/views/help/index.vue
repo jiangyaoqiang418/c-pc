@@ -43,6 +43,7 @@ const expandedId = ref<number>();
 const agreementVisible = ref(false);
 const agreementKind = ref<Api.Cms.AgreementKind>('user');
 const requestGuard = createLatestRequestGuard();
+let detailVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -76,18 +77,23 @@ onMounted(() => {
   void load();
   openAgreementFromQuery();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  detailVersion += 1;
+  requestGuard.invalidate();
+});
 watch(activeCat, load);
 watch(() => route.query.agreement, openAgreementFromQuery);
 
 async function expand(a: Api.Cms.HelpArticle) {
+  const operation = ++detailVersion;
   expandedId.value = expandedId.value === a.id ? undefined : a.id;
   if (expandedId.value) {
     // 增加 viewsCount（mock）
     try {
       await cmsApi.fetchHelpArticleDetail(a.id);
+      if (operation !== detailVersion) return;
     } catch {
-      loadError.value = '帮助详情加载失败，请稍后重试。';
+      if (operation === detailVersion) loadError.value = '帮助详情加载失败，请稍后重试。';
     }
   }
 }

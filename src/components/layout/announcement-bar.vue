@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { cmsApi } from '@shared';
 
@@ -8,6 +8,8 @@ const router = useRouter();
 const announcements = ref<Api.Cms.Announcement[]>([]);
 const closed = ref(false);
 const activeIdx = ref(0);
+let disposed = false;
+let rotationTimer: ReturnType<typeof setInterval> | undefined;
 
 const colorMap: Record<Api.Cms.AnnouncementType, string> = {
   system: '#165DFF',
@@ -24,15 +26,22 @@ onMounted(async () => {
     return;
   }
   const res = await cmsApi.fetchAnnouncements({ size: 5, audience: 'customer' });
+  if (disposed) return;
   announcements.value = res.records.filter(a => a.pinned).slice(0, 3);
   if (!announcements.value.length) {
     announcements.value = res.records.slice(0, 2);
   }
   if (announcements.value.length > 1) {
-    setInterval(() => {
+    rotationTimer = setInterval(() => {
       activeIdx.value = (activeIdx.value + 1) % announcements.value.length;
     }, 5000);
   }
+});
+
+onBeforeUnmount(() => {
+  disposed = true;
+  if (rotationTimer) clearInterval(rotationTimer);
+  rotationTimer = undefined;
 });
 
 function close() {

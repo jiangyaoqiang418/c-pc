@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { uploadKycFile } from '@/service/api/kyc';
 import { RequestError } from '@/service/request';
@@ -17,6 +17,7 @@ const emit = defineEmits<{
 const uploading = ref(false);
 const previewUrl = ref('');
 const inputRef = ref<HTMLInputElement>();
+let uploadVersion = 0;
 
 const sideLabel: Record<'front' | 'back' | 'face', string> = {
   front: '身份证人像面',
@@ -42,10 +43,12 @@ async function onFileChange(event: Event) {
     return;
   }
 
+  const operation = ++uploadVersion;
   uploading.value = true;
   emit('uploading', true);
   try {
     const uploaded = await uploadKycFile(file);
+    if (operation !== uploadVersion) return;
     emit('update:modelValue', String(uploaded.id));
     previewUrl.value = uploaded.url || '';
     Message.success(`${sideLabel[props.side]}上传成功`);
@@ -53,15 +56,26 @@ async function onFileChange(event: Event) {
     const message = error instanceof RequestError ? error.message : '';
     Message.error(message || '图片上传失败，请稍后重试');
   } finally {
-    uploading.value = false;
-    emit('uploading', false);
+    if (operation === uploadVersion) {
+      uploading.value = false;
+      emit('uploading', false);
+    }
   }
 }
 
 function clear() {
+  uploadVersion += 1;
+  if (uploading.value) {
+    uploading.value = false;
+    emit('uploading', false);
+  }
   previewUrl.value = '';
   emit('update:modelValue', '');
 }
+
+onBeforeUnmount(() => {
+  uploadVersion += 1;
+});
 </script>
 
 <template>
