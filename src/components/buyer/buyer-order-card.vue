@@ -41,13 +41,15 @@ function goIm() {
         class="cover-wrap"
         role="link"
         tabindex="0"
+        :aria-label="`打开订单 ${order.code} 的商品详情`"
         @click="goDetail"
         @keydown.enter="goDetail"
+        @keydown.space.prevent="goDetail"
       >
         <img :src="cover" :alt="order.productTitle" class="cover" />
       </div>
       <div class="info">
-        <div class="title" role="link" tabindex="0" @click="goDetail" @keydown.enter="goDetail">{{ order.productTitle }}</div>
+        <div class="title" role="link" tabindex="0" :aria-label="`打开订单 ${order.code} 的商品详情`" @click="goDetail" @keydown.enter="goDetail" @keydown.space.prevent="goDetail">{{ order.productTitle }}</div>
         <div class="meta-row">
           <span class="tag-chip">
             <Icon icon="lucide:user" width="11" />

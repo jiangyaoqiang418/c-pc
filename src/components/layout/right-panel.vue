@@ -117,7 +117,7 @@ function goProfile() { router.push({ name: 'profile' }); }
     <template v-else>
       <!-- 用户卡：头像 + 身份切换 -->
       <div class="user-card logged">
-        <div class="user-row" role="button" tabindex="0" @click="goProfile" @keyup.enter="goProfile">
+        <div class="user-row" role="button" tabindex="0" :aria-label="`打开个人中心：${user!.nickname}`" @click="goProfile" @keydown.enter="goProfile" @keydown.space.prevent="goProfile">
           <img :src="userAvatar" :alt="user!.nickname" class="avatar" />
           <div class="user-info">
             <div class="user-name">
