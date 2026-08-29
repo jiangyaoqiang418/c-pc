@@ -35,7 +35,7 @@ const relativeTime = computed(() => {
   if (hrs < 24) return `${hrs} 小时前`;
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days} 天前`;
-  return new Date(props.txn.createdAt).toLocaleDateString();
+  return formatDateValue(props.txn.createdAt, true);
 });
 </script>
 
