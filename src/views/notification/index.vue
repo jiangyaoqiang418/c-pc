@@ -29,6 +29,8 @@ const requestGuard = createLatestRequestGuard();
 let readAllVersion = 0;
 let deleteVersion = 0;
 let clearVersion = 0;
+let openVersion = 0;
+let disposed = false;
 
 function syncFromQuery() {
   const rawUnread = Array.isArray(route.query.unread) ? route.query.unread[0] : route.query.unread;
@@ -48,7 +50,7 @@ function currentQuery() {
 function syncQuery() {
   const before = route.fullPath;
   void router.push({ query: currentQuery() }).then(() => {
-    if (route.fullPath === before) void load();
+    if (!disposed && route.fullPath === before) void load();
   });
 }
 
@@ -59,6 +61,7 @@ function decreaseUnreadCount() {
 }
 
 async function load() {
+  if (disposed) return;
   const isCurrent = requestGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
@@ -111,18 +114,20 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
 }
 
 async function openNotification(notification: Api.RealNotify.NotificationVO) {
+  if (disposed) return;
+  const operation = ++openVersion;
   const requestedUserId = userStore.currentUser?.id;
   if (!notification.readFlag) {
     try {
       await notifyApi.markNotificationRead({ id: notification.id });
-      if (String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+      if (operation !== openVersion || disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       notification.readFlag = true;
       decreaseUnreadCount();
     } catch {
       // 已读写入失败时保留未读状态，但不阻断用户查看通知对应业务。
     }
   }
-  if (requestedUserId !== undefined && String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+  if (operation !== openVersion || disposed || (requestedUserId !== undefined && String(userStore.currentUser?.id) !== String(requestedUserId))) return;
   const target = notificationRoute(notification);
   if (target) router.push(target);
   else Message.info('该通知未提供可跳转的业务对象，已保留在通知列表');
@@ -218,16 +223,23 @@ onMounted(() => {
   syncFromQuery();
   void load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  disposed = true;
+  openVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => route.fullPath, () => {
+  if (disposed) return;
   syncFromQuery();
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (disposed) return;
   if (String(next) === String(previous)) return;
   readAllVersion += 1;
   deleteVersion += 1;
   clearVersion += 1;
+  openVersion += 1;
   requestGuard.invalidate();
   records.value = [];
   total.value = 0;
@@ -239,7 +251,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   loadError.value = '';
   const before = route.fullPath;
   void router.replace({ query: currentQuery() }).then(() => {
-    if (route.fullPath === before) void load();
+    if (!disposed && route.fullPath === before) void load();
   });
 });
 
