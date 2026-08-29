@@ -54,6 +54,7 @@
 - 2026-08-29 条件复核：admin/user/order/notify 的实时 Swagger 均没有 CMS、内容、公告、帮助、协议或 AI 的 C 端路径；未登录读取充值/提现链配置均返回“未能读取到有效 Token”，无法据此判断账号专属地址或创建 `PENDING` 申报，仍需有效测试会话后继续。
 - 2026-08-29 求购大厅运行时复核：`POST /order/demands/hall/page` 在无 Token 时返回认证失败，不是“暂无求购”的真实空结果；页面已把请求失败与空态分离，并提供重新加载入口。
 - 真实 API 已覆盖主交易、地址、钱包、买手保证金、KYC、理财、评价、仅退款、IM REST 与通知。页面仍使用 Mock 的业务能力只剩 CMS 内容、AI 导购和演示账号切换。
+- 2026-08-29 押金接口口径复核：实时 user Swagger 已提供 `/buyer/deposit/page`、`/buyer/deposit/pay`、`/buyer/deposit/refund`，C-PC `/buyer/deposit` 已调用真实接口并完成过缴纳→余额/流水回读→退还闭环；旧的“缺少押金划转接口”只属于历史快照，不计入当前未完成项。
 - 本批新增映射：`GET /user/withdraw/detail` 的 `fee`、`actualAmount`、`paidAt` 已完成类型和页面展示；提现 `POST /user/withdraw/create` 已完成测试申请、后台驳回返还，以及审核通过后 PC“待打款”回读。评价的删除、回复、申诉、申诉记录、状态/带图筛选和分页均已连接现有 order Swagger；订单列表和详情的“写评价”入口新增 `/order/reviews/reviewable/page` 真实可评价校验，仅顾客且仅未评价订单显示。顾客评价提交/删除、买手回复、买手申诉、后台裁定和前台状态回读均已完成。演示账号无真实 Token 时，真实接口失败保留当前演示会话并展示错误态，不再误跳登录页。分页读取的 `total` 统一在 API adapter 转为数值，业务 Long ID 保持原值。真实会话、钱包账户、流水、订单、商品、求购、买手押金、积分流水和 VIP 状态已从 Mock `number` ID 模型隔离，改用对应 `Api.Real*` 的原值 ID 类型。
 - 本批秒杀真实回归：后台创建启用 QA 场次，买手为在售商品以 `90 U / 库存 1` 提交报名并在“我的报名”回读，取消报名后列表恢复空态；后台场次已停用保留 QA 记录。`sessionEndTime` 的毫秒时间戳已在页面统一格式化为本地时间。
 - 2026-08-26 新契约适配：order 上传使用 C 端所需的 `scene=PRODUCT/DEMAND/REVIEW/ORDER_VOUCHER`；KYC 使用独立 fileId 上传和短期签名地址刷新；IM 媒体使用独立上传并发送 `mediaFileId`；发货使用完整 carrier 枚举、订单凭证和物流轨迹/异常接口；商品补齐卖家/分类/审核字段，求购补齐审核字段与可选 `assignedBy` 展示；通知补齐 `deptId` 和充值/提现/评价详情跳转；积分规则补齐默认值字段并遵循后端 `sort`；`/vip` 已按公开 `points/rules` 与 `points/vip-configs` 支持未登录浏览，登录后再显示个人等级；WebSocket 按 `READY.heartbeatIntervalMs` 协商心跳且只经子协议携带 token。
@@ -187,7 +188,7 @@
 3. 补齐订单地址、收件人、金额拆分、物流、采购/发货截图、售后配置和状态时间线；卖家发货接收物流字段。
 4. KYC、理财、评价、IM/通知、公告/帮助/协议、AI 导购接口。
 5. 独立售后工单列表/详情/创建/取消/证据/历史。
-6. C 端公开积分规则、VIP 全等级配置及买手押金充值/转出划转接口。
+6. C 端公开积分规则、VIP 全等级配置。
 7. 求购推送批次/日志、预算区间筛选和买手经营统计。
 
 ## 状态说明
@@ -293,7 +294,7 @@
 | 梯队 | 前端能力 | Swagger 匹配 | 当前状态 | 待确认 |
 |---|---|---|---|---|
 | P2-A | 买手工作台订单与可接求购 | `POST /order/orders/sold/page`、`POST /order/demands/hall/page` | API 已封装，`/buyer/dashboard` 已调用真实列表、状态统计和可接求购；无契约的随机经营指标已移除 | 需 KYC 通过的买手账号和名下订单/可接求购验证非空回显与抢单后刷新 |
-| P4 | 买手工作台资金与押金概览 | `GET /user/wallet/overview` | 工作台已读取真实钱包和押金字段；充值/转出未调用 Mock，因 Swagger 缺少买手押金划转写接口而明确提示 | 需买手钱包、可用押金和已担保押金测试数据；后端需补押金划转接口后再接写操作 |
+| P4 | 买手工作台资金与押金概览 | `GET /user/wallet/overview` | **2026-07-30 历史快照**：当时工作台已读取真实钱包和押金字段，充值/转出因当时 Swagger 未公开写接口而提示 | 当前接口已补齐并完成过真实缴纳/退还闭环；现仅保留非空数据复验边界，见上方 2026-08-29 口径 |
 | P2-B/P3 | 支付成功页订单与推荐 | `GET /order/orders/detail`、`GET /order/storefront/recommend?limit=` | 成功页已按真实订单 ID 读取订单号和金额，推荐区使用真实接口；任一接口失败不回退 Mock | 需真实支付订单及在售推荐商品验证订单回显、商品卡、图片和跳转 |
 
 ### 本轮 Chrome 回归
