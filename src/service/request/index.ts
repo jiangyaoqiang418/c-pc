@@ -93,7 +93,12 @@ class RealRequest {
 
     if (!response.ok) {
       const message = getResponseMessage(body) || `HTTP ${response.status}`;
-      if (options.showError !== false) Message.error(message);
+      const isAuthenticationError = response.status === 401 || response.status === 403;
+      if (isAuthenticationError && shouldRedirectAfterAuthenticationFailure(options, !!token)) {
+        handleLogoutMessage(message, false);
+      } else if (options.showError !== false) {
+        Message.error(message);
+      }
       throw new RequestError(message, { status: response.status, response: body || undefined });
     }
 
