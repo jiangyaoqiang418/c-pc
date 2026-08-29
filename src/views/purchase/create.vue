@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -49,6 +49,7 @@ const submitting = ref(false);
 const confirmationOpen = ref(false);
 const categoryLoadError = ref('');
 const categoryGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
@@ -85,7 +86,17 @@ async function reloadCategories() {
   }
 }
 
-onBeforeUnmount(categoryGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  categoryGuard.invalidate();
+});
+
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
+  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
+  writeVersion += 1;
+  submitting.value = false;
+  confirmationOpen.value = false;
+});
 
 const CNY_RATE = 7.18;
 const budgetCny = computed(() => formatAmount((form.budgetAmount * CNY_RATE).toFixed(2)));
@@ -111,6 +122,11 @@ async function submit() {
   }
   if (!userStore.currentUser) return;
 
+  const requestedUserId = userStore.currentUser.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId);
+
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认发起求购？',
@@ -119,6 +135,10 @@ async function submit() {
       confirmationOpen.value = false;
     },
     async onOk() {
+      if (!isCurrentWrite()) {
+        confirmationOpen.value = false;
+        return;
+      }
       submitting.value = true;
       try {
         try {
@@ -134,7 +154,7 @@ async function submit() {
             appeal: form.appeal.trim(),
             evidenceUrls: form.evidenceUrls
           });
-          if (r) {
+          if (r && isCurrentWrite()) {
             Message.success(`求购已发起，编号 ${r.code}`);
             router.push({ name: 'purchase-detail', params: { id: String(r.id) } });
           }
@@ -142,8 +162,10 @@ async function submit() {
           // 请求层已展示错误，保留表单内容供用户修正后重试。
         }
       } finally {
-        submitting.value = false;
-        confirmationOpen.value = false;
+        if (operation === writeVersion) {
+          submitting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });

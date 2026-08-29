@@ -22,6 +22,7 @@ const claimingId = ref<string | number>();
 
 const user = computed(() => userStore.currentUser);
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -50,32 +51,46 @@ async function load() {
   }
 }
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
-watch(() => user.value?.id, () => {
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
+watch([() => user.value?.id, () => userStore.currentAudience], () => {
   requestGuard.invalidate();
   list.value = [];
   total.value = 0;
   current.value = 1;
   loadError.value = '';
+  writeVersion += 1;
+  claimingId.value = undefined;
   void load();
 });
 
 async function onClaim(req: Api.RealPurchase.Record) {
   if (!user.value || claimingId.value !== undefined) return;
-  claimingId.value = req.id;
+  const requestedUserId = user.value.id;
+  const requestedRequestId = req.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && userStore.isBuyerActive
+    && String(req.id) === String(requestedRequestId);
+  claimingId.value = requestedRequestId;
   try {
-    const r = await purchaseApi.claimRequest(req.id);
+    const r = await purchaseApi.claimRequest(requestedRequestId);
+    if (!isCurrentWrite()) return;
     if (r.ok) {
       Message.success('接单成功');
       await load();
-      router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
+      if (!isCurrentWrite()) return;
+      router.push({ name: 'purchase-detail', params: { id: String(requestedRequestId) } });
     } else {
       Message.error(r.message || '接单失败');
     }
   } catch {
     // 请求层已展示错误，保留当前求购供用户重试。
   } finally {
-    claimingId.value = undefined;
+    if (operation === writeVersion) claimingId.value = undefined;
   }
 }
 </script>

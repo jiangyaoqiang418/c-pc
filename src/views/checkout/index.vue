@@ -36,6 +36,7 @@ const agreed = ref(false);
 const submitting = ref(false);
 const confirmationPending = ref(false);
 const backendSelfPurchaseProductIds = ref<string[]>([]);
+let writeVersion = 0;
 
 interface PendingCheckout {
   idempotencyKey: string;
@@ -151,7 +152,10 @@ async function load() {
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => userStore.currentUser?.id, () => {
   requestGuard.invalidate();
   addressId.value = undefined;
@@ -159,6 +163,9 @@ watch(() => userStore.currentUser?.id, () => {
   wallet.value = undefined;
   pendingCheckout.value = undefined;
   backendSelfPurchaseProductIds.value = [];
+  writeVersion += 1;
+  submitting.value = false;
+  confirmationPending.value = false;
   void load();
 });
 
@@ -207,6 +214,11 @@ async function submit() {
 }
 
 async function doSubmit() {
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   let activePending: PendingCheckout | undefined;
   let createBatchStarted = false;
@@ -220,6 +232,7 @@ async function doSubmit() {
       };
     activePending = pending;
     if (!pending.orderIds?.length) {
+      if (!isCurrentWrite()) return;
       savePendingCheckout(pending);
       createBatchStarted = true;
       const orderGroup = await realOrderApi.createOrders({
@@ -227,6 +240,7 @@ async function doSubmit() {
         items: pending.orderItems,
         idempotencyKey: pending.idempotencyKey
       }, { showError: false });
+      if (!isCurrentWrite()) return;
       if (!orderGroup.orderIds.length) throw new Error('下单未返回订单 ID');
       pending.orderGroupNo = orderGroup.orderGroupNo;
       pending.orderIds = orderGroup.orderIds;
@@ -235,11 +249,13 @@ async function doSubmit() {
     }
     if (pending.orderGroupNo) {
       await realOrderApi.payOrderGroup(pending.orderGroupNo, { showError: false });
+      if (!isCurrentWrite()) return;
     } else {
       const paymentResults = await Promise.allSettled(
         pending.orderIds.map(id => realOrderApi.payOrder(id, { showError: false }))
       );
       const failedOrderIds = pending.orderIds.filter((_, index) => paymentResults[index].status === 'rejected');
+      if (!isCurrentWrite()) return;
       if (failedOrderIds.length) {
         pending.orderIds = failedOrderIds;
         savePendingCheckout(pending);
@@ -247,13 +263,16 @@ async function doSubmit() {
       }
     }
     const firstOrderId = pending.firstOrderId;
+    if (!isCurrentWrite()) return;
     pending.productIds.forEach(productId => cart.remove(productId));
     clearPendingCheckout();
-    wallet.value = (await realWalletApi.fetchWalletOverview(userStore.currentUser!.id)).summary;
+    const walletResult = await realWalletApi.fetchWalletOverview(requestedUserId);
+    if (!isCurrentWrite()) return;
+    wallet.value = walletResult.summary;
     Message.success('支付成功');
     if (firstOrderId) router.push({ name: 'checkout-success', params: { orderId: String(firstOrderId) } });
   } catch (error) {
-    if (createBatchStarted && !activePending?.orderIds?.length && error instanceof RequestError) {
+    if (isCurrentWrite() && createBatchStarted && !activePending?.orderIds?.length && error instanceof RequestError) {
       if (isSelfPurchaseError(error) && activePending) {
         backendSelfPurchaseProductIds.value = [
           ...new Set([...backendSelfPurchaseProductIds.value, ...activePending.productIds.map(String)])
@@ -261,9 +280,9 @@ async function doSubmit() {
       }
       clearPendingCheckout();
     }
-    Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
+    if (isCurrentWrite()) Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
   } finally {
-    submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 </script>

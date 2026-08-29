@@ -27,6 +27,7 @@ const transferKind = ref<'pay' | 'refund'>('pay');
 const transferAmount = ref<number>();
 const transferring = ref(false);
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 const maxTransferAmount = computed(() => {
   const value = transferKind.value === 'pay' ? account.value?.available : account.value?.depositAvailable;
   return Number(value || 0);
@@ -69,9 +70,15 @@ async function loadAll() {
   }
 }
 onMounted(loadAll);
-onBeforeUnmount(requestGuard.invalidate);
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
+  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
+  writeVersion += 1;
+  transferring.value = false;
+  transferOpen.value = false;
   txns.value = [];
   orderCounts.value = {};
   void loadAll();
@@ -109,20 +116,29 @@ async function submitDepositTransfer() {
     return;
   }
 
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && userStore.isBuyerActive;
   transferring.value = true;
   try {
     const params = { amount: transferAmount.value, idempotencyKey: createIdempotencyKey() };
     try {
       if (transferKind.value === 'pay') await realBuyerApi.payBuyerDeposit(params);
       else await realBuyerApi.refundBuyerDeposit(params);
+      if (!isCurrentWrite()) return;
       Message.success(transferKind.value === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
       transferOpen.value = false;
       await loadAll();
     } catch {
-      Message.error(transferKind.value === 'pay' ? '保证金缴纳失败，请稍后重试' : '保证金退还失败，请稍后重试');
+      if (isCurrentWrite()) {
+        Message.error(transferKind.value === 'pay' ? '保证金缴纳失败，请稍后重试' : '保证金退还失败，请稍后重试');
+      }
     }
   } finally {
-    transferring.value = false;
+    if (operation === writeVersion) transferring.value = false;
   }
 }
 

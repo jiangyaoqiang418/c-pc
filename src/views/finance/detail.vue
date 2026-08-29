@@ -20,6 +20,7 @@ const loadError = ref('');
 const walletLoadError = ref('');
 const subscribing = ref(false);
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const id = computed(() => String(route.params.id));
 
@@ -47,38 +48,50 @@ async function loadAll() {
 }
 
 onMounted(loadAll);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  writeVersion += 1;
+  subscribing.value = false;
   void loadAll();
 });
 
 async function onSubscribe(amount: string) {
   if (!product.value || !userStore.currentUser || subscribing.value) return;
+  const requestedUserId = userStore.currentUser.id;
+  const requestedProductId = product.value.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && String(product.value?.id) === String(requestedProductId);
   subscribing.value = true;
   try {
     let orderId: string | number;
     try {
       orderId = await financeApi.subscribeFinance({ productId: product.value.id, amount });
     } catch {
-      Message.error('订阅失败，请稍后重试');
+      if (isCurrentWrite()) Message.error('订阅失败，请稍后重试');
       return;
     }
-    if (orderId !== undefined && orderId !== null) {
+    if (orderId !== undefined && orderId !== null && isCurrentWrite()) {
       Message.success(`订阅成功 · 已锁定 U ${formatAmount(amount)}`);
       try {
         await walletStore.refetch();
       } catch {
-        Message.warning('订阅已成功，钱包余额刷新失败，请稍后刷新查看');
+        if (isCurrentWrite()) Message.warning('订阅已成功，钱包余额刷新失败，请稍后刷新查看');
       }
+      if (!isCurrentWrite()) return;
       try {
         await router.push({ name: 'finance-lockup-detail', params: { id: String(orderId) } });
       } catch {
-        Message.warning('订阅已成功，请前往我的锁仓查看');
+        if (isCurrentWrite()) Message.warning('订阅已成功，请前往我的锁仓查看');
       }
     }
   } finally {
-    subscribing.value = false;
+    if (operation === writeVersion) subscribing.value = false;
   }
 }
 

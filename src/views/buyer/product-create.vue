@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import BuyerProductForm from '@/components/buyer/buyer-product-form.vue';
@@ -10,6 +10,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const submitting = ref(false);
 const confirmationOpen = ref(false);
+let writeVersion = 0;
 
 async function onSubmit(form: {
   title: string;
@@ -25,6 +26,11 @@ async function onSubmit(form: {
   images: Api.RealProduct.ProductImageParam[];
 }) {
   if (!userStore.currentUser || submitting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && userStore.isBuyerActive;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认提交商品审核？',
@@ -33,6 +39,10 @@ async function onSubmit(form: {
       confirmationOpen.value = false;
     },
     async onOk() {
+      if (!isCurrentWrite()) {
+        confirmationOpen.value = false;
+        return;
+      }
       submitting.value = true;
       try {
         try {
@@ -49,18 +59,31 @@ async function onSubmit(form: {
             overseasCustoms: form.overseasCustoms,
             images: form.images
           });
+          if (!isCurrentWrite()) return;
           Message.success(`商品已提交审核（${product.code}）`);
           router.push('/buyer/products');
         } catch {
           // 请求层已展示错误，保留商品表单和上传结果供用户修正后重试。
         }
       } finally {
-        submitting.value = false;
-        confirmationOpen.value = false;
+        if (operation === writeVersion) {
+          submitting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });
 }
+
+onBeforeUnmount(() => {
+  writeVersion += 1;
+});
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
+  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
+  writeVersion += 1;
+  submitting.value = false;
+  confirmationOpen.value = false;
+});
 </script>
 
 <template>

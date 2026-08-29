@@ -14,13 +14,14 @@ import EmptyState from '@/components/common/empty-state.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
-import { useCartStore } from '@/stores';
+import { useCartStore, useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
 
 const route = useRoute();
 const router = useRouter();
 const cart = useCartStore();
+const userStore = useUserStore();
 
 const product = ref<Api.RealProduct.Record>();
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
@@ -33,6 +34,7 @@ const loadError = ref('');
 const favoriting = ref(false);
 const activeTab = ref<'desc' | 'spec' | 'review' | 'sameshop'>('desc');
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const id = computed(() => String(route.params.id || ''));
 const aftersaleMeta = computed(() => product.value ? enums.AFTERSALE_TYPE_META[product.value.aftersaleType] : undefined);
@@ -75,8 +77,16 @@ async function load() {
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
-watch(() => route.params.id, load);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
+watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  writeVersion += 1;
+  favoriting.value = false;
+  void load();
+});
 
 function addToCart() {
   if (!product.value) return;
@@ -100,15 +110,27 @@ function startPurchase() {
 
 async function favorite() {
   if (!product.value) return;
+  if (favoriting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) {
+    Message.warning('请先登录后再收藏');
+    return;
+  }
+  const requestedProductId = product.value.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && String(product.value?.id) === String(requestedProductId);
   favoriting.value = true;
   try {
-    await productApi.toggleProductFavorite(product.value.id, { showError: false });
+    await productApi.toggleProductFavorite(requestedProductId, { showError: false });
+    if (!isCurrentWrite()) return;
     product.value.favoriteCount = Number(product.value.favoriteCount || 0) + 1;
     Message.success('收藏状态已更新');
   } catch {
-    Message.error('收藏失败，服务器暂未完成写入，请稍后重试');
+    if (isCurrentWrite()) Message.error('收藏失败，服务器暂未完成写入，请稍后重试');
   } finally {
-    favoriting.value = false;
+    if (operation === writeVersion) favoriting.value = false;
   }
 }
 </script>

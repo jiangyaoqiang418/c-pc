@@ -26,6 +26,7 @@ const expDaysFilter = ref<number | undefined>();
 const claimingId = ref<string | number>();
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 function queryValue(key: string) {
   const value = route.query[key];
@@ -107,10 +108,18 @@ onMounted(() => {
   syncFromQuery();
   void load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch(() => route.fullPath, () => {
   syncFromQuery();
   void load();
+});
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  writeVersion += 1;
+  claimingId.value = undefined;
 });
 
 async function onClaim(req: Api.RealPurchase.Record) {
@@ -120,20 +129,29 @@ async function onClaim(req: Api.RealPurchase.Record) {
     router.push({ name: 'login', query: { redirect: '/purchase/hall' } });
     return;
   }
+  const requestedUserId = userStore.currentUser.id;
+  const requestedRequestId = req.id;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && userStore.isBuyerActive
+    && String(req.id) === String(requestedRequestId);
   claimingId.value = req.id;
   try {
-    const r = await purchaseApi.claimRequest(req.id);
+    const r = await purchaseApi.claimRequest(requestedRequestId);
+    if (!isCurrentWrite()) return;
     if (r.ok) {
       Message.success('接单成功');
       await load();
-      router.push({ name: 'purchase-detail', params: { id: String(req.id) } });
+      if (!isCurrentWrite()) return;
+      router.push({ name: 'purchase-detail', params: { id: String(requestedRequestId) } });
     } else {
       Message.error(r.message || '接单失败');
     }
   } catch {
     // 请求层已展示错误，保留当前求购供用户重试。
   } finally {
-    claimingId.value = undefined;
+    if (operation === writeVersion) claimingId.value = undefined;
   }
 }
 
