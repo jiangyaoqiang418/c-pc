@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';
 import * as orderApi from '@/service/api/order';
+import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 interface Props {
@@ -16,9 +17,17 @@ const props = withDefaults(defineProps<Props>(), { reviewable: false });
 const emit = defineEmits<{ (e: 'changed'): void }>();
 
 const router = useRouter();
+const userStore = useUserStore();
 const cover = computed(() => props.order.productCover || PRODUCT_IMAGE_PLACEHOLDER);
 const acting = ref(false);
 const confirmationOpen = ref(false);
+let actionVersion = 0;
+
+function isCurrentAction(operation: number, userId: string | number, orderId: string | number) {
+  return operation === actionVersion
+    && String(userStore.currentUser?.id) === String(userId)
+    && String(props.order.id) === String(orderId);
+}
 
 function goDetail() {
   router.push({ name: 'order-detail', params: { id: String(props.order.id) } });
@@ -26,9 +35,14 @@ function goDetail() {
 
 async function pay() {
   if (acting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestedOrderId = props.order.id;
+  const operation = ++actionVersion;
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(props.order.id);
+    const r = await orderApi.payOrder(requestedOrderId);
+    if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
     if (r.ok) {
       Message.success('支付成功');
       emit('changed');
@@ -36,14 +50,18 @@ async function pay() {
       Message.error(r.message || '支付失败');
     }
   } catch {
-    Message.error('支付请求失败，请稍后重试');
+    if (isCurrentAction(operation, requestedUserId, requestedOrderId)) Message.error('支付请求失败，请稍后重试');
   } finally {
-    acting.value = false;
+    if (operation === actionVersion) acting.value = false;
   }
 }
 
 function cancel() {
   if (acting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestedOrderId = props.order.id;
+  const operation = ++actionVersion;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '取消订单？',
@@ -54,18 +72,25 @@ function cancel() {
       confirmationOpen.value = false;
     },
     async onOk() {
+      if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) {
+        confirmationOpen.value = false;
+        return;
+      }
       acting.value = true;
       try {
-        const r = await orderApi.cancelOrder(props.order.id);
+        const r = await orderApi.cancelOrder(requestedOrderId);
+        if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
         if (r.ok) {
           Message.success('订单已取消');
           emit('changed');
         }
       } catch {
-        Message.error('取消订单请求失败，请稍后重试');
+        if (isCurrentAction(operation, requestedUserId, requestedOrderId)) Message.error('取消订单请求失败，请稍后重试');
       } finally {
-        acting.value = false;
-        confirmationOpen.value = false;
+        if (operation === actionVersion) {
+          acting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });
@@ -73,6 +98,10 @@ function cancel() {
 
 async function confirm() {
   if (acting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestedOrderId = props.order.id;
+  const operation = ++actionVersion;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认收货？',
@@ -81,22 +110,38 @@ async function confirm() {
       confirmationOpen.value = false;
     },
     async onOk() {
+      if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) {
+        confirmationOpen.value = false;
+        return;
+      }
       acting.value = true;
       try {
-        const r = await orderApi.confirmReceipt(props.order.id);
+        const r = await orderApi.confirmReceipt(requestedOrderId);
+        if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
         if (r.ok) {
           Message.success('已确认收货');
           emit('changed');
         }
       } catch {
-        Message.error('确认收货请求失败，请稍后重试');
+        if (isCurrentAction(operation, requestedUserId, requestedOrderId)) Message.error('确认收货请求失败，请稍后重试');
       } finally {
-        acting.value = false;
-        confirmationOpen.value = false;
+        if (operation === actionVersion) {
+          acting.value = false;
+          confirmationOpen.value = false;
+        }
       }
     }
   });
 }
+
+onBeforeUnmount(() => {
+  actionVersion += 1;
+});
+watch([() => props.order.id, () => userStore.currentUser?.id], () => {
+  actionVersion += 1;
+  acting.value = false;
+  confirmationOpen.value = false;
+});
 
 function review() {
   router.push({ name: 'review-write', params: { orderId: String(props.order.id) } });

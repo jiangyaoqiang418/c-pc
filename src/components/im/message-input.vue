@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { uploadImFile } from '@/service/api/notify';
 
@@ -8,6 +8,7 @@ interface Props {
   disabledText?: string;
   placeholder?: string;
   submitting?: boolean;
+  contextKey?: string;
 }
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
@@ -32,6 +33,7 @@ const recordingSeconds = ref(0);
 let mediaRecorder: MediaRecorder | undefined;
 let recordingStartedAt = 0;
 let recordingTimer: ReturnType<typeof setInterval> | undefined;
+let uploadVersion = 0;
 
 const canRecord = computed(() => typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
 
@@ -79,10 +81,11 @@ async function onImageSelected(event: Event) {
     return;
   }
 
+  const operation = ++uploadVersion;
   uploading.value = true;
   try {
     const uploaded = await uploadImFile(file, 'IM_IMAGE');
-    emit('send', { type: 'image', mediaFileId: uploaded.id });
+    if (operation === uploadVersion && !props.disabled) emit('send', { type: 'image', mediaFileId: uploaded.id });
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '图片上传失败');
   } finally {
@@ -97,7 +100,12 @@ async function startRecording() {
     return;
   }
   try {
+    const operation = ++uploadVersion;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (operation !== uploadVersion) {
+      stream.getTracks().forEach(track => track.stop());
+      return;
+    }
     const chunks: BlobPart[] = [];
     mediaRecorder = new MediaRecorder(stream);
     recordingStartedAt = Date.now();
@@ -110,12 +118,12 @@ async function startRecording() {
       recording.value = false;
       clearRecordingTimer();
       const duration = Math.max(1, Math.round((Date.now() - recordingStartedAt) / 1000));
-      if (!chunks.length) return;
+      if (!chunks.length || operation !== uploadVersion) return;
       uploading.value = true;
       try {
         const blob = new Blob(chunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
         const uploaded = await uploadImFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }), 'IM_VOICE', duration);
-        emit('send', { type: 'audio', mediaFileId: uploaded.id });
+        if (operation === uploadVersion && !props.disabled) emit('send', { type: 'audio', mediaFileId: uploaded.id });
       } catch (error) {
         Message.error(error instanceof Error ? error.message : '语音上传失败');
       } finally {
@@ -133,11 +141,21 @@ async function startRecording() {
   }
 }
 
+watch(() => props.contextKey, () => {
+  uploadVersion += 1;
+  text.value = '';
+  uploading.value = false;
+  recording.value = false;
+  clearRecordingTimer();
+  if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
+});
+
 function stopRecording() {
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
 }
 
 onBeforeUnmount(() => {
+  uploadVersion += 1;
   clearRecordingTimer();
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
 });

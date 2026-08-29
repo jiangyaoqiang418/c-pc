@@ -362,7 +362,7 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
           <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
           <div v-if="!messages.length" class="empty-msg">该群暂无消息，开始聊天吧 👋</div>
         </div>
-        <MessageInput :submitting="messageSending" @send="onSend" />
+        <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(orderCode || '')" :submitting="messageSending" @send="onSend" />
         <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
       </a-card>
       <EmptyState
