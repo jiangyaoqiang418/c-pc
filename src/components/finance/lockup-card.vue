@@ -42,7 +42,18 @@ function goDetail() {
 </script>
 
 <template>
-  <a-card class="lockup-card" :body-style="{ padding: '14px 18px' }" :bordered="false" hoverable @click="goDetail">
+  <a-card
+    class="lockup-card"
+    :body-style="{ padding: '14px 18px' }"
+    :bordered="false"
+    hoverable
+    role="button"
+    tabindex="0"
+    :aria-label="`打开锁仓 ${order.productCode || order.id}`"
+    @click="goDetail"
+    @keydown.enter.self="goDetail"
+    @keydown.space.prevent.self="goDetail"
+  >
     <div class="head">
       <div class="name-block">
         <span class="name">{{ order.productName }}</span>
@@ -102,6 +113,10 @@ function goDetail() {
 .lockup-card {
   margin-bottom: 12px;
   cursor: pointer;
+}
+.lockup-card:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
 }
 .head {
   display: flex;

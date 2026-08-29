@@ -161,7 +161,18 @@ function contactShopper() {
 </script>
 
 <template>
-  <a-card class="order-card" :bordered="false" :body-style="{ padding: '14px 18px' }" hoverable @click="goDetail">
+  <a-card
+    class="order-card"
+    :bordered="false"
+    :body-style="{ padding: '14px 18px' }"
+    hoverable
+    role="button"
+    tabindex="0"
+    :aria-label="`打开订单 ${order.code}`"
+    @click="goDetail"
+    @keydown.enter.self="goDetail"
+    @keydown.space.prevent.self="goDetail"
+  >
     <div class="head">
       <span class="code">订单号：{{ order.code }}</span>
       <span class="time">下单于 {{ new Date(order.createdAt).toLocaleString() }}</span>
@@ -190,6 +201,10 @@ function contactShopper() {
 .order-card {
   margin-bottom: 12px;
   cursor: pointer;
+}
+.order-card:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
 }
 .head {
   display: flex;
