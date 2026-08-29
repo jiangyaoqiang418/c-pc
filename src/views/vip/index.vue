@@ -19,10 +19,12 @@ const audience = ref<Api.Vip.Audience>('customer');
 const loading = ref(false);
 const vipLoadError = ref('');
 const requestGuard = createLatestRequestGuard();
+let disposed = false;
 
 const user = computed(() => userStore.currentUser);
 
 async function load() {
+  if (disposed) return;
   const isCurrent = requestGuard.begin();
   const userId = userStore.currentUser?.id;
   loading.value = true;
@@ -64,10 +66,15 @@ async function load() {
 }
 onMounted(async () => {
   await userStore.init();
+  if (disposed) return;
   await load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  disposed = true;
+  requestGuard.invalidate();
+});
 watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (disposed) return;
   if (String(next) === String(previous)) return;
   requestGuard.invalidate();
   vipStatus.value = undefined;

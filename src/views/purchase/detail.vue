@@ -24,8 +24,10 @@ const cancellationPending = ref(false);
 const requestGuard = createLatestRequestGuard();
 let claimWriteVersion = 0;
 let cancelWriteVersion = 0;
+let disposed = false;
 
 async function load() {
+  if (disposed) return;
   const isCurrent = requestGuard.begin();
   const requestedId = id.value;
   const requestedUserId = userStore.currentUser?.id;
@@ -45,14 +47,17 @@ async function load() {
 }
 onMounted(async () => {
   await userStore.init();
+  if (disposed) return;
   await load();
 });
 onBeforeUnmount(() => {
+  disposed = true;
   claimWriteVersion += 1;
   cancelWriteVersion += 1;
   requestGuard.invalidate();
 });
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (disposed) return;
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
   claimWriteVersion += 1;
   cancelWriteVersion += 1;

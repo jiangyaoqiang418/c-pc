@@ -36,12 +36,14 @@ const cancelingId = ref<string | number>();
 const allListGuard = createLatestRequestGuard();
 const listGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let disposed = false;
 
 async function loadAll() {
   await userStore.init();
+  if (disposed) return;
   const user = userStore.currentUser;
   const isCurrent = allListGuard.begin();
-  if (!user) return;
+  if (!user || disposed) return;
   try {
     const r = await purchaseApi.fetchMyPurchases(user.id, undefined, { signal: isCurrent.signal });
     if (!isCurrent()) return;
@@ -54,9 +56,10 @@ async function loadAll() {
 
 async function load() {
   await userStore.init();
+  if (disposed) return;
   const user = userStore.currentUser;
   const isCurrent = listGuard.begin();
-  if (!user) return;
+  if (!user || disposed) return;
   loading.value = true;
   loadError.value = '';
   try {
@@ -75,14 +78,17 @@ async function load() {
 
 onMounted(async () => {
   await loadAll();
+  if (disposed) return;
   await load();
 });
 onBeforeUnmount(() => {
+  disposed = true;
   writeVersion += 1;
   allListGuard.invalidate();
   listGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, async (next, previous) => {
+  if (disposed) return;
   if (String(next) === String(previous)) return;
   writeVersion += 1;
   allListGuard.invalidate();
@@ -92,9 +98,12 @@ watch(() => userStore.currentUser?.id, async (next, previous) => {
   loadError.value = '';
   cancelingId.value = undefined;
   await loadAll();
+  if (disposed) return;
   await load();
 });
-watch(activeKey, load);
+watch(activeKey, () => {
+  if (!disposed) void load();
+});
 
 const counts = computed(() => {
   const c: Record<string, number> = { all: allList.value.length };
