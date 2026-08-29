@@ -1,8 +1,8 @@
 import { realUserRequest } from '@/service/request';
 import { toPageTotal } from './page';
 
-export function fetchBuyerApplication() {
-  return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application');
+export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
+  return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application', options);
 }
 
 export function submitBuyerApplication(params: Api.RealBuyer.BuyerApplyParams) {

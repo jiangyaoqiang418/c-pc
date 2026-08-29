@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import * as buyerApi from '@/service/api/buyer';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const loading = ref(false);
@@ -14,6 +15,7 @@ const form = reactive<Api.RealBuyer.BuyerApplyParams>({
   contact: '',
   reason: ''
 });
+const requestGuard = createLatestRequestGuard();
 
 const statusMeta = computed(() => {
   const status = application.value?.status;
@@ -31,18 +33,23 @@ function formatTime(value?: string | number) {
 }
 
 async function loadApplication() {
+  const isCurrent = requestGuard.begin();
+  const userId = String(userStore.currentUser?.id || '');
+  if (!userId) return;
   loading.value = true;
   loadError.value = '';
   try {
-    application.value = await buyerApi.fetchBuyerApplication();
+    application.value = await buyerApi.fetchBuyerApplication({ signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
     if (!application.value && userStore.currentUser) {
       form.contact = userStore.currentUser.phone || '';
     }
   } catch {
+    if (!isCurrent()) return;
     application.value = undefined;
     loadError.value = '买手申请状态加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -75,6 +82,16 @@ async function submit() {
 }
 
 onMounted(loadApplication);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, () => {
+  requestGuard.invalidate();
+  application.value = undefined;
+  loadError.value = '';
+  form.realName = '';
+  form.contact = '';
+  form.reason = '';
+  void loadApplication();
+});
 </script>
 
 <template>

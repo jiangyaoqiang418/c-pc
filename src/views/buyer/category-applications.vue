@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as categoryApi from '@/service/api/category';
+import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface CategoryOption {
   value: string;
@@ -11,6 +13,7 @@ interface CategoryOption {
 }
 
 const records = ref<Api.RealCategory.CategoryApplyDTO[]>([]);
+const userStore = useUserStore();
 const categoryOptions = ref<CategoryOption[]>([]);
 const loading = ref(false);
 const loadError = ref('');
@@ -29,6 +32,8 @@ const form = reactive({
   newName: '',
   reason: ''
 });
+const requestGuard = createLatestRequestGuard();
+const categoriesGuard = createLatestRequestGuard();
 
 function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): CategoryOption[] {
   return nodes.filter(node => node.level < 3).map(node => ({
@@ -39,6 +44,9 @@ function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): Category
 }
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const userId = String(userStore.currentUser?.id || '');
+  if (!userId) return;
   loading.value = true;
   loadError.value = '';
   try {
@@ -47,23 +55,35 @@ async function load() {
       pageSize: size.value,
       keyword: filter.keyword || undefined,
       status: filter.status
-    });
+    }, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    const maxPage = Math.max(1, Math.ceil(result.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      void load();
+      return;
+    }
     records.value = result.records;
     total.value = result.total;
   } catch {
+    if (!isCurrent()) return;
     records.value = [];
     total.value = 0;
     loadError.value = '分类申请记录加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 async function loadCategories() {
+  const isCurrent = categoriesGuard.begin();
   categoryLoadError.value = '';
   try {
-    categoryOptions.value = mapCategoryOptions(await categoryApi.fetchRealCategoryTree());
+    const tree = await categoryApi.fetchRealCategoryTree({ signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    categoryOptions.value = mapCategoryOptions(tree);
   } catch {
+    if (!isCurrent()) return;
     categoryOptions.value = [];
     categoryLoadError.value = '上级分类暂时无法加载；仍可提交顶级分类申请。';
   }
@@ -128,8 +148,23 @@ function formatTime(value?: string | number) {
 }
 
 onMounted(() => {
-  load();
-  loadCategories();
+  void load();
+  void loadCategories();
+});
+onBeforeUnmount(() => {
+  requestGuard.invalidate();
+  categoriesGuard.invalidate();
+});
+watch(() => userStore.currentUser?.id, () => {
+  requestGuard.invalidate();
+  categoriesGuard.invalidate();
+  records.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  categoryLoadError.value = '';
+  void load();
+  void loadCategories();
 });
 </script>
 

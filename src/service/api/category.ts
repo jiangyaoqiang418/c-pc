@@ -24,11 +24,11 @@ export async function fetchCategoryTree() {
   return list.map(toCategoryNode);
 }
 
-export function fetchRealCategoryTree() {
-  return realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree');
+export function fetchRealCategoryTree(options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree', options);
 }
 
-export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryApplyPageQuery = {}) {
+export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryApplyPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const result = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealCategory.CategoryApplyDTO> & { pageNo?: number; pageSize?: number },
     Api.RealCategory.CategoryApplyPageQuery
@@ -37,7 +37,7 @@ export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryAp
     pageSize: q.pageSize || 20,
     keyword: q.keyword,
     status: q.status
-  });
+  }, options);
   return {
     current: result.current || result.pageNo || q.pageNo || 1,
     size: result.size || result.pageSize || q.pageSize || 20,

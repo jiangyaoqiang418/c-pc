@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
@@ -7,6 +7,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import VipBadge from '@/components/common/vip-badge.vue';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -20,13 +21,17 @@ const loadError = ref('');
 const claimingId = ref<string | number>();
 
 const user = computed(() => userStore.currentUser);
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
-  if (!user.value) return;
+  const isCurrent = requestGuard.begin();
+  const userId = String(user.value?.id || '');
+  if (!userId) return;
   loading.value = true;
   loadError.value = '';
   try {
-    const r = await purchaseApi.fetchHall({ current: current.value, size: size.value });
+    const r = await purchaseApi.fetchHall({ current: current.value, size: size.value, signal: isCurrent.signal });
+    if (!isCurrent() || String(user.value?.id || '') !== userId) return;
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -36,14 +41,24 @@ async function load() {
     list.value = r.records;
     total.value = Number(r.total || 0);
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     total.value = 0;
     loadError.value = '可接求购加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => user.value?.id, () => {
+  requestGuard.invalidate();
+  list.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  void load();
+});
 
 async function onClaim(req: Api.RealPurchase.Record) {
   if (!user.value || claimingId.value !== undefined) return;

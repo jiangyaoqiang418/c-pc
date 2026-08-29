@@ -244,14 +244,14 @@ export async function cancelProductFavorite(id: string | number) {
   return { ok: true };
 }
 
-export async function fetchMyFavorites(q: { current?: number; size?: number } = {}) {
+export async function fetchMyFavorites(q: { current?: number; size?: number; signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.FavoritePageQuery
   >('/products/favorites/page', {
     pageNo: q.current || 1,
     pageSize: q.size || 20
-  });
+  }, { signal: q.signal });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,

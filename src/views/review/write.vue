@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
@@ -9,6 +9,7 @@ import ReviewForm from '@/components/review/review-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -20,20 +21,33 @@ const loading = ref(false);
 const submitting = ref(false);
 const confirmationOpen = ref(false);
 const loadError = ref('');
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const userId = String(userStore.currentUser?.id || '');
+  if (!userId) return;
   loading.value = true;
   loadError.value = '';
   try {
-    order.value = await orderApi.fetchOrderDetail(orderId.value);
+    order.value = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
   } catch {
+    if (!isCurrent()) return;
     order.value = undefined;
     loadError.value = '订单信息加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => [orderId.value, userStore.currentUser?.id], () => {
+  requestGuard.invalidate();
+  order.value = undefined;
+  loadError.value = '';
+  void load();
+});
 
 async function onSubmit(f: { productScore: number; sellerScore: number; content: string; tags: string[]; photoUrls: string[] }) {
   if (!order.value || !userStore.currentUser || submitting.value || confirmationOpen.value) return;

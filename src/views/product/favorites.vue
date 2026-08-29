@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
+import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const userStore = useUserStore();
 const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -15,12 +18,17 @@ const loading = ref(false);
 const cancelingId = ref<string>();
 const cancellationPendingId = ref<string>();
 const loadError = ref('');
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const userId = String(userStore.currentUser?.id || '');
+  if (!userId) return;
   loading.value = true;
   loadError.value = '';
   try {
-    const r = await productApi.fetchMyFavorites({ current: current.value, size: size.value });
+    const r = await productApi.fetchMyFavorites({ current: current.value, size: size.value, signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -30,11 +38,12 @@ async function load() {
     list.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     total.value = 0;
     loadError.value = '收藏列表加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -67,6 +76,15 @@ function cancelFavorite(product: Api.RealProduct.Record) {
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, () => {
+  requestGuard.invalidate();
+  list.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  void load();
+});
 </script>
 
 <template>

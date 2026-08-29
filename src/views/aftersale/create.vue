@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
@@ -7,9 +7,12 @@ import EmptyState from '@/components/common/empty-state.vue';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import * as orderApi from '@/service/api/order';
 import * as refundApi from '@/service/api/refund';
+import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
 const orderId = computed(() => String(route.params.orderId || ''));
 const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
@@ -18,15 +21,33 @@ const submitting = ref(false);
 const confirmationOpen = ref(false);
 const form = reactive({ reason: '', evidenceImages: [] as string[] });
 const eligible = computed(() => ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.value?.status || ''));
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const userId = String(userStore.currentUser?.id || '');
+  if (!userId || !orderId.value) return;
   loading.value = true;
   loadError.value = '';
-  try { order.value = await orderApi.fetchOrderDetail(orderId.value); }
-  catch { order.value = undefined; loadError.value = '订单信息加载失败，请稍后重试'; }
-  finally { loading.value = false; }
+  try {
+    order.value = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+  } catch {
+    if (!isCurrent()) return;
+    order.value = undefined;
+    loadError.value = '订单信息加载失败，请稍后重试';
+  } finally {
+    if (isCurrent()) loading.value = false;
+  }
 }
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => [orderId.value, userStore.currentUser?.id], () => {
+  requestGuard.invalidate();
+  order.value = undefined;
+  loadError.value = '';
+  void load();
+});
 
 function submit() {
   if (submitting.value || confirmationOpen.value) return;

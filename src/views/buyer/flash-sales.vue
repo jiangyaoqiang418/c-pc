@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message, Modal } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as flashSaleApi from '@/service/api/flash-sale';
 import * as productApi from '@/service/api/product';
+import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const activeTab = ref<'sessions' | 'mine'>('sessions');
+const userStore = useUserStore();
 const sessions = ref<Api.RealFlashSale.SessionDTO[]>([]);
 const enrollments = ref<Api.RealFlashSale.EnrollmentDTO[]>([]);
 const products = ref<Api.RealProduct.Record[]>([]);
@@ -20,25 +23,31 @@ const form = reactive<{
   flashPrice?: number;
   flashStock?: number;
 }>({ sessionId: '', productId: '' });
+const requestGuard = createLatestRequestGuard();
 
 const selectedProduct = computed(() => products.value.find(item => String(item.id) === form.productId));
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const userId = String(userStore.currentUser?.id || '');
+  if (!userId) return;
   loading.value = true;
   loadError.value = '';
   try {
     const [sessionList, myList, productPage] = await Promise.all([
-      flashSaleApi.fetchAvailableFlashSaleSessions(),
-      flashSaleApi.fetchMyFlashSaleEnrollments(),
-      productApi.fetchMyProducts({ status: 'NORMAL' })
+      flashSaleApi.fetchAvailableFlashSaleSessions({ signal: isCurrent.signal }),
+      flashSaleApi.fetchMyFlashSaleEnrollments({ signal: isCurrent.signal }),
+      productApi.fetchMyProducts({ status: 'NORMAL', signal: isCurrent.signal })
     ]);
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
     sessions.value = sessionList;
     enrollments.value = myList;
     products.value = productPage.records.filter(item => item.shelfStatus === 'on-shelf');
   } catch (error) {
+    if (!isCurrent()) return;
     loadError.value = error instanceof Error ? error.message : '秒杀数据暂时无法加载';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -120,6 +129,16 @@ function formatTime(value?: string | number) {
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, () => {
+  requestGuard.invalidate();
+  sessions.value = [];
+  enrollments.value = [];
+  products.value = [];
+  loadError.value = '';
+  modalOpen.value = false;
+  void load();
+});
 </script>
 
 <template>
