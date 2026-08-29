@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { formatPoints } from '@shared';
 import * as pointApi from '@/service/api/point';
@@ -9,6 +9,7 @@ import PointLogRow from '@/components/profile/point-log-row.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import VipBadge from '@/components/common/vip-badge.vue';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 
@@ -41,6 +42,10 @@ const filter = reactive<{
   behaviors: Api.Point.BehaviorCode[];
   dateRange?: string[];
 }>({ behaviors: [] });
+const logsGuard = createLatestRequestGuard();
+const appealsGuard = createLatestRequestGuard();
+const rulesGuard = createLatestRequestGuard();
+const vipGuard = createLatestRequestGuard();
 
 const ALL_BEHAVIORS: Api.Point.BehaviorCode[] = [
   'CONSUME', 'DEPOSIT_IN', 'RECHARGE', 'WITHDRAW', 'FINANCE_HOLD',
@@ -48,34 +53,54 @@ const ALL_BEHAVIORS: Api.Point.BehaviorCode[] = [
 ];
 
 async function loadLogs() {
-  if (!userStore.currentUser) return;
+  const currentUser = userStore.currentUser;
+  if (!currentUser) {
+    logsGuard.invalidate();
+    logs.value = [];
+    total.value = 0;
+    return;
+  }
+  const isCurrent = logsGuard.begin();
+  const userId = currentUser.id;
   loading.value = true;
   logLoadError.value = '';
   try {
     const r = await pointApi.fetchMyPointLogs({
-      userId: userStore.currentUser.id,
+      userId,
       current: current.value,
       size: size.value,
       behaviors: filter.behaviors.length ? filter.behaviors : undefined,
       fromAt: filter.dateRange?.[0],
       toAt: filter.dateRange?.[1]
-    });
+    }, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      await loadLogs();
+      return;
+    }
     logs.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     logs.value = [];
     total.value = 0;
     logLoadError.value = '积分流水加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 async function loadRules() {
+  const isCurrent = rulesGuard.begin();
   rulesLoadError.value = '';
   try {
-    rules.value = await pointApi.fetchPointRules();
+    const result = await pointApi.fetchPointRules({ signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    rules.value = result;
   } catch {
+    if (!isCurrent()) return;
     rules.value = [];
     rulesLoadError.value = '积分规则加载失败，请检查网络后重试。';
   }
@@ -83,7 +108,13 @@ async function loadRules() {
 
 async function loadAppeals() {
   const userId = userStore.currentUser?.id;
-  if (!userId) return;
+  if (!userId) {
+    appealsGuard.invalidate();
+    appeals.value = [];
+    appealTotal.value = 0;
+    return;
+  }
+  const isCurrent = appealsGuard.begin();
   appealLoading.value = true;
   appealLoadError.value = '';
   try {
@@ -93,24 +124,35 @@ async function loadAppeals() {
       keyword: appealFilter.keyword || undefined,
       status: appealFilter.status,
       userId: String(userId)
-    });
+    }, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / appealSize.value));
+    if (appealCurrent.value > maxPage) {
+      appealCurrent.value = maxPage;
+      await loadAppeals();
+      return;
+    }
     appeals.value = r.records;
     appealTotal.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     appeals.value = [];
     appealTotal.value = 0;
     appealLoadError.value = '积分申诉记录加载失败，请检查网络后重试。';
   } finally {
-    appealLoading.value = false;
+    if (isCurrent()) appealLoading.value = false;
   }
 }
 
 async function loadInitial() {
   const uid = userStore.currentUser?.id;
   if (!uid) return;
+  const isCurrent = vipGuard.begin();
   try {
-    vipStatus.value = await vipApi.fetchMyVipStatus(uid);
+    vipStatus.value = await vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(uid)) return;
   } catch {
+    if (!isCurrent()) return;
     vipStatus.value = undefined;
   }
   await loadLogs();
@@ -118,10 +160,21 @@ async function loadInitial() {
 }
 
 onMounted(loadInitial);
+onBeforeUnmount(() => {
+  logsGuard.invalidate();
+  appealsGuard.invalidate();
+  rulesGuard.invalidate();
+  vipGuard.invalidate();
+});
 
 watch(() => userStore.currentUser?.id, () => {
   current.value = 1;
   appealCurrent.value = 1;
+  logs.value = [];
+  total.value = 0;
+  appeals.value = [];
+  appealTotal.value = 0;
+  vipStatus.value = undefined;
   loadInitial();
   if (activeTab.value === 'appeals') loadAppeals();
 });

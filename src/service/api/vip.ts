@@ -88,8 +88,8 @@ export async function fetchVipConfigs() {
   })));
 }
 
-export async function fetchMyVipStatus(userId: string | number): Promise<Api.RealVip.Status> {
-  const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account');
+export async function fetchMyVipStatus(userId: string | number, options: { signal?: AbortSignal } = {}): Promise<Api.RealVip.Status> {
+  const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', options);
   const customer = account.customer;
   const buyer = account.buyer;
   const audience: Api.Vip.Audience = buyer ? 'buyer' : 'customer';
