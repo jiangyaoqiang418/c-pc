@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { cmsApi, enums, formatAmount, formatPoints } from '@shared';
@@ -9,6 +9,7 @@ import * as realOrderApi from '@/service/api/order';
 import * as realWalletApi from '@/service/api/wallet';
 import VipBadge from '@/components/common/vip-badge.vue';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -22,6 +23,7 @@ const loadError = ref('');
 const editVisible = ref(false);
 const savingProfile = ref(false);
 let profileLoadVersion = 0;
+const profileRequestGuard = createLatestRequestGuard();
 const editForm = reactive<Api.RealAuth.ProfileUpdateParams>({
   nickname: '',
   phone: '',
@@ -39,6 +41,7 @@ const registeredDate = computed(() => {
 async function loadProfile() {
   const uid = user.value?.id;
   if (!uid) return;
+  const isCurrent = profileRequestGuard.begin();
   const version = ++profileLoadVersion;
   loading.value = true;
   loadError.value = '';
@@ -47,12 +50,12 @@ async function loadProfile() {
   orderCounts.value = {};
   announcements.value = [];
   const [vip, assets, counts, anns] = await Promise.allSettled([
-    vipApi.fetchMyVipStatus(uid),
-    realWalletApi.fetchWalletOverview(uid),
-    realOrderApi.countMyOrdersByStatus(),
+    vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal }),
+    realWalletApi.fetchWalletOverview(uid, { signal: isCurrent.signal }),
+    realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal }),
     cmsApi.fetchAnnouncements({ size: 3 })
   ]);
-  if (version !== profileLoadVersion) return;
+  if (!isCurrent() || version !== profileLoadVersion) return;
   if (vip.status === 'fulfilled') vipStatus.value = vip.value;
   if (assets.status === 'fulfilled') totalAssets.value = { total: assets.value.total, account: assets.value.account };
   if (counts.status === 'fulfilled') orderCounts.value = counts.value;
@@ -60,11 +63,18 @@ async function loadProfile() {
   if ([vip, assets, counts].some(result => result.status === 'rejected')) {
     loadError.value = '部分账户数据加载失败，请稍后重试。';
   }
-  loading.value = false;
+  if (isCurrent()) loading.value = false;
 }
 
 onMounted(loadProfile);
-watch(() => userStore.currentUser?.id, loadProfile);
+onBeforeUnmount(() => {
+  profileRequestGuard.invalidate();
+  profileLoadVersion += 1;
+});
+watch(() => userStore.currentUser?.id, () => {
+  profileRequestGuard.invalidate();
+  void loadProfile();
+});
 
 function openEditProfile() {
   if (!user.value) return;
