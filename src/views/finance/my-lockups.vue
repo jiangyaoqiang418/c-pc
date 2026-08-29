@@ -146,6 +146,7 @@ async function confirmUnlock(order: Api.RealFinance.FinanceOrderVO) {
     }
     if (!isCurrentWrite()) return;
     await load();
+    if (!isCurrentWrite() || disposed) return;
     await loadCounts();
   } finally {
     if (operation === writeVersion) unlocking.value = false;

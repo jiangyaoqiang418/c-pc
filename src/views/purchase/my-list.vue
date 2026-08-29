@@ -142,6 +142,7 @@ function onCancel(req: Api.RealPurchase.Record) {
         if (r.ok) {
           Message.success('已撤销');
           await loadAll();
+          if (!isCurrentWrite() || disposed) return;
           await load();
         } else {
           Message.error(r.message || '撤销求购失败');
