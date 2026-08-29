@@ -117,7 +117,12 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
             :key="c.key"
             class="cat-row"
             :class="{ active: activeCat === c.key }"
+            role="button"
+            tabindex="0"
+            :aria-current="activeCat === c.key ? 'page' : undefined"
             @click="activeCat = c.key"
+            @keydown.enter="activeCat = c.key"
+            @keydown.space.prevent="activeCat = c.key"
           >
             <span class="emoji">{{ c.emoji }}</span>
             <span>{{ c.label }}</span>
@@ -160,7 +165,15 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
               class="article-card"
               :class="{ expanded: expandedId === a.id }"
             >
-              <div class="article-head" @click="expand(a)">
+              <div
+                class="article-head"
+                role="button"
+                tabindex="0"
+                :aria-expanded="expandedId === a.id"
+                @click="expand(a)"
+                @keydown.enter="expand(a)"
+                @keydown.space.prevent="expand(a)"
+              >
                 <div class="head-left">
                   <span class="cat-emoji">{{ CATEGORIES.find(c => c.key === a.category)?.emoji || '📄' }}</span>
                   <div>
@@ -246,6 +259,11 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
   background: #f3f7ff;
   color: var(--bw-brand-primary);
   border-right: 3px solid var(--bw-brand-primary);
+}
+.cat-row:focus-visible,
+.article-head:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: -2px;
 }
 .emoji {
   font-size: 16px;
