@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { enums, formatAmount } from '@shared';
@@ -12,10 +12,12 @@ import AddressSelector from '@/components/common/address-selector.vue';
 import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useCartStore, useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
 const cart = useCartStore();
+const requestGuard = createLatestRequestGuard();
 
 const addressId = ref<string | number>();
 const selectedAddr = ref<{
@@ -101,35 +103,51 @@ function isSelfPurchaseError(error: unknown) {
   return error instanceof RequestError && /不能购买自己(?:的|发布的)?商品/.test(error.message);
 }
 
-onMounted(async () => {
+async function load() {
+  const isCurrent = requestGuard.begin();
+  const userId = userStore.currentUser?.id;
   if (!userStore.currentUser) {
     router.replace({ name: 'login', query: { redirect: '/checkout' } });
     return;
   }
-  await cart.refresh();
+  await cart.refresh({ signal: isCurrent.signal });
+  if (!isCurrent() || String(userStore.currentUser?.id || '') !== String(userId)) return;
   if (items.value.length === 0) {
     Message.warning('请先选择要结算的商品');
     router.replace('/cart');
     return;
   }
   try {
-    const raw = localStorage.getItem(pendingStorageKey(userStore.currentUser.id));
+    const raw = localStorage.getItem(pendingStorageKey(userId!));
     if (raw) {
       const cached = JSON.parse(raw) as PendingCheckout;
       if (cached.idempotencyKey && Array.isArray(cached.productIds) && Array.isArray(cached.orderItems)) {
         if (shouldDiscardPending(cached)) {
-          localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
+          localStorage.removeItem(pendingStorageKey(userId!));
         } else {
           pendingCheckout.value = cached;
         }
       } else {
-        localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
+        localStorage.removeItem(pendingStorageKey(userId!));
       }
     }
   } catch {
-    localStorage.removeItem(pendingStorageKey(userStore.currentUser.id));
+    localStorage.removeItem(pendingStorageKey(userId!));
   }
-  wallet.value = (await realWalletApi.fetchWalletOverview(userStore.currentUser.id)).summary;
+  const walletResult = await realWalletApi.fetchWalletOverview(userId!, { signal: isCurrent.signal });
+  if (isCurrent() && String(userStore.currentUser?.id || '') === String(userId)) wallet.value = walletResult.summary;
+}
+
+onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, () => {
+  requestGuard.invalidate();
+  addressId.value = undefined;
+  selectedAddr.value = undefined;
+  wallet.value = undefined;
+  pendingCheckout.value = undefined;
+  backendSelfPurchaseProductIds.value = [];
+  void load();
 });
 
 async function submit() {

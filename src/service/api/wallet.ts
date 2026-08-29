@@ -191,8 +191,8 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
   };
 }
 
-export async function fetchWalletOverview(userId: Api.RealSession.Id) {
-  const wallet = await realUserRequest.get<Api.RealWallet.WalletVO>('/wallet/overview');
+export async function fetchWalletOverview(userId: Api.RealSession.Id, options: { signal?: AbortSignal } = {}) {
+  const wallet = await realUserRequest.get<Api.RealWallet.WalletVO>('/wallet/overview', options);
   const account = toAccount(userId, wallet);
 
   return {

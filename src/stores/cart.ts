@@ -89,12 +89,13 @@ export const useCartStore = defineStore('bw-cart', () => {
     products.value[String(product.id)] = product;
   }
 
-  async function refresh() {
+  async function refresh(options: { signal?: AbortSignal } = {}) {
     await Promise.all(items.value.map(async item => {
       try {
-        upsertProduct(await productApi.fetchProductDetail(item.productId, { showError: false }));
+        const product = await productApi.fetchProductDetail(item.productId, { showError: false, signal: options.signal });
+        if (!options.signal?.aborted) upsertProduct(product);
       } catch {
-        delete products.value[String(item.productId)];
+        if (!options.signal?.aborted) delete products.value[String(item.productId)];
       }
     }));
   }
