@@ -4,9 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
+import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute(); const router = useRouter();
+const userStore = useUserStore();
 const id = computed(() => String(route.params.id || ''));
 const refund = ref<Api.RealRefund.RefundDTO>(); const loading = ref(false); const loadError = ref(''); const cancelling = ref(false); const cancellationPending = ref(false);
 const requestGuard = createLatestRequestGuard();
@@ -15,11 +17,14 @@ const canCancel = computed(() => String(refund.value?.status) === 'APPLYING');
 const formatTime = (value?: string | number) => value ? new Date(typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value).toLocaleString() : '—';
 async function load() {
   const isCurrent = requestGuard.begin();
+  const requestedId = id.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loading.value = true;
   loadError.value = '';
   try {
-    refund.value = await refundApi.fetchRefundDetail(id.value, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    refund.value = await refundApi.fetchRefundDetail(requestedId, { signal: isCurrent.signal });
+    if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
   } catch {
     if (!isCurrent()) return;
     refund.value = undefined;
@@ -28,7 +33,14 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(requestGuard.invalidate); watch(() => route.params.id, load);
+onMounted(load); onBeforeUnmount(requestGuard.invalidate);
+watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  requestGuard.invalidate();
+  refund.value = undefined;
+  cancellationPending.value = false;
+  void load();
+});
 function cancel() { if (!refund.value || cancelling.value || cancellationPending.value) return; cancellationPending.value = true; Modal.confirm({ title:'撤销仅退款申请？', content:'撤销后订单将恢复到申请前状态。', okButtonProps:{status:'danger'}, onCancel(){ cancellationPending.value = false; }, async onOk(){ cancelling.value = true; try { await refundApi.cancelRefund(refund.value!.refundId); Message.success('已撤销退款申请'); await load(); } catch { Message.error('撤销退款申请失败，请稍后重试'); } finally { cancelling.value = false; cancellationPending.value = false; } } }); }
 </script>
 

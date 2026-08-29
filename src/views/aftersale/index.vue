@@ -4,9 +4,11 @@ import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
+import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const userStore = useUserStore();
 const activeKey = ref('all');
 const activeStatus = computed(() => activeKey.value === 'all' ? undefined : activeKey.value);
 const refunds = ref<Api.RealRefund.RefundDTO[]>([]);
@@ -25,11 +27,13 @@ const canCancel = (row: Api.RealRefund.RefundDTO) => String(row.status) === 'APP
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loading.value = true;
   loadError.value = '';
   try {
     const result = await refundApi.fetchMyRefunds({ pageNo: 1, pageSize: 30, status: activeStatus.value }, { signal: isCurrent.signal });
-    if (isCurrent()) refunds.value = result.records || [];
+    if (isCurrent() && String(userStore.currentUser?.id) === String(requestedUserId)) refunds.value = result.records || [];
   } catch {
     if (isCurrent()) { refunds.value = []; loadError.value = '退款申请加载失败，请检查网络后重试'; }
   } finally {
@@ -37,6 +41,13 @@ async function load() {
   }
 }
 onMounted(load); onBeforeUnmount(requestGuard.invalidate); watch(activeKey, load);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  refunds.value = [];
+  loadError.value = '';
+  void load();
+});
 
 function cancel(row: Api.RealRefund.RefundDTO) {
   if (cancellingId.value || cancellationPending.value) return;

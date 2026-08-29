@@ -5,10 +5,12 @@ import { formatAmount } from '@shared';
 import ProductCard from '@/components/product/product-card.vue';
 import * as realProductApi from '@/service/api/product';
 import * as realOrderApi from '@/service/api/order';
+import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
 const order = ref<Api.RealOrder.Record>();
 const recommends = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
@@ -19,9 +21,11 @@ const requestGuard = createLatestRequestGuard();
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  const requestedUserId = userStore.currentUser?.id;
   order.value = undefined;
   recommends.value = [];
   errorMessage.value = '';
+  if (requestedUserId === undefined) return;
   if (!orderId.value) {
     errorMessage.value = '缺少订单编号';
     return;
@@ -32,7 +36,7 @@ async function load() {
       realOrderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal }),
       realProductApi.fetchHomeRecommendations(4, { signal: isCurrent.signal })
     ]);
-    if (!isCurrent()) return;
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     if (orderResult.status === 'fulfilled') {
       order.value = orderResult.value;
     } else {
@@ -46,7 +50,7 @@ async function load() {
 
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
-watch(orderId, () => {
+watch([orderId, () => userStore.currentUser?.id], () => {
   requestGuard.invalidate();
   void load();
 });

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { Message, Modal } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
-import { useNotifyStore } from '@/stores';
+import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import { sameBusinessId } from '@/utils/im';
 import { notificationRoute } from '@/utils/notification';
@@ -13,6 +13,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 const router = useRouter();
 const route = useRoute();
 const notifyStore = useNotifyStore();
+const userStore = useUserStore();
 const records = ref<Api.RealNotify.NotificationVO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
@@ -56,11 +57,13 @@ function decreaseUnreadCount() {
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loading.value = true;
   loadError.value = '';
   try {
     const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value }, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     const maxPage = Math.max(1, Math.ceil((response.total || 0) / pageSize));
     if (pageNo.value > maxPage) {
       pageNo.value = maxPage;
@@ -70,6 +73,7 @@ async function load() {
     records.value = response.records || [];
     total.value = response.total || 0;
     await notifyStore.refreshUnreadCounts();
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
   } catch {
     if (!isCurrent()) return;
     records.value = [];
@@ -190,6 +194,18 @@ onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.fullPath, () => {
   syncFromQuery();
   void load();
+});
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  records.value = [];
+  total.value = 0;
+  pageNo.value = 1;
+  loadError.value = '';
+  const before = route.fullPath;
+  void router.replace({ query: currentQuery() }).then(() => {
+    if (route.fullPath === before) void load();
+  });
 });
 
 function changeUnreadFilter() {
