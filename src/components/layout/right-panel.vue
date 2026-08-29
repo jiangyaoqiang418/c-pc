@@ -137,7 +137,15 @@ function goProfile() { router.push({ name: 'profile' }); }
       <transition name="fade-slide" mode="out-in">
         <div v-if="!isBuyerActive" key="customer" class="mode-panel">
           <!-- 我的订单（唯一入口） -->
-          <div class="orders-card" @click="go('/order')">
+          <div
+            class="orders-card"
+            role="button"
+            tabindex="0"
+            aria-label="查看我的订单"
+            @click="go('/order')"
+            @keydown.enter.self="go('/order')"
+            @keydown.space.prevent.self="go('/order')"
+          >
             <div class="orders-head">
               <Icon icon="lucide:package" width="14" />
               <span class="orders-title">我的订单</span>
@@ -167,7 +175,12 @@ function goProfile() { router.push({ name: 'profile' }); }
                 v-for="l in customerLinks"
                 :key="l.key"
                 class="mini-cell"
+                role="button"
+                tabindex="0"
+                :aria-label="l.label"
                 @click="go(l.path)"
+                @keydown.enter="go(l.path)"
+                @keydown.space.prevent="go(l.path)"
               >
                 <div class="mini-icon-wrap"><Icon :icon="l.icon" width="16" /></div>
                 <div class="mini-label">{{ l.label }}</div>
@@ -189,7 +202,12 @@ function goProfile() { router.push({ name: 'profile' }); }
                 v-for="l in buyerLinks"
                 :key="l.key"
                 class="mini-cell buyer-cell"
+                role="button"
+                tabindex="0"
+                :aria-label="l.label"
                 @click="go(l.path)"
+                @keydown.enter="go(l.path)"
+                @keydown.space.prevent="go(l.path)"
               >
                 <div class="mini-icon-wrap"><Icon :icon="l.icon" width="16" /></div>
                 <div class="mini-label">{{ l.label }}</div>
@@ -297,6 +315,11 @@ function goProfile() { router.push({ name: 'profile' }); }
   border-color: var(--yb-ink);
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(15, 17, 26, 0.06);
+}
+.orders-card:focus-visible,
+.mini-cell:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
 }
 .orders-head {
   display: flex;
