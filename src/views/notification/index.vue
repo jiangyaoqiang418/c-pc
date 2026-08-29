@@ -108,11 +108,18 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
 }
 
 async function openNotification(notification: Api.RealNotify.NotificationVO) {
+  const requestedUserId = userStore.currentUser?.id;
   if (!notification.readFlag) {
-    await notifyApi.markNotificationRead({ id: notification.id });
-    notification.readFlag = true;
-    decreaseUnreadCount();
+    try {
+      await notifyApi.markNotificationRead({ id: notification.id });
+      if (String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+      notification.readFlag = true;
+      decreaseUnreadCount();
+    } catch {
+      // 已读写入失败时保留未读状态，但不阻断用户查看通知对应业务。
+    }
   }
+  if (requestedUserId !== undefined && String(userStore.currentUser?.id) !== String(requestedUserId)) return;
   const target = notificationRoute(notification);
   if (target) router.push(target);
   else Message.info('该通知未提供可跳转的业务对象，已保留在通知列表');
