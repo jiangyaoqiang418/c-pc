@@ -19,6 +19,7 @@ const cancelingId = ref<string>();
 const cancellationPendingId = ref<string>();
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -50,35 +51,50 @@ async function load() {
 function cancelFavorite(product: Api.RealProduct.Record) {
   const productId = String(product.id);
   if (cancelingId.value || cancellationPendingId.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancellationPendingId.value = productId;
   Modal.confirm({
     title: '取消收藏？',
     content: `确认将「${product.title}」移出收藏列表吗？`,
     okText: '确认取消',
     onCancel() {
+      writeVersion += 1;
       cancellationPendingId.value = undefined;
     },
     async onOk() {
       cancelingId.value = productId;
       try {
         await productApi.cancelProductFavorite(product.id);
+        if (!isCurrentWrite()) return;
         if (list.value.length === 1 && current.value > 1) current.value -= 1;
         await load();
+        if (!isCurrentWrite()) return;
         Message.success('已取消收藏');
       } catch {
         // 请求层已展示错误，保留当前收藏项，避免把取消失败误显示为成功。
       } finally {
-        cancelingId.value = undefined;
-        cancellationPendingId.value = undefined;
+        if (operation === writeVersion) {
+          cancelingId.value = undefined;
+          cancellationPendingId.value = undefined;
+        }
       }
     }
   });
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
-watch(() => userStore.currentUser?.id, () => {
+onBeforeUnmount(() => {
+  writeVersion += 1;
   requestGuard.invalidate();
+});
+watch(() => userStore.currentUser?.id, () => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+  cancelingId.value = undefined;
+  cancellationPendingId.value = undefined;
   list.value = [];
   total.value = 0;
   current.value = 1;

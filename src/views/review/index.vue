@@ -8,6 +8,7 @@ import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { sameBusinessId } from '@/utils/im';
 
 type ReviewTab = 'sent' | 'received' | 'appeals';
 
@@ -34,6 +35,7 @@ const replyContent = ref('');
 const appealForm = reactive({ reason: '', evidenceImages: [] as string[] });
 const requestGuard = createLatestRequestGuard();
 const notificationRequestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const isBuyer = computed(() => !!userStore.currentUser?.isBuyer);
 const isAppealTab = computed(() => activeKey.value === 'appeals');
@@ -130,16 +132,24 @@ async function submitReply() {
     Message.warning('回复内容不能超过 500 字');
     return;
   }
-  actionLoading.value = String(replyTarget.value.reviewId);
+  const requestedUserId = userStore.currentUser?.id;
+  const reviewId = replyTarget.value.reviewId;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(replyTarget.value?.reviewId, reviewId);
+  actionLoading.value = String(reviewId);
   try {
-    await reviewApi.replyReview({ reviewId: replyTarget.value.reviewId, content });
+    await reviewApi.replyReview({ reviewId, content });
+    if (!isCurrentWrite()) return;
     replyVisible.value = false;
     Message.success('评价回复已提交');
     await load();
   } catch {
-    Message.error('评价回复提交失败，请稍后重试');
+    if (isCurrentWrite()) Message.error('评价回复提交失败，请稍后重试');
   } finally {
-    actionLoading.value = '';
+    if (operation === writeVersion) actionLoading.value = '';
   }
 }
 
@@ -161,35 +171,49 @@ async function submitAppeal() {
     Message.warning('申诉理由不能超过 512 字');
     return;
   }
-  actionLoading.value = String(appealTarget.value.reviewId);
+  const requestedUserId = userStore.currentUser?.id;
+  const reviewId = appealTarget.value.reviewId;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(appealTarget.value?.reviewId, reviewId);
+  actionLoading.value = String(reviewId);
   try {
     await reviewApi.createReviewAppeal({
-      reviewId: appealTarget.value.reviewId,
+      reviewId,
       reason,
       evidenceImages: appealForm.evidenceImages
     });
+    if (!isCurrentWrite()) return;
     appealVisible.value = false;
     Message.success('评价申诉已提交，请等待平台处理');
     await load();
   } catch {
-    Message.error('评价申诉提交失败，请稍后重试');
+    if (isCurrentWrite()) Message.error('评价申诉提交失败，请稍后重试');
   } finally {
-    actionLoading.value = '';
+    if (operation === writeVersion) actionLoading.value = '';
   }
 }
 
 async function removeReview(review: Api.RealReview.ReviewDTO) {
   if (actionLoading.value) return;
-  actionLoading.value = String(review.reviewId);
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const reviewId = review.reviewId;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  actionLoading.value = String(reviewId);
   try {
-    await reviewApi.deleteReview(review.reviewId);
+    await reviewApi.deleteReview(reviewId);
+    if (!isCurrentWrite()) return;
     Message.success('评价已删除');
     if (reviews.value.length === 1 && current.value > 1) current.value -= 1;
     await load();
   } catch {
-    Message.error('评价删除失败，请稍后重试');
+    if (isCurrentWrite()) Message.error('评价删除失败，请稍后重试');
   } finally {
-    actionLoading.value = '';
+    if (operation === writeVersion) actionLoading.value = '';
   }
 }
 
@@ -199,10 +223,14 @@ function changePage(page: number) {
 }
 
 watch(activeKey, () => {
+  writeVersion += 1;
+  actionLoading.value = '';
   if (activeKey.value === 'received' && !isBuyer.value) activeKey.value = 'sent';
   resetAndLoad();
 });
 watch([status, hasImage], () => {
+  writeVersion += 1;
+  actionLoading.value = '';
   if (!isAppealTab.value) resetAndLoad();
 });
 watch(isBuyer, value => {
@@ -210,6 +238,8 @@ watch(isBuyer, value => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  writeVersion += 1;
+  actionLoading.value = '';
   requestGuard.invalidate();
   notificationRequestGuard.invalidate();
   reviews.value = [];
@@ -235,6 +265,7 @@ watch(() => route.query.id, id => {
 }, { immediate: true });
 onMounted(load);
 onBeforeUnmount(() => {
+  writeVersion += 1;
   requestGuard.invalidate();
   notificationRequestGuard.invalidate();
 });

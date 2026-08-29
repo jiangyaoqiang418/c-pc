@@ -24,6 +24,7 @@ const unlocking = ref(false);
 const redeemedOrderIds = new Set<string>();
 const id = computed(() => String(route.params.id));
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const meta = computed(() => (order.value ? ({
   HOLDING: { label: '计息中', color: 'purple' }, SETTLED: { label: '已结算', color: 'green' },
@@ -61,10 +62,16 @@ async function load() {
 }
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  writeVersion += 1;
   order.value = undefined;
+  redeemedOrderIds.clear();
+  unlocking.value = false;
   unlockModalOpen.value = false;
   void load();
 });
@@ -77,14 +84,21 @@ function openUnlock() {
 async function confirmUnlock(o: Api.RealFinance.FinanceOrderVO) {
   const orderId = String(o.id);
   if (unlocking.value || redeemedOrderIds.has(orderId)) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && String(order.value?.id) === orderId;
   unlocking.value = true;
   try {
     try {
       await financeApi.redeemFinance({ id: o.id });
     } catch {
-      Message.error('解锁失败，请稍后重试');
+      if (isCurrentWrite()) Message.error('解锁失败，请稍后重试');
       return;
     }
+    if (!isCurrentWrite()) return;
     redeemedOrderIds.add(orderId);
     if (order.value && String(order.value.id) === orderId) {
       order.value = { ...order.value, canRedeem: false };
@@ -94,11 +108,12 @@ async function confirmUnlock(o: Api.RealFinance.FinanceOrderVO) {
     try {
       await walletStore.refetch();
     } catch {
-      Message.warning('赎回已成功，钱包余额刷新失败，请稍后刷新查看');
+      if (isCurrentWrite()) Message.warning('赎回已成功，钱包余额刷新失败，请稍后刷新查看');
     }
+    if (!isCurrentWrite()) return;
     await load();
   } finally {
-    unlocking.value = false;
+    if (operation === writeVersion) unlocking.value = false;
   }
 }
 
