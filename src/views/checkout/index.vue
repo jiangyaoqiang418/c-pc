@@ -161,6 +161,8 @@ onBeforeUnmount(() => {
 });
 watch(() => userStore.currentUser?.id, () => {
   requestGuard.invalidate();
+  if (insufficientBalanceTimer) clearTimeout(insufficientBalanceTimer);
+  insufficientBalanceTimer = undefined;
   addressId.value = undefined;
   selectedAddr.value = undefined;
   wallet.value = undefined;

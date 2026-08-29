@@ -26,6 +26,7 @@ const TYPES: { key: Api.Cms.AnnouncementType | 'all'; label: string }[] = [
 ];
 
 async function load() {
+  detailVersion += 1;
   const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
