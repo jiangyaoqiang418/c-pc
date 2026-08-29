@@ -23,7 +23,14 @@ const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const requestGuard = createLatestRequestGuard();
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser) {
+    requestGuard.invalidate();
+    txns.value = [];
+    drawerTxn.value = undefined;
+    drawerOpen.value = false;
+    loadError.value = '';
+    return;
+  }
   const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
@@ -50,7 +57,10 @@ watch(
   [() => userStore.currentAudience, () => userStore.currentUser?.id],
   ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
     if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
+    requestGuard.invalidate();
     txns.value = [];
+    drawerTxn.value = undefined;
+    drawerOpen.value = false;
     loadError.value = '';
     void loadAll();
   }
