@@ -55,6 +55,7 @@ let messageWriteVersion = 0;
 let readWriteVersion = 0;
 let recallWriteVersion = 0;
 let conversationDeleteVersion = 0;
+let disposed = false;
 
 function isCurrentUser(userId: string | number | undefined) {
   return userId !== undefined && String(userStore.currentUser?.id) === String(userId);
@@ -84,6 +85,7 @@ function currentCandidates() {
 }
 
 async function loadConversations(selectFirst = true) {
+  if (disposed) return;
   const isCurrent = conversationListGuard.begin();
   conversationLoadError.value = '';
   try {
@@ -104,6 +106,7 @@ async function loadConversations(selectFirst = true) {
 }
 
 async function init() {
+  if (disposed) return;
   conversationLoading.value = true;
   loading.value = true;
   try {
@@ -113,8 +116,10 @@ async function init() {
     selectedConversationId.value = undefined;
     messages.value = [];
   } finally {
-    loading.value = false;
-    conversationLoading.value = false;
+    if (!disposed) {
+      loading.value = false;
+      conversationLoading.value = false;
+    }
   }
 }
 
@@ -480,16 +485,18 @@ function lastSyncText() {
 }
 
 async function refreshRestData() {
-  if (restSyncing.value) return;
+  if (disposed || restSyncing.value) return;
   restSyncing.value = true;
   try {
     await loadConversations(false);
+    if (disposed) return;
     await syncCurrentConversation();
+    if (disposed) return;
     lastSyncedAt.value = new Date();
   } catch {
     // 请求层已展示错误；最近同步时间不前移，保留当前会话和消息供用户重试。
   } finally {
-    restSyncing.value = false;
+    if (!disposed) restSyncing.value = false;
   }
 }
 
@@ -549,6 +556,7 @@ notifyStore.subscribe(async event => {
 
 onMounted(init);
 onBeforeUnmount(() => {
+  disposed = true;
   messageWriteVersion += 1;
   readWriteVersion += 1;
   recallWriteVersion += 1;
@@ -559,6 +567,7 @@ onBeforeUnmount(() => {
   incrementalMessagesGuard.invalidate();
 });
 watch(activeTab, async () => {
+  if (disposed) return;
   messageWriteVersion += 1;
   readWriteVersion += 1;
   recallWriteVersion += 1;
@@ -574,9 +583,11 @@ watch(activeTab, async () => {
   messages.value = [];
   hasOlder.value = false;
   selectedConversationId.value = undefined;
+  if (disposed) return;
   await selectFirstConversation();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (disposed) return;
   if (String(next) === String(previous)) return;
   messageWriteVersion += 1;
   readWriteVersion += 1;
