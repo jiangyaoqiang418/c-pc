@@ -19,7 +19,7 @@ const cartCount = computed(() => cart.count);
 
     <header class="header">
       <div class="header-inner">
-        <div class="logo" @click="router.push('/')">
+        <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')">
           <div class="logo-mark">油宝</div>
           <div class="logo-text">
             <div class="logo-name">{{ BRAND.name }}</div>
@@ -94,6 +94,11 @@ const cartCount = computed(() => cart.count);
   gap: 10px;
   cursor: pointer;
   flex-shrink: 0;
+}
+.logo:focus-visible {
+  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 .search-wrap {
   display: flex;

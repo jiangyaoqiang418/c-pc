@@ -13,7 +13,7 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
   <div class="layout-checkout">
     <header class="header">
       <div class="header-inner">
-        <div class="logo" @click="router.push('/')">
+        <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')">
           <span class="logo-mark">油宝</span>
           <span class="logo-name">{{ BRAND.name }}</span>
           <span class="divider">·</span>
@@ -55,6 +55,11 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
   align-items: center;
   gap: 6px;
   cursor: pointer;
+}
+.logo:focus-visible {
+  outline: 2px solid var(--bw-brand-primary, #165dff);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 .logo-mark {
   min-width: 28px;

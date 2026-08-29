@@ -7,7 +7,7 @@ const router = useRouter();
 
 <template>
   <div class="layout-auth">
-    <div class="logo" @click="router.push('/')">
+    <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')">
       <span class="logo-mark">油宝</span>
       <span class="logo-name">{{ BRAND.name }}</span>
     </div>
@@ -38,6 +38,11 @@ const router = useRouter();
   gap: 8px;
   cursor: pointer;
   color: #fff;
+}
+.logo:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 .logo-mark {
   min-width: 32px;
