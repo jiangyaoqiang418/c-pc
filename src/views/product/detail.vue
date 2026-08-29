@@ -16,6 +16,7 @@ import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
 import { useCartStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { formatDateValue } from '@/utils/date-range';
 
 const route = useRoute();
 const router = useRouter();
@@ -284,7 +285,7 @@ async function favorite() {
                   <div class="rev-head">
                     <span class="rev-user">{{ r.userName || '匿名用户' }}</span>
                     <ReviewStars :score="r.productScore" size="sm" />
-                    <span class="rev-time yb-mono">{{ r.createdAt ? new Date(Number(r.createdAt)).toLocaleDateString() : '—' }}</span>
+                    <span class="rev-time yb-mono">{{ formatDateValue(r.createdAt, true) }}</span>
                   </div>
                   <div class="rev-text">{{ r.content }}</div>
                 </div>

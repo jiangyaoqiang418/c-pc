@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import ReviewStars from '@/components/common/review-stars.vue';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   review: Api.RealReview.ReviewDTO;
@@ -40,7 +41,7 @@ function goOrder() {
         </a-tag>
       </div>
       <div class="head-right">
-        <span class="time">{{ review.createdAt ? new Date(Number(review.createdAt)).toLocaleString() : '—' }}</span>
+        <span class="time">{{ formatDateValue(review.createdAt) }}</span>
         <a-link size="small" @click="goOrder">查看订单</a-link>
       </div>
     </div>

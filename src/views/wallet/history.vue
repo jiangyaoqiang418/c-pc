@@ -9,6 +9,7 @@ import { useUserStore } from '@/stores';
 import * as walletApi from '@/service/api/wallet';
 import { walletLedgerCsv } from '@/utils/wallet-csv';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { isWithinDateRange } from '@/utils/date-range';
 
 const route = useRoute();
 const router = useRouter();
@@ -111,8 +112,9 @@ async function load() {
     }
     let records = r.records;
     if (filter.bucket) records = records.filter(t => t.bucketFrom === filter.bucket || t.bucketTo === filter.bucket);
-    if (filter.dateRange?.[0]) records = records.filter(t => t.createdAt >= filter.dateRange![0]);
-    if (filter.dateRange?.[1]) records = records.filter(t => t.createdAt <= filter.dateRange![1]);
+    if (filter.dateRange?.[0] || filter.dateRange?.[1]) {
+      records = records.filter(t => isWithinDateRange(t.createdAt, filter.dateRange?.[0], filter.dateRange?.[1]));
+    }
     if (filter.keyword) {
       const kw = filter.keyword.toLowerCase();
       records = records.filter(

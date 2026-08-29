@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatAmount, formatRate } from '@shared';
+import { formatDateValue, parseDateValue } from '@/utils/date-range';
 
 interface Props {
   order: Api.RealFinance.FinanceOrderVO;
@@ -18,10 +19,11 @@ const meta = computed(() => ({
   CANCELED: { label: '已取消', color: 'red' }
 }[props.order.status] || { label: props.order.statusText || props.order.status, color: 'gray' }));
 
-const startMs = computed(() => Number(props.order.startAt || 0));
-const maturityMs = computed(() => Number(props.order.maturityAt || 0));
+const startMs = computed(() => parseDateValue(props.order.startAt));
+const maturityMs = computed(() => parseDateValue(props.order.maturityAt));
 const daysPassed = computed(() => {
-  const now = Math.min(Date.now(), maturityMs.value);
+  if (startMs.value === undefined) return 0;
+  const now = Math.min(Date.now(), maturityMs.value ?? Date.now());
   return Math.max(0, Math.floor((now - startMs.value) / 86400_000));
 });
 const progressPct = computed(() => {
@@ -77,7 +79,7 @@ function goDetail() {
       />
       <div class="progress-text">
         已过 {{ daysPassed }} / {{ order.lockDays }} 天
-        <span class="muted">· 到期 {{ order.maturityAt ? new Date(Number(order.maturityAt)).toLocaleDateString() : '—' }}</span>
+        <span class="muted">· 到期 {{ formatDateValue(order.maturityAt, true) }}</span>
       </div>
     </div>
 

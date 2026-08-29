@@ -58,6 +58,12 @@ async function load() {
     if (isAppealTab.value) {
       const result = await reviewApi.fetchMyReviewAppeals({ pageNo: current.value, pageSize }, { signal: isCurrent.signal });
       if (!isCurrent()) return;
+      const maxPage = Math.max(1, Math.ceil(result.total / pageSize));
+      if (current.value > maxPage) {
+        current.value = maxPage;
+        await load();
+        return;
+      }
       appeals.value = result.records || [];
       total.value = result.total;
       return;
@@ -73,10 +79,19 @@ async function load() {
       ? await reviewApi.fetchMyReviews(params, { signal: isCurrent.signal })
       : await reviewApi.fetchReceivedReviews(params, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(result.total / pageSize));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      await load();
+      return;
+    }
     reviews.value = result.records || [];
     total.value = result.total;
   } catch {
     if (!isCurrent()) return;
+    if (isAppealTab.value) appeals.value = [];
+    else reviews.value = [];
+    total.value = 0;
     loadError.value = isAppealTab.value ? '评价申诉加载失败，请稍后重试' : '评价列表加载失败，请稍后重试';
   } finally {
     if (isCurrent()) loading.value = false;

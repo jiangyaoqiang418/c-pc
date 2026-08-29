@@ -1,4 +1,5 @@
 import { realUserRequest } from '@/service/request';
+import { isWithinDateRange } from '@/utils/date-range';
 import { toPageTotal } from './page';
 
 const behaviorMap: Partial<Record<string, Api.Point.BehaviorCode>> = {
@@ -92,8 +93,7 @@ export async function fetchMyPointLogs(q: {
   if (q.behaviors?.length && !behaviorCode) {
     records = records.filter(item => q.behaviors?.includes(item.behavior));
   }
-  if (q.fromAt) records = records.filter(item => item.createdAt >= q.fromAt!);
-  if (q.toAt) records = records.filter(item => item.createdAt <= q.toAt!);
+  if (q.fromAt || q.toAt) records = records.filter(item => isWithinDateRange(item.createdAt, q.fromAt, q.toAt));
   const page = result as Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO> & {
     pageNo?: number;
     pageSize?: number;

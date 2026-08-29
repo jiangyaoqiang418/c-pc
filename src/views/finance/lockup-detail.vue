@@ -9,6 +9,7 @@ import EarlyUnlockModal from '@/components/finance/early-unlock-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { formatDateValue, parseDateValue } from '@/utils/date-range';
 
 const route = useRoute();
 const router = useRouter();
@@ -31,8 +32,9 @@ const meta = computed(() => (order.value ? ({
 
 const daysPassed = computed(() => {
   if (!order.value) return 0;
-  const start = Number(order.value.startAt || 0);
-  const now = Math.min(Date.now(), Number(order.value.maturityAt || Date.now()));
+  const start = parseDateValue(order.value.startAt);
+  if (start === undefined) return 0;
+  const now = Math.min(Date.now(), parseDateValue(order.value.maturityAt) ?? Date.now());
   return Math.max(0, Math.floor((now - start) / 86400_000));
 });
 
@@ -154,9 +156,9 @@ function handleEmptyAction() {
               { label: '已累积利息', value: 'U ' + formatAmount(order.accruedInterest) },
               { label: '提前赎回违约费', value: 'U ' + formatAmount(order.redeemFee || 0) },
               { label: '锁定天数 / 已过', value: order.lockDays + ' / ' + daysPassed + ' 天' },
-              { label: '起息时间', value: order.startAt ? new Date(Number(order.startAt)).toLocaleString() : '—' },
-              { label: '到期时间', value: order.maturityAt ? new Date(Number(order.maturityAt)).toLocaleString() : '—' },
-              { label: '结算/赎回时间', value: order.settledAt || order.redeemedAt ? new Date(Number(order.settledAt || order.redeemedAt)).toLocaleString() : '—' },
+              { label: '起息时间', value: formatDateValue(order.startAt) },
+              { label: '到期时间', value: formatDateValue(order.maturityAt) },
+              { label: '结算/赎回时间', value: formatDateValue(order.settledAt || order.redeemedAt) },
               { label: '赎回原因', value: order.redeemReason || '—' }
             ]" />
           </a-card>

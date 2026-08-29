@@ -70,6 +70,12 @@ async function loadRecords() {
       status: recordStatus.value
     }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(result.total / recordSize.value));
+    if (recordCurrent.value > maxPage) {
+      recordCurrent.value = maxPage;
+      await loadRecords();
+      return;
+    }
     recentDeposits.value = result.records;
     recordTotal.value = result.total;
   } catch {

@@ -52,6 +52,12 @@ async function load() {
       status: activeStatus.value
     }, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    const maxPage = Math.max(1, Math.ceil(response.total / pageSize));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      await load();
+      return;
+    }
     refunds.value = response.records || [];
     total.value = response.total;
   } catch {
