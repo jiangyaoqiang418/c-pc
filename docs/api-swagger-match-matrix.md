@@ -559,7 +559,7 @@
 
 | 梯队 | 能力 | Swagger 契约 | 页面/API 状态 | 验证边界 |
 |---|---|---|---|---|
-| P5 | 通知列表与已读 | `POST /notify/notifications/page`、`GET /notifications/unread/count`、`PUT /notifications/read`、`PUT /notifications/read-all` | 真实 API 与类型已建立；当前项目没有独立通知列表页面，因此尚无页面调用。 | 契约检查通过；页面入口须在产品确定后新增。 |
+| P5 | 通知列表与已读 | `POST /notify/notifications/page`、`GET /notifications/unread/count`、`PUT /notifications/read`、`PUT /notifications/read-all` | 历史快照（2026-08-10）曾记录尚无独立页面；当前 `/notification` 已接入真实通知分页与已读接口。 | 历史契约检查通过；当前真实回归状态以文档顶部与 `/notification` 页面代码为准。 |
 | P5 | 订单会话列表/详情 | `POST /notify/im/conversations/page`、`GET /im/conversations/by-order`、`POST /im/messages/page` | `/im` 与 `/im/order-group/:orderCode` 已改用真实统一会话与消息分页。 | 类型检查通过；待双账号真实会话非空回读。 |
 | P5 | 发送消息 | `POST /notify/im/messages/send`，必填 `conversationId/msgType` | 文本与图片入口均改发真实 `TEXT/IMAGE`，移除本地自动回复。 | 待两个测试账号真实发送与回读。 |
 
