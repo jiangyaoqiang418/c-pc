@@ -11,14 +11,21 @@ defineEmits<{ (e: 'update:visible', v: boolean): void }>();
 
 const agreement = ref<Api.Cms.Agreement>();
 const loading = ref(false);
+const loadError = ref('');
 let loadVersion = 0;
 
 async function load() {
   const operation = ++loadVersion;
   loading.value = true;
+  loadError.value = '';
   try {
     const next = await cmsApi.fetchAgreementCurrent(props.kind);
     if (operation === loadVersion && props.visible) agreement.value = next;
+  } catch {
+    if (operation === loadVersion && props.visible) {
+      agreement.value = undefined;
+      loadError.value = '协议内容加载失败，请稍后重试。';
+    }
   } finally {
     if (operation === loadVersion) loading.value = false;
   }
@@ -30,9 +37,10 @@ watch(
     loadVersion += 1;
     if (v) {
       agreement.value = undefined;
-      load();
+      void load();
     } else {
       loading.value = false;
+      loadError.value = '';
     }
   }
 );
@@ -64,6 +72,10 @@ onBeforeUnmount(() => {
         </div>
         <pre class="content">{{ agreement.body }}</pre>
       </div>
+      <a-alert v-else-if="loadError" type="error" :closable="false" class="load-error">
+        {{ loadError }}
+        <template #action><a-button size="mini" @click="load">重新加载</a-button></template>
+      </a-alert>
     </a-spin>
   </a-modal>
 </template>

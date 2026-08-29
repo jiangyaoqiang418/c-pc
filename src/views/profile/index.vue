@@ -110,6 +110,8 @@ async function saveProfile() {
     if (operation !== profileWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     editVisible.value = false;
     Message.success('资料已更新');
+  } catch {
+    // 请求层已展示错误，保留弹窗与当前表单供用户修正后重试。
   } finally {
     if (operation === profileWriteVersion) savingProfile.value = false;
   }

@@ -151,10 +151,13 @@ watch(
   [() => userStore.currentAudience, () => userStore.currentUser?.id],
   ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
     if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
+    requestGuard.invalidate();
     current.value = 1;
     list.value = [];
     total.value = 0;
     loadError.value = '';
+    drawerTxn.value = undefined;
+    drawerOpen.value = false;
     void load();
   }
 );

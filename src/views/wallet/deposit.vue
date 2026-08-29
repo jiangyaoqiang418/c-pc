@@ -265,6 +265,11 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   createWriteVersion += 1;
   cancelWriteVersion += 1;
+  requestGuard.invalidate();
+  recordsGuard.invalidate();
+  chainsGuard.invalidate();
+  addressGuard.invalidate();
+  detailGuard.invalidate();
   submitting.value = false;
   cancelingRechargeId.value = undefined;
   chainOptions.value = [];
@@ -274,6 +279,8 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   recentDeposits.value = [];
   recordTotal.value = 0;
   detail.value = undefined;
+  detailTarget.value = undefined;
+  detailOpen.value = false;
   void loadAll();
 });
 watch(chain, () => void loadRechargeAddress());

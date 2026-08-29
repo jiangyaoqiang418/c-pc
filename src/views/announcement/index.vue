@@ -38,6 +38,12 @@ async function load() {
       audience: 'customer'
     });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      void load();
+      return;
+    }
     list.value = r.records;
     total.value = r.total;
   } catch {

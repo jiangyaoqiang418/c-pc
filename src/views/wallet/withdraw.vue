@@ -187,12 +187,17 @@ onBeforeUnmount(() => {
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   writeVersion += 1;
+  requestGuard.invalidate();
+  recordsGuard.invalidate();
+  detailGuard.invalidate();
   submitting.value = false;
   modalOpen.value = false;
   recentWithdrawals.value = [];
   recordTotal.value = 0;
   createdWithdrawal.value = undefined;
   detail.value = undefined;
+  detailTarget.value = undefined;
+  detailOpen.value = false;
   void loadAll();
 });
 watch(() => route.query.id, id => {
