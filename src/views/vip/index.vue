@@ -28,13 +28,20 @@ async function load() {
   loading.value = true;
   vipLoadError.value = '';
   try {
-    const [cfgs, rules] = await Promise.all([
-      vipApi.fetchVipConfigs({ signal: isCurrent.signal }).catch(() => []),
-      pointApi.fetchPointRules({ signal: isCurrent.signal }).catch(() => [])
+    const [configsResult, rulesResult] = await Promise.allSettled([
+      vipApi.fetchVipConfigs({ signal: isCurrent.signal }),
+      pointApi.fetchPointRules({ signal: isCurrent.signal })
     ]);
     if (!isCurrent()) return;
-    configs.value = cfgs;
-    pointRules.value = rules;
+    configs.value = configsResult.status === 'fulfilled' ? configsResult.value : [];
+    pointRules.value = rulesResult.status === 'fulfilled' ? rulesResult.value : [];
+    const failedSections = [
+      configsResult.status === 'rejected' ? 'VIP 配置' : '',
+      rulesResult.status === 'rejected' ? '积分规则' : ''
+    ].filter(Boolean);
+    if (failedSections.length) {
+      vipLoadError.value = `${failedSections.join('、')}加载失败，请稍后重试。`;
+    }
     if (userId !== undefined && String(userStore.currentUser?.id) === String(userId)) {
       try {
         const vip = await vipApi.fetchMyVipStatus(userId, { signal: isCurrent.signal });
@@ -45,7 +52,7 @@ async function load() {
         if (!isCurrent()) return;
         vipStatus.value = undefined;
         audience.value = 'customer';
-        vipLoadError.value = '当前等级读取失败，请稍后重试。';
+        vipLoadError.value = [vipLoadError.value, '当前等级读取失败，请稍后重试。'].filter(Boolean).join('；');
       }
     } else {
       vipStatus.value = undefined;
