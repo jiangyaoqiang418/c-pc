@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { Message } from '@arco-design/web-vue';
 import { enums } from '@shared';
@@ -7,6 +7,7 @@ import * as realKycApi from '@/service/api/kyc';
 import { getAccessToken } from '@/service/request';
 import IdCardUploader from '@/components/kyc/id-card-uploader.vue';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const loading = ref(false);
@@ -23,6 +24,7 @@ const form = reactive<Api.RealKyc.SubmitParams>({
   holdingPhotoFileId: '',
   nationality: '中国'
 });
+const requestGuard = createLatestRequestGuard();
 
 function toDisplayStatus(value?: string): Api.User.KycStatus {
   if (value === 'PASSED') return 'approved';
@@ -77,7 +79,7 @@ const statusView = computed(() => {
 
 const previewUrls = ref<Record<string, string>>({});
 
-async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null) {
+async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null, signal?: AbortSignal, isCurrent?: () => boolean) {
   previewUrls.value = {};
   if (!detail) return;
   const entries = [
@@ -88,38 +90,58 @@ async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null) {
   const results = await Promise.all(entries.map(async ([key, fileId]) => {
     if (!fileId) return [key, ''] as const;
     try {
-      const access = await realKycApi.refreshKycFileAccess(fileId);
+      const access = await realKycApi.refreshKycFileAccess(fileId, { signal });
       return [key, access.url] as const;
     } catch {
       return [key, ''] as const;
     }
   }));
-  previewUrls.value = Object.fromEntries(results.filter(([, url]) => url));
+  if (!isCurrent || isCurrent()) previewUrls.value = Object.fromEntries(results.filter(([, url]) => url));
 }
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
     await userStore.init();
     await userStore.refreshCurrentUser();
+    if (!isCurrent()) return;
+    const userId = String(userStore.currentUser?.id || '');
+    if (!userId) return;
     if (getAccessToken()) {
       try {
-        kycDetail.value = await realKycApi.fetchMyKycDetail();
-        await refreshPrivatePreviews(kycDetail.value);
+        kycDetail.value = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal });
+        if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+        await refreshPrivatePreviews(kycDetail.value, isCurrent.signal, isCurrent);
       } catch {
+        if (!isCurrent()) return;
         kycDetail.value = null;
         loadError.value = '实名认证资料加载失败，当前状态以账号信息为准。请稍后重试。';
       }
     }
   } catch {
+    if (!isCurrent()) return;
     loadError.value = '实名认证信息加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, () => {
+  requestGuard.invalidate();
+  kycDetail.value = null;
+  previewUrls.value = {};
+  loadError.value = '';
+  form.realName = '';
+  form.idNo = '';
+  form.idCardFrontFileId = '';
+  form.idCardBackFileId = '';
+  form.holdingPhotoFileId = '';
+  void load();
+});
 
 async function submit() {
   if (submitting.value) return;
