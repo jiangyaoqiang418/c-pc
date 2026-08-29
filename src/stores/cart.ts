@@ -31,6 +31,11 @@ function finiteNonNegative(value: string | number | undefined) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
+function finiteQuantity(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 /** 购物车是账号私有数据，绝不能让本地缓存跨登录用户复用。 */
 export function cartStorageKey(ownerId?: CartOwnerId) {
   return `${STORAGE_KEY.cart}:${ownerId === undefined ? 'anonymous' : String(ownerId)}`;
@@ -56,7 +61,11 @@ export const useCartStore = defineStore('bw-cart', () => {
       const raw = localStorage.getItem(cartStorageKey(owner));
       if (raw) {
         const parsed = JSON.parse(raw) as CartItem[];
-        items.value = parsed.map(i => ({ ...i, selected: i.selected !== false }));
+        items.value = parsed.map(i => ({
+          ...i,
+          qty: finiteQuantity(i.qty),
+          selected: i.selected !== false
+        }));
       }
     } catch {
       items.value = [];
@@ -76,6 +85,7 @@ export const useCartStore = defineStore('bw-cart', () => {
 
   function enrich(item: CartItem): EnrichedCartItem {
     const product = products.value[String(item.productId)];
+    const qty = finiteQuantity(item.qty);
     const price = product ? finiteNonNegative(product.price) : undefined;
     const shipping = product ? finiteNonNegative(product.shippingFee) : undefined;
     const tax = product ? finiteNonNegative(product.tax) : undefined;
@@ -83,13 +93,17 @@ export const useCartStore = defineStore('bw-cart', () => {
       && product.status === 'NORMAL'
       && product.shelfStatus === 'on-shelf'
       && product.stock > 0
+      && qty > 0
       && price !== undefined
       && shipping !== undefined
-      && tax !== undefined;
-    const subtotal = available ? (price! * item.qty).toFixed(2) : '';
-    const lineTotal = available ? (price! * item.qty + shipping! + tax!).toFixed(2) : '';
+      && tax !== undefined
+      && Number.isFinite(price * qty)
+      && Number.isFinite(price * qty + shipping + tax);
+    const subtotal = available ? (price! * qty).toFixed(2) : '';
+    const lineTotal = available ? (price! * qty + shipping! + tax!).toFixed(2) : '';
     return {
       ...item,
+      qty,
       product,
       available,
       subtotal,
@@ -118,12 +132,13 @@ export const useCartStore = defineStore('bw-cart', () => {
 
   function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord) {
     if (product) upsertProduct(product);
+    const safeQty = finiteQuantity(qty, 1);
     const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     if (exist) {
-      exist.qty += qty;
+      exist.qty = finiteQuantity(exist.qty) + safeQty;
       exist.selected = true;
     } else {
-      items.value.unshift({ productId, qty, addedAt: new Date().toISOString(), selected: true });
+      items.value.unshift({ productId, qty: safeQty, addedAt: new Date().toISOString(), selected: true });
     }
     persist();
   }
@@ -131,7 +146,7 @@ export const useCartStore = defineStore('bw-cart', () => {
   function update(productId: string | number, qty: number) {
     const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     if (exist) {
-      exist.qty = Math.max(1, qty);
+      exist.qty = Math.max(1, finiteQuantity(qty, 1));
       persist();
     }
   }
@@ -172,8 +187,8 @@ export const useCartStore = defineStore('bw-cart', () => {
   const selectedItems = computed(() => enrichedItems.value.filter(i => i.selected && i.available));
 
   const count = computed(() => items.value.length);
-  const totalQty = computed(() => items.value.reduce((s, i) => s + i.qty, 0));
-  const selectedQty = computed(() => selectedItems.value.reduce((s, i) => s + i.qty, 0));
+  const totalQty = computed(() => items.value.reduce((s, i) => s + finiteQuantity(i.qty), 0));
+  const selectedQty = computed(() => selectedItems.value.reduce((s, i) => s + finiteQuantity(i.qty), 0));
   const allSelected = computed(() => validItems.value.length > 0 && validItems.value.every(i => i.selected));
 
   const subTotal = computed(() => selectedItems.value.reduce((s, i) => s + Number(i.subtotal), 0).toFixed(2));
