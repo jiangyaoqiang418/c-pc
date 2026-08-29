@@ -216,8 +216,9 @@ export async function fetchFlashSale(limit = 20, options: { signal?: AbortSignal
   return requireArray<Api.RealProduct.FlashSaleItemVO>(records, '秒杀商品').map(item => ({ product: toFlashSaleProduct(item), sessionEndTime: item.sessionEndTime }));
 }
 
-export function fetchHomeBanners(options: { signal?: AbortSignal } = {}) {
-  return realOrderRequest.get<Api.RealProduct.BannerDTO[]>('/banners/list', options);
+export async function fetchHomeBanners(options: { signal?: AbortSignal } = {}) {
+  const list = await realOrderRequest.get<Api.RealProduct.BannerDTO[]>('/banners/list', options);
+  return requireArray<Api.RealProduct.BannerDTO>(list, '首页 Banner');
 }
 
 export async function trackProductBrowse(id: string | number) {

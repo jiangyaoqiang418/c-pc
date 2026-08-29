@@ -1,8 +1,8 @@
 import { realOrderRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 
 function normalizePage<T>(page: Api.RealRefund.PageResult<T>) {
-  return { ...page, total: toPageTotal(page.total) };
+  return { ...page, records: requireArray<T>(page.records, '售后分页记录'), total: toPageTotal(page.total) };
 }
 
 export function createRefund(params: Api.RealRefund.RefundApplyParams) {

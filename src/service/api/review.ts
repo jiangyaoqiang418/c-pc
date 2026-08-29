@@ -1,8 +1,8 @@
 import { realOrderRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 
 function normalizePage<T>(page: Api.RealReview.PageResult<T>) {
-  return { ...page, total: toPageTotal(page.total) };
+  return { ...page, records: requireArray<T>(page.records, '评价分页记录'), total: toPageTotal(page.total) };
 }
 
 export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}, options: { signal?: AbortSignal } = {}) {

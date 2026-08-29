@@ -1,5 +1,5 @@
 import { realNotifyRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 
 // notify 服务的鉴权问题不应清空整站登录态；调用方仍会收到真实错误并自行展示。
 const notifyRequestOptions = { skipAuthRedirect: true };
@@ -10,7 +10,7 @@ export async function fetchNotifications(params: Api.RealNotify.NotificationPage
     params,
     { ...notifyRequestOptions, signal: options.signal }
   );
-  return { ...page, total: toPageTotal(page.total) };
+  return { ...page, records: requireArray<Api.RealNotify.NotificationVO>(page.records, '通知分页记录'), total: toPageTotal(page.total) };
 }
 
 export function fetchUnreadNotificationCount(options: { signal?: AbortSignal } = {}) {
@@ -42,7 +42,7 @@ export async function fetchConversations(params: Api.RealNotify.PageQuery = {}, 
     params,
     { ...notifyRequestOptions, signal: options.signal }
   );
-  return { ...page, total: toPageTotal(page.total) };
+  return { ...page, records: requireArray<Api.RealNotify.ImConversationVO>(page.records, '会话分页记录'), total: toPageTotal(page.total) };
 }
 
 export function fetchOrderConversation(orderId: string | number, options: { signal?: AbortSignal } = {}) {
@@ -59,15 +59,16 @@ export async function fetchConversationMessages(params: Api.RealNotify.ImMessage
     params,
     { ...notifyRequestOptions, signal: options.signal }
   );
-  return { ...page, total: toPageTotal(page.total) };
+  return { ...page, records: requireArray<Api.RealNotify.ImMessageVO>(page.records, '消息分页记录'), total: toPageTotal(page.total) };
 }
 
-export function fetchIncrementalMessages(params: Api.RealNotify.ImIncrementalQuery, options: { signal?: AbortSignal } = {}) {
-  return realNotifyRequest.get<Api.RealNotify.ImMessageVO[]>('/im/messages/incr', {
+export async function fetchIncrementalMessages(params: Api.RealNotify.ImIncrementalQuery, options: { signal?: AbortSignal } = {}) {
+  const records = await realNotifyRequest.get<Api.RealNotify.ImMessageVO[]>('/im/messages/incr', {
     params: { ...params },
     ...notifyRequestOptions,
     signal: options.signal
   });
+  return requireArray<Api.RealNotify.ImMessageVO>(records, '增量消息');
 }
 
 export function fetchUnreadMessageCount(options: { signal?: AbortSignal } = {}) {
