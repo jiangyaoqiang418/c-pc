@@ -67,12 +67,19 @@ export async function register(params: Api.RealAuth.RegisterParams) {
   return realUserRequest.post<string>('/auth/register', params);
 }
 
-export async function fetchCurrentUser(fallback?: Partial<Api.RealAuth.LoginVO>) {
-  const profile = await realUserRequest.get<Api.RealAuth.UserProfileVO>('/auth/me');
+export async function fetchCurrentUser(
+  fallback?: Partial<Api.RealAuth.LoginVO>,
+  options: { signal?: AbortSignal } = {}
+) {
+  const profile = await realUserRequest.get<Api.RealAuth.UserProfileVO>('/auth/me', options);
   let pointAccount: Api.RealPoint.UserPointVO | undefined;
   try {
-    pointAccount = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', { showError: false });
-  } catch {
+    pointAccount = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', {
+      ...options,
+      showError: false
+    });
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
     pointAccount = undefined;
   }
   return toUserRecord(profile, fallback, pointAccount);

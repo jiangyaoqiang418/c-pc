@@ -75,9 +75,9 @@ export const useUserStore = defineStore('bw-user', () => {
     return realAuthApi.register(params);
   }
 
-  async function refreshCurrentUser() {
+  async function refreshCurrentUser(options: { signal?: AbortSignal } = {}) {
     if (!getAccessToken()) return;
-    currentUser.value = await realAuthApi.fetchCurrentUser();
+    currentUser.value = await realAuthApi.fetchCurrentUser(undefined, options);
   }
 
   function logout() {

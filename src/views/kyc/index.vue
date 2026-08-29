@@ -105,7 +105,7 @@ async function load() {
   loadError.value = '';
   try {
     await userStore.init();
-    await userStore.refreshCurrentUser();
+    await userStore.refreshCurrentUser({ signal: isCurrent.signal });
     if (!isCurrent()) return;
     const userId = String(userStore.currentUser?.id || '');
     if (!userId) return;
