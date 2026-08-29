@@ -96,7 +96,10 @@ async function loadConversations(selectFirst = true) {
     if (!isCurrent()) return;
     conversations.value = response.records || [];
     notifyStore.setImUnreadCount(conversations.value.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0));
-    if (selectFirst) await selectFirstConversation();
+    if (selectFirst) {
+      await selectFirstConversation();
+      if (!isCurrent()) return;
+    }
     lastSyncedAt.value = new Date();
   } catch (error) {
     if (!isCurrent()) return;
@@ -124,6 +127,7 @@ async function init() {
 }
 
 async function selectFirstConversation() {
+  if (disposed) return;
   const candidates = currentCandidates();
   const requestedConversation = candidates.find(conversation => sameBusinessId(conversation.id, route.query.conversationId as string | undefined));
   if (requestedConversation) {
@@ -136,6 +140,7 @@ async function selectFirstConversation() {
 }
 
 async function selectConversation(conversation: Api.RealNotify.ImConversationVO) {
+  if (disposed) return;
   const conversationId = conversation.id;
   messageWriteVersion += 1;
   recallWriteVersion += 1;
@@ -207,6 +212,7 @@ function refreshImUnreadFromConversations() {
 }
 
 async function reportRead(expectedConversationId?: string | number) {
+  if (disposed) return;
   const conversation = selectedConversation.value;
   const lastReadMessageId = latestServerMessageId(messages.value);
   if (!conversation || !lastReadMessageId || document.visibilityState !== 'visible') return;
@@ -228,6 +234,7 @@ async function reportRead(expectedConversationId?: string | number) {
 }
 
 async function syncCurrentConversation() {
+  if (disposed) return;
   const conversation = selectedConversation.value;
   if (!conversation) return;
   const conversationId = conversation.id;
