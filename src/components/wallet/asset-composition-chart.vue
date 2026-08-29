@@ -19,12 +19,17 @@ const props = withDefaults(defineProps<Props>(), { size: 180 });
 // 4 级灰度 + 电光紫 accent（BiyaPay/ether.fi 风）
 const GRAY_SCALE = ['#0F111A', '#4E5969', '#8A93A6', '#C9CDD4', '#EDECE6'];
 
+function normalizedPct(value: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0;
+}
+
 const conicGradient = computed(() => {
   if (!props.breakdown.length) return 'var(--yb-hairline)';
   let acc = 0;
   const parts = props.breakdown.map((s, i) => {
     const start = acc * 100;
-    acc += s.pct;
+    acc += normalizedPct(s.pct);
     const end = acc * 100;
     return `${GRAY_SCALE[i % GRAY_SCALE.length]} ${start}% ${end}%`;
   });
@@ -59,7 +64,7 @@ const holeStyle = computed(() => {
       <div v-for="(s, i) in breakdown" :key="s.label" class="legend-row">
         <span class="dot" :style="{ background: GRAY_SCALE[i % GRAY_SCALE.length] }" />
         <span class="lbl">{{ s.label }}</span>
-        <span class="pct">{{ (s.pct * 100).toFixed(1) }}%</span>
+        <span class="pct">{{ (normalizedPct(s.pct) * 100).toFixed(1) }}%</span>
         <span class="val">U {{ formatAmount(s.value) }}</span>
       </div>
     </div>

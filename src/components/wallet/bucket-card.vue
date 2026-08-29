@@ -15,6 +15,10 @@ const props = withDefaults(defineProps<Props>(), { variant: 'card' });
 
 const router = useRouter();
 const meta = computed(() => enums.BUCKET_META[props.bucketKey]);
+const safePct = computed(() => {
+  if (props.pct === undefined || !Number.isFinite(props.pct)) return undefined;
+  return Math.max(0, Math.min(100, props.pct));
+});
 
 const iconName = computed(() => {
   const map: Record<BucketKey, string> = {
@@ -61,7 +65,7 @@ function go() {
         <span class="unit">U</span>
         <span class="num">{{ formatAmount(amount, { decimals: 2 }) }}</span>
       </div>
-      <div v-if="pct != null" class="row-pct">{{ pct.toFixed(1) }}%</div>
+      <div v-if="safePct != null" class="row-pct">{{ safePct.toFixed(1) }}%</div>
     </div>
   </div>
 
