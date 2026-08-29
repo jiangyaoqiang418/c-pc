@@ -46,7 +46,15 @@ async function loadAll() {
 }
 onMounted(loadAll);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => userStore.currentAudience, loadAll);
+watch(
+  [() => userStore.currentAudience, () => userStore.currentUser?.id],
+  ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
+    if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
+    txns.value = [];
+    loadError.value = '';
+    void loadAll();
+  }
+);
 
 import { getUsdtCnyRate } from '@shared/utils/currency';
 const cnyRate = getUsdtCnyRate();

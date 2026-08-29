@@ -146,10 +146,14 @@ watch(() => route.query, () => {
 });
 
 watch(
-  () => userStore.currentAudience,
-  () => {
+  [() => userStore.currentAudience, () => userStore.currentUser?.id],
+  ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
+    if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
     current.value = 1;
-    load();
+    list.value = [];
+    total.value = 0;
+    loadError.value = '';
+    void load();
   }
 );
 
