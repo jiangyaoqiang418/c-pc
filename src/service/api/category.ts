@@ -42,7 +42,7 @@ export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryAp
     current: result.current || result.pageNo || q.pageNo || 1,
     size: result.size || result.pageSize || q.pageSize || 20,
     total: toPageTotal(result.total),
-    records: result.records
+    records: requireArray<Api.RealCategory.CategoryApplyDTO>(result.records, '分类申请分页记录')
   };
 }
 

@@ -297,8 +297,9 @@ export function createRecharge(params: Api.RealWallet.RechargeCreateParams) {
   );
 }
 
-export function fetchRechargeChains(options: { signal?: AbortSignal } = {}) {
-  return realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', options);
+export async function fetchRechargeChains(options: { signal?: AbortSignal } = {}) {
+  const list = await realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', options);
+  return requireArray<Api.RealWallet.RechargeChainVO>(list, '充值链列表');
 }
 
 export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal } = {}) {
@@ -322,7 +323,7 @@ export async function fetchRechargePage(
     current: page.current || page.pageNo || params.pageNo || 1,
     size: page.size || page.pageSize || params.pageSize || 10,
     total: toPageTotal(page.total),
-    records: page.records || []
+    records: requireArray<Api.RealWallet.RechargeVO>(page.records, '充值记录分页记录')
   };
 }
 
@@ -354,6 +355,6 @@ export async function fetchWithdrawPage(
     current: page.current || page.pageNo || params.pageNo || 1,
     size: page.size || page.pageSize || params.pageSize || 10,
     total: toPageTotal(page.total),
-    records: page.records || []
+    records: requireArray<Api.RealWallet.WithdrawVO>(page.records, '提现记录分页记录')
   };
 }

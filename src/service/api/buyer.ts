@@ -1,5 +1,5 @@
 import { realUserRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 
 export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
@@ -43,7 +43,7 @@ export async function fetchBuyerDepositLedger(
     current: page.current || page.pageNo || params.pageNo || 1,
     size: page.size || page.pageSize || params.pageSize || 20,
     total: toPageTotal(page.total),
-    records: (page.records || []).map(toDepositTxn)
+    records: requireArray<Api.RealBuyer.DepositLedgerDTO>(page.records, '押金流水分页记录').map(toDepositTxn)
   };
 }
 

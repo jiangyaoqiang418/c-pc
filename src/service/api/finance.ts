@@ -1,8 +1,9 @@
 import { realUserRequest } from '@/service/request';
-import { toPageTotal } from './page';
+import { requireArray, toPageTotal } from './page';
 
-export function fetchFinanceProducts(options: { signal?: AbortSignal } = {}) {
-  return realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list', options);
+export async function fetchFinanceProducts(options: { signal?: AbortSignal } = {}) {
+  const list = await realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list', options);
+  return requireArray<Api.RealFinance.FinanceProductVO>(list, '理财产品');
 }
 
 export function fetchFinanceProductDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
@@ -27,5 +28,5 @@ export function fetchFinanceOrderDetail(id: string | number, options: { signal?:
 
 export async function fetchFinanceOrders(params: Api.RealFinance.FinanceOrderPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realUserRequest.post<Api.RealFinance.PageResult<Api.RealFinance.FinanceOrderVO>, Api.RealFinance.FinanceOrderPageQuery>('/finance/orders/page', params, options);
-  return { records: page.records || [], total: toPageTotal(page.total), current: page.current || page.pageNo || params.pageNo || 1, size: page.size || page.pageSize || params.pageSize || 20 };
+  return { records: requireArray<Api.RealFinance.FinanceOrderVO>(page.records, '理财订单分页记录'), total: toPageTotal(page.total), current: page.current || page.pageNo || params.pageNo || 1, size: page.size || page.pageSize || params.pageSize || 20 };
 }

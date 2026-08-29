@@ -123,6 +123,6 @@ export async function fetchMyPointAppeals(q: Api.RealPoint.PointAppealPageQuery,
     current: result.current || page.pageNo || q.pageNo || 1,
     size: result.size || page.pageSize || q.pageSize || 20,
     total: toPageTotal(result.total),
-    records: result.records
+    records: requireArray<Api.RealPoint.PointAppealDTO>(result.records, '积分申诉分页记录')
   };
 }
