@@ -12,6 +12,7 @@ export const useUserStore = defineStore('bw-user', () => {
   const initialized = ref(false);
   let initPromise: Promise<void> | undefined;
   let identityVersion = 0;
+  let refreshVersion = 0;
 
   function loadAudienceFromStorage(): Audience {
     const raw = localStorage.getItem(STORAGE_KEY.currentAudience);
@@ -95,12 +96,14 @@ export const useUserStore = defineStore('bw-user', () => {
   async function refreshCurrentUser(options: { signal?: AbortSignal } = {}) {
     if (!getAccessToken()) return;
     const version = identityVersion;
+    const requestVersion = ++refreshVersion;
     const user = await realAuthApi.fetchCurrentUser(undefined, options);
-    if (version === identityVersion) currentUser.value = user;
+    if (version === identityVersion && requestVersion === refreshVersion) currentUser.value = user;
   }
 
   function logout() {
     identityVersion += 1;
+    refreshVersion += 1;
     initialized.value = true;
     useWalletStore().clear();
     currentUser.value = undefined;
