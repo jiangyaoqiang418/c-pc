@@ -24,8 +24,8 @@ export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuer
   return normalizePage(page);
 }
 
-export function fetchReviewDetail(id: string | number) {
-  return realOrderRequest.get<Api.RealReview.ReviewDTO>('/reviews/detail', { params: { id } });
+export function fetchReviewDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealReview.ReviewDTO>('/reviews/detail', { params: { id }, signal: options.signal });
 }
 
 export function deleteReview(id: string | number) {
@@ -54,10 +54,10 @@ export async function fetchStorefrontReviews(params: Api.RealReview.ProductRevie
   return normalizePage(page);
 }
 
-export function fetchReviewSummary(productId: string | number) {
-  return realOrderRequest.get<Api.RealReview.ReviewSummaryDTO>('/storefront/reviews/summary', { params: { productId } });
+export function fetchReviewSummary(productId: string | number, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealReview.ReviewSummaryDTO>('/storefront/reviews/summary', { params: { productId }, signal: options.signal });
 }
 
-export function fetchSellerRating(sellerId: string | number) {
-  return realOrderRequest.get<Api.RealReview.SellerRatingDTO>('/storefront/reviews/seller-rating', { params: { sellerId } });
+export function fetchSellerRating(sellerId: string | number, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealReview.SellerRatingDTO>('/storefront/reviews/seller-rating', { params: { sellerId }, signal: options.signal });
 }

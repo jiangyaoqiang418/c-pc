@@ -50,9 +50,9 @@ async function load() {
       productApi.trackProductBrowse(id.value).catch(() => undefined);
       productApi.trackProductView(id.value).catch(() => undefined);
       const [reviewPage, summary, sellerRating] = await Promise.allSettled([
-        reviewApi.fetchStorefrontReviews({ productId: product.value.id, pageNo: 1, pageSize: 20 }),
-        reviewApi.fetchReviewSummary(product.value.id),
-        reviewApi.fetchSellerRating(product.value.sellerId)
+        reviewApi.fetchStorefrontReviews({ productId: product.value.id, pageNo: 1, pageSize: 20 }, { signal: isCurrent.signal }),
+        reviewApi.fetchReviewSummary(product.value.id, { signal: isCurrent.signal }),
+        reviewApi.fetchSellerRating(product.value.sellerId, { signal: isCurrent.signal })
       ]);
       if (!isCurrent()) return;
       reviews.value = reviewPage.status === 'fulfilled' ? reviewPage.value.records || [] : [];

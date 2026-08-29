@@ -33,6 +33,7 @@ const notificationReviewError = ref('');
 const replyContent = ref('');
 const appealForm = reactive({ reason: '', evidenceImages: [] as string[] });
 const requestGuard = createLatestRequestGuard();
+const notificationRequestGuard = createLatestRequestGuard();
 
 const isBuyer = computed(() => !!userStore.currentUser?.isBuyer);
 const isAppealTab = computed(() => activeKey.value === 'appeals');
@@ -83,11 +84,16 @@ async function load() {
 }
 
 async function loadNotificationReview(id: string | number) {
+  const isCurrent = notificationRequestGuard.begin();
+  const requestedId = String(id);
   notificationReview.value = undefined;
   notificationReviewError.value = '';
   try {
-    notificationReview.value = await reviewApi.fetchReviewDetail(id);
+    const next = await reviewApi.fetchReviewDetail(requestedId, { signal: isCurrent.signal });
+    if (!isCurrent() || String(route.query.id || '') !== requestedId) return;
+    notificationReview.value = next;
   } catch {
+    if (!isCurrent() || String(route.query.id || '') !== requestedId) return;
     notificationReviewError.value = '通知关联的评价详情加载失败，请稍后重试';
   }
 }
@@ -188,10 +194,16 @@ watch(isBuyer, value => {
   if (!value && activeKey.value !== 'sent') activeKey.value = 'sent';
 });
 watch(() => route.query.id, id => {
+  notificationRequestGuard.invalidate();
+  notificationReview.value = undefined;
+  notificationReviewError.value = '';
   if (id) void loadNotificationReview(String(id));
 }, { immediate: true });
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  requestGuard.invalidate();
+  notificationRequestGuard.invalidate();
+});
 </script>
 
 <template>
