@@ -23,17 +23,18 @@ const user = computed(() => userStore.currentUser);
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  const userId = userStore.currentUser?.id;
   loading.value = true;
   try {
     const [cfgs, rules] = await Promise.all([
-      vipApi.fetchVipConfigs().catch(() => []),
-      pointApi.fetchPointRules().catch(() => [])
+      vipApi.fetchVipConfigs({ signal: isCurrent.signal }).catch(() => []),
+      pointApi.fetchPointRules({ signal: isCurrent.signal }).catch(() => [])
     ]);
     if (!isCurrent()) return;
     configs.value = cfgs;
     pointRules.value = rules;
-    if (user.value) {
-      const vip = await vipApi.fetchMyVipStatus(user.value.id);
+    if (userId !== undefined && String(userStore.currentUser?.id) === String(userId)) {
+      const vip = await vipApi.fetchMyVipStatus(userId, { signal: isCurrent.signal });
       if (!isCurrent()) return;
       vipStatus.value = vip;
       audience.value = vip.audience;

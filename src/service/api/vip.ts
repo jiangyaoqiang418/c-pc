@@ -79,8 +79,12 @@ function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vi
   return target;
 }
 
-export async function fetchVipConfigs() {
-  const config = await realUserRequest.get<Api.RealVip.VipLevelCatalogVO>('/points/vip-configs', { showError: false, skipAuthRedirect: true });
+export async function fetchVipConfigs(options: { signal?: AbortSignal } = {}) {
+  const config = await realUserRequest.get<Api.RealVip.VipLevelCatalogVO>('/points/vip-configs', {
+    ...options,
+    showError: false,
+    skipAuthRedirect: true
+  });
   return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig({ role: role.role, roleText: role.roleText }, {
     level: row.level,
     threshold: row.threshold,
