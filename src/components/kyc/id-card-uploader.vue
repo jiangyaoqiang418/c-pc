@@ -81,7 +81,16 @@ onBeforeUnmount(() => {
 <template>
   <div class="id-uploader" :class="{ uploaded: !!modelValue, face: side === 'face' }">
     <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" @change="onFileChange" />
-    <div class="preview" @click="pickFile">
+    <div
+      class="preview"
+      role="button"
+      tabindex="0"
+      :aria-label="`上传${sideLabel[side]}`"
+      :aria-disabled="uploading ? 'true' : undefined"
+      @click="pickFile"
+      @keydown.enter="pickFile"
+      @keydown.space.prevent="pickFile"
+    >
       <img v-if="previewUrl" :src="previewUrl" :alt="sideLabel[side]" class="img" />
       <div v-else class="placeholder">
         <span>{{ uploading ? '上传中…' : `点击上传${sideLabel[side]}` }}</span>
@@ -110,6 +119,7 @@ onBeforeUnmount(() => {
 .id-uploader.face .preview { aspect-ratio: 1; border-radius: 50%; }
 .id-uploader.uploaded .preview { border-color: var(--bw-brand-primary); border-style: solid; }
 .preview:hover { border-color: var(--bw-brand-primary); }
+.preview:focus-visible { outline: 2px solid var(--bw-brand-primary); outline-offset: 3px; }
 .img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .placeholder { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #4e5969; font-size: 13px; }
 .placeholder small { color: #86909c; font-size: 11px; }
