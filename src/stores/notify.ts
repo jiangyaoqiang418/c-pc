@@ -44,6 +44,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   let manuallyClosed = true;
   let lifecycleBound = false;
   let heartbeatIntervalMs = HEARTBEAT_MS;
+  let unreadRefreshVersion = 0;
 
   const totalUnreadCount = computed(() => notificationUnreadCount.value + imUnreadCount.value);
 
@@ -59,7 +60,9 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   }
 
   async function refreshUnreadCounts() {
-    if (!getAccessToken()) {
+    const version = ++unreadRefreshVersion;
+    const token = getAccessToken();
+    if (!token) {
       notificationUnreadCount.value = 0;
       imUnreadCount.value = 0;
       return;
@@ -68,6 +71,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       notifyApi.fetchUnreadNotificationCount(),
       notifyApi.fetchUnreadMessageCount()
     ]);
+    if (version !== unreadRefreshVersion || token !== getAccessToken()) return;
     if (notificationResult.status === 'fulfilled') notificationUnreadCount.value = notificationResult.value || 0;
     if (imResult.status === 'fulfilled') imUnreadCount.value = imResult.value || 0;
   }
@@ -184,6 +188,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
 
   function disconnect() {
     manuallyClosed = true;
+    unreadRefreshVersion += 1;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
     clearReadyTimeout();
