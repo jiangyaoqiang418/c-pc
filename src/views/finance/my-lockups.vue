@@ -30,6 +30,7 @@ const redeemedOrderIds = new Set<string>();
 const requestGuard = createLatestRequestGuard();
 const countsGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let disposed = false;
 
 const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
   { key: 'HOLDING', label: '持仓中' },
@@ -39,8 +40,9 @@ const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
 ];
 
 async function load() {
+  if (disposed) return;
   const isCurrent = requestGuard.begin();
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser || disposed) return;
   loading.value = true;
   loadError.value = '';
   try {
@@ -59,8 +61,9 @@ async function load() {
 }
 
 async function loadCounts() {
+  if (disposed) return;
   const isCurrent = countsGuard.begin();
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser || disposed) return;
   try {
     const all = await Promise.all(
       TABS.map(t => financeApi.fetchFinanceOrders(
@@ -79,14 +82,17 @@ async function loadCounts() {
 
 onMounted(async () => {
   await load();
+  if (disposed) return;
   await loadCounts();
 });
 onBeforeUnmount(() => {
+  disposed = true;
   writeVersion += 1;
   requestGuard.invalidate();
   countsGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (disposed) return;
   if (String(next) === String(previous)) return;
   writeVersion += 1;
   requestGuard.invalidate();
@@ -100,7 +106,9 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   void load();
   void loadCounts();
 });
-watch(activeKey, load);
+watch(activeKey, () => {
+  if (!disposed) void load();
+});
 
 function onUnlock(order: Api.RealFinance.FinanceOrderVO) {
   if (redeemedOrderIds.has(String(order.id))) return;
