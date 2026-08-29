@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { STORAGE_KEY } from '@shared';
 import * as productApi from '@/service/api/product';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 export interface CartItem {
   productId: string | number;
@@ -35,12 +36,14 @@ export const useCartStore = defineStore('bw-cart', () => {
   const products = ref<Record<string, Api.RealProduct.DisplayRecord>>({});
   const initialized = ref(false);
   const ownerId = ref<CartOwnerId>();
+  const refreshGuard = createLatestRequestGuard();
 
   function persist() {
     localStorage.setItem(cartStorageKey(ownerId.value), JSON.stringify(items.value));
   }
 
   function load(owner?: CartOwnerId) {
+    refreshGuard.invalidate();
     ownerId.value = owner;
     items.value = [];
     products.value = {};
@@ -90,12 +93,14 @@ export const useCartStore = defineStore('bw-cart', () => {
   }
 
   async function refresh(options: { signal?: AbortSignal } = {}) {
+    const isCurrent = refreshGuard.begin();
+    const signal = options.signal ? AbortSignal.any([isCurrent.signal, options.signal]) : isCurrent.signal;
     await Promise.all(items.value.map(async item => {
       try {
-        const product = await productApi.fetchProductDetail(item.productId, { showError: false, signal: options.signal });
-        if (!options.signal?.aborted) upsertProduct(product);
+        const product = await productApi.fetchProductDetail(item.productId, { showError: false, signal });
+        if (isCurrent() && !options.signal?.aborted) upsertProduct(product);
       } catch {
-        if (!options.signal?.aborted) delete products.value[String(item.productId)];
+        if (isCurrent() && !options.signal?.aborted) delete products.value[String(item.productId)];
       }
     }));
   }
@@ -141,6 +146,7 @@ export const useCartStore = defineStore('bw-cart', () => {
   }
 
   function clear() {
+    refreshGuard.invalidate();
     items.value = [];
     persist();
   }
