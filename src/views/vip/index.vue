@@ -17,6 +17,7 @@ const configs = ref<Api.Vip.LevelConfig[]>([]);
 const pointRules = ref<Api.Point.Rule[]>([]);
 const audience = ref<Api.Vip.Audience>('customer');
 const loading = ref(false);
+const vipLoadError = ref('');
 const requestGuard = createLatestRequestGuard();
 
 const user = computed(() => userStore.currentUser);
@@ -25,6 +26,7 @@ async function load() {
   const isCurrent = requestGuard.begin();
   const userId = userStore.currentUser?.id;
   loading.value = true;
+  vipLoadError.value = '';
   try {
     const [cfgs, rules] = await Promise.all([
       vipApi.fetchVipConfigs({ signal: isCurrent.signal }).catch(() => []),
@@ -34,10 +36,17 @@ async function load() {
     configs.value = cfgs;
     pointRules.value = rules;
     if (userId !== undefined && String(userStore.currentUser?.id) === String(userId)) {
-      const vip = await vipApi.fetchMyVipStatus(userId, { signal: isCurrent.signal });
-      if (!isCurrent()) return;
-      vipStatus.value = vip;
-      audience.value = vip.audience;
+      try {
+        const vip = await vipApi.fetchMyVipStatus(userId, { signal: isCurrent.signal });
+        if (!isCurrent()) return;
+        vipStatus.value = vip;
+        audience.value = vip.audience;
+      } catch {
+        if (!isCurrent()) return;
+        vipStatus.value = undefined;
+        audience.value = 'customer';
+        vipLoadError.value = '当前等级读取失败，请稍后重试。';
+      }
     } else {
       vipStatus.value = undefined;
       audience.value = 'customer';
@@ -70,6 +79,10 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
 
 <template>
   <div class="vip-page shop-container">
+    <a-alert v-if="vipLoadError" type="error" :closable="false" class="load-alert">
+      {{ vipLoadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="load">重新加载</a-button></template>
+    </a-alert>
     <a-spin :loading="loading" style="width: 100%">
       <template v-if="configs.length || pointRules.length">
         <!-- Hero -->
