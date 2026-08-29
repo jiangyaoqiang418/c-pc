@@ -126,14 +126,15 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
 
         <div class="side-section">
           <div class="side-title">用户协议</div>
-          <a
+          <button
             v-for="a in AGREEMENTS"
             :key="a.kind"
+            type="button"
             class="agreement-link"
             @click="openAgreement(a.kind)"
           >
             📄 {{ a.label }}
-          </a>
+          </button>
         </div>
       </aside>
 
@@ -251,6 +252,10 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
 }
 .agreement-link {
   display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
   padding: 8px 16px;
   font-size: 12px;
   color: #4e5969;

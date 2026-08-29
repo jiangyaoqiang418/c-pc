@@ -21,16 +21,16 @@ function go(name: string) {
       </div>
       <div class="ub-right">
         <template v-if="userStore.isLoggedIn">
-          <a class="ub-link badge-link" @click="go('im')">消息<span v-if="notifyStore.imUnreadCount" class="badge">{{ notifyStore.imUnreadCount > 99 ? '99+' : notifyStore.imUnreadCount }}</span></a>
+          <button type="button" class="ub-link badge-link" @click="go('im')">消息<span v-if="notifyStore.imUnreadCount" class="badge">{{ notifyStore.imUnreadCount > 99 ? '99+' : notifyStore.imUnreadCount }}</span></button>
           <span class="ub-sep">·</span>
-          <a class="ub-link badge-link" @click="go('notification-list')">通知<span v-if="notifyStore.notificationUnreadCount" class="badge">{{ notifyStore.notificationUnreadCount > 99 ? '99+' : notifyStore.notificationUnreadCount }}</span></a>
+          <button type="button" class="ub-link badge-link" @click="go('notification-list')">通知<span v-if="notifyStore.notificationUnreadCount" class="badge">{{ notifyStore.notificationUnreadCount > 99 ? '99+' : notifyStore.notificationUnreadCount }}</span></button>
           <span class="ub-sep">·</span>
         </template>
-        <a class="ub-link" @click="go('order-list')">我的订单</a>
+        <button type="button" class="ub-link" @click="go('order-list')">我的订单</button>
         <span class="ub-sep">·</span>
-        <a class="ub-link" @click="go('favorites')">收藏夹</a>
+        <button type="button" class="ub-link" @click="go('favorites')">收藏夹</button>
         <span class="ub-sep">·</span>
-        <a class="ub-link" @click="go('help')">帮助中心</a>
+        <button type="button" class="ub-link" @click="go('help')">帮助中心</button>
       </div>
     </div>
   </div>
@@ -71,6 +71,10 @@ function go(name: string) {
   color: var(--yb-hairline-2);
 }
 .ub-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
   cursor: pointer;
   color: var(--yb-muted);
   transition: color 0.15s;
