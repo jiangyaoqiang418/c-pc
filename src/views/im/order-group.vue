@@ -31,16 +31,46 @@ const orderCode = computed(() => String(route.params.orderCode));
 const conversation = ref<Api.RealNotify.ImConversationVO>();
 const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const pageNo = ref(1);
 const hasOlder = ref(false);
 const loadingOlder = ref(false);
 const messageSending = ref(false);
+const recallingMessageIds = ref(new Set<string>());
 const scrollRef = ref<HTMLDivElement>();
 const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
 const imageUrls = computed(() => conversationImageUrls(messages.value));
 const requestGuard = createLatestRequestGuard();
+let messageWriteVersion = 0;
+let recallWriteVersion = 0;
+
+function isCurrentMessageContext(
+  operation: number,
+  requestedUserId: string | number,
+  requestedOrderCode: string,
+  requestedConversationId: string | number
+) {
+  return operation === messageWriteVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && orderCode.value === requestedOrderCode
+    && !!conversation.value
+    && sameBusinessId(conversation.value.id, requestedConversationId);
+}
+
+function isCurrentRecallContext(
+  operation: number,
+  requestedUserId: string | number,
+  requestedOrderCode: string,
+  requestedConversationId: string | number
+) {
+  return operation === recallWriteVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && orderCode.value === requestedOrderCode
+    && !!conversation.value
+    && sameBusinessId(conversation.value.id, requestedConversationId);
+}
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -48,10 +78,12 @@ async function load() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   loading.value = true;
+  loadError.value = '';
   pageNo.value = 1;
   try {
-    conversation.value = await notifyApi.fetchOrderConversation(requestedOrderCode, { signal: isCurrent.signal });
+    const nextConversation = await notifyApi.fetchOrderConversation(requestedOrderCode, { signal: isCurrent.signal });
     if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    conversation.value = nextConversation;
     if (conversation.value) {
       const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 50 }, { signal: isCurrent.signal });
       if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
@@ -64,9 +96,14 @@ async function load() {
     if (!isCurrent()) return;
     conversation.value = undefined;
     messages.value = [];
+    loadError.value = '订单会话加载失败，请检查网络后重试';
   } finally {
     if (isCurrent()) loading.value = false;
   }
+}
+
+function retryLoad() {
+  void load();
 }
 
 async function loadOlderMessages() {
@@ -161,10 +198,11 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const requestedConversationId = conversation.value.id;
+  const operation = ++messageWriteVersion;
   messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
-    conversationId: conversation.value.id,
+    conversationId: requestedConversationId,
     msgType: payload.type === 'image' ? 'IMAGE' : payload.type === 'audio' ? 'VOICE' : 'TEXT',
     content: payload.content,
     mediaFileId: payload.mediaFileId,
@@ -177,32 +215,32 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
     role: conversation.value.myRole
   }));
   await scrollToBottom();
+  if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
   try {
     const sent = await notifyApi.sendConversationMessage(params);
-    if (orderCode.value === requestedOrderCode && String(userStore.currentUser?.id) === String(requestedUserId)
-      && conversation.value && sameBusinessId(conversation.value.id, requestedConversationId)) {
-      messages.value = mergeMessages(messages.value, sent);
-      await scrollToBottom();
-    }
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    messages.value = mergeMessages(messages.value, sent);
+    await scrollToBottom();
   } catch {
-    if (orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
-      || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
     const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
     if (optimistic) optimistic.failed = true;
   } finally {
-    messageSending.value = false;
+    if (operation === messageWriteVersion) messageSending.value = false;
   }
 }
 
 async function retryMessage(message: Api.RealNotify.ImMessageVO) {
-  if (!conversation.value || !message.failed) return;
+  if (!conversation.value || !message.failed || messageSending.value) return;
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const requestedConversationId = conversation.value.id;
+  const operation = ++messageWriteVersion;
+  messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
-    conversationId: conversation.value.id,
+    conversationId: requestedConversationId,
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
     content: message.content,
     mediaFileId: message.mediaFileId,
@@ -213,28 +251,41 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     : item);
   try {
     const sent = await notifyApi.sendConversationMessage(params);
-    if (orderCode.value === requestedOrderCode && String(userStore.currentUser?.id) === String(requestedUserId)
-      && conversation.value && sameBusinessId(conversation.value.id, requestedConversationId)) {
-      messages.value = mergeMessages(messages.value, sent);
-      await scrollToBottom();
-    }
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    messages.value = mergeMessages(messages.value, sent);
+    await scrollToBottom();
   } catch {
-    if (orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
-      || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
     const optimistic = messages.value.find(item => item.clientMsgId === clientMsgId);
     if (optimistic) {
       optimistic.pending = false;
       optimistic.failed = true;
     }
+  } finally {
+    if (operation === messageWriteVersion) messageSending.value = false;
   }
 }
 
 async function recallMessage(message: Api.RealNotify.ImMessageVO) {
+  const requestedOrderCode = orderCode.value;
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedConversationId = conversation.value?.id;
+  if (requestedUserId === undefined || requestedConversationId === undefined) return;
+  const messageId = String(message.id);
+  if (recallingMessageIds.value.has(messageId)) return;
+  const operation = recallWriteVersion;
+  recallingMessageIds.value = new Set(recallingMessageIds.value).add(messageId);
   try {
     await notifyApi.recallConversationMessage({ id: message.id });
+    if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
     messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? { ...item, recalled: true, content: undefined, mediaUrl: undefined } : item);
   } catch {
     // 请求层展示错误。
+  } finally {
+    if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    const next = new Set(recallingMessageIds.value);
+    next.delete(messageId);
+    recallingMessageIds.value = next;
   }
 }
 
@@ -268,16 +319,25 @@ notifyStore.subscribe(async event => {
 });
 
 onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  messageWriteVersion += 1;
+  recallWriteVersion += 1;
+  requestGuard.invalidate();
+});
 watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCode, nextUserId], [prevCode, prevUserId]) => {
   if (String(nextCode) === String(prevCode) && String(nextUserId) === String(prevUserId)) return;
+  messageWriteVersion += 1;
+  recallWriteVersion += 1;
   requestGuard.invalidate();
   conversation.value = undefined;
   messages.value = [];
+  loadError.value = '';
   readerWatermarks.value = {};
   pageNo.value = 1;
   hasOlder.value = false;
   loadingOlder.value = false;
+  messageSending.value = false;
+  recallingMessageIds.value = new Set();
   imagePreviewVisible.value = false;
   void load();
 });
@@ -305,7 +365,13 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
         <MessageInput :submitting="messageSending" @send="onSend" />
         <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
       </a-card>
-      <EmptyState v-else-if="!loading" title="订单会话不存在" action-text="返回订单列表" @action="router.push('/order')" />
+      <EmptyState
+        v-else-if="!loading"
+        :title="loadError || '订单会话不存在'"
+        :description="loadError ? '请检查网络后重试，或返回订单列表。' : undefined"
+        :action-text="loadError ? '重新加载' : '返回订单列表'"
+        @action="loadError ? retryLoad() : router.push('/order')"
+      />
     </a-spin>
   </div>
 </template>

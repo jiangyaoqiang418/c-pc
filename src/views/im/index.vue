@@ -51,6 +51,20 @@ const conversationListGuard = createLatestRequestGuard();
 const messageListGuard = createLatestRequestGuard();
 const olderMessagesGuard = createLatestRequestGuard();
 const incrementalMessagesGuard = createLatestRequestGuard();
+let messageWriteVersion = 0;
+let readWriteVersion = 0;
+let recallWriteVersion = 0;
+let conversationDeleteVersion = 0;
+
+function isCurrentUser(userId: string | number | undefined) {
+  return userId !== undefined && String(userStore.currentUser?.id) === String(userId);
+}
+
+function isCurrentMessageWrite(operation: number, userId: string | number, conversationId: string | number) {
+  return operation === messageWriteVersion
+    && isCurrentUser(userId)
+    && sameBusinessId(selectedConversationId.value, conversationId);
+}
 
 function hasBizType(conversation: Api.RealNotify.ImConversationVO, type: string) {
   return String(conversation.bizType || '').toUpperCase() === type;
@@ -118,6 +132,10 @@ async function selectFirstConversation() {
 
 async function selectConversation(conversation: Api.RealNotify.ImConversationVO) {
   const conversationId = conversation.id;
+  messageWriteVersion += 1;
+  recallWriteVersion += 1;
+  recallingMessageIds.value = new Set();
+  messageSending.value = false;
   const isCurrent = messageListGuard.begin();
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
@@ -188,8 +206,16 @@ async function reportRead(expectedConversationId?: string | number) {
   const lastReadMessageId = latestServerMessageId(messages.value);
   if (!conversation || !lastReadMessageId || document.visibilityState !== 'visible') return;
   if (expectedConversationId !== undefined && !sameBusinessId(conversation.id, expectedConversationId)) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++readWriteVersion;
   try {
     await notifyApi.markConversationRead({ conversationId: conversation.id, lastReadMessageId });
+    if (
+      operation !== readWriteVersion
+      || !isCurrentUser(requestedUserId)
+      || !sameBusinessId(selectedConversationId.value, conversation.id)
+    ) return;
     conversation.lastReadMessageId = lastReadMessageId;
   } catch {
     // 历史页首次拉取本身也会推进已读；显式上报失败时保留当前页面，不影响消息阅读。
@@ -259,7 +285,10 @@ function readText(message: Api.RealNotify.ImMessageVO) {
 async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaFileId?: string | number }) {
   const conversation = selectedConversation.value;
   if (!conversation || messageSending.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   const conversationId = conversation.id;
+  const operation = ++messageWriteVersion;
   messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
@@ -276,30 +305,33 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
     role: conversation.myRole
   }));
   await scrollToBottom();
+  if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
   try {
     const sent = await notifyApi.sendConversationMessage(params);
-    if (sameBusinessId(selectedConversationId.value, conversationId)) {
-      messages.value = mergeMessages(messages.value, sent);
-    }
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+    messages.value = mergeMessages(messages.value, sent);
     try {
       await loadConversations(false);
     } catch {
       // 会话列表刷新失败不应把已发送成功的消息标记为失败。
     }
-    if (sameBusinessId(selectedConversationId.value, conversationId)) await scrollToBottom();
+    if (isCurrentMessageWrite(operation, requestedUserId, conversationId)) await scrollToBottom();
   } catch {
-    if (!sameBusinessId(selectedConversationId.value, conversationId)) return;
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
     const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
     if (optimistic) optimistic.failed = true;
   } finally {
-    messageSending.value = false;
+    if (operation === messageWriteVersion) messageSending.value = false;
   }
 }
 
 async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   const conversation = selectedConversation.value;
   if (!conversation || !message.failed || messageSending.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   const conversationId = conversation.id;
+  const operation = ++messageWriteVersion;
   messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
@@ -314,38 +346,51 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     : item);
   try {
     const sent = await notifyApi.sendConversationMessage(params);
-    if (sameBusinessId(selectedConversationId.value, conversationId)) {
-      messages.value = mergeMessages(messages.value, sent);
-    }
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+    messages.value = mergeMessages(messages.value, sent);
     try {
       await loadConversations(false);
     } catch {
       // 会话列表刷新失败不应把重试发送成功的消息标记为失败。
     }
-    if (sameBusinessId(selectedConversationId.value, conversationId)) await scrollToBottom();
+    if (isCurrentMessageWrite(operation, requestedUserId, conversationId)) await scrollToBottom();
   } catch {
-    if (!sameBusinessId(selectedConversationId.value, conversationId)) return;
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
     const optimistic = messages.value.find(item => item.clientMsgId === clientMsgId);
     if (optimistic) {
       optimistic.pending = false;
       optimistic.failed = true;
     }
   } finally {
-    messageSending.value = false;
+    if (operation === messageWriteVersion) messageSending.value = false;
   }
 }
 
 async function recallMessage(message: Api.RealNotify.ImMessageVO) {
+  const requestedUserId = userStore.currentUser?.id;
+  const conversationId = selectedConversationId.value;
+  if (requestedUserId === undefined || conversationId === undefined) return;
   const messageId = String(message.id);
   if (recallingMessageIds.value.has(messageId)) return;
+  const operation = recallWriteVersion;
   recallingMessageIds.value = new Set(recallingMessageIds.value).add(messageId);
   try {
     await notifyApi.recallConversationMessage({ id: message.id });
+    if (
+      operation !== recallWriteVersion
+      || !isCurrentUser(requestedUserId)
+      || !sameBusinessId(selectedConversationId.value, conversationId)
+    ) return;
     messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? { ...item, recalled: true, content: undefined, mediaUrl: undefined } : item);
     await loadConversations(false);
   } catch {
     // 请求层展示后端的撤回窗口或权限错误。
   } finally {
+    if (
+      operation !== recallWriteVersion
+      || !isCurrentUser(requestedUserId)
+      || !sameBusinessId(selectedConversationId.value, conversationId)
+    ) return;
     const next = new Set(recallingMessageIds.value);
     next.delete(messageId);
     recallingMessageIds.value = next;
@@ -355,17 +400,37 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
 function deleteSelectedConversation() {
   const conversation = selectedConversation.value;
   if (!conversation || deletingConversationId.value !== undefined) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const conversationId = conversation.id;
+  const operation = ++conversationDeleteVersion;
   deletingConversationId.value = conversation.id;
   Modal.warning({
     title: '删除会话',
     content: '会话仅从你的列表移除；对方再次发消息后会自动恢复，历史消息不会删除。',
     hideCancel: false,
     onCancel() {
+      conversationDeleteVersion += 1;
       deletingConversationId.value = undefined;
     },
     onOk: async () => {
+      if (
+        operation !== conversationDeleteVersion
+        || !isCurrentUser(requestedUserId)
+        || !sameBusinessId(selectedConversationId.value, conversationId)
+      ) {
+        if (operation === conversationDeleteVersion && isCurrentUser(requestedUserId)) {
+          deletingConversationId.value = undefined;
+        }
+        return;
+      }
       try {
-        await notifyApi.deleteConversation(conversation.id);
+        await notifyApi.deleteConversation(conversationId);
+        if (
+          operation !== conversationDeleteVersion
+          || !isCurrentUser(requestedUserId)
+          || !sameBusinessId(selectedConversationId.value, conversationId)
+        ) return;
         conversationListGuard.invalidate();
         messageListGuard.invalidate();
         olderMessagesGuard.invalidate();
@@ -383,7 +448,9 @@ function deleteSelectedConversation() {
       } catch {
         // 请求层已展示错误，保留当前会话，避免把删除失败误显示为已移除。
       } finally {
-        deletingConversationId.value = undefined;
+        if (operation === conversationDeleteVersion && isCurrentUser(requestedUserId)) {
+          deletingConversationId.value = undefined;
+        }
       }
     }
   });
@@ -482,17 +549,28 @@ notifyStore.subscribe(async event => {
 
 onMounted(init);
 onBeforeUnmount(() => {
+  messageWriteVersion += 1;
+  readWriteVersion += 1;
+  recallWriteVersion += 1;
+  conversationDeleteVersion += 1;
   conversationListGuard.invalidate();
   messageListGuard.invalidate();
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
 });
 watch(activeTab, async () => {
+  messageWriteVersion += 1;
+  readWriteVersion += 1;
+  recallWriteVersion += 1;
+  conversationDeleteVersion += 1;
   messageListGuard.invalidate();
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
   loading.value = false;
   loadingOlder.value = false;
+  messageSending.value = false;
+  recallingMessageIds.value = new Set();
+  deletingConversationId.value = undefined;
   messages.value = [];
   hasOlder.value = false;
   selectedConversationId.value = undefined;
@@ -500,6 +578,10 @@ watch(activeTab, async () => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  messageWriteVersion += 1;
+  readWriteVersion += 1;
+  recallWriteVersion += 1;
+  conversationDeleteVersion += 1;
   conversationListGuard.invalidate();
   messageListGuard.invalidate();
   olderMessagesGuard.invalidate();
@@ -512,6 +594,9 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   hasOlder.value = false;
   loading.value = false;
   loadingOlder.value = false;
+  messageSending.value = false;
+  recallingMessageIds.value = new Set();
+  deletingConversationId.value = undefined;
   conversationLoading.value = false;
   conversationLoadError.value = '';
   messageLoadError.value = '';
