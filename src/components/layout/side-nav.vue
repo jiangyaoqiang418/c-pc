@@ -15,10 +15,24 @@ interface CategoryNode {
 
 const categories = ref<CategoryNode[]>([]);
 const hoveredCatId = ref<string | number | null>(null);
+const loading = ref(false);
+const loadError = ref('');
 
-onMounted(async () => {
-  categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
-});
+async function loadCategories() {
+  if (loading.value) return;
+  loading.value = true;
+  loadError.value = '';
+  try {
+    categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
+  } catch {
+    categories.value = [];
+    loadError.value = '分类加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(loadCategories);
 
 function goCategory(id: string | number) {
   router.push({ name: 'product-list', query: { categoryId: String(id) } });
@@ -29,6 +43,9 @@ function goCategory(id: string | number) {
 <template>
   <aside class="side-nav">
     <div class="cat-eyebrow">CATEGORIES · 全部分类</div>
+    <button v-if="loadError" class="cat-retry" :disabled="loading" @click="loadCategories">
+      {{ loading ? '正在加载…' : `${loadError}，重新加载` }}
+    </button>
     <div
       v-for="(cat, i) in categories"
       :key="cat.id"
@@ -83,6 +100,16 @@ function goCategory(id: string | number) {
   font-weight: 700;
   letter-spacing: 0.16em;
   color: var(--yb-muted);
+}
+.cat-retry {
+  margin: 8px 12px;
+  padding: 8px;
+  border: 1px solid var(--yb-hairline);
+  border-radius: 8px;
+  background: var(--yb-bg);
+  color: var(--yb-danger);
+  font-size: 12px;
+  cursor: pointer;
 }
 .cat-row {
   position: relative;

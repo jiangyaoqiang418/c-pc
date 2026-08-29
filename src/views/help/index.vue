@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { cmsApi } from '@shared';
 import AgreementViewer from '@/components/cms/agreement-viewer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -21,6 +22,9 @@ const CATEGORIES: CategoryDef[] = [
   { key: 'other', label: '其他', emoji: '❓' }
 ];
 
+const route = useRoute();
+const router = useRouter();
+
 const AGREEMENTS: { kind: Api.Cms.AgreementKind; label: string }[] = [
   { kind: 'user', label: '用户协议' },
   { kind: 'privacy', label: '隐私政策' },
@@ -32,6 +36,7 @@ const AGREEMENTS: { kind: Api.Cms.AgreementKind; label: string }[] = [
 const activeCat = ref<CategoryDef['key']>('all');
 const list = ref<Api.Cms.HelpArticle[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const keyword = ref('');
 const expandedId = ref<number>();
 
@@ -42,6 +47,7 @@ const requestGuard = createLatestRequestGuard();
 async function load() {
   const isCurrent = requestGuard.begin();
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await cmsApi.fetchHelpArticles({
       category: activeCat.value === 'all' ? undefined : activeCat.value,
@@ -50,18 +56,39 @@ async function load() {
     });
     if (!isCurrent()) return;
     list.value = r.records;
+  } catch {
+    if (!isCurrent()) return;
+    loadError.value = '帮助内容加载失败，请稍后重试。';
   } finally {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(requestGuard.invalidate);
+function openAgreementFromQuery() {
+  const raw = Array.isArray(route.query.agreement) ? route.query.agreement[0] : route.query.agreement;
+  if (!raw || !AGREEMENTS.some(item => item.kind === raw)) return;
+  openAgreement(raw as Api.Cms.AgreementKind);
+  const query = { ...route.query };
+  delete query.agreement;
+  void router.replace({ query });
+}
+
+onMounted(() => {
+  void load();
+  openAgreementFromQuery();
+});
+onBeforeUnmount(requestGuard.invalidate);
 watch(activeCat, load);
+watch(() => route.query.agreement, openAgreementFromQuery);
 
 async function expand(a: Api.Cms.HelpArticle) {
   expandedId.value = expandedId.value === a.id ? undefined : a.id;
   if (expandedId.value) {
     // 增加 viewsCount（mock）
-    await cmsApi.fetchHelpArticleDetail(a.id);
+    try {
+      await cmsApi.fetchHelpArticleDetail(a.id);
+    } catch {
+      loadError.value = '帮助详情加载失败，请稍后重试。';
+    }
   }
 }
 
@@ -105,6 +132,10 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
       </aside>
 
       <section class="content">
+        <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+          {{ loadError }}
+          <template #action><a-button size="mini" :loading="loading" @click="load">重新加载</a-button></template>
+        </a-alert>
         <a-input-search
           v-model="keyword"
           placeholder="搜索帮助文章..."
@@ -144,7 +175,12 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
               </div>
             </div>
           </template>
-          <EmptyState v-else title="暂无相关文章" />
+          <EmptyState
+            v-else
+            :title="loadError || '暂无相关文章'"
+            :action-text="loadError ? '重新加载' : undefined"
+            @action="loadError && load()"
+          />
         </a-spin>
       </section>
     </div>
@@ -161,6 +197,9 @@ function openAgreement(kind: Api.Cms.AgreementKind) {
   font-size: 20px;
   font-weight: 600;
   margin: 0;
+}
+.load-alert {
+  margin-bottom: 12px;
 }
 .layout {
   display: grid;

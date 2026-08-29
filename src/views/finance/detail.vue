@@ -17,6 +17,8 @@ const walletStore = useWalletStore();
 const product = ref<Api.RealFinance.FinanceProductVO>();
 const loading = ref(false);
 const loadError = ref('');
+const walletLoadError = ref('');
+const subscribing = ref(false);
 const requestGuard = createLatestRequestGuard();
 
 const id = computed(() => String(route.params.id));
@@ -25,21 +27,23 @@ async function loadAll() {
   const isCurrent = requestGuard.begin();
   const user = userStore.currentUser;
   if (!user) return;
+  const targetId = id.value;
+  if (product.value && String(product.value.id) !== targetId) product.value = undefined;
   loading.value = true;
   loadError.value = '';
-  try {
-    const p = await financeApi.fetchFinanceProductDetail(id.value, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
-    product.value = p;
-    await walletStore.fetchWallet(user.id);
-    if (!isCurrent()) return;
-  } catch {
-    if (!isCurrent()) return;
-    product.value = undefined;
+  walletLoadError.value = '';
+  const [productResult, walletResult] = await Promise.allSettled([
+    financeApi.fetchFinanceProductDetail(targetId, { signal: isCurrent.signal }),
+    walletStore.fetchWallet(user.id)
+  ]);
+  if (!isCurrent() || id.value !== targetId) return;
+  if (productResult.status === 'fulfilled') {
+    product.value = productResult.value;
+  } else {
     loadError.value = '产品信息加载失败，请检查网络后重试。';
-  } finally {
-    if (isCurrent()) loading.value = false;
   }
+  if (walletResult.status === 'rejected') walletLoadError.value = '钱包余额加载失败，已暂时禁用申购。';
+  loading.value = false;
 }
 
 onMounted(loadAll);
@@ -47,16 +51,31 @@ onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, loadAll);
 
 async function onSubscribe(amount: string) {
-  if (!product.value || !userStore.currentUser) return;
+  if (!product.value || !userStore.currentUser || subscribing.value) return;
+  subscribing.value = true;
   try {
-    const orderId = await financeApi.subscribeFinance({ productId: product.value.id, amount });
+    let orderId: string | number;
+    try {
+      orderId = await financeApi.subscribeFinance({ productId: product.value.id, amount });
+    } catch {
+      Message.error('订阅失败，请稍后重试');
+      return;
+    }
     if (orderId !== undefined && orderId !== null) {
       Message.success(`订阅成功 · 已锁定 U ${formatAmount(amount)}`);
-      await walletStore.refetch();
-      router.push({ name: 'finance-lockup-detail', params: { id: String(orderId) } });
+      try {
+        await walletStore.refetch();
+      } catch {
+        Message.warning('订阅已成功，钱包余额刷新失败，请稍后刷新查看');
+      }
+      try {
+        await router.push({ name: 'finance-lockup-detail', params: { id: String(orderId) } });
+      } catch {
+        Message.warning('订阅已成功，请前往我的锁仓查看');
+      }
     }
-  } catch {
-    Message.error('订阅失败，请稍后重试');
+  } finally {
+    subscribing.value = false;
   }
 }
 
@@ -71,6 +90,10 @@ function handleEmptyAction() {
 
 <template>
   <div class="detail-page shop-container">
+    <a-alert v-if="walletLoadError" type="warning" :closable="false" class="wallet-alert">
+      {{ walletLoadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
     <a-spin :loading="loading" style="width: 100%">
       <template v-if="product">
         <a-breadcrumb class="bread">
@@ -120,7 +143,8 @@ function handleEmptyAction() {
             <InterestPreview
               v-if="product && userStore.currentUser"
               :product="product"
-              :available-balance="walletStore.account?.available || '0'"
+              :available-balance="walletLoadError ? undefined : walletStore.account?.available"
+              :submitting="subscribing"
               @subscribe="onSubscribe"
             />
           </div>
@@ -141,6 +165,9 @@ function handleEmptyAction() {
 <style scoped>
 .detail-page {
   padding-top: 16px;
+}
+.wallet-alert {
+  margin-bottom: 12px;
 }
 .bread {
   margin-bottom: 12px;

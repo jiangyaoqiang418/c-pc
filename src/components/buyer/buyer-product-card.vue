@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { enums, formatAmount } from '@shared';
 import PriceTag from '@/components/product/price-tag.vue';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
@@ -15,7 +16,7 @@ const emit = defineEmits<{
   (e: 'delete', product: Api.RealProduct.DisplayRecord): void;
 }>();
 
-const cover = computed(() => props.product.images?.[0]?.url || `https://picsum.photos/seed/${props.product.id}/300/300`);
+const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
 const aftersaleMeta = computed(() => enums.AFTERSALE_TYPE_META[props.product.aftersaleType]);
 
 const STATUS_META: Record<Api.Product.ProductStatus, { label: string; color: string }> = {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { Message, Modal } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -11,6 +11,7 @@ import { notificationRoute } from '@/utils/notification';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const route = useRoute();
 const notifyStore = useNotifyStore();
 const records = ref<Api.RealNotify.NotificationVO[]>([]);
 const loading = ref(false);
@@ -25,6 +26,28 @@ const clearConfirmationOpen = ref(false);
 const deletingId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
 
+function syncFromQuery() {
+  const rawUnread = Array.isArray(route.query.unread) ? route.query.unread[0] : route.query.unread;
+  unreadOnly.value = rawUnread === '1';
+  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
+  const page = Number(rawPage);
+  pageNo.value = Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function currentQuery() {
+  return {
+    ...(unreadOnly.value ? { unread: '1' } : {}),
+    ...(pageNo.value > 1 ? { page: String(pageNo.value) } : {})
+  };
+}
+
+function syncQuery() {
+  const before = route.fullPath;
+  void router.push({ query: currentQuery() }).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
+
 const hasUnread = computed(() => records.value.some(item => !item.readFlag));
 
 function decreaseUnreadCount() {
@@ -38,6 +61,12 @@ async function load() {
   try {
     const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil((response.total || 0) / pageSize));
+    if (pageNo.value > maxPage) {
+      pageNo.value = maxPage;
+      void router.replace({ query: currentQuery() });
+      return;
+    }
     records.value = response.records || [];
     total.value = response.total || 0;
     await notifyStore.refreshUnreadCounts();
@@ -153,8 +182,25 @@ notifyStore.subscribe(event => {
   }
 });
 
-onMounted(load);
+onMounted(() => {
+  syncFromQuery();
+  void load();
+});
 onBeforeUnmount(requestGuard.invalidate);
+watch(() => route.fullPath, () => {
+  syncFromQuery();
+  void load();
+});
+
+function changeUnreadFilter() {
+  pageNo.value = 1;
+  syncQuery();
+}
+
+function changePage(page: number) {
+  pageNo.value = page;
+  syncQuery();
+}
 </script>
 
 <template>
@@ -169,7 +215,7 @@ onBeforeUnmount(requestGuard.invalidate);
 
     <a-card :bordered="false" class="notification-card">
       <div class="filter-row">
-        <a-radio-group v-model="unreadOnly" type="button" @change="pageNo = 1; load()">
+        <a-radio-group v-model="unreadOnly" type="button" @change="changeUnreadFilter">
           <a-radio :value="false">全部</a-radio><a-radio :value="true">仅未读</a-radio>
         </a-radio-group>
         <span class="count">共 {{ total }} 条</span>
@@ -197,7 +243,7 @@ onBeforeUnmount(requestGuard.invalidate);
       </a-spin>
 
       <div v-if="total > pageSize" class="pagination">
-        <a-pagination v-model:current="pageNo" :total="total" :page-size="pageSize" @change="load" />
+        <a-pagination :current="pageNo" :total="total" :page-size="pageSize" @change="changePage" />
       </div>
     </a-card>
   </div>

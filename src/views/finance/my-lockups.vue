@@ -25,6 +25,8 @@ const allCounts = ref<Record<Api.RealFinance.OrderStatus, number>>({
 });
 const unlockModalOpen = ref(false);
 const unlockTarget = ref<Api.RealFinance.FinanceOrderVO>();
+const unlocking = ref(false);
+const redeemedOrderIds = new Set<string>();
 const requestGuard = createLatestRequestGuard();
 
 const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
@@ -42,7 +44,9 @@ async function load() {
   try {
     const r = await financeApi.fetchFinanceOrders({ pageNo: 1, pageSize: 50, status: activeKey.value }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
-    orders.value = r.records;
+    orders.value = r.records.map(order => redeemedOrderIds.has(String(order.id))
+      ? { ...order, canRedeem: false }
+      : order);
   } catch {
     if (!isCurrent()) return;
     orders.value = [];
@@ -74,20 +78,38 @@ onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, load);
 
 function onUnlock(order: Api.RealFinance.FinanceOrderVO) {
+  if (redeemedOrderIds.has(String(order.id))) return;
   unlockTarget.value = order;
   unlockModalOpen.value = true;
 }
 
 async function confirmUnlock(order: Api.RealFinance.FinanceOrderVO) {
+  const orderId = String(order.id);
+  if (unlocking.value || redeemedOrderIds.has(orderId)) return;
+  unlocking.value = true;
   try {
-    await financeApi.redeemFinance({ id: order.id });
+    try {
+      await financeApi.redeemFinance({ id: order.id });
+    } catch {
+      Message.error('解锁失败，请稍后重试');
+      return;
+    }
+    redeemedOrderIds.add(orderId);
+    orders.value = orders.value.map(item => String(item.id) === orderId
+      ? { ...item, canRedeem: false }
+      : item);
     Message.success('提前赎回申请成功，本金已返回可用余额');
     unlockModalOpen.value = false;
-    await walletStore.refetch();
+    unlockTarget.value = undefined;
+    try {
+      await walletStore.refetch();
+    } catch {
+      Message.warning('赎回已成功，钱包余额刷新失败，请稍后刷新查看');
+    }
     await load();
     await loadCounts();
-  } catch {
-    Message.error('解锁失败，请稍后重试');
+  } finally {
+    unlocking.value = false;
   }
 }
 
@@ -132,7 +154,12 @@ const tabBadgeCount = computed(() => (k: Api.RealFinance.OrderStatus) => allCoun
       </a-spin>
     </div>
 
-    <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="unlockTarget" @confirm="confirmUnlock" />
+    <EarlyUnlockModal
+      v-model:visible="unlockModalOpen"
+      :order="unlockTarget"
+      :submitting="unlocking"
+      @confirm="confirmUnlock"
+    />
   </div>
 </template>
 

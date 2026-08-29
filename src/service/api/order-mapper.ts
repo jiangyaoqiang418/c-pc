@@ -11,14 +11,14 @@ export const statusMap: Record<string, Api.Order.OrderStatus> = {
 export const reverseStatusMap: Partial<Record<Api.Order.OrderStatus, Api.RealOrder.OrderStatus>> = {
   PENDING_PAYMENT: 'CREATED',
   PROCURING: 'PAID',
-  PROCURED: 'PAID',
+  PROCURED: undefined,
   IN_TRANSIT: 'SHIPPED',
   AFTERSALE_CONFIRM: 'SHIPPED',
   COMPLETED: 'COMPLETED',
   WARRANTY: 'COMPLETED',
   IN_AFTERSALE: 'REFUND_REVIEW',
   REFUNDED: 'REFUNDED',
-  ARCHIVED: 'REFUNDED',
+  ARCHIVED: undefined,
   CANCELLED: 'CANCELED'
 };
 
@@ -65,7 +65,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     productTitle: dto.productTitle || '商品快照',
     productCover: dto.productImage,
     customerId,
-    customerName: customerId ? `顾客 ${customerId}` : '当前顾客',
+    customerName: dto.customerName || '匿名顾客',
     shopperId,
     shopperName: dto.sellerName || (shopperId ? `买手 ${shopperId}` : '买手'),
     price: unitPrice,
@@ -98,8 +98,6 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     refundId: dto.refundId as unknown as string | number | undefined,
     refundStatus: dto.refundStatus,
     refundAmount: dto.refundAmount === undefined ? undefined : String(dto.refundAmount),
-    overseasCustoms: false,
-    aftersaleType: '7day-no-reason',
     priceHistory: [],
     createdAt,
     paidAt: toIso(dto.paidAt) || undefined,

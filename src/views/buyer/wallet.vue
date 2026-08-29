@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
@@ -9,6 +9,7 @@ import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import * as realWalletApi from '@/service/api/wallet';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -16,31 +17,43 @@ const walletStore = useWalletStore();
 
 const txns = ref<Api.RealWallet.Ledger[]>([]);
 const loading = ref(false);
+const loadError = ref('');
 const drawerOpen = ref(false);
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
+const requestGuard = createLatestRequestGuard();
 
 async function loadAll() {
   if (!userStore.currentUser) return;
+  const isCurrent = requestGuard.begin();
   loading.value = true;
+  loadError.value = '';
   try {
     await walletStore.fetchWallet(userStore.currentUser.id);
+    if (!isCurrent()) return;
     const r = await realWalletApi.fetchWalletLedgersByTypes({
       types: ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT', 'ORDER_SETTLE', 'INTEREST_ACCRUE'],
-      size: 30
+      size: 30,
+      signal: isCurrent.signal
     });
+    if (!isCurrent()) return;
     txns.value = r.records;
+  } catch {
+    if (!isCurrent()) return;
+    loadError.value = '买手钱包数据加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(loadAll);
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => userStore.currentAudience, loadAll);
 
 import { getUsdtCnyRate } from '@shared/utils/currency';
 const cnyRate = getUsdtCnyRate();
 const cnyEquiv = computed(() =>
-  formatAmount((Number(walletStore.totalAssets) * cnyRate).toFixed(2))
+  walletStore.account ? formatAmount((Number(walletStore.totalAssets) * cnyRate).toFixed(2)) : '—'
 );
+const totalAssets = computed(() => walletStore.account ? formatAmount(walletStore.totalAssets) : '—');
 const totalAssetsNum = computed(() => Number(walletStore.totalAssets) || 0);
 const bucketsWithPct = computed(() =>
   walletStore.bucketsArray.map(b => ({
@@ -57,6 +70,11 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
 
 <template>
   <div class="bw-page">
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+      {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
+
     <!-- ============ Hero (统一白 · 金色徽章区分买手身份) ============ -->
     <section class="hero">
       <div class="hero-top">
@@ -68,7 +86,7 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
         </div>
         <div class="hero-total">
           <span class="unit">U</span>
-          <span class="num">{{ formatAmount(walletStore.totalAssets) }}</span>
+          <span class="num">{{ totalAssets }}</span>
         </div>
         <div class="hero-sub">
           ≈ <span class="cny-num">¥{{ cnyEquiv }}</span>
@@ -122,7 +140,14 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
         <div v-if="txns.length" class="txn-list">
           <TxnRow v-for="t in txns" :key="t.id" :txn="t" @detail="openTxn" />
         </div>
-        <EmptyState v-else icon="lucide:receipt" title="暂无买手专属流水" description="接单完成 / 押金变动 / 利息发放后这里会显示" />
+        <EmptyState
+          v-else
+          icon="lucide:receipt"
+          :title="loadError || '暂无买手专属流水'"
+          :description="loadError ? '不会把请求失败显示成没有流水。' : '接单完成 / 押金变动 / 利息发放后这里会显示'"
+          :action-text="loadError ? '重新加载' : undefined"
+          @action="loadError && loadAll()"
+        />
       </a-spin>
     </section>
 
@@ -134,6 +159,9 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
 .bw-page {
   padding: 0;
   padding-bottom: 40px;
+}
+.load-alert {
+  margin-bottom: 16px;
 }
 
 .hero {

@@ -16,7 +16,7 @@ const filter = reactive({
   overseasCustoms: undefined as boolean | undefined,
   minPrice: undefined as number | undefined,
   maxPrice: undefined as number | undefined,
-  sort: 'sales' as 'sales' | 'price-asc' | 'price-desc' | 'newest' | 'reviews'
+  sort: 'DEFAULT' as productApi.StorefrontSort
 });
 
 const list = ref<Api.RealProduct.Record[]>([]);
@@ -28,11 +28,11 @@ const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
 
 const sortOptions = [
-  { value: 'sales', label: '综合销量' },
-  { value: 'newest', label: '最新上架' },
-  { value: 'price-asc', label: '价格升序' },
-  { value: 'price-desc', label: '价格降序' },
-  { value: 'reviews', label: '收藏多' }
+  { value: 'DEFAULT', label: '综合排序' },
+  { value: 'SALES', label: '销量优先' },
+  { value: 'NEW', label: '最新上架' },
+  { value: 'PRICE_ASC', label: '价格升序' },
+  { value: 'PRICE_DESC', label: '价格降序' }
 ];
 
 const aftersaleOptions = [
@@ -60,7 +60,8 @@ function syncFromQuery() {
   filter.overseasCustoms = route.query.overseas === '1' ? true : undefined;
   filter.minPrice = route.query.minPrice ? optionalQueryNumber(route.query.minPrice) : undefined;
   filter.maxPrice = route.query.maxPrice ? optionalQueryNumber(route.query.maxPrice) : undefined;
-  filter.sort = (route.query.sort as typeof filter.sort) || 'sales';
+  const querySort = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort;
+  filter.sort = productApi.normalizeStorefrontSort(querySort || undefined);
   current.value = queryPage(route.query.page);
 }
 
@@ -82,6 +83,12 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      updateUrl(true);
+      return;
+    }
     list.value = r.records;
     total.value = r.total;
   } catch {
@@ -94,8 +101,8 @@ async function load() {
   }
 }
 
-function applyToUrl() {
-  router.push({
+function updateUrl(replace: boolean) {
+  const location = {
     name: 'product-list',
     query: {
       keyword: filter.keyword || undefined,
@@ -107,7 +114,13 @@ function applyToUrl() {
       sort: filter.sort,
       page: current.value === 1 ? undefined : String(current.value)
     }
-  });
+  };
+  if (replace) void router.replace(location);
+  else void router.push(location);
+}
+
+function applyToUrl() {
+  updateUrl(false);
 }
 
 function resetFilters() {

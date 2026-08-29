@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { formatAmount } from '@shared';
 
 interface Props {
   visible: boolean;
   order?: Api.RealFinance.FinanceOrderVO;
+  submitting?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
   (e: 'confirm', order: Api.RealFinance.FinanceOrderVO): void;
 }>();
-
-const submitting = ref(false);
 
 const lossAmount = computed(() => {
   if (!props.order) return '0';
@@ -24,14 +23,10 @@ watch(
   () => undefined
 );
 
-async function submit() {
-  if (!props.order) return;
-  submitting.value = true;
-  try {
-    emit('confirm', props.order);
-  } finally {
-    setTimeout(() => (submitting.value = false), 800);
-  }
+function submit() {
+  if (!props.order || props.submitting) return false;
+  emit('confirm', props.order);
+  return false;
 }
 </script>
 
@@ -39,11 +34,11 @@ async function submit() {
   <a-modal
     :visible="visible"
     title="确认提前赎回"
-    :ok-loading="submitting"
+    :ok-loading="props.submitting"
     ok-text="确认赎回"
     :ok-button-props="{ status: 'danger' }"
+    :before-ok="submit"
     @update:visible="(v) => $emit('update:visible', v)"
-    @ok="submit"
   >
     <template v-if="order">
       <div class="warn">

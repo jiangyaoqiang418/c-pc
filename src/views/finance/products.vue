@@ -16,50 +16,49 @@ const walletStore = useWalletStore();
 const products = ref<Api.RealFinance.FinanceProductVO[]>([]);
 const overview = ref<Api.RealFinance.FinanceOverviewVO>();
 const loading = ref(false);
-const range = ref<'day' | 'week' | 'month' | 'year'>('year');
+const loadError = ref('');
+const productLoadError = ref(false);
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
+  if (!userStore.currentUser || loading.value) return;
   loading.value = true;
+  loadError.value = '';
+  productLoadError.value = false;
   try {
-    const [list, financeOverview] = await Promise.all([
+    const [productsResult, overviewResult, walletResult] = await Promise.allSettled([
       financeApi.fetchFinanceProducts(),
-      financeApi.fetchFinanceOverview()
+      financeApi.fetchFinanceOverview(),
+      walletStore.fetchWallet(userStore.currentUser.id)
     ]);
-    products.value = list;
-    overview.value = financeOverview;
-    await walletStore.fetchWallet(userStore.currentUser.id);
+    if (productsResult.status === 'fulfilled') products.value = productsResult.value;
+    productLoadError.value = productsResult.status === 'rejected';
+    if (overviewResult.status === 'fulfilled') overview.value = overviewResult.value;
+    if ([productsResult, overviewResult, walletResult].some(result => result.status === 'rejected')) {
+      loadError.value = '部分小金库数据加载失败，请检查网络后重试。';
+    }
   } finally {
     loading.value = false;
   }
 }
 onMounted(loadAll);
 
-const currentBalance = computed(() => walletStore.account?.lockedFinance || '0');
-const cnyEquiv = computed(() => formatAmount((Number(currentBalance.value) * getUsdtCnyRate()).toFixed(2)));
+const currentBalance = computed(() => walletStore.account?.lockedFinance);
+const cnyEquiv = computed(() => currentBalance.value === undefined
+  ? '—'
+  : formatAmount((Number(currentBalance.value) * getUsdtCnyRate()).toFixed(2)));
 
 const bestApy = computed(() => {
   if (!products.value.length) return 0;
   return Math.max(...products.value.map(p => Number(p.annualRate) * 100));
 });
 
-const totalAccruedInterest = computed(() => Number(overview.value?.pendingInterest || 0).toFixed(2));
+const totalAccruedInterest = computed(() => overview.value
+  ? Number(overview.value.pendingInterest || 0).toFixed(2)
+  : undefined);
 
 const availableProducts = computed(() => products.value.filter(p => p.status === 'ON_SALE'));
 const featuredProducts = computed(() => availableProducts.value.filter(p => p.lockDays <= 30));
 const strategyProducts = computed(() => availableProducts.value.filter(p => p.lockDays > 30));
-
-const bars = computed(() => {
-  const count = range.value === 'day' ? 6 : range.value === 'week' ? 12 : range.value === 'month' ? 20 : 24;
-  const arr: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const growth = Math.pow(1.12, i);
-    const noise = 0.9 + ((i * 7) % 20) / 100;
-    arr.push(growth * noise);
-  }
-  const max = Math.max(...arr);
-  return arr.map(v => Math.max(8, (v / max) * 100));
-});
 
 function effectiveRate(p: Api.RealFinance.FinanceProductVO): string {
   return ((Number(p.annualRate) || 0) * 100).toFixed(2);
@@ -84,6 +83,11 @@ function scrollToList() {
 
 <template>
   <div class="finance-page">
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+      {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
+
     <!-- Hero (Plasma One 极简白) -->
     <section class="earn-hero">
       <div class="hero-eyebrow">EARN BALANCE</div>
@@ -106,36 +110,12 @@ function scrollToList() {
       </div>
     </section>
 
-    <!-- Earn Chart -->
+    <!-- 仅展示后端返回的待结算收益，不生成本地趋势数据 -->
     <section class="chart-card">
-      <div class="chart-label">You're earning</div>
+      <div class="chart-label">待结算收益</div>
       <div class="chart-amount">
         <span class="unit">U</span>
         <span class="num">{{ formatAmount(totalAccruedInterest) }}</span>
-      </div>
-      <div class="bars">
-        <span
-          v-for="(h, idx) in bars"
-          :key="idx"
-          class="bar"
-          :style="{ height: `${h}%` }"
-        />
-      </div>
-      <div class="range-tabs">
-        <button
-          v-for="opt in [
-            { key: 'day', label: 'Day' },
-            { key: 'week', label: 'Week' },
-            { key: 'month', label: 'Month' },
-            { key: 'year', label: 'Year' }
-          ]"
-          :key="opt.key"
-          class="range-tab"
-          :class="{ active: range === opt.key }"
-          @click="range = opt.key as any"
-        >
-          {{ opt.label }}
-        </button>
       </div>
     </section>
 
@@ -194,8 +174,10 @@ function scrollToList() {
 
         <EmptyState
           v-if="!featuredProducts.length && !strategyProducts.length && !loading"
-          title="暂无可申购产品"
-          description="当前没有上架中的理财产品，请稍后再试"
+          :title="productLoadError ? '小金库产品加载失败' : '暂无可申购产品'"
+          :description="productLoadError ? '产品列表请求失败，请检查网络后重试。' : '当前没有上架中的理财产品，请稍后再试'"
+          :action-text="productLoadError ? '重新加载' : undefined"
+          @action="productLoadError && loadAll()"
         />
       </section>
     </a-spin>
@@ -206,6 +188,9 @@ function scrollToList() {
 .finance-page {
   padding: 0;
   padding-bottom: 40px;
+}
+.load-alert {
+  margin-bottom: 16px;
 }
 
 /* Hero */
@@ -339,45 +324,6 @@ function scrollToList() {
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 140px;
-  margin-bottom: 20px;
-}
-.bar {
-  flex: 1;
-  background: linear-gradient(180deg, #00A88A 0%, #4FE0B7 100%);
-  border-radius: 3px 3px 0 0;
-  min-height: 8px;
-}
-.range-tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--yb-bg);
-  border-radius: 999px;
-  padding: 4px;
-}
-.range-tab {
-  flex: 1;
-  height: 34px;
-  background: transparent;
-  border: none;
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--yb-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-  font-weight: 500;
-}
-.range-tab.active {
-  background: #fff;
-  color: var(--yb-ink);
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(15, 17, 26, 0.06);
-}
-
 /* Sections */
 .list-section {
   padding: 0;

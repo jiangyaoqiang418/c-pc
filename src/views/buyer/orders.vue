@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
@@ -11,6 +12,8 @@ import { enums } from '@shared';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
+const route = useRoute();
+const router = useRouter();
 
 interface TabDef {
   key: string;
@@ -46,6 +49,28 @@ const logisticsSubmitting = ref(false);
 const logisticsOrder = ref<Api.RealOrder.Record>();
 const requestGuard = createLatestRequestGuard();
 
+function syncFromQuery() {
+  const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  activeKey.value = TABS.some(item => item.key === tab) ? String(tab) : 'all';
+  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
+  const page = Number(rawPage);
+  current.value = Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function currentQuery() {
+  return {
+    ...(activeKey.value !== 'all' ? { tab: activeKey.value } : {}),
+    ...(current.value > 1 ? { page: String(current.value) } : {})
+  };
+}
+
+function syncQuery() {
+  const before = route.fullPath;
+  void router.push({ query: currentQuery() }).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
+
 async function load() {
   const isCurrent = requestGuard.begin();
   const user = userStore.currentUser;
@@ -62,6 +87,12 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      void router.replace({ query: currentQuery() });
+      return;
+    }
     orders.value = r.records;
     total.value = r.total;
   } catch {
@@ -74,12 +105,25 @@ async function load() {
   }
 }
 
-onMounted(load);
-onBeforeUnmount(requestGuard.invalidate);
-watch(activeKey, () => {
-  current.value = 1;
+onMounted(() => {
+  syncFromQuery();
   void load();
 });
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => route.fullPath, () => {
+  syncFromQuery();
+  void load();
+});
+
+function onTabChange() {
+  current.value = 1;
+  syncQuery();
+}
+
+function changePage(page: number) {
+  current.value = page;
+  syncQuery();
+}
 
 function onUploadProof() {
   Message.info('采购凭证绑定订单接口暂未提供');
@@ -143,25 +187,30 @@ async function shipOrder(params: Api.RealOrder.OrderShipParams) {
 }
 
 function openPriceModal(order: Api.RealOrder.Record) {
+  if (priceSubmitting.value) return;
   priceOrder.value = order;
   priceAmount.value = Number(order.totalAmount);
   priceModalOpen.value = true;
 }
 
 async function changePrice() {
-  if (!priceOrder.value || !priceAmount.value || priceAmount.value <= 0) {
+  if (priceSubmitting.value) return false;
+  const orderId = priceOrder.value?.id;
+  const amount = priceAmount.value;
+  if (orderId === undefined || orderId === null || !amount || amount <= 0) {
     Message.warning('请输入正确的订单金额');
-    return;
+    return false;
   }
   priceSubmitting.value = true;
   try {
     try {
-      await realOrderApi.changeOrderPrice({ id: priceOrder.value.id, amount: priceAmount.value });
+      await realOrderApi.changeOrderPrice({ id: orderId, amount });
       Message.success('订单价格已修改');
-      priceModalOpen.value = false;
       await load();
+      return true;
     } catch {
       // 请求层已展示错误，保留改价表单供用户修正后重试。
+      return false;
     }
   } finally {
     priceSubmitting.value = false;
@@ -174,7 +223,7 @@ async function changePrice() {
     <h1 class="page-title">买手订单</h1>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs v-model:active-key="activeKey" lazy-load>
+      <a-tabs v-model:active-key="activeKey" lazy-load @change="onTabChange">
         <a-tab-pane v-for="t in TABS" :key="t.key" :title="t.label" />
       </a-tabs>
     </a-card>
@@ -208,11 +257,11 @@ async function changePrice() {
         :current="current"
         :page-size="size"
         show-total
-        @change="(page: number) => { current = page; load(); }"
+        @change="changePage"
       />
     </div>
 
-    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" @ok="changePrice">
+    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :before-ok="changePrice">
       <a-form :model="{ priceAmount }" layout="vertical">
         <a-form-item label="订单">
           <a-input :model-value="priceOrder?.code" disabled />

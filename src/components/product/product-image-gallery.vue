@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 interface Props {
   images: Api.Product.ProductMedia[];
@@ -14,15 +15,22 @@ const containerRef = ref<HTMLDivElement>();
 
 const list = computed<Api.Product.ProductMedia[]>(() => {
   if (props.images?.length) return props.images;
-  const seed = props.fallbackSeed || 1;
   return [
-    { url: `https://picsum.photos/seed/${seed}-a/720/720`, name: '主图', type: 'image' as const, sort: 0 },
-    { url: `https://picsum.photos/seed/${seed}-b/720/720`, name: '副图', type: 'image' as const, sort: 1 },
-    { url: `https://picsum.photos/seed/${seed}-c/720/720`, name: '细节图', type: 'image' as const, sort: 2 }
+    { url: PRODUCT_IMAGE_PLACEHOLDER, name: '暂无商品图片', type: 'image' as const, sort: 0 }
   ];
 });
 
-const mainUrl = computed(() => list.value[activeIdx.value]?.url || '');
+const hasRealImages = computed(() => Boolean(props.images?.length));
+
+const mainUrl = computed(() => list.value[activeIdx.value]?.url || list.value[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
+
+watch(
+  () => props.images?.map(image => `${image.url}:${image.sort}`).join('|') || '',
+  () => {
+    activeIdx.value = 0;
+    hovering.value = false;
+  }
+);
 
 function onMove(e: MouseEvent) {
   if (!containerRef.value) return;
@@ -38,16 +46,16 @@ function onMove(e: MouseEvent) {
     <div
       ref="containerRef"
       class="main-wrap"
-      @mouseenter="hovering = true"
+      @mouseenter="hasRealImages && (hovering = true)"
       @mouseleave="hovering = false"
       @mousemove="onMove"
     >
       <img :src="mainUrl" alt="商品图片" class="main-img" />
-      <div v-if="hovering" class="lens" :style="{
+      <div v-if="hovering && hasRealImages" class="lens" :style="{
         left: mouseRatio.x * 100 + '%',
         top: mouseRatio.y * 100 + '%'
       }" />
-      <div v-if="hovering" class="zoom-pane" :style="{
+      <div v-if="hovering && hasRealImages" class="zoom-pane" :style="{
         backgroundImage: `url(${mainUrl})`,
         backgroundPosition: `${mouseRatio.x * 100}% ${mouseRatio.y * 100}%`
       }" />

@@ -9,6 +9,7 @@ import * as realWalletApi from '@/service/api/wallet';
 import { RequestError } from '@/service/request';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import AddressSelector from '@/components/common/address-selector.vue';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useCartStore, useUserStore } from '@/stores';
 
@@ -253,7 +254,7 @@ async function doSubmit() {
         </div>
         <div class="goods-list">
           <div v-for="item in items" :key="item.productId" class="goods-row">
-            <img :src="item.product?.images?.[0]?.url || `https://picsum.photos/seed/${item.productId}/80/80`" :alt="item.product?.title || '商品图片'" class="cover" />
+            <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" class="cover" />
             <div class="info">
               <div class="title">{{ item.product?.title }}</div>
               <div class="tags">
@@ -332,8 +333,8 @@ async function doSubmit() {
         <div class="agree-row">
           <a-checkbox v-model="agreed">
             我已阅读并同意
-            <a-link>《用户协议》</a-link>
-            <a-link>《隐私政策》</a-link>
+            <a-link @click.stop="router.push({ path: '/help', query: { agreement: 'user' } })">《用户协议》</a-link>
+            <a-link @click.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })">《隐私政策》</a-link>
           </a-checkbox>
         </div>
 

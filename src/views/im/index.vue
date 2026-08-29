@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import MessageBubble from '@/components/im/message-bubble.vue';
@@ -19,6 +19,7 @@ import {
   mergeMessages,
   sameBusinessId
 } from '@/utils/im';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const route = useRoute();
@@ -45,6 +46,11 @@ const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
 const deletingConversationId = ref<string | number>();
+const recallingMessageIds = ref(new Set<string>());
+const conversationListGuard = createLatestRequestGuard();
+const messageListGuard = createLatestRequestGuard();
+const olderMessagesGuard = createLatestRequestGuard();
+const incrementalMessagesGuard = createLatestRequestGuard();
 
 function hasBizType(conversation: Api.RealNotify.ImConversationVO, type: string) {
   return String(conversation.bizType || '').toUpperCase() === type;
@@ -64,14 +70,20 @@ function currentCandidates() {
 }
 
 async function loadConversations(selectFirst = true) {
+  const isCurrent = conversationListGuard.begin();
   conversationLoadError.value = '';
   try {
-    const response = await notifyApi.fetchConversations({ pageNo: 1, pageSize: 100 });
+    const response = await notifyApi.fetchConversations(
+      { pageNo: 1, pageSize: 100 },
+      { signal: isCurrent.signal }
+    );
+    if (!isCurrent()) return;
     conversations.value = response.records || [];
     notifyStore.setImUnreadCount(conversations.value.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0));
     if (selectFirst) await selectFirstConversation();
     lastSyncedAt.value = new Date();
   } catch (error) {
+    if (!isCurrent()) return;
     conversationLoadError.value = '会话加载失败，请检查网络后重试';
     throw error;
   }
@@ -105,47 +117,65 @@ async function selectFirstConversation() {
 }
 
 async function selectConversation(conversation: Api.RealNotify.ImConversationVO) {
-  selectedConversationId.value = conversation.id;
+  const conversationId = conversation.id;
+  const isCurrent = messageListGuard.begin();
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
+  selectedConversationId.value = conversationId;
+  messages.value = [];
+  hasOlder.value = false;
+  loadingOlder.value = false;
   loading.value = true;
   messageLoadError.value = '';
   pageNo.value = 1;
   try {
-    const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.id, pageNo: 1, pageSize: 50 });
-    messages.value = mergeMessages([], response.records || []);
+    const response = await notifyApi.fetchConversationMessages(
+      { conversationId, pageNo: 1, pageSize: 50 },
+      { signal: isCurrent.signal }
+    );
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
+    messages.value = mergeMessages(messages.value, response.records || []);
     hasOlder.value = messages.value.length < (response.total || 0);
-    conversation.unreadCount = 0;
+    const currentConversation = selectedConversation.value;
+    if (currentConversation) currentConversation.unreadCount = 0;
     refreshImUnreadFromConversations();
-    await reportRead();
+    await reportRead(conversationId);
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     await scrollToBottom();
   } catch {
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     messages.value = [];
     messageLoadError.value = '消息加载失败，请检查网络后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent() && sameBusinessId(selectedConversationId.value, conversationId)) loading.value = false;
   }
 }
 
 async function loadOlderMessages() {
   if (!selectedConversation.value || !hasOlder.value || loadingOlder.value) return;
+  const conversationId = selectedConversation.value.id;
+  const isCurrent = olderMessagesGuard.begin();
   loadingOlder.value = true;
   const container = scrollRef.value;
   const oldHeight = container?.scrollHeight || 0;
   try {
     const nextPage = pageNo.value + 1;
-    const response = await notifyApi.fetchConversationMessages({
-      conversationId: selectedConversation.value.id,
-      pageNo: nextPage,
-      pageSize: 50
-    });
+    const response = await notifyApi.fetchConversationMessages(
+      { conversationId, pageNo: nextPage, pageSize: 50 },
+      { signal: isCurrent.signal }
+    );
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     messages.value = mergeMessages(response.records || [], messages.value);
     pageNo.value = nextPage;
     hasOlder.value = messages.value.length < (response.total || 0);
     await nextTick();
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     if (container) container.scrollTop = container.scrollHeight - oldHeight;
   } catch {
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     // 请求层已展示错误；保留当前消息和滚动位置，用户可再次加载历史。
   } finally {
-    loadingOlder.value = false;
+    if (isCurrent() && sameBusinessId(selectedConversationId.value, conversationId)) loadingOlder.value = false;
   }
 }
 
@@ -153,10 +183,11 @@ function refreshImUnreadFromConversations() {
   notifyStore.setImUnreadCount(conversations.value.reduce((sum, conversation) => sum + (conversation.unreadCount || 0), 0));
 }
 
-async function reportRead() {
+async function reportRead(expectedConversationId?: string | number) {
   const conversation = selectedConversation.value;
   const lastReadMessageId = latestServerMessageId(messages.value);
   if (!conversation || !lastReadMessageId || document.visibilityState !== 'visible') return;
+  if (expectedConversationId !== undefined && !sameBusinessId(conversation.id, expectedConversationId)) return;
   try {
     await notifyApi.markConversationRead({ conversationId: conversation.id, lastReadMessageId });
     conversation.lastReadMessageId = lastReadMessageId;
@@ -168,12 +199,24 @@ async function reportRead() {
 async function syncCurrentConversation() {
   const conversation = selectedConversation.value;
   if (!conversation) return;
+  const conversationId = conversation.id;
+  const isCurrent = incrementalMessagesGuard.begin();
   const sinceId = latestServerMessageId(messages.value);
-  const incoming = await notifyApi.fetchIncrementalMessages({ conversationId: conversation.id, sinceId, limit: 200 });
-  if (incoming.length) {
-    messages.value = mergeMessages(messages.value, incoming);
-    await reportRead();
-    await scrollToBottom();
+  try {
+    const incoming = await notifyApi.fetchIncrementalMessages(
+      { conversationId, sinceId, limit: 200 },
+      { signal: isCurrent.signal }
+    );
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
+    if (incoming.length) {
+      messages.value = mergeMessages(messages.value, incoming);
+      await reportRead(conversationId);
+      if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
+      await scrollToBottom();
+    }
+  } catch (error) {
+    if (!isCurrent()) return;
+    throw error;
   }
 }
 
@@ -216,10 +259,11 @@ function readText(message: Api.RealNotify.ImMessageVO) {
 async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaFileId?: string | number }) {
   const conversation = selectedConversation.value;
   if (!conversation || messageSending.value) return;
+  const conversationId = conversation.id;
   messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
-    conversationId: conversation.id,
+    conversationId,
     msgType: payload.type === 'image' ? 'IMAGE' : payload.type === 'audio' ? 'VOICE' : 'TEXT',
     content: payload.content,
     mediaFileId: payload.mediaFileId,
@@ -234,10 +278,17 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   await scrollToBottom();
   try {
     const sent = await notifyApi.sendConversationMessage(params);
-    messages.value = mergeMessages(messages.value, sent);
-    await loadConversations(false);
-    await scrollToBottom();
+    if (sameBusinessId(selectedConversationId.value, conversationId)) {
+      messages.value = mergeMessages(messages.value, sent);
+    }
+    try {
+      await loadConversations(false);
+    } catch {
+      // 会话列表刷新失败不应把已发送成功的消息标记为失败。
+    }
+    if (sameBusinessId(selectedConversationId.value, conversationId)) await scrollToBottom();
   } catch {
+    if (!sameBusinessId(selectedConversationId.value, conversationId)) return;
     const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
     if (optimistic) optimistic.failed = true;
   } finally {
@@ -247,10 +298,12 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
 
 async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   const conversation = selectedConversation.value;
-  if (!conversation || !message.failed) return;
+  if (!conversation || !message.failed || messageSending.value) return;
+  const conversationId = conversation.id;
+  messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
-    conversationId: conversation.id,
+    conversationId,
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
     content: message.content,
     mediaFileId: message.mediaFileId,
@@ -260,25 +313,42 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     ? { ...item, clientMsgId, pending: true, failed: false, createdAt: String(Date.now()) }
     : item);
   try {
-    messages.value = mergeMessages(messages.value, await notifyApi.sendConversationMessage(params));
-    await loadConversations(false);
-    await scrollToBottom();
+    const sent = await notifyApi.sendConversationMessage(params);
+    if (sameBusinessId(selectedConversationId.value, conversationId)) {
+      messages.value = mergeMessages(messages.value, sent);
+    }
+    try {
+      await loadConversations(false);
+    } catch {
+      // 会话列表刷新失败不应把重试发送成功的消息标记为失败。
+    }
+    if (sameBusinessId(selectedConversationId.value, conversationId)) await scrollToBottom();
   } catch {
+    if (!sameBusinessId(selectedConversationId.value, conversationId)) return;
     const optimistic = messages.value.find(item => item.clientMsgId === clientMsgId);
     if (optimistic) {
       optimistic.pending = false;
       optimistic.failed = true;
     }
+  } finally {
+    messageSending.value = false;
   }
 }
 
 async function recallMessage(message: Api.RealNotify.ImMessageVO) {
+  const messageId = String(message.id);
+  if (recallingMessageIds.value.has(messageId)) return;
+  recallingMessageIds.value = new Set(recallingMessageIds.value).add(messageId);
   try {
     await notifyApi.recallConversationMessage({ id: message.id });
     messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? { ...item, recalled: true, content: undefined, mediaUrl: undefined } : item);
     await loadConversations(false);
   } catch {
     // 请求层展示后端的撤回窗口或权限错误。
+  } finally {
+    const next = new Set(recallingMessageIds.value);
+    next.delete(messageId);
+    recallingMessageIds.value = next;
   }
 }
 
@@ -296,9 +366,17 @@ function deleteSelectedConversation() {
     onOk: async () => {
       try {
         await notifyApi.deleteConversation(conversation.id);
+        conversationListGuard.invalidate();
+        messageListGuard.invalidate();
+        olderMessagesGuard.invalidate();
+        incrementalMessagesGuard.invalidate();
         conversations.value = conversations.value.filter(item => !sameBusinessId(item.id, conversation.id));
         selectedConversationId.value = undefined;
         messages.value = [];
+        loading.value = false;
+        loadingOlder.value = false;
+        hasOlder.value = false;
+        messageLoadError.value = '';
         refreshImUnreadFromConversations();
         await selectFirstConversation();
         Message.success('会话已移除');
@@ -395,8 +473,20 @@ notifyStore.subscribe(async event => {
 });
 
 onMounted(init);
+onBeforeUnmount(() => {
+  conversationListGuard.invalidate();
+  messageListGuard.invalidate();
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
+});
 watch(activeTab, async () => {
+  messageListGuard.invalidate();
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
+  loading.value = false;
+  loadingOlder.value = false;
   messages.value = [];
+  hasOlder.value = false;
   selectedConversationId.value = undefined;
   await selectFirstConversation();
 });

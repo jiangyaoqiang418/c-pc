@@ -6,6 +6,7 @@ import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';
 import * as orderApi from '@/service/api/order';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -15,7 +16,7 @@ const props = withDefaults(defineProps<Props>(), { reviewable: false });
 const emit = defineEmits<{ (e: 'changed'): void }>();
 
 const router = useRouter();
-const cover = computed(() => props.order.productCover || `https://picsum.photos/seed/${props.order.productId}/200/200`);
+const cover = computed(() => props.order.productCover || PRODUCT_IMAGE_PLACEHOLDER);
 const acting = ref(false);
 const confirmationOpen = ref(false);
 

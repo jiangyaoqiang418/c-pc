@@ -19,8 +19,8 @@ function toAddressRecord(dto: Api.RealAddress.UserAddressVO): Api.RealAddress.Ad
   };
 }
 
-export async function fetchMyAddresses() {
-  const list = await realUserRequest.get<Api.RealAddress.UserAddressVO[]>('/addresses/list');
+export async function fetchMyAddresses(options: { signal?: AbortSignal } = {}) {
+  const list = await realUserRequest.get<Api.RealAddress.UserAddressVO[]>('/addresses/list', { signal: options.signal });
   return list.map(toAddressRecord);
 }
 

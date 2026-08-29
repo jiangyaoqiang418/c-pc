@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import OrderCard from '@/components/order/order-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -11,6 +11,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const router = useRouter();
+const route = useRoute();
 
 interface TabDef {
   key: string;
@@ -44,6 +45,29 @@ const reviewableGuard = createLatestRequestGuard();
 
 const role = computed(() => (userStore.isBuyerActive ? 'shopper' : 'customer'));
 
+function syncFromQuery() {
+  const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  activeKey.value = TABS.some(item => item.key === tab) ? String(tab) : 'all';
+  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
+  const page = Number(rawPage);
+  current.value = Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function currentQuery() {
+  return {
+    ...(activeKey.value !== 'all' ? { tab: activeKey.value } : {}),
+    ...(current.value > 1 ? { page: String(current.value) } : {})
+  };
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  const navigation = replace ? router.replace({ query: currentQuery() }) : router.push({ query: currentQuery() });
+  void navigation.then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
+
 async function load() {
   const isCurrent = ordersGuard.begin();
   const user = userStore.currentUser;
@@ -61,6 +85,12 @@ async function load() {
     else params.customerId = user.id;
     const r = await orderApi.fetchMyOrders({ ...params, signal: isCurrent.signal });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      syncQuery(true);
+      return;
+    }
     orders.value = r.records;
     total.value = r.total;
   } catch {
@@ -92,7 +122,10 @@ async function loadReviewableOrders() {
 async function loadCounts() {
   const isCurrent = countsGuard.begin();
   if (!userStore.currentUser) return;
-  if (role.value === 'shopper') return;
+  if (role.value === 'shopper') {
+    counts.value = {};
+    return;
+  }
   try {
     const next = await orderApi.countMyOrdersByStatus({ signal: isCurrent.signal });
     if (!isCurrent()) return;
@@ -104,6 +137,7 @@ async function loadCounts() {
 }
 
 onMounted(async () => {
+  syncFromQuery();
   await Promise.all([load(), loadCounts(), loadReviewableOrders()]);
 });
 onBeforeUnmount(() => {
@@ -112,16 +146,27 @@ onBeforeUnmount(() => {
   reviewableGuard.invalidate();
 });
 
-watch(activeKey, () => {
-  current.value = 1;
-  load();
+watch(() => route.fullPath, () => {
+  syncFromQuery();
+  void load();
 });
+
+function onTabChange() {
+  current.value = 1;
+  syncQuery();
+}
+
+function changePage(page: number) {
+  current.value = page;
+  syncQuery();
+}
 
 watch(
   () => userStore.currentAudience,
   () => {
     current.value = 1;
-    load();
+    syncQuery(true);
+    loadCounts();
     loadReviewableOrders();
   }
 );
@@ -154,7 +199,7 @@ function handleEmptyAction() {
     </div>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs v-model:active-key="activeKey" lazy-load>
+      <a-tabs v-model:active-key="activeKey" lazy-load @change="onTabChange">
         <a-tab-pane v-for="t in TABS" :key="t.key">
           <template #title>
             {{ t.label }}
@@ -185,7 +230,7 @@ function handleEmptyAction() {
         :current="current"
         :page-size="size"
         show-total
-        @change="(p: number) => { current = p; load(); }"
+        @change="changePage"
       />
     </div>
   </div>

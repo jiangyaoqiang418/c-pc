@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
@@ -19,20 +19,24 @@ const walletStore = useWalletStore();
 const pendingOrders = ref<Api.RealOrder.Record[]>([]);
 const claimable = ref<Api.RealPurchase.Record[]>([]);
 const orderCounts = ref<Record<string, number>>({});
-const claimableTotal = ref(0);
+const claimableTotal = ref<number>();
+const countsLoaded = ref(false);
 const loading = ref(false);
+const loadErrors = reactive({ wallet: '', orders: '', counts: '', claimable: '' });
 
 const user = computed(() => userStore.currentUser);
 const userAvatar = computed(() => (user.value ? avatarUrl(user.value.id) : ''));
 const account = computed(() => walletStore.account);
-const dashboardReady = computed(() => !!user.value && !!account.value);
+const dashboardReady = computed(() => !!user.value);
+const loadError = computed(() => Object.values(loadErrors).filter(Boolean).join('；'));
 
 async function loadAll() {
-  if (!user.value) return;
+  if (!user.value || loading.value) return;
   loading.value = true;
+  Object.keys(loadErrors).forEach(key => { loadErrors[key as keyof typeof loadErrors] = ''; });
   try {
-    await walletStore.fetchWallet(user.value.id);
-    const [ordersRes, countsRes, claimableRes] = await Promise.all([
+    const [walletResult, ordersResult, countsResult, claimableResult] = await Promise.allSettled([
+      walletStore.fetchWallet(user.value.id),
       realOrderApi.fetchMyOrders({
         shopperId: user.value.id,
         current: 1,
@@ -42,10 +46,24 @@ async function loadAll() {
       realOrderApi.countMySoldOrdersByStatus(),
       realPurchaseApi.fetchHall({ current: 1, size: 6 })
     ]);
-    pendingOrders.value = ordersRes.records;
-    orderCounts.value = countsRes;
-    claimable.value = claimableRes.records.slice(0, 6);
-    claimableTotal.value = Number(claimableRes.total || 0);
+    if (walletResult.status === 'rejected') loadErrors.wallet = '钱包数据加载失败';
+    if (ordersResult.status === 'fulfilled') {
+      pendingOrders.value = ordersResult.value.records;
+    } else {
+      loadErrors.orders = '进行中订单加载失败';
+    }
+    if (countsResult.status === 'fulfilled') {
+      orderCounts.value = countsResult.value;
+      countsLoaded.value = true;
+    } else {
+      loadErrors.counts = '订单统计加载失败';
+    }
+    if (claimableResult.status === 'fulfilled') {
+      claimable.value = claimableResult.value.records.slice(0, 6);
+      claimableTotal.value = Number(claimableResult.value.total || 0);
+    } else {
+      loadErrors.claimable = '可接求购加载失败';
+    }
   } finally {
     loading.value = false;
   }
@@ -57,14 +75,20 @@ const depositPct = computed(() => {
   return total > 0 ? (Number(account.value?.depositGuaranteed || 0) / total) * 100 : 0;
 });
 const depositTotal = computed(() => {
+  if (!account.value) return '—';
   return formatAmount(Number(account.value?.depositAvailable || 0) + Number(account.value?.depositGuaranteed || 0));
 });
 
 function orderCount(status: string) {
-  return Number(orderCounts.value[status] || 0);
+  return countsLoaded.value ? Number(orderCounts.value[status] || 0) : undefined;
 }
 
-const pendingOrderCount = computed(() => orderCount('PROCURING') + orderCount('PROCURED') + orderCount('IN_TRANSIT'));
+function sumOrderCounts(...statuses: string[]) {
+  if (!countsLoaded.value) return undefined;
+  return statuses.reduce((sum, status) => sum + Number(orderCounts.value[status] || 0), 0);
+}
+
+const pendingOrderCount = computed(() => sumOrderCounts('PROCURING', 'PROCURED', 'IN_TRANSIT'));
 const completedOrderCount = computed(() => orderCount('COMPLETED'));
 const kpis = computed(() => [
   { label: '待发货', value: orderCount('PROCURED'), icon: 'lucide:package', color: '#B8935A' },
@@ -77,6 +101,11 @@ const kpis = computed(() => [
 
 <template>
   <div class="dashboard-page shop-container">
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+      {{ loadError }}。未使用空数据替代失败结果。
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
+
     <template v-if="dashboardReady && user">
       <!-- ============ Hero (深色 accent) ============ -->
       <section class="hero" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
@@ -91,26 +120,26 @@ const kpis = computed(() => [
             </div>
             <div class="welcome-sub">
               <Icon icon="lucide:check-circle" width="12" />
-              累计完成 <span class="yb-mono strong">{{ completedOrderCount }}</span> 笔订单
+              累计完成 <span class="yb-mono strong">{{ completedOrderCount ?? '—' }}</span> 笔订单
             </div>
           </div>
         </div>
         <div class="hero-stats">
           <div class="stat">
             <div class="stat-label">进行中</div>
-            <div class="stat-val"><span class="num yb-mono">{{ pendingOrderCount }}</span><span class="unit">单</span></div>
+            <div class="stat-val"><span class="num yb-mono">{{ pendingOrderCount ?? '—' }}</span><span class="unit">单</span></div>
           </div>
           <div class="stat">
             <div class="stat-label">可接求购</div>
-            <div class="stat-val"><span class="num yb-mono">{{ claimableTotal }}</span><span class="unit">单</span></div>
+            <div class="stat-val"><span class="num yb-mono">{{ claimableTotal ?? '—' }}</span><span class="unit">单</span></div>
           </div>
           <div class="stat">
             <div class="stat-label">可用余额</div>
-            <div class="stat-val"><span class="num yb-mono">{{ formatAmount(account?.available || '0') }}</span><span class="unit">U</span></div>
+            <div class="stat-val"><span class="num yb-mono">{{ account ? formatAmount(account.available || '0') : '—' }}</span><span class="unit">U</span></div>
           </div>
           <div class="stat">
             <div class="stat-label">已担保</div>
-            <div class="stat-val"><span class="num yb-mono">{{ formatAmount(account?.depositGuaranteed || '0') }}</span><span class="unit">U</span></div>
+            <div class="stat-val"><span class="num yb-mono">{{ account ? formatAmount(account.depositGuaranteed || '0') : '—' }}</span><span class="unit">U</span></div>
           </div>
         </div>
       </section>
@@ -119,7 +148,7 @@ const kpis = computed(() => [
       <section class="kpi-grid">
         <div v-for="metric in kpis" :key="metric.label" class="real-kpi" :style="{ '--accent': metric.color }">
           <div class="kpi-icon"><Icon :icon="metric.icon" width="18" /></div>
-          <div class="kpi-value yb-mono">{{ metric.value }}<span>单</span></div>
+          <div class="kpi-value yb-mono">{{ metric.value ?? '—' }}<span>单</span></div>
           <div class="kpi-label">{{ metric.label }}</div>
         </div>
       </section>
@@ -137,21 +166,35 @@ const kpis = computed(() => [
           <template v-if="pendingOrders.length">
             <BuyerOrderCard v-for="o in pendingOrders" :key="o.id" :order="o" />
           </template>
-          <EmptyState v-else icon="lucide:inbox" title="暂无进行中订单" description="去求购大厅接单赚取收益" />
+          <EmptyState
+            v-else
+            icon="lucide:inbox"
+            :title="loadErrors.orders || '暂无进行中订单'"
+            :description="loadErrors.orders ? '不会把请求失败显示成没有订单。' : '去求购大厅接单赚取收益'"
+            :action-text="loadErrors.orders ? '重新加载' : undefined"
+            @action="loadErrors.orders && loadAll()"
+          />
         </div>
 
         <div class="split-card">
           <div class="split-head">
             <div class="split-title-group">
               <div class="sec-tag gold"><Icon icon="lucide:sparkles" width="12" /> CLAIMABLE</div>
-              <h3 class="split-title">可接求购 <span class="count yb-mono">{{ claimableTotal }}</span></h3>
+              <h3 class="split-title">可接求购 <span class="count yb-mono">{{ claimableTotal ?? '—' }}</span></h3>
             </div>
             <button class="text-link" @click="router.push('/buyer/claimable')">前往大厅 <Icon icon="lucide:arrow-right" width="13" /></button>
           </div>
           <template v-if="claimable.length">
             <PurchaseRequestCard v-for="r in claimable" :key="r.id" :request="r" mode="hall" :can-claim="false" />
           </template>
-          <EmptyState v-else icon="lucide:sparkles" title="暂无可接求购" description="新求购按 VIP 阶梯推送" />
+          <EmptyState
+            v-else
+            icon="lucide:sparkles"
+            :title="loadErrors.claimable || '暂无可接求购'"
+            :description="loadErrors.claimable ? '不会把请求失败显示成没有求购。' : '当前暂无可接求购'"
+            :action-text="loadErrors.claimable ? '重新加载' : undefined"
+            @action="loadErrors.claimable && loadAll()"
+          />
         </div>
       </section>
 
@@ -176,15 +219,15 @@ const kpis = computed(() => [
           <div class="deposit-detail">
             <div class="dd-row">
               <div class="dd-key"><span class="dd-dot avail"></span> 可用押金</div>
-              <div class="dd-val yb-mono">U {{ formatAmount(account?.depositAvailable || '0') }}</div>
+              <div class="dd-val yb-mono">U {{ account ? formatAmount(account.depositAvailable || '0') : '—' }}</div>
             </div>
             <div class="dd-row">
               <div class="dd-key"><span class="dd-dot lock"></span> 已担保</div>
-              <div class="dd-val yb-mono">U {{ formatAmount(account?.depositGuaranteed || '0') }}</div>
+              <div class="dd-val yb-mono">U {{ account ? formatAmount(account.depositGuaranteed || '0') : '—' }}</div>
             </div>
             <div class="dd-row">
               <div class="dd-key">担保占比</div>
-              <div class="dd-val yb-mono">{{ depositPct.toFixed(1) }}%</div>
+              <div class="dd-val yb-mono">{{ account ? `${depositPct.toFixed(1)}%` : '—' }}</div>
             </div>
             <div class="deposit-actions">
               <button class="btn primary sm" @click="router.push('/buyer/deposit')">
@@ -210,6 +253,9 @@ const kpis = computed(() => [
 .dashboard-page {
   padding-top: 24px;
   padding-bottom: 64px;
+}
+.load-alert {
+  margin-bottom: 16px;
 }
 
 /* ========== Hero (dark accent) ========== */

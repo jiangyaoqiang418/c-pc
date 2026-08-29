@@ -3,8 +3,8 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { enums } from '@shared';
-import { productImageUrl } from '@shared/utils/image';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
@@ -12,19 +12,18 @@ interface Props {
 const props = defineProps<Props>();
 
 const router = useRouter();
-const cover = computed(() => props.product.images?.[0]?.url || productImageUrl(props.product.id, 480, props.product.categoryPath));
+const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
 const aftersale = computed(() => enums.AFTERSALE_TYPE_META[props.product.aftersaleType]);
 
 function goDetail() {
   router.push({ name: 'product-detail', params: { id: String(props.product.id) } });
 }
 
-const FALLBACK_IMG = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect width=%22100%22 height=%22100%22 fill=%22%23EDECE6%22/></svg>';
 function onImgError(e: Event) {
   const img = e.target as HTMLImageElement;
   if (img.dataset.fallback) return;
   img.dataset.fallback = '1';
-  img.src = FALLBACK_IMG;
+  img.src = PRODUCT_IMAGE_PLACEHOLDER;
 }
 </script>
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { Message } from '@arco-design/web-vue';
@@ -20,6 +20,22 @@ const flashEndAt = ref<string | number>();
 const now = ref(Date.now());
 let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
+type HomeSection = 'banners' | 'recommendations' | 'hot' | 'newest' | 'flash';
+const sectionErrors = reactive<Record<HomeSection, string>>({
+  banners: '',
+  recommendations: '',
+  hot: '',
+  newest: '',
+  flash: ''
+});
+const sectionLoading = reactive<Record<HomeSection, boolean>>({
+  banners: false,
+  recommendations: false,
+  hot: false,
+  newest: false,
+  flash: false
+});
+
 const heroBanner = computed(() => banners.value[0]);
 
 // 频道广场 6 卡组合
@@ -32,23 +48,59 @@ const channelCards = [
   { key: 'brand', title: '油宝京造', sub: '油宝自有品牌', tag: 'BRAND', bg: 'champagne', image: bannerImage(5, 300) }
 ];
 
-onMounted(async () => {
-  const [bannersResult, recommendationsResult, hotResult, newestResult, flashResult] = await Promise.allSettled([
-    realProductApi.fetchHomeBanners(),
-    realProductApi.fetchHomeRecommendations(),
-    realProductApi.fetchBestSellers(),
-    realProductApi.fetchNewArrivals(),
-    realProductApi.fetchFlashSale()
-  ]);
-
-  if (bannersResult.status === 'fulfilled') banners.value = bannersResult.value;
-  if (recommendationsResult.status === 'fulfilled') recommendations.value = recommendationsResult.value;
-  if (hotResult.status === 'fulfilled') hot.value = hotResult.value;
-  if (newestResult.status === 'fulfilled') newest.value = newestResult.value;
-  if (flashResult.status === 'fulfilled') {
-    flash.value = flashResult.value.map(item => item.product);
-    flashEndAt.value = flashResult.value.find(item => item.sessionEndTime)?.sessionEndTime;
+async function loadSection(section: HomeSection, task: () => Promise<void>) {
+  if (sectionLoading[section]) return;
+  sectionLoading[section] = true;
+  sectionErrors[section] = '';
+  try {
+    await task();
+  } catch {
+    sectionErrors[section] = '加载失败';
+  } finally {
+    sectionLoading[section] = false;
   }
+}
+
+const sectionLoaders: Record<HomeSection, () => Promise<void>> = {
+  banners: () => loadSection('banners', async () => {
+    banners.value = await realProductApi.fetchHomeBanners();
+  }),
+  recommendations: () => loadSection('recommendations', async () => {
+    recommendations.value = await realProductApi.fetchHomeRecommendations();
+  }),
+  hot: () => loadSection('hot', async () => {
+    hot.value = await realProductApi.fetchBestSellers();
+  }),
+  newest: () => loadSection('newest', async () => {
+    newest.value = await realProductApi.fetchNewArrivals();
+  }),
+  flash: () => loadSection('flash', async () => {
+    const result = await realProductApi.fetchFlashSale();
+    flash.value = result.map(item => item.product);
+    flashEndAt.value = result.find(item => item.sessionEndTime)?.sessionEndTime;
+  })
+};
+
+function loadAllSections() {
+  return Promise.all(Object.values(sectionLoaders).map(load => load()));
+}
+
+const failedProductSections = computed(() => [
+  ['recommendations', '推荐'],
+  ['hot', '热销榜'],
+  ['newest', '新品'],
+  ['flash', '秒杀']
+].filter(([key]) => sectionErrors[key as HomeSection]).map(([, label]) => label));
+
+function retryProductSections() {
+  failedProductSections.value.forEach(label => {
+    const section = ({ 推荐: 'recommendations', 热销榜: 'hot', 新品: 'newest', 秒杀: 'flash' } as const)[label as '推荐' | '热销榜' | '新品' | '秒杀'];
+    void sectionLoaders[section]();
+  });
+}
+
+onMounted(() => {
+  void loadAllSections();
 
   countdownTimer = window.setInterval(() => {
     now.value = Date.now();
@@ -62,7 +114,13 @@ onUnmounted(() => {
 const buyersPick = computed(() => recommendations.value.slice(0, 4));
 const flashCountdown = computed(() => {
   if (!flashEndAt.value) return '进行中';
-  const endAt = typeof flashEndAt.value === 'number' ? flashEndAt.value : Number(flashEndAt.value);
+  const raw = flashEndAt.value;
+  const endAt = typeof raw === 'number'
+    ? raw
+    : /^\d+$/.test(raw)
+      ? Number(raw)
+      : Date.parse(raw);
+  if (!Number.isFinite(endAt)) return '时间待确认';
   const seconds = Math.max(0, Math.floor((endAt - now.value) / 1000));
   return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
     .map(value => String(value).padStart(2, '0'))
@@ -112,11 +170,19 @@ function showUnavailableProductList() {
             </button>
           </div>
         </div>
-        <div v-else class="hero-unavailable">暂无首页活动</div>
+        <div v-else class="hero-unavailable">
+          <span>{{ sectionErrors.banners ? '首页活动加载失败' : '暂无首页活动' }}</span>
+          <a-button v-if="sectionErrors.banners" size="small" :loading="sectionLoading.banners" @click="sectionLoaders.banners">重新加载</a-button>
+        </div>
       </div>
 
       <RightPanel class="hb-right" />
     </section>
+
+    <a-alert v-if="failedProductSections.length" type="error" :closable="false" class="home-error">
+      {{ failedProductSections.join('、') }}加载失败，未使用本地数据替代。
+      <template #action><a-button size="mini" @click="retryProductSections">重新加载</a-button></template>
+    </a-alert>
 
     <!-- ============ BUYER'S PICK · 今日值得逛 ============ -->
     <section v-if="buyersPick.length" class="pick-section">
@@ -233,6 +299,9 @@ function showUnavailableProductList() {
 .home-page {
   padding-bottom: 40px;
 }
+.home-error {
+  margin-bottom: 20px;
+}
 
 /* ========== Hero Band 3-col ========== */
 .hero-band {
@@ -288,6 +357,8 @@ function showUnavailableProductList() {
   background: var(--yb-surface);
   color: var(--yb-muted);
   font-size: 14px;
+  flex-direction: column;
+  gap: 12px;
 }
 .hero-overlay {
   position: absolute;

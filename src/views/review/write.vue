@@ -8,6 +8,7 @@ import * as reviewApi from '@/service/api/review';
 import ReviewForm from '@/components/review/review-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 const route = useRoute();
 const router = useRouter();
@@ -89,7 +90,7 @@ function handleEmptyAction() {
 
         <a-card class="order-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
           <div class="order-row">
-            <img :src="order.productCover || `https://picsum.photos/seed/${order.productId}/80/80`" :alt="order.productTitle || '商品图片'" class="cover" />
+            <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" />
             <div class="info">
               <div class="title">{{ order.productTitle }}</div>
               <div class="meta">买手 {{ order.shopperName }} · 总额 U {{ formatAmount(order.totalAmount) }}</div>

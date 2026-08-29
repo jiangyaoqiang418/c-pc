@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { avatarUrl } from '@shared/utils/image';
@@ -7,6 +7,7 @@ import VipBadge from '@/components/common/vip-badge.vue';
 import AudienceSegment from '@/components/common/audience-segment.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -17,33 +18,57 @@ const userAvatar = computed(() => (user.value ? avatarUrl(user.value.id) : ''));
 const isBuyerActive = computed(() => userStore.isBuyerActive);
 
 const orderCounts = ref<Record<string, number>>({});
+const orderCountsLoaded = ref(false);
+const orderCountsError = ref('');
+const orderCountsUserId = ref('');
+const orderCountsGuard = createLatestRequestGuard();
 
 async function loadOrders() {
+  const isCurrent = orderCountsGuard.begin();
   if (!user.value || isBuyerActive.value) {
     orderCounts.value = {};
+    orderCountsLoaded.value = false;
+    orderCountsError.value = '';
+    orderCountsUserId.value = '';
     return;
   }
-  try {
-    orderCounts.value = await realOrderApi.countMyOrdersByStatus();
-  } catch {
+  const userId = String(user.value.id);
+  if (orderCountsUserId.value !== userId) {
     orderCounts.value = {};
+    orderCountsLoaded.value = false;
+  }
+  orderCountsError.value = '';
+  try {
+    const next = await realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal });
+    if (!isCurrent() || String(user.value?.id) !== userId || isBuyerActive.value) return;
+    orderCounts.value = next;
+    orderCountsLoaded.value = true;
+    orderCountsUserId.value = userId;
+  } catch {
+    if (!isCurrent()) return;
+    if (orderCountsUserId.value !== userId) {
+      orderCounts.value = {};
+      orderCountsLoaded.value = false;
+    }
+    orderCountsError.value = '订单统计加载失败';
   }
 }
 
 onMounted(loadOrders);
+onBeforeUnmount(orderCountsGuard.invalidate);
 watch([() => userStore.currentUser?.id, () => userStore.isBuyerActive], loadOrders);
 
 function orderCount(status: string) {
-  return Number(orderCounts.value[status] || 0);
+  return orderCountsLoaded.value ? Number(orderCounts.value[status] || 0) : undefined;
 }
 
 const pendingPay = computed(() => orderCount('PENDING_PAYMENT'));
-const pendingShip = computed(() =>
-  orderCount('PROCURING') + orderCount('PROCURED')
-);
-const pendingReceive = computed(() =>
-  orderCount('IN_TRANSIT') + orderCount('AFTERSALE_CONFIRM')
-);
+const pendingShip = computed(() => orderCountsLoaded.value
+  ? Number(orderCounts.value.PROCURING || 0) + Number(orderCounts.value.PROCURED || 0)
+  : undefined);
+const pendingReceive = computed(() => orderCountsLoaded.value
+  ? Number(orderCounts.value.IN_TRANSIT || 0) + Number(orderCounts.value.AFTERSALE_CONFIRM || 0)
+  : undefined);
 
 /** 顾客面板功能项 */
 const customerLinks = [
@@ -120,18 +145,19 @@ function goProfile() { router.push({ name: 'profile' }); }
             </div>
             <div class="orders-stats">
               <div class="stat">
-                <div class="stat-num yb-mono" :class="{ hl: pendingPay > 0 }">{{ pendingPay }}</div>
+                <div class="stat-num yb-mono" :class="{ hl: (pendingPay || 0) > 0 }">{{ pendingPay ?? '—' }}</div>
                 <div class="stat-lbl">待付款</div>
               </div>
               <div class="stat">
-                <div class="stat-num yb-mono" :class="{ hl: pendingShip > 0 }">{{ pendingShip }}</div>
+                <div class="stat-num yb-mono" :class="{ hl: (pendingShip || 0) > 0 }">{{ pendingShip ?? '—' }}</div>
                 <div class="stat-lbl">待发货</div>
               </div>
               <div class="stat">
-                <div class="stat-num yb-mono" :class="{ hl: pendingReceive > 0 }">{{ pendingReceive }}</div>
+                <div class="stat-num yb-mono" :class="{ hl: (pendingReceive || 0) > 0 }">{{ pendingReceive ?? '—' }}</div>
                 <div class="stat-lbl">待收货</div>
               </div>
             </div>
+            <button v-if="orderCountsError" class="orders-retry" @click.stop="loadOrders">{{ orderCountsError }}，重新加载</button>
           </div>
 
           <!-- 顾客快捷功能 -->
@@ -300,6 +326,17 @@ function goProfile() { router.push({ name: 'profile' }); }
   font-size: 10px;
   color: var(--yb-muted);
   margin-top: 4px;
+}
+.orders-retry {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--yb-danger);
+  font-size: 11px;
+  cursor: pointer;
 }
 
 /* Mini grid */

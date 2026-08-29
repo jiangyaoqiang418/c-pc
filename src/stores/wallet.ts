@@ -22,12 +22,16 @@ export const useWalletStore = defineStore('bw-wallet', () => {
   const account = ref<Api.RealWallet.Account | undefined>();
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
+  let requestVersion = 0;
 
   async function fetchWallet(userId: Api.RealSession.Id) {
     if (!userId) return;
+    const version = ++requestVersion;
     loading.value = true;
     try {
       const overview = await realWalletApi.fetchWalletOverview(userId);
+      const userStore = useUserStore();
+      if (version !== requestVersion || String(userStore.currentUser?.id) !== String(userId)) return;
       summary.value = overview.summary;
       buyerWallet.value = undefined;
       totalAssets.value = overview.total;
@@ -35,7 +39,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
       account.value = overview.account;
       lastFetchedAt.value = Date.now();
     } finally {
-      loading.value = false;
+      if (version === requestVersion) loading.value = false;
     }
   }
 
@@ -45,12 +49,14 @@ export const useWalletStore = defineStore('bw-wallet', () => {
   }
 
   function clear() {
+    requestVersion += 1;
     summary.value = undefined;
     buyerWallet.value = undefined;
     totalAssets.value = '0';
     today.value = undefined;
     account.value = undefined;
     lastFetchedAt.value = 0;
+    loading.value = false;
   }
 
   const bucketsArray = computed<BucketView[]>(() => {

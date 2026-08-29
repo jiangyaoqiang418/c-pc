@@ -3,32 +3,39 @@ import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { toPageTotal } from './page';
 
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
+  const current = Math.max(1, Math.floor(q.current || 1));
+  const size = Math.max(1, Math.floor(q.size || 10));
   const statuses = [...new Set(q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] || [])];
+  if (q.statuses?.length && !statuses.length) {
+    return { current, size, total: 0, records: [] as Api.RealOrder.Record[] };
+  }
+  const requestedStatuses = new Set(q.statuses || []);
   const url = q.shopperId ? '/orders/sold/page' : '/orders/bought/page';
-  const requestPage = (status?: Api.RealOrder.OrderStatus) => realOrderRequest.post<
+  const requestPage = (status?: Api.RealOrder.OrderStatus, pageNo = current, pageSize = size) => realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
     Api.RealOrder.OrderPageQuery
     >(url, {
-      pageNo: q.current || 1,
-      pageSize: q.size || 10,
+      pageNo,
+      pageSize,
       status
     }, { signal: q.signal });
   const pages = statuses.length > 1
-    ? await Promise.all(statuses.map(status => requestPage(status)))
+    ? await Promise.all(statuses.map(status => requestPage(status, 1, current * size)))
     : [await requestPage(statuses[0])];
   const recordsById = new Map<string, Api.RealOrder.Record>();
   pages.forEach(page => {
     page.records.map(toOrderRecord).forEach(record => {
-      if (!q.statuses?.length || q.statuses.includes(record.status)) recordsById.set(String(record.id), record);
+      if (!q.statuses?.length || requestedStatuses.has(record.status)) recordsById.set(String(record.id), record);
     });
   });
+  const offset = statuses.length > 1 ? (current - 1) * size : 0;
   const records = [...recordsById.values()]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, q.size || 10);
+    .slice(offset, offset + size);
 
   return {
-    current: q.current || 1,
-    size: q.size || 10,
+    current,
+    size,
     total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
     records
   };

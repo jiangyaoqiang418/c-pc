@@ -13,6 +13,7 @@ import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 const route = useRoute();
 const router = useRouter();
@@ -68,7 +69,10 @@ onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, load);
 
-const aftersaleMeta = computed(() => (order.value ? enums.AFTERSALE_TYPE_META[order.value.aftersaleType] : undefined));
+const aftersaleMeta = computed(() => {
+  const aftersaleType = order.value?.aftersaleType;
+  return aftersaleType ? enums.AFTERSALE_TYPE_META[aftersaleType] : undefined;
+});
 const carrierMeta = computed(() =>
   order.value?.shippingCarrier ? enums.CARRIER_META[order.value.shippingCarrier] : undefined
 );
@@ -226,7 +230,7 @@ function contactShopper() {
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">商品信息</div>
           <div class="goods-row">
-            <img :src="order.productCover || `https://picsum.photos/seed/${order.productId}/120/120`" :alt="order.productTitle || '商品图片'" class="cover" />
+            <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" />
             <div class="info">
               <div class="title" @click="router.push({ name: 'product-detail', params: { id: String(order.productId) } })">
                 {{ order.productTitle }}

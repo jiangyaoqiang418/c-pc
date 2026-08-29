@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
@@ -11,6 +11,7 @@ import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 
 const list = ref<Api.RealPurchase.Record[]>([]);
@@ -25,6 +26,44 @@ const expDaysFilter = ref<number | undefined>();
 const claimingId = ref<string | number>();
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
+
+function queryValue(key: string) {
+  const value = route.query[key];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function positiveNumber(value: string | null | undefined) {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function syncFromQuery() {
+  keyword.value = queryValue('keyword') || '';
+  minBudget.value = positiveNumber(queryValue('minBudget'));
+  maxBudget.value = positiveNumber(queryValue('maxBudget'));
+  const days = positiveNumber(queryValue('expectedDays'));
+  expDaysFilter.value = days && [7, 15, 30].includes(days) ? days : undefined;
+  const page = positiveNumber(queryValue('page'));
+  current.value = page && Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function currentQuery() {
+  return {
+    ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
+    ...(minBudget.value !== undefined ? { minBudget: String(minBudget.value) } : {}),
+    ...(maxBudget.value !== undefined ? { maxBudget: String(maxBudget.value) } : {}),
+    ...(expDaysFilter.value !== undefined ? { expectedDays: String(expDaysFilter.value) } : {}),
+    ...(current.value > 1 ? { page: String(current.value) } : {})
+  };
+}
+
+function syncQuery() {
+  const before = route.fullPath;
+  void router.push({ query: currentQuery() }).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
 
 const canClaim = computed(() => {
   if (!userStore.currentUser) return false;
@@ -43,6 +82,12 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      void router.replace({ query: currentQuery() });
+      return;
+    }
     let records = r.records;
     if (minBudget.value != null) records = records.filter(x => Number(x.budgetAmount) >= minBudget.value!);
     if (maxBudget.value != null) records = records.filter(x => Number(x.budgetAmount) <= maxBudget.value!);
@@ -58,7 +103,15 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(requestGuard.invalidate);
+onMounted(() => {
+  syncFromQuery();
+  void load();
+});
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => route.fullPath, () => {
+  syncFromQuery();
+  void load();
+});
 
 async function onClaim(req: Api.RealPurchase.Record) {
   if (claimingId.value !== undefined) return;
@@ -103,7 +156,17 @@ function reset() {
   maxBudget.value = undefined;
   expDaysFilter.value = undefined;
   current.value = 1;
-  load();
+  syncQuery();
+}
+
+function queryRecords() {
+  current.value = 1;
+  syncQuery();
+}
+
+function changePage(page: number) {
+  current.value = page;
+  syncQuery();
 }
 </script>
 
@@ -161,7 +224,7 @@ function reset() {
       <div class="filter-row">
         <div class="fi">
           <label class="fi-label">关键词</label>
-          <a-input v-model="keyword" placeholder="搜索商品标题" allow-clear @press-enter="load" />
+          <a-input v-model="keyword" placeholder="搜索商品标题" allow-clear @press-enter="queryRecords" />
         </div>
         <div class="fi">
           <label class="fi-label">预算区间 (USDT)</label>
@@ -180,7 +243,7 @@ function reset() {
           </a-select>
         </div>
         <div class="fi-actions">
-          <button class="btn primary sm" @click="() => { current = 1; load(); }">
+          <button class="btn primary sm" @click="queryRecords">
             <Icon icon="lucide:search" width="13" /> 查询
           </button>
           <button class="btn ghost sm" @click="reset">重置</button>
@@ -231,7 +294,7 @@ function reset() {
         v-else
         icon="lucide:inbox"
         :title="loadError || '暂无进行中的求购'"
-        :description="loadError ? '不会把请求失败误显示为没有求购。' : '求购任务每 10 分钟刷新一批，请稍后再来'"
+        :description="loadError ? '不会把请求失败误显示为没有求购。' : '当前没有可接的求购任务，请稍后再来'"
         :action-text="loadError ? '重新加载' : undefined"
         @action="load"
       />
@@ -242,7 +305,7 @@ function reset() {
           :current="current"
           :page-size="size"
           show-total
-          @change="(p: number) => { current = p; load(); }"
+          @change="changePage"
         />
       </div>
     </a-spin>

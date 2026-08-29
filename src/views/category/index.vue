@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as categoryApi from '@/service/api/category';
 import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface CategoryNode {
   id: string | number;
@@ -29,6 +30,7 @@ const treeLoading = ref(false);
 const treeError = ref('');
 const productLoadError = ref('');
 const breadcrumb = ref<string>('请选择品类');
+const productRequestGuard = createLatestRequestGuard();
 
 const treeData = computed<TreeData[]>(() => mapTree(tree.value));
 
@@ -78,25 +80,24 @@ async function loadTree() {
   }
 }
 
-let lastPickedId = '';
 async function pick(id: string) {
-  // 同 id 且不在 loading 中，跳过重复请求
-  if (id === lastPickedId && !loading.value) return;
-  lastPickedId = id;
+  const isCurrent = productRequestGuard.begin();
   const found = findNode(tree.value, id);
   breadcrumb.value = found ? found.path.join(' / ') : '';
   loading.value = true;
   productLoadError.value = '';
   try {
-    const r = await productApi.fetchStorefrontProducts({ categoryId: id, size: 24 });
+    const r = await productApi.fetchStorefrontProducts({ categoryId: id, size: 24, signal: isCurrent.signal });
+    if (!isCurrent() || selectedKeys.value[0] !== id) return;
     products.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent() || selectedKeys.value[0] !== id) return;
     products.value = [];
     total.value = 0;
     productLoadError.value = '分类商品加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent() && selectedKeys.value[0] === id) loading.value = false;
   }
 }
 
@@ -106,6 +107,7 @@ watch(selectedKeys, keys => {
 });
 
 onMounted(loadTree);
+onBeforeUnmount(productRequestGuard.invalidate);
 </script>
 
 <template>

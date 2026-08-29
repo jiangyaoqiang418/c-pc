@@ -19,6 +19,8 @@ const order = ref<Api.RealFinance.FinanceOrderVO>();
 const loading = ref(false);
 const loadError = ref('');
 const unlockModalOpen = ref(false);
+const unlocking = ref(false);
+const redeemedOrderIds = new Set<string>();
 const id = computed(() => String(route.params.id));
 const requestGuard = createLatestRequestGuard();
 
@@ -40,8 +42,11 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    order.value = await financeApi.fetchFinanceOrderDetail(id.value, { signal: isCurrent.signal });
+    const next = await financeApi.fetchFinanceOrderDetail(id.value, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    order.value = redeemedOrderIds.has(String(next.id))
+      ? { ...next, canRedeem: false }
+      : next;
   } catch {
     if (!isCurrent()) return;
     order.value = undefined;
@@ -56,19 +61,35 @@ onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, load);
 
 function openUnlock() {
-  if (!order.value) return;
+  if (!order.value || redeemedOrderIds.has(String(order.value.id))) return;
   unlockModalOpen.value = true;
 }
 
 async function confirmUnlock(o: Api.RealFinance.FinanceOrderVO) {
+  const orderId = String(o.id);
+  if (unlocking.value || redeemedOrderIds.has(orderId)) return;
+  unlocking.value = true;
   try {
-    await financeApi.redeemFinance({ id: o.id });
+    try {
+      await financeApi.redeemFinance({ id: o.id });
+    } catch {
+      Message.error('解锁失败，请稍后重试');
+      return;
+    }
+    redeemedOrderIds.add(orderId);
+    if (order.value && String(order.value.id) === orderId) {
+      order.value = { ...order.value, canRedeem: false };
+    }
     Message.success('提前赎回成功');
     unlockModalOpen.value = false;
-    await walletStore.refetch();
+    try {
+      await walletStore.refetch();
+    } catch {
+      Message.warning('赎回已成功，钱包余额刷新失败，请稍后刷新查看');
+    }
     await load();
-  } catch {
-    Message.error('解锁失败，请稍后重试');
+  } finally {
+    unlocking.value = false;
   }
 }
 
@@ -158,7 +179,12 @@ function handleEmptyAction() {
       />
     </a-spin>
 
-    <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="order" @confirm="confirmUnlock" />
+    <EarlyUnlockModal
+      v-model:visible="unlockModalOpen"
+      :order="order"
+      :submitting="unlocking"
+      @confirm="confirmUnlock"
+    />
   </div>
 </template>
 

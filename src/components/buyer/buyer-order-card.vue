@@ -3,8 +3,8 @@ import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
-import { productImageUrl } from '@shared/utils/image';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
+import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -18,7 +18,7 @@ defineEmits<{
 }>();
 
 const router = useRouter();
-const cover = computed(() => props.order.productCover || productImageUrl(props.order.productId, 200));
+const cover = computed(() => props.order.productCover || PRODUCT_IMAGE_PLACEHOLDER);
 
 function goDetail() {
   router.push({ name: 'order-detail', params: { id: String(props.order.id) } });

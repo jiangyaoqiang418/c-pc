@@ -47,12 +47,12 @@ const cartCount = computed(() => cart.count);
     <footer class="footer">
       <div class="footer-inner">
         <div class="links">
-          <a>关于平台</a>
-          <a>帮助中心</a>
-          <a>用户协议</a>
-          <a>隐私政策</a>
-          <a>AML 政策</a>
-          <a>联系客服</a>
+          <RouterLink to="/">关于平台</RouterLink>
+          <RouterLink to="/help">帮助中心</RouterLink>
+          <RouterLink :to="{ path: '/help', query: { agreement: 'user' } }">用户协议</RouterLink>
+          <RouterLink :to="{ path: '/help', query: { agreement: 'privacy' } }">隐私政策</RouterLink>
+          <RouterLink :to="{ path: '/help', query: { agreement: 'aml' } }">AML 政策</RouterLink>
+          <RouterLink to="/help">联系客服</RouterLink>
         </div>
         <div class="copyright">{{ BRAND.copyright }}</div>
       </div>

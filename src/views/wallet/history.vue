@@ -102,6 +102,13 @@ async function load() {
       types: filter.types.length ? filter.types : undefined,
       signal: isCurrent.signal
     });
+    if (!isCurrent()) return;
+    const maxPage = Math.max(1, Math.ceil(r.total / size.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      syncQuery();
+      return;
+    }
     let records = r.records;
     if (filter.bucket) records = records.filter(t => t.bucketFrom === filter.bucket || t.bucketTo === filter.bucket);
     if (filter.dateRange?.[0]) records = records.filter(t => t.createdAt >= filter.dateRange![0]);
@@ -115,7 +122,6 @@ async function load() {
           (t.chainTxHash || '').toLowerCase().includes(kw)
       );
     }
-    if (!isCurrent()) return;
     list.value = records;
     total.value = r.total;
   } catch {

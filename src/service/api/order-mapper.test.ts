@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toOrderRecord } from './order-mapper';
+import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { cartStorageKey } from '@/stores/cart';
 
 describe('toOrderRecord', () => {
@@ -62,6 +62,11 @@ describe('toOrderRecord', () => {
     expect(record.purchaseScreenshotUrl).toBeUndefined();
     expect(record.shippingScreenshotUrl).toBeUndefined();
     expect(record.shippingVoucherUrls).toBeUndefined();
+    expect(record.status).toBe('PROCURING');
+    expect(record.customerName).toBe('匿名顾客');
+    expect(record.overseasCustoms).toBeUndefined();
+    expect(record.aftersaleType).toBeUndefined();
+    expect(reverseStatusMap.PROCURED).toBeUndefined();
   });
 });
 

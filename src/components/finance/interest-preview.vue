@@ -5,15 +5,17 @@ import { formatAmount, formatRate } from '@shared';
 interface Props {
   product: Api.RealFinance.FinanceProductVO;
   availableBalance?: string;
+  submitting?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'subscribe', amount: string): void }>();
 
-const amount = ref<number>(Number(props.product.minAmount) || 100);
-const submitting = ref(false);
+const amount = ref<number>();
+amount.value = Number(props.product.minAmount) || 100;
 
 const annualRate = computed(() => Number(props.product.annualRate) || 0);
-const expectedInterest = computed(() => (amount.value * annualRate.value * props.product.lockDays / 365).toFixed(8));
+const normalizedAmount = computed(() => Number.isFinite(amount.value) ? Number(amount.value) : 0);
+const expectedInterest = computed(() => (normalizedAmount.value * annualRate.value * props.product.lockDays / 365).toFixed(8));
 const maturityDate = computed(() => new Date(Date.now() + props.product.lockDays * 86400_000).toLocaleDateString());
 
 const min = computed(() => Number(props.product.minAmount) || 0);
@@ -21,22 +23,18 @@ const max = computed(() => (props.product.maxAmount ? Number(props.product.maxAm
 const balance = computed(() => Number(props.availableBalance || '0'));
 
 const errMsg = computed(() => {
-  if (amount.value < min.value) return `最少投入 ${min.value} U`;
-  if (max.value && amount.value > max.value) return `单笔最高 ${max.value} U`;
-  if (amount.value > balance.value) return `可用余额 U ${formatAmount(props.availableBalance || '0')} 不足`;
+  if (amount.value === undefined || !Number.isFinite(amount.value)) return '请输入投入金额';
+  if (normalizedAmount.value < min.value) return `最少投入 ${min.value} U`;
+  if (max.value && normalizedAmount.value > max.value) return `单笔最高 ${max.value} U`;
+  if (normalizedAmount.value > balance.value) return `可用余额 U ${formatAmount(props.availableBalance || '0')} 不足`;
   return '';
 });
 
-const canSubmit = computed(() => !errMsg.value && amount.value > 0);
+const canSubmit = computed(() => !errMsg.value && normalizedAmount.value > 0);
 
 function submit() {
-  if (!canSubmit.value) return;
-  submitting.value = true;
-  try {
-    emit('subscribe', amount.value.toFixed(2));
-  } finally {
-    setTimeout(() => (submitting.value = false), 800);
-  }
+  if (!canSubmit.value || props.submitting) return;
+  emit('subscribe', normalizedAmount.value.toFixed(2));
 }
 
 watch(
@@ -84,11 +82,11 @@ watch(
       long
       size="large"
       :disabled="!canSubmit"
-      :loading="submitting"
+      :loading="props.submitting"
       class="submit-btn"
       @click="submit"
     >
-      立即订阅 U {{ formatAmount(amount.toFixed(2)) }}
+      立即订阅 U {{ formatAmount(amount) }}
     </a-button>
 
     <div class="hint">提前赎回以订单详情返回的可到账利息和违约费为准。</div>

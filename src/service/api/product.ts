@@ -109,6 +109,25 @@ export async function fetchProductDetail(id: string | number, options: { showErr
   return toProductRecord(dto);
 }
 
+export type StorefrontSort = NonNullable<Api.RealProduct.StorefrontProductPageQuery['sortBy']>;
+
+type LegacyStorefrontSort = 'sales' | 'price-asc' | 'price-desc' | 'newest' | 'reviews';
+
+const legacyStorefrontSortMap: Record<LegacyStorefrontSort, StorefrontSort> = {
+  sales: 'DEFAULT',
+  newest: 'NEW',
+  'price-asc': 'PRICE_ASC',
+  'price-desc': 'PRICE_DESC',
+  reviews: 'SALES'
+};
+
+export function normalizeStorefrontSort(sort?: string): StorefrontSort {
+  if (sort === 'DEFAULT' || sort === 'SALES' || sort === 'NEW' || sort === 'PRICE_ASC' || sort === 'PRICE_DESC') {
+    return sort;
+  }
+  return legacyStorefrontSortMap[sort as LegacyStorefrontSort] || 'DEFAULT';
+}
+
 export async function fetchStorefrontProducts(q: {
   current?: number;
   size?: number;
@@ -118,16 +137,9 @@ export async function fetchStorefrontProducts(q: {
   overseasCustoms?: boolean;
   minPrice?: number;
   maxPrice?: number;
-  sort?: 'sales' | 'price-asc' | 'price-desc' | 'newest' | 'reviews';
+  sort?: StorefrontSort | LegacyStorefrontSort;
   signal?: AbortSignal;
 }) {
-  const sortMap = {
-    sales: 'DEFAULT',
-    newest: 'NEW',
-    'price-asc': 'PRICE_ASC',
-    'price-desc': 'PRICE_DESC',
-    reviews: 'SALES'
-  } as const;
   const page = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.StorefrontProductVO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.StorefrontProductPageQuery
@@ -140,7 +152,7 @@ export async function fetchStorefrontProducts(q: {
     maxPrice: q.maxPrice,
     afterSaleType: q.aftersaleType ? fromAfterSaleType(q.aftersaleType) : undefined,
     overseasClearance: q.overseasCustoms,
-    sortBy: sortMap[q.sort || 'sales']
+    sortBy: normalizeStorefrontSort(q.sort)
   }, { signal: q.signal });
   return {
     current: page.current || page.pageNo || q.current || 1,

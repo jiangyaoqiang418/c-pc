@@ -4,6 +4,7 @@ import { type Audience, MOCK_USERS, STORAGE_KEY, authApi } from '@shared';
 import * as realAuthApi from '@/service/api/auth';
 import { getAccessToken, isAuthenticationFailure } from '@/service/request';
 import { useCartStore } from './cart';
+import { useWalletStore } from './wallet';
 
 export const useUserStore = defineStore('bw-user', () => {
   const currentUser = ref<Api.User.UserRecord | Api.RealSession.UserRecord | undefined>();
@@ -49,9 +50,10 @@ export const useUserStore = defineStore('bw-user', () => {
   }
 
   async function login(userId: number) {
-    realAuthApi.logoutLocal();
     const result = await authApi.switchCurrentUser(userId);
     if (!result || 'error' in result) throw new Error((result as { error: string })?.error || '登录失败');
+    useWalletStore().clear();
+    realAuthApi.logoutLocal();
     currentUser.value = result;
     useCartStore().switchOwner(result.id);
     currentAudience.value = 'customer';
@@ -61,6 +63,7 @@ export const useUserStore = defineStore('bw-user', () => {
 
   async function loginWithPassword(params: Api.RealAuth.LoginParams) {
     const result = await realAuthApi.login(params);
+    useWalletStore().clear();
     currentUser.value = result.user;
     useCartStore().switchOwner(result.user.id);
     currentAudience.value = result.user.isBuyer ? loadAudienceFromStorage() : 'customer';
@@ -78,6 +81,7 @@ export const useUserStore = defineStore('bw-user', () => {
   }
 
   function logout() {
+    useWalletStore().clear();
     currentUser.value = undefined;
     currentAudience.value = 'customer';
     useCartStore().switchOwner();
@@ -87,6 +91,7 @@ export const useUserStore = defineStore('bw-user', () => {
   }
 
   function switchDemoUser(userId: number) {
+    useWalletStore().clear();
     localStorage.setItem(STORAGE_KEY.currentUserId, String(userId));
     localStorage.setItem(STORAGE_KEY.currentAudience, 'customer');
     window.location.reload();

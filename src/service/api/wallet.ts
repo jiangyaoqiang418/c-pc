@@ -69,42 +69,86 @@ const txnTypeMap: Record<string, Api.Wallet.TxnType> = {
   CHAIN_DEPOSIT: 'DEPOSIT_IN',
   WITHDRAW: 'WITHDRAW_OUT',
   WITHDRAW_OUT: 'WITHDRAW_OUT',
+  CHAIN_WITHDRAW: 'WITHDRAW_OUT',
+  ORDER_CONSUME: 'INTERNAL_PAY',
+  ORDER_INCOME: 'ORDER_SETTLE',
+  ORDER_REFUND: 'INTERNAL_REFUND',
+  ORDER_UNFREEZE: 'INTERNAL_REFUND',
+  CHAIN_WITHDRAW_REFUND: 'INTERNAL_REFUND',
   ORDER_PAY: 'ORDER_FREEZE',
   ORDER_FREEZE: 'ORDER_FREEZE',
   ORDER_SETTLE: 'ORDER_SETTLE',
   REFUND: 'INTERNAL_REFUND',
   DEPOSIT_PAY: 'DEPOSIT_PLEDGE',
   DEPOSIT_PLEDGE: 'DEPOSIT_PLEDGE',
+  DEPOSIT_REFUND: 'DEPOSIT_RELEASE',
   DEPOSIT_RELEASE: 'DEPOSIT_RELEASE',
+  DEPOSIT_DEDUCT: 'DEPOSIT_FORFEIT',
   DEPOSIT_FORFEIT: 'DEPOSIT_FORFEIT',
   FINANCE_LOCK: 'FINANCE_LOCK',
   FINANCE_UNLOCK: 'FINANCE_UNLOCK',
+  FINANCE_PROFIT: 'INTEREST_ACCRUE',
   INTEREST: 'INTEREST_ACCRUE',
   INTEREST_ACCRUE: 'INTEREST_ACCRUE',
   RISK_FREEZE: 'RISK_FREEZE',
   RISK_UNFREEZE: 'RISK_UNFREEZE',
+  ADMIN_ADJUST_IN: 'ADJUST_PLUS',
+  ADMIN_TRANSFER_IN: 'ADJUST_PLUS',
+  ADMIN_ADJUST_OUT: 'ADJUST_MINUS',
+  ADMIN_TRANSFER_OUT: 'ADJUST_MINUS',
   ADJUST_PLUS: 'ADJUST_PLUS',
   ADJUST_MINUS: 'ADJUST_MINUS',
   FEE: 'FEE_DEDUCT',
   FEE_DEDUCT: 'FEE_DEDUCT'
 };
 
-const typeToBiz: Partial<Record<Api.Wallet.TxnType, { bizGroup?: string; bizType?: string }>> = {
-  DEPOSIT_IN: { bizGroup: 'RECHARGE' },
-  WITHDRAW_OUT: { bizGroup: 'WITHDRAW' },
-  FINANCE_LOCK: { bizGroup: 'FINANCE', bizType: 'FINANCE_LOCK' },
-  FINANCE_UNLOCK: { bizGroup: 'FINANCE', bizType: 'FINANCE_UNLOCK' },
-  INTEREST_ACCRUE: { bizGroup: 'FINANCE', bizType: 'INTEREST_ACCRUE' },
-  DEPOSIT_PLEDGE: { bizGroup: 'DEPOSIT', bizType: 'DEPOSIT_PAY' },
-  DEPOSIT_RELEASE: { bizGroup: 'DEPOSIT', bizType: 'DEPOSIT_RELEASE' },
-  DEPOSIT_FORFEIT: { bizGroup: 'DEPOSIT', bizType: 'DEPOSIT_FORFEIT' },
-  ORDER_FREEZE: { bizGroup: 'ORDER', bizType: 'ORDER_PAY' },
-  ORDER_SETTLE: { bizGroup: 'ORDER', bizType: 'ORDER_SETTLE' },
-  RISK_FREEZE: { bizGroup: 'RISK', bizType: 'RISK_FREEZE' },
-  RISK_UNFREEZE: { bizGroup: 'RISK', bizType: 'RISK_UNFREEZE' },
-  ADJUST_PLUS: { bizGroup: 'ADJUST', bizType: 'ADJUST_PLUS' },
-  ADJUST_MINUS: { bizGroup: 'ADJUST', bizType: 'ADJUST_MINUS' },
-  FEE_DEDUCT: { bizGroup: 'FEE', bizType: 'FEE_DEDUCT' }
+const incomeTxnTypes = new Set<Api.Wallet.TxnType>([
+  'DEPOSIT_IN',
+  'INTERNAL_RECEIVE',
+  'INTERNAL_REFUND',
+  'INTEREST_ACCRUE',
+  'FINANCE_UNLOCK',
+  'DEPOSIT_RELEASE',
+  'ORDER_SETTLE',
+  'RISK_UNFREEZE',
+  'ADJUST_PLUS'
+]);
+
+interface WalletBizSelector {
+  bizGroup?: string;
+  bizType: string;
+}
+
+const typeToBiz: Partial<Record<Api.Wallet.TxnType, WalletBizSelector[]>> = {
+  DEPOSIT_IN: [{ bizGroup: 'CHAIN', bizType: 'CHAIN_DEPOSIT' }],
+  WITHDRAW_OUT: [{ bizGroup: 'CHAIN', bizType: 'CHAIN_WITHDRAW' }],
+  INTERNAL_PAY: [{ bizGroup: 'ORDER', bizType: 'ORDER_CONSUME' }],
+  INTERNAL_REFUND: [
+    { bizGroup: 'ORDER', bizType: 'ORDER_REFUND' },
+    { bizGroup: 'ORDER', bizType: 'ORDER_UNFREEZE' },
+    { bizGroup: 'CHAIN', bizType: 'CHAIN_WITHDRAW_REFUND' }
+  ],
+  FINANCE_LOCK: [{ bizGroup: 'FINANCE', bizType: 'FINANCE_LOCK' }],
+  FINANCE_UNLOCK: [{ bizGroup: 'FINANCE', bizType: 'FINANCE_UNLOCK' }],
+  INTEREST_ACCRUE: [{ bizGroup: 'FINANCE', bizType: 'FINANCE_PROFIT' }],
+  DEPOSIT_PLEDGE: [{ bizGroup: 'DEPOSIT', bizType: 'DEPOSIT_PAY' }],
+  DEPOSIT_RELEASE: [{ bizGroup: 'DEPOSIT', bizType: 'DEPOSIT_REFUND' }],
+  DEPOSIT_FORFEIT: [{ bizGroup: 'DEPOSIT', bizType: 'DEPOSIT_DEDUCT' }],
+  ORDER_FREEZE: [{ bizGroup: 'ORDER_FREEZE', bizType: 'ORDER_FREEZE' }],
+  ORDER_SETTLE: [{ bizGroup: 'ORDER', bizType: 'ORDER_INCOME' }],
+  RISK_FREEZE: [{ bizGroup: 'RISK', bizType: 'RISK_FREEZE' }],
+  RISK_UNFREEZE: [{ bizGroup: 'RISK', bizType: 'RISK_UNFREEZE' }],
+  ADJUST_PLUS: [
+    { bizType: 'ADMIN_ADJUST_IN' },
+    { bizType: 'ADMIN_TRANSFER_IN' },
+    { bizType: 'ADJUST_PLUS' }
+  ],
+  ADJUST_MINUS: [
+    { bizType: 'ADMIN_ADJUST_OUT' },
+    { bizType: 'ADMIN_TRANSFER_OUT' },
+    { bizType: 'ADJUST_MINUS' }
+  ],
+  FEE_DEDUCT: [{ bizType: 'FEE_DEDUCT' }]
 };
 
 function toIso(value?: string | number) {
@@ -117,8 +161,11 @@ function toIso(value?: string | number) {
 function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
   const bucketFrom = dto.fromType ? bucketMapReverse[dto.fromType] : undefined;
   const bucketTo = dto.toType ? bucketMapReverse[dto.toType] : undefined;
-  const direction: Api.Wallet.Txn['direction'] = bucketTo && !bucketFrom ? 'in' : 'out';
-  const type = txnTypeMap[dto.bizType] || txnTypeMap[dto.bizGroup || ''] || (direction === 'in' ? 'ADJUST_PLUS' : 'ADJUST_MINUS');
+  const inferredDirection: Api.Wallet.Txn['direction'] = bucketTo && !bucketFrom ? 'in' : 'out';
+  const type = txnTypeMap[dto.bizType]
+    || txnTypeMap[dto.bizGroup || '']
+    || (inferredDirection === 'in' ? 'ADJUST_PLUS' : 'ADJUST_MINUS');
+  const direction: Api.Wallet.Txn['direction'] = incomeTxnTypes.has(type) ? 'in' : 'out';
   const remark = dto.remark || dto.bizTypeText || dto.bizGroupText;
   const testData = /\[测试数据\]|\btestData\b|DEV-TEST-/i.test(remark || '');
   const chainTxHash = remark?.match(/(?:txHash=|交易哈希[：:])([^\s，,]+)/i)?.[1];
@@ -169,23 +216,45 @@ export async function fetchWalletLedger(q: {
   types?: Api.Wallet.TxnType[];
   signal?: AbortSignal;
 }) {
-  const firstType = q.types?.[0];
-  const biz = firstType ? typeToBiz[firstType] : undefined;
-  const page = await realUserRequest.post<
+  const current = Math.max(1, Math.floor(q.current || 1));
+  const size = Math.max(1, Math.floor(q.size || 20));
+  const selectedTypes = [...new Set(q.types || [])];
+  const selectorMap = new Map<string, WalletBizSelector>();
+  selectedTypes.forEach(type => {
+    typeToBiz[type]?.forEach(selector => {
+      selectorMap.set(`${selector.bizGroup || ''}:${selector.bizType}`, selector);
+    });
+  });
+  const selectors = [...selectorMap.values()];
+  if (selectedTypes.length && !selectors.length) {
+    return { current, size, total: 0, records: [] as Api.RealWallet.Ledger[] };
+  }
+  const requestPage = (selector?: WalletBizSelector, pageNo = current, pageSize = size) => realUserRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealWallet.WalletLedgerDTO> & { pageNo?: number; pageSize?: number },
     Api.RealWallet.WalletLedgerPageQuery
   >('/wallet/ledger/page', {
-    pageNo: q.current || 1,
-    pageSize: q.size || 20,
-    bizGroup: biz?.bizGroup,
-    bizType: biz?.bizType
+    pageNo,
+    pageSize,
+    bizGroup: selector?.bizGroup,
+    bizType: selector?.bizType
   }, { signal: q.signal });
-  let records = page.records.map(toTxn);
-  if (q.types?.length && q.types.length > 1) records = records.filter(item => q.types!.includes(item.type));
+  const pages = selectors.length > 1
+    ? await Promise.all(selectors.map(selector => requestPage(selector, 1, current * size)))
+    : [await requestPage(selectors[0])];
+  const recordsById = new Map<string, Api.RealWallet.Ledger>();
+  pages.forEach(page => {
+    page.records.map(toTxn).forEach(record => {
+      if (!selectedTypes.length || selectedTypes.includes(record.type)) recordsById.set(String(record.id), record);
+    });
+  });
+  const offset = selectors.length > 1 ? (current - 1) * size : 0;
+  const records = [...recordsById.values()]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(offset, offset + size);
   return {
-    current: page.current || page.pageNo || q.current || 1,
-    size: page.size || page.pageSize || q.size || 20,
-    total: toPageTotal(page.total),
+    current,
+    size,
+    total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
     records
   };
 }
@@ -195,24 +264,10 @@ export async function fetchWalletLedgersByTypes(q: {
   types: Api.Wallet.TxnType[];
   signal?: AbortSignal;
 }) {
-  const types = [...new Set(q.types)];
-  const pages = await Promise.all(
-    types.map(type => fetchWalletLedger({ current: 1, size: q.size || 20, types: [type], signal: q.signal }))
-  );
-  const recordsById = new Map<string, Api.RealWallet.Ledger>();
-  pages.forEach(page => {
-    page.records.forEach(record => {
-      const key = String(record.id);
-      if (!recordsById.has(key)) recordsById.set(key, record);
-    });
-  });
-  const records = [...recordsById.values()]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, q.size || 20);
-
+  const page = await fetchWalletLedger({ current: 1, size: q.size || 20, types: q.types, signal: q.signal });
   return {
-    total: pages.reduce((sum, page) => sum + toPageTotal(page.total), 0),
-    records
+    total: page.total,
+    records: page.records
   };
 }
 
