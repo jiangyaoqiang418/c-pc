@@ -56,11 +56,13 @@ function close() {
 
 <template>
   <div v-if="!closed && current" class="ann-bar" :style="{ background: colorMap[current.type] }">
-    <div class="bar-inner" @click="router.push('/announcement')">
-      <span class="prefix">📣 平台公告</span>
-      <span class="title">{{ current.title }}</span>
-      <span class="summary">{{ current.summary }}</span>
-      <button class="close" @click.stop="close">✕</button>
+    <div class="bar-inner">
+      <button type="button" class="bar-main" @click="router.push('/announcement')">
+        <span class="prefix">📣 平台公告</span>
+        <span class="title">{{ current.title }}</span>
+        <span class="summary">{{ current.summary }}</span>
+      </button>
+      <button type="button" class="close" aria-label="关闭公告" @click="close">✕</button>
     </div>
   </div>
 </template>
@@ -78,7 +80,31 @@ function close() {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.bar-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
+}
+.bar-main:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.bar-main .summary {
+  flex: 1;
+}
+.close {
+  flex: 0 0 auto;
 }
 .prefix {
   font-weight: 600;
@@ -88,7 +114,6 @@ function close() {
 }
 .summary {
   opacity: 0.85;
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
