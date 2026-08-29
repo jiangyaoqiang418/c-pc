@@ -28,7 +28,15 @@ function goDetail() {
 </script>
 
 <template>
-  <div class="pr-card" @click="goDetail">
+  <div
+    class="pr-card"
+    role="button"
+    tabindex="0"
+    :aria-label="`打开求购 ${request.code}`"
+    @click="goDetail"
+    @keydown.enter.self="goDetail"
+    @keydown.space.prevent.self="goDetail"
+  >
     <div class="head">
       <div class="head-left">
         <span class="status-pill" :data-status="request.status">
@@ -118,6 +126,10 @@ function goDetail() {
   cursor: pointer;
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s, border-color 0.24s;
   overflow: hidden;
+}
+.pr-card:focus-visible {
+  outline: 2px solid var(--yb-brand-pink);
+  outline-offset: 2px;
 }
 .pr-card:hover {
   transform: translateY(-3px);

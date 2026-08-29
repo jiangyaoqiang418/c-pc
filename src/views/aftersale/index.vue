@@ -86,7 +86,7 @@ function cancel(row: Api.RealRefund.RefundDTO) {
   <div class="aftersale-list-page shop-container">
     <h1 class="page-title">我的仅退款</h1>
     <a-tabs v-model:active-key="activeKey"><a-tab-pane v-for="item in statusDefs" :key="item.key" :title="item.label" /></a-tabs>
-    <a-spin :loading="loading" style="width:100%"><template v-if="refunds.length"><a-card v-for="row in refunds" :key="row.refundId" class="case-card" :bordered="false" @click="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})">
+    <a-spin :loading="loading" style="width:100%"><template v-if="refunds.length"><a-card v-for="row in refunds" :key="row.refundId" class="case-card" :bordered="false" role="button" tabindex="0" :aria-label="`打开仅退款申请 ${row.orderNo || row.refundId}`" @click="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})" @keydown.enter.self="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})" @keydown.space.prevent.self="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})">
       <div class="head"><strong>{{ row.productTitle || '仅退款申请' }}</strong><a-tag :color="statusColor[String(row.status)]">{{ statusLabel(row) }}</a-tag></div>
       <div class="meta">订单号：{{ row.orderNo || '—' }} · 退款金额：U {{ row.amount ?? '—' }}</div><p>{{ row.reason }}</p>
       <div class="actions" @click.stop><a-button size="small" @click="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})">详情</a-button><a-button v-if="canCancel(row)" size="small" status="danger" :loading="cancellingId === row.refundId" @click="cancel(row)">撤销</a-button></div>
@@ -95,6 +95,6 @@ function cancel(row: Api.RealRefund.RefundDTO) {
 </template>
 
 <style scoped>
-.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0; }.case-card { margin-top:12px; cursor:pointer; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:#86909c; margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:#4e5969; }.actions { justify-content:flex-end; }
+.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0; }.case-card { margin-top:12px; cursor:pointer; }.case-card:focus-visible { outline:2px solid var(--bw-brand-primary); outline-offset:2px; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:#86909c; margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:#4e5969; }.actions { justify-content:flex-end; }
 @media (max-width: 640px) { .aftersale-list-page { padding-top: 10px; } .head { align-items:flex-start; } .head strong,.meta { overflow-wrap:anywhere; } }
 </style>
