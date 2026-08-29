@@ -55,11 +55,18 @@ function genFake(v: string | number) {
   return Array.from({ length: 12 }, (_, i) => Math.max(0, base * (0.75 + Math.sin(i * 0.9 + base) * 0.18 + i * 0.02)));
 }
 
+const validDelta = computed(() => (
+  props.delta != null && Number.isFinite(props.delta) ? props.delta : undefined
+));
 const deltaColor = computed(() => {
-  if (props.delta == null) return null;
-  return props.delta >= 0 ? 'var(--yb-success)' : 'var(--yb-danger)';
+  if (validDelta.value === undefined) return null;
+  return validDelta.value >= 0 ? 'var(--yb-success)' : 'var(--yb-danger)';
 });
-const deltaIcon = computed(() => (props.delta! >= 0 ? 'lucide:trending-up' : 'lucide:trending-down'));
+const deltaIcon = computed(() => (
+  validDelta.value !== undefined && validDelta.value >= 0
+    ? 'lucide:trending-up'
+    : 'lucide:trending-down'
+));
 
 const chartKey = shallowRef(0);
 </script>
@@ -70,9 +77,9 @@ const chartKey = shallowRef(0);
       <div class="icon-wrap">
         <Icon :icon="icon" class="icon" />
       </div>
-      <div v-if="delta != null" class="delta" :style="{ color: deltaColor! }">
+      <div v-if="validDelta != null" class="delta" :style="{ color: deltaColor! }">
         <Icon :icon="deltaIcon" width="12" />
-        <span class="yb-mono">{{ Math.abs(delta).toFixed(1) }}%</span>
+        <span class="yb-mono">{{ Math.abs(validDelta).toFixed(1) }}%</span>
       </div>
     </div>
     <div class="value-row">

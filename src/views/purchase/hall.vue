@@ -156,17 +156,31 @@ async function onClaim(req: Api.RealPurchase.Record) {
 }
 
 const CNY_RATE = 7.18;
-const totalBudget = computed(() =>
-  list.value.reduce((s, x) => s + Number(x.budgetAmount), 0).toFixed(2)
-);
-const avgBudget = computed(() =>
-  list.value.length
-    ? (Number(totalBudget.value) / list.value.length).toFixed(2)
-    : '0.00'
-);
-const totalBudgetCny = computed(() =>
-  formatAmount((Number(totalBudget.value) * CNY_RATE).toFixed(2))
-);
+function finiteBudget(value: string | number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+const totalBudget = computed<string | undefined>(() => {
+  let sum = 0;
+  for (const record of list.value) {
+    const budget = finiteBudget(record.budgetAmount);
+    if (budget === undefined) return undefined;
+    sum += budget;
+  }
+  return sum.toFixed(2);
+});
+const avgBudget = computed<string | undefined>(() => {
+  if (!list.value.length) return '0.00';
+  if (totalBudget.value === undefined) return undefined;
+  const total = Number(totalBudget.value);
+  return Number.isFinite(total) ? (total / list.value.length).toFixed(2) : undefined;
+});
+const totalBudgetCny = computed<string | undefined>(() => {
+  if (totalBudget.value === undefined) return undefined;
+  const total = Number(totalBudget.value);
+  return Number.isFinite(total) ? formatAmount((total * CNY_RATE).toFixed(2)) : undefined;
+});
 
 function reset() {
   keyword.value = '';

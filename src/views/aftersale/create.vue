@@ -59,7 +59,6 @@ watch(() => [orderId.value, userStore.currentUser?.id], () => {
   writeVersion += 1;
   submitting.value = false;
   confirmationOpen.value = false;
-  requestGuard.invalidate();
   order.value = undefined;
   loadError.value = '';
   void load();
