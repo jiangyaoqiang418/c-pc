@@ -74,7 +74,14 @@ function onMove(e: MouseEvent) {
         :key="img.url"
         class="thumb"
         :class="{ active: activeIdx === i }"
+        role="button"
+        tabindex="0"
+        :aria-label="`查看商品图片 ${i + 1}`"
+        :aria-current="activeIdx === i ? 'true' : undefined"
         @mouseenter="activeIdx = i"
+        @click="activeIdx = i"
+        @keydown.enter="activeIdx = i"
+        @keydown.space.prevent="activeIdx = i"
       >
         <img :src="imageSource(img.url)" :alt="img.name" @error="onImageError(img.url)" />
       </div>
