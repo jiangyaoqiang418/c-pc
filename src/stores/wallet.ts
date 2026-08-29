@@ -4,6 +4,7 @@ import { enums } from '@shared';
 import type { BucketKey } from '@shared/enums/wallet';
 import * as realWalletApi from '@/service/api/wallet';
 import { useUserStore } from './user';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 export interface BucketView {
   key: BucketKey;
@@ -23,15 +24,17 @@ export const useWalletStore = defineStore('bw-wallet', () => {
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
   let requestVersion = 0;
+  const requestGuard = createLatestRequestGuard();
 
   async function fetchWallet(userId: Api.RealSession.Id) {
     if (!userId) return;
+    const isCurrent = requestGuard.begin();
     const version = ++requestVersion;
     loading.value = true;
     try {
-      const overview = await realWalletApi.fetchWalletOverview(userId);
+      const overview = await realWalletApi.fetchWalletOverview(userId, { signal: isCurrent.signal });
       const userStore = useUserStore();
-      if (version !== requestVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+      if (!isCurrent() || version !== requestVersion || String(userStore.currentUser?.id) !== String(userId)) return;
       summary.value = overview.summary;
       buyerWallet.value = undefined;
       totalAssets.value = overview.total;
@@ -39,7 +42,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
       account.value = overview.account;
       lastFetchedAt.value = Date.now();
     } finally {
-      if (version === requestVersion) loading.value = false;
+      if (isCurrent() && version === requestVersion) loading.value = false;
     }
   }
 
@@ -50,6 +53,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
 
   function clear() {
     requestVersion += 1;
+    requestGuard.invalidate();
     summary.value = undefined;
     buyerWallet.value = undefined;
     totalAssets.value = '0';

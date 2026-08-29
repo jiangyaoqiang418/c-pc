@@ -13,8 +13,8 @@ export async function fetchNotifications(params: Api.RealNotify.NotificationPage
   return { ...page, total: toPageTotal(page.total) };
 }
 
-export function fetchUnreadNotificationCount() {
-  return realNotifyRequest.get<number>('/notifications/unread/count', notifyRequestOptions);
+export function fetchUnreadNotificationCount(options: { signal?: AbortSignal } = {}) {
+  return realNotifyRequest.get<number>('/notifications/unread/count', { ...notifyRequestOptions, signal: options.signal });
 }
 
 export function markNotificationRead(params: Api.RealNotify.NotificationReadParams) {
@@ -70,8 +70,8 @@ export function fetchIncrementalMessages(params: Api.RealNotify.ImIncrementalQue
   });
 }
 
-export function fetchUnreadMessageCount() {
-  return realNotifyRequest.get<number>('/im/unread/count', notifyRequestOptions);
+export function fetchUnreadMessageCount(options: { signal?: AbortSignal } = {}) {
+  return realNotifyRequest.get<number>('/im/unread/count', { ...notifyRequestOptions, signal: options.signal });
 }
 
 export function markConversationRead(params: Api.RealNotify.ImReadParams) {

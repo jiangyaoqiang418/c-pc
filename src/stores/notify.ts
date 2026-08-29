@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { getAccessToken } from '@/service/request';
 import * as notifyApi from '@/service/api/notify';
 import { parseJsonPreservingLong } from '@/utils/json';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 export type NotifyRealtimeEvent =
   | { type: 'IM_MESSAGE'; payload: Api.RealNotify.ImMessageVO }
@@ -45,6 +46,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   let lifecycleBound = false;
   let heartbeatIntervalMs = HEARTBEAT_MS;
   let unreadRefreshVersion = 0;
+  const unreadRequestGuard = createLatestRequestGuard();
 
   const totalUnreadCount = computed(() => notificationUnreadCount.value + imUnreadCount.value);
 
@@ -60,6 +62,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   }
 
   async function refreshUnreadCounts() {
+    const isCurrent = unreadRequestGuard.begin();
     const version = ++unreadRefreshVersion;
     const token = getAccessToken();
     if (!token) {
@@ -68,10 +71,10 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       return;
     }
     const [notificationResult, imResult] = await Promise.allSettled([
-      notifyApi.fetchUnreadNotificationCount(),
-      notifyApi.fetchUnreadMessageCount()
+      notifyApi.fetchUnreadNotificationCount({ signal: isCurrent.signal }),
+      notifyApi.fetchUnreadMessageCount({ signal: isCurrent.signal })
     ]);
-    if (version !== unreadRefreshVersion || token !== getAccessToken()) return;
+    if (!isCurrent() || version !== unreadRefreshVersion || token !== getAccessToken()) return;
     if (notificationResult.status === 'fulfilled') notificationUnreadCount.value = notificationResult.value || 0;
     if (imResult.status === 'fulfilled') imUnreadCount.value = imResult.value || 0;
   }
@@ -189,6 +192,7 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   function disconnect() {
     manuallyClosed = true;
     unreadRefreshVersion += 1;
+    unreadRequestGuard.invalidate();
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
     clearReadyTimeout();
