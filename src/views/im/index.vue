@@ -490,6 +490,26 @@ watch(activeTab, async () => {
   selectedConversationId.value = undefined;
   await selectFirstConversation();
 });
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  conversationListGuard.invalidate();
+  messageListGuard.invalidate();
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
+  conversations.value = [];
+  selectedConversationId.value = undefined;
+  messages.value = [];
+  readerWatermarks.value = {};
+  pageNo.value = 1;
+  hasOlder.value = false;
+  loading.value = false;
+  loadingOlder.value = false;
+  conversationLoading.value = false;
+  conversationLoadError.value = '';
+  messageLoadError.value = '';
+  lastSyncedAt.value = undefined;
+  if (next !== undefined) void init();
+});
 </script>
 
 <template>
