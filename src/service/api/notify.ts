@@ -36,35 +36,37 @@ export function clearNotifications() {
   return realNotifyRequest.delete<boolean>('/notifications/clear', notifyRequestOptions);
 }
 
-export async function fetchConversations(params: Api.RealNotify.PageQuery = {}) {
+export async function fetchConversations(params: Api.RealNotify.PageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImConversationVO>, Api.RealNotify.PageQuery>(
     '/im/conversations/page',
     params,
-    notifyRequestOptions
+    { ...notifyRequestOptions, signal: options.signal }
   );
   return { ...page, total: toPageTotal(page.total) };
 }
 
-export function fetchOrderConversation(orderId: string | number) {
+export function fetchOrderConversation(orderId: string | number, options: { signal?: AbortSignal } = {}) {
   return realNotifyRequest.get<Api.RealNotify.ImConversationVO>('/im/conversations/by-order', {
     params: { orderId },
-    ...notifyRequestOptions
+    ...notifyRequestOptions,
+    signal: options.signal
   });
 }
 
-export async function fetchConversationMessages(params: Api.RealNotify.ImMessagePageQuery) {
+export async function fetchConversationMessages(params: Api.RealNotify.ImMessagePageQuery, options: { signal?: AbortSignal } = {}) {
   const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>, Api.RealNotify.ImMessagePageQuery>(
     '/im/messages/page',
     params,
-    notifyRequestOptions
+    { ...notifyRequestOptions, signal: options.signal }
   );
   return { ...page, total: toPageTotal(page.total) };
 }
 
-export function fetchIncrementalMessages(params: Api.RealNotify.ImIncrementalQuery) {
+export function fetchIncrementalMessages(params: Api.RealNotify.ImIncrementalQuery, options: { signal?: AbortSignal } = {}) {
   return realNotifyRequest.get<Api.RealNotify.ImMessageVO[]>('/im/messages/incr', {
     params: { ...params },
-    ...notifyRequestOptions
+    ...notifyRequestOptions,
+    signal: options.signal
   });
 }
 

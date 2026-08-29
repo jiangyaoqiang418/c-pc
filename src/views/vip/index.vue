@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatPoints } from '@shared';
 import * as pointApi from '@/service/api/point';
@@ -7,6 +7,7 @@ import * as vipApi from '@/service/api/vip';
 import VipBadge from '@/components/common/vip-badge.vue';
 import VipBenefitsTable from '@/components/vip/vip-benefits-table.vue';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const router = useRouter();
@@ -16,20 +17,24 @@ const configs = ref<Api.Vip.LevelConfig[]>([]);
 const pointRules = ref<Api.Point.Rule[]>([]);
 const audience = ref<Api.Vip.Audience>('customer');
 const loading = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 const user = computed(() => userStore.currentUser);
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   try {
     const [cfgs, rules] = await Promise.all([
       vipApi.fetchVipConfigs().catch(() => []),
       pointApi.fetchPointRules().catch(() => [])
     ]);
+    if (!isCurrent()) return;
     configs.value = cfgs;
     pointRules.value = rules;
     if (user.value) {
       const vip = await vipApi.fetchMyVipStatus(user.value.id);
+      if (!isCurrent()) return;
       vipStatus.value = vip;
       audience.value = vip.audience;
     } else {
@@ -37,13 +42,14 @@ async function load() {
       audience.value = 'customer';
     }
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(async () => {
   await userStore.init();
   await load();
 });
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => userStore.currentUser?.id, load);
 
 const progressPct = computed(() => {

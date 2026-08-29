@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { cmsApi } from '@shared';
 import AgreementViewer from '@/components/cms/agreement-viewer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface CategoryDef {
   key: Api.Cms.HelpCategory | 'all';
@@ -36,8 +37,10 @@ const expandedId = ref<number>();
 
 const agreementVisible = ref(false);
 const agreementKind = ref<Api.Cms.AgreementKind>('user');
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   try {
     const r = await cmsApi.fetchHelpArticles({
@@ -45,12 +48,13 @@ async function load() {
       keyword: keyword.value || undefined,
       size: 30
     });
+    if (!isCurrent()) return;
     list.value = r.records;
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load);
+onMounted(load); onBeforeUnmount(requestGuard.invalidate);
 watch(activeCat, load);
 
 async function expand(a: Api.Cms.HelpArticle) {

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { cmsApi } from '@shared';
 import AnnouncementCard from '@/components/cms/announcement-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const activeType = ref<Api.Cms.AnnouncementType | 'all'>('all');
 const list = ref<Api.Cms.Announcement[]>([]);
@@ -12,6 +13,7 @@ const size = ref(15);
 const loading = ref(false);
 const drawerVisible = ref(false);
 const drawerAnn = ref<Api.Cms.Announcement>();
+const requestGuard = createLatestRequestGuard();
 
 const TYPES: { key: Api.Cms.AnnouncementType | 'all'; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -22,6 +24,7 @@ const TYPES: { key: Api.Cms.AnnouncementType | 'all'; label: string }[] = [
 ];
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   try {
     const r = await cmsApi.fetchAnnouncements({
@@ -30,13 +33,14 @@ async function load() {
       type: activeType.value === 'all' ? undefined : activeType.value,
       audience: 'customer'
     });
+    if (!isCurrent()) return;
     list.value = r.records;
     total.value = r.total;
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load);
+onMounted(load); onBeforeUnmount(requestGuard.invalidate);
 watch(activeType, () => {
   current.value = 1;
   load();

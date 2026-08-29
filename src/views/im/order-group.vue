@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IconClose } from '@arco-design/web-vue/es/icon';
 import MessageBubble from '@/components/im/message-bubble.vue';
@@ -20,6 +20,7 @@ import {
   sameBusinessId
 } from '@/utils/im';
 import { conversationListQuery } from '@/utils/notification';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,24 +40,30 @@ const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
 const imageUrls = computed(() => conversationImageUrls(messages.value));
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const requestedOrderCode = orderCode.value;
   loading.value = true;
   pageNo.value = 1;
   try {
-    conversation.value = await notifyApi.fetchOrderConversation(orderCode.value);
+    conversation.value = await notifyApi.fetchOrderConversation(requestedOrderCode, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     if (conversation.value) {
-      const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 50 });
+      const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 50 }, { signal: isCurrent.signal });
+      if (!isCurrent()) return;
       messages.value = mergeMessages([], response.records || []);
       hasOlder.value = messages.value.length < (response.total || 0);
       await reportRead();
       await scrollToBottom();
     }
   } catch {
+    if (!isCurrent()) return;
     conversation.value = undefined;
     messages.value = [];
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -224,6 +231,7 @@ notifyStore.subscribe(async event => {
 });
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.orderCode, load);
 </script>
 
