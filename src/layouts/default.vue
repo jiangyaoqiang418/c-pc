@@ -19,7 +19,7 @@ const cartCount = computed(() => cart.count);
 
     <header class="header">
       <div class="header-inner">
-        <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')">
+        <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')" @keydown.space.prevent="router.push('/')">
           <div class="logo-mark">油宝</div>
           <div class="logo-text">
             <div class="logo-name">{{ BRAND.name }}</div>

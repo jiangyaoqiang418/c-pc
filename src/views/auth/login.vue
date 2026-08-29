@@ -70,7 +70,7 @@ async function oneClick(userId: number) {
 
     <div class="bottom">
       还没有账号？
-      <a-link role="link" tabindex="0" @click="router.push('/auth/register')" @keydown.enter="router.push('/auth/register')">立即注册</a-link>
+      <a-link role="link" tabindex="0" @click="router.push('/auth/register')" @keydown.enter="router.push('/auth/register')" @keydown.space.prevent="router.push('/auth/register')">立即注册</a-link>
     </div>
   </div>
 </template>

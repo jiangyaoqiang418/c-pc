@@ -13,7 +13,7 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
   <div class="layout-checkout">
     <header class="header">
       <div class="header-inner">
-        <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')">
+        <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')" @keydown.space.prevent="router.push('/')">
           <span class="logo-mark">油宝</span>
           <span class="logo-name">{{ BRAND.name }}</span>
           <span class="divider">·</span>

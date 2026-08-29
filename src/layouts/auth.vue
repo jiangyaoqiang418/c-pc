@@ -7,7 +7,7 @@ const router = useRouter();
 
 <template>
   <div class="layout-auth">
-    <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')">
+    <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')" @keydown.space.prevent="router.push('/')">
       <span class="logo-mark">油宝</span>
       <span class="logo-name">{{ BRAND.name }}</span>
     </div>

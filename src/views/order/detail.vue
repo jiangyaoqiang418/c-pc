@@ -300,6 +300,7 @@ function contactShopper() {
                 tabindex="0"
                 @click="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
                 @keydown.enter="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
+                @keydown.space.prevent="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
               >
                 {{ order.productTitle }}
               </div>

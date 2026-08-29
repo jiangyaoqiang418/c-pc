@@ -399,8 +399,8 @@ async function doSubmit() {
         <div class="agree-row">
           <a-checkbox v-model="agreed">
             我已阅读并同意
-            <a-link role="link" tabindex="0" @click.stop="router.push({ path: '/help', query: { agreement: 'user' } })" @keydown.enter.stop="router.push({ path: '/help', query: { agreement: 'user' } })">《用户协议》</a-link>
-            <a-link role="link" tabindex="0" @click.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })" @keydown.enter.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })">《隐私政策》</a-link>
+            <a-link role="link" tabindex="0" @click.stop="router.push({ path: '/help', query: { agreement: 'user' } })" @keydown.enter.stop="router.push({ path: '/help', query: { agreement: 'user' } })" @keydown.space.stop.prevent="router.push({ path: '/help', query: { agreement: 'user' } })">《用户协议》</a-link>
+            <a-link role="link" tabindex="0" @click.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })" @keydown.enter.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })" @keydown.space.stop.prevent="router.push({ path: '/help', query: { agreement: 'privacy' } })">《隐私政策》</a-link>
           </a-checkbox>
         </div>
 

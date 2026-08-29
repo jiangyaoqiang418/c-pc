@@ -179,7 +179,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
             </div>
           </div>
           <div class="rules-foot">
-            <a-link role="link" tabindex="0" @click="router.push(user ? '/points' : { name: 'login' })" @keydown.enter="router.push(user ? '/points' : { name: 'login' })">{{ user ? '查看积分明细' : '登录后查看积分明细' }}</a-link>
+            <a-link role="link" tabindex="0" @click="router.push(user ? '/points' : { name: 'login' })" @keydown.enter="router.push(user ? '/points' : { name: 'login' })" @keydown.space.prevent="router.push(user ? '/points' : { name: 'login' })">{{ user ? '查看积分明细' : '登录后查看积分明细' }}</a-link>
           </div>
         </a-card>
       </template>

@@ -42,7 +42,7 @@ function goOrder() {
       </div>
       <div class="head-right">
         <span class="time">{{ formatDateValue(review.createdAt) }}</span>
-        <a-link role="link" tabindex="0" size="small" @click="goOrder" @keydown.enter="goOrder">查看订单</a-link>
+        <a-link role="link" tabindex="0" size="small" @click="goOrder" @keydown.enter="goOrder" @keydown.space.prevent="goOrder">查看订单</a-link>
       </div>
     </div>
 

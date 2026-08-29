@@ -60,7 +60,7 @@ async function submit() {
 
     <div class="bottom">
       已有账号？
-      <a-link role="link" tabindex="0" @click="router.push('/auth/login')" @keydown.enter="router.push('/auth/login')">返回登录</a-link>
+      <a-link role="link" tabindex="0" @click="router.push('/auth/login')" @keydown.enter="router.push('/auth/login')" @keydown.space.prevent="router.push('/auth/login')">返回登录</a-link>
     </div>
   </div>
 </template>
