@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import * as categoryApi from '@/service/api/category';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 
@@ -17,22 +18,27 @@ const categories = ref<CategoryNode[]>([]);
 const hoveredCatId = ref<string | number | null>(null);
 const loading = ref(false);
 const loadError = ref('');
+const categoryGuard = createLatestRequestGuard();
 
 async function loadCategories() {
   if (loading.value) return;
+  const isCurrent = categoryGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
-    categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
+    const next = ((await categoryApi.fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[]).slice(0, 8);
+    if (isCurrent()) categories.value = next;
   } catch {
+    if (!isCurrent()) return;
     categories.value = [];
     loadError.value = '分类加载失败';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(loadCategories);
+onBeforeUnmount(categoryGuard.invalidate);
 
 function goCategory(id: string | number) {
   router.push({ name: 'product-list', query: { categoryId: String(id) } });

@@ -42,6 +42,7 @@ const total = ref(0);
 const shelvingId = ref<string | number>();
 const deletingId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
+const categoryGuard = createLatestRequestGuard();
 
 function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
@@ -88,9 +89,12 @@ async function load() {
 }
 
 async function loadCategories() {
+  const isCurrent = categoryGuard.begin();
   try {
-    categoryOptions.value = mapCategoryOptions(await fetchCategoryTree());
+    const next = await fetchCategoryTree({ signal: isCurrent.signal });
+    if (isCurrent()) categoryOptions.value = mapCategoryOptions(next);
   } catch {
+    if (!isCurrent()) return;
     categoryOptions.value = [];
     Message.warning('商品分类加载失败，可先按名称查询商品');
   }
@@ -110,7 +114,10 @@ function resetFilters() {
 onMounted(() => {
   void Promise.all([load(), loadCategories()]);
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  requestGuard.invalidate();
+  categoryGuard.invalidate();
+});
 watch(activeKey, () => {
   current.value = 1;
   void load();

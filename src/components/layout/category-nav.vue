@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import * as categoryApi from '@/service/api/category';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 
@@ -16,15 +17,21 @@ interface CategoryNode {
 const categories = ref<CategoryNode[]>([]);
 const megaOpen = ref(false);
 let megaTimer: number | null = null;
+const categoryGuard = createLatestRequestGuard();
 
 onMounted(async () => {
+  const isCurrent = categoryGuard.begin();
   try {
-    categories.value = ((await categoryApi.fetchCategoryTree()) as CategoryNode[]).slice(0, 8);
+    const next = ((await categoryApi.fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[]).slice(0, 8);
+    if (isCurrent()) categories.value = next;
   } catch {
+    if (!isCurrent()) return;
     // 分类页仍可独立重试；顶部导航保持收起，避免未处理的挂载期请求异常。
     categories.value = [];
   }
 });
+
+onBeforeUnmount(categoryGuard.invalidate);
 
 // 业务频道（占位路由）
 const CHANNELS = [

@@ -19,8 +19,8 @@ function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.RealCategor
   };
 }
 
-export async function fetchCategoryTree() {
-  const list = await fetchRealCategoryTree();
+export async function fetchCategoryTree(options: { signal?: AbortSignal } = {}) {
+  const list = await fetchRealCategoryTree(options);
   return list.map(toCategoryNode);
 }
 

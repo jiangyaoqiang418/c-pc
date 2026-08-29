@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -9,6 +9,7 @@ import AddressSelector from '@/components/common/address-selector.vue';
 import { fetchCategoryTree } from '@/service/api/category';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -47,6 +48,7 @@ const form = reactive<{
 const submitting = ref(false);
 const confirmationOpen = ref(false);
 const categoryLoadError = ref('');
+const categoryGuard = createLatestRequestGuard();
 
 function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
@@ -58,26 +60,32 @@ function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: 
 
 const cascaderOptions = ref<any[]>([]);
 onMounted(async () => {
+  const isCurrent = categoryGuard.begin();
   categoryLoadError.value = '';
   try {
-    const tree = (await fetchCategoryTree()) as CategoryNode[];
-    cascaderOptions.value = mapToCascader(tree);
+    const tree = (await fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
+    if (isCurrent()) cascaderOptions.value = mapToCascader(tree);
   } catch {
+    if (!isCurrent()) return;
     cascaderOptions.value = [];
     categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
   }
 });
 
 async function reloadCategories() {
+  const isCurrent = categoryGuard.begin();
   categoryLoadError.value = '';
   try {
-    const tree = (await fetchCategoryTree()) as CategoryNode[];
-    cascaderOptions.value = mapToCascader(tree);
+    const tree = (await fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
+    if (isCurrent()) cascaderOptions.value = mapToCascader(tree);
   } catch {
+    if (!isCurrent()) return;
     cascaderOptions.value = [];
     categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
   }
 }
+
+onBeforeUnmount(categoryGuard.invalidate);
 
 const CNY_RATE = 7.18;
 const budgetCny = computed(() => formatAmount((form.budgetAmount * CNY_RATE).toFixed(2)));

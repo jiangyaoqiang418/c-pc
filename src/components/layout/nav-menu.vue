@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import * as categoryApi from '@/service/api/category';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface CategoryNode {
   id: string | number;
@@ -18,10 +19,19 @@ const hovered = ref<string | number | undefined>();
 const subHovered = ref<string | number | undefined>();
 
 const subMenuOpen = ref(false);
+const categoryGuard = createLatestRequestGuard();
 
 onMounted(async () => {
-  categories.value = (await categoryApi.fetchCategoryTree()) as CategoryNode[];
+  const isCurrent = categoryGuard.begin();
+  try {
+    const next = (await categoryApi.fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
+    if (isCurrent()) categories.value = next;
+  } catch {
+    if (isCurrent()) categories.value = [];
+  }
 });
+
+onBeforeUnmount(categoryGuard.invalidate);
 
 interface NavItem {
   name: string;

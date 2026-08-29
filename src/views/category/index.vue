@@ -31,6 +31,7 @@ const treeError = ref('');
 const productLoadError = ref('');
 const breadcrumb = ref<string>('请选择品类');
 const productRequestGuard = createLatestRequestGuard();
+const treeRequestGuard = createLatestRequestGuard();
 
 const treeData = computed<TreeData[]>(() => mapTree(tree.value));
 
@@ -56,10 +57,13 @@ function findNode(nodes: CategoryNode[], id: string, path: string[] = []): { nod
 }
 
 async function loadTree() {
+  const isCurrent = treeRequestGuard.begin();
   treeLoading.value = true;
   treeError.value = '';
   try {
-    tree.value = (await categoryApi.fetchCategoryTree()) as CategoryNode[];
+    const nextTree = (await categoryApi.fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
+    if (!isCurrent()) return;
+    tree.value = nextTree;
     if (tree.value.length) {
       expandedKeys.value = [String(tree.value[0].id)];
       // 只设 selectedKeys，让 watcher 一次性接管 fetch —— 避免直接 pick 触发 watcher 重入
@@ -70,13 +74,14 @@ async function loadTree() {
       total.value = 0;
     }
   } catch {
+    if (!isCurrent()) return;
     tree.value = [];
     selectedKeys.value = [];
     products.value = [];
     total.value = 0;
     treeError.value = '分类树加载失败，请检查网络后重试。';
   } finally {
-    treeLoading.value = false;
+    if (isCurrent()) treeLoading.value = false;
   }
 }
 
@@ -107,7 +112,10 @@ watch(selectedKeys, keys => {
 });
 
 onMounted(loadTree);
-onBeforeUnmount(productRequestGuard.invalidate);
+onBeforeUnmount(() => {
+  productRequestGuard.invalidate();
+  treeRequestGuard.invalidate();
+});
 </script>
 
 <template>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import { fetchCategoryTree } from '@/service/api/category';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface FormState {
   title: string;
@@ -37,6 +38,7 @@ interface CategoryNode {
 const cascaderOptions = ref<any[]>([]);
 const categoryLoadError = ref('');
 const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
+const categoryGuard = createLatestRequestGuard();
 
 const form = reactive<FormState>({
   title: '',
@@ -65,15 +67,19 @@ onMounted(async () => {
 });
 
 async function reloadCategories() {
+  const isCurrent = categoryGuard.begin();
   categoryLoadError.value = '';
   try {
-    const tree = (await fetchCategoryTree()) as CategoryNode[];
-    cascaderOptions.value = mapToCascader(tree);
+    const tree = (await fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
+    if (isCurrent()) cascaderOptions.value = mapToCascader(tree);
   } catch {
+    if (!isCurrent()) return;
     cascaderOptions.value = [];
     categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
   }
 }
+
+onBeforeUnmount(categoryGuard.invalidate);
 
 function submit() {
   if (!form.title.trim()) {
