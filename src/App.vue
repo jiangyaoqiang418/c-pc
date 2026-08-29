@@ -27,6 +27,13 @@ watch(() => userStore.isLoggedIn, loggedIn => {
   if (loggedIn) notifyStore.connect();
   else notifyStore.disconnect();
 });
+
+// 登录态仍为 true 时切换账号不会触发 isLoggedIn watcher；先断开旧 token 的连接，再用新账号建立实时会话。
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  notifyStore.disconnect();
+  if (next !== undefined && next !== null) notifyStore.connect();
+});
 </script>
 
 <template>
