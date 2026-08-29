@@ -30,6 +30,8 @@ const selectedAddr = ref<{
   detail: string;
 }>();
 const wallet = ref<Api.User.WalletSummary>();
+const loading = ref(false);
+const loadError = ref('');
 const agreed = ref(false);
 const submitting = ref(false);
 const confirmationPending = ref(false);
@@ -110,32 +112,42 @@ async function load() {
     router.replace({ name: 'login', query: { redirect: '/checkout' } });
     return;
   }
-  await cart.refresh({ signal: isCurrent.signal });
-  if (!isCurrent() || String(userStore.currentUser?.id || '') !== String(userId)) return;
-  if (items.value.length === 0) {
-    Message.warning('请先选择要结算的商品');
-    router.replace('/cart');
-    return;
-  }
+  loading.value = true;
+  loadError.value = '';
   try {
-    const raw = localStorage.getItem(pendingStorageKey(userId!));
-    if (raw) {
-      const cached = JSON.parse(raw) as PendingCheckout;
-      if (cached.idempotencyKey && Array.isArray(cached.productIds) && Array.isArray(cached.orderItems)) {
-        if (shouldDiscardPending(cached)) {
-          localStorage.removeItem(pendingStorageKey(userId!));
-        } else {
-          pendingCheckout.value = cached;
-        }
-      } else {
-        localStorage.removeItem(pendingStorageKey(userId!));
-      }
+    await cart.refresh({ signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== String(userId)) return;
+    if (items.value.length === 0) {
+      Message.warning('请先选择要结算的商品');
+      router.replace('/cart');
+      return;
     }
+    try {
+      const raw = localStorage.getItem(pendingStorageKey(userId!));
+      if (raw) {
+        const cached = JSON.parse(raw) as PendingCheckout;
+        if (cached.idempotencyKey && Array.isArray(cached.productIds) && Array.isArray(cached.orderItems)) {
+          if (shouldDiscardPending(cached)) {
+            localStorage.removeItem(pendingStorageKey(userId!));
+          } else {
+            pendingCheckout.value = cached;
+          }
+        } else {
+          localStorage.removeItem(pendingStorageKey(userId!));
+        }
+      }
+    } catch {
+      localStorage.removeItem(pendingStorageKey(userId!));
+    }
+    const walletResult = await realWalletApi.fetchWalletOverview(userId!, { signal: isCurrent.signal });
+    if (isCurrent() && String(userStore.currentUser?.id || '') === String(userId)) wallet.value = walletResult.summary;
   } catch {
-    localStorage.removeItem(pendingStorageKey(userId!));
+    if (!isCurrent() || String(userStore.currentUser?.id || '') !== String(userId)) return;
+    wallet.value = undefined;
+    loadError.value = '结算基础数据加载失败，请稍后重试。';
+  } finally {
+    if (isCurrent()) loading.value = false;
   }
-  const walletResult = await realWalletApi.fetchWalletOverview(userId!, { signal: isCurrent.signal });
-  if (isCurrent() && String(userStore.currentUser?.id || '') === String(userId)) wallet.value = walletResult.summary;
 }
 
 onMounted(load);
@@ -152,6 +164,10 @@ watch(() => userStore.currentUser?.id, () => {
 
 async function submit() {
   if (submitting.value || confirmationPending.value) return;
+  if (loadError.value) {
+    Message.error(loadError.value);
+    return;
+  }
   if (selfSoldItems.value.length) {
     Message.error(`不能购买自己发布的商品：${selfSoldTitles.value}`);
     return;
@@ -254,6 +270,10 @@ async function doSubmit() {
 
 <template>
   <div class="checkout-page">
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+      {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="load">重新加载</a-button></template>
+    </a-alert>
     <div v-if="items.length" class="container">
       <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
         <div class="step-title">1. 收货信息</div>
@@ -362,7 +382,7 @@ async function doSubmit() {
             <span class="grand">{{ formatUsdt(grandTotal) }}</span>
             <span class="grand-usdt">≈ {{ formatCny(grandTotal) }}</span>
           </div>
-          <a-button type="primary" size="large" :loading="submitting || confirmationPending" :disabled="!agreed || selfSoldItems.length > 0" @click="submit">
+          <a-button type="primary" size="large" :loading="submitting || confirmationPending" :disabled="!agreed || selfSoldItems.length > 0 || !!loadError" @click="submit">
             提交订单
           </a-button>
         </div>
