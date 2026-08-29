@@ -89,7 +89,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
 <template>
   <div class="bp-create-page shop-container">
     <a-breadcrumb class="bread">
-      <a-breadcrumb-item @click="router.push('/buyer/products')">商品管理</a-breadcrumb-item>
+      <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/buyer/products')" @keydown.enter="router.push('/buyer/products')" @keydown.space.prevent="router.push('/buyer/products')">商品管理</a-breadcrumb-item>
       <a-breadcrumb-item>创建商品</a-breadcrumb-item>
     </a-breadcrumb>
 

@@ -119,7 +119,7 @@ function handleEmptyAction() {
     <a-spin :loading="loading" style="width: 100%">
       <template v-if="product">
         <a-breadcrumb class="bread">
-          <a-breadcrumb-item @click="router.push('/finance')">小金库</a-breadcrumb-item>
+          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/finance')" @keydown.enter="router.push('/finance')" @keydown.space.prevent="router.push('/finance')">小金库</a-breadcrumb-item>
           <a-breadcrumb-item>{{ product.name }}</a-breadcrumb-item>
         </a-breadcrumb>
 

@@ -161,7 +161,7 @@ function onPageChange(p: number) {
 <template>
   <div class="list-page shop-container">
     <a-breadcrumb class="bread">
-      <a-breadcrumb-item @click="router.push('/')">首页</a-breadcrumb-item>
+      <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')" @keydown.space.prevent="router.push('/')">首页</a-breadcrumb-item>
       <a-breadcrumb-item>商品列表</a-breadcrumb-item>
     </a-breadcrumb>
 

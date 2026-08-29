@@ -122,8 +122,8 @@ function handleEmptyAction() {
     <a-spin :loading="loading">
       <template v-if="order">
         <a-breadcrumb class="bread">
-          <a-breadcrumb-item @click="router.push('/order')">我的订单</a-breadcrumb-item>
-          <a-breadcrumb-item @click="router.push({ name: 'order-detail', params: { id: String(order.id) } })">
+          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">我的订单</a-breadcrumb-item>
+          <a-breadcrumb-item role="link" tabindex="0" @click="router.push({ name: 'order-detail', params: { id: String(order.id) } })" @keydown.enter="router.push({ name: 'order-detail', params: { id: String(order.id) } })" @keydown.space.prevent="router.push({ name: 'order-detail', params: { id: String(order.id) } })">
             {{ order.code }}
           </a-breadcrumb-item>
           <a-breadcrumb-item>写评价</a-breadcrumb-item>

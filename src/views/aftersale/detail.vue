@@ -86,7 +86,7 @@ function cancel() {
 
 <template>
   <div class="aftersale-detail-page shop-container"><a-spin :loading="loading"><template v-if="refund">
-    <a-breadcrumb class="bread"><a-breadcrumb-item @click="router.push('/aftersale')">我的仅退款</a-breadcrumb-item><a-breadcrumb-item>{{ refund.orderNo || refund.refundId }}</a-breadcrumb-item></a-breadcrumb>
+    <a-breadcrumb class="bread"><a-breadcrumb-item role="link" tabindex="0" @click="router.push('/aftersale')" @keydown.enter="router.push('/aftersale')" @keydown.space.prevent="router.push('/aftersale')">我的仅退款</a-breadcrumb-item><a-breadcrumb-item>{{ refund.orderNo || refund.refundId }}</a-breadcrumb-item></a-breadcrumb>
     <a-card class="hero-card" :bordered="false"><div class="hero"><div><h2>仅退款申请</h2><div class="muted">订单 {{ refund.orderNo || '—' }} · 申请于 {{ formatTime(refund.appliedAt || refund.createdAt) }}</div></div><a-tag :color="String(refund.status) === 'AGREED' ? 'green' : String(refund.status) === 'REJECTED' ? 'red' : 'orange'">{{ refund.statusText || labels[String(refund.status)] || refund.status }}</a-tag></div></a-card>
     <a-card class="step-card" :bordered="false"><div class="section-title">退款信息</div><a-descriptions :column="2" :data="[{label:'退款金额',value:'U ' + (refund.amount ?? '—')},{label:'退款业务号',value:refund.refundBizNo || '—'},{label:'订单申请前状态',value:refund.orderStatusBefore || '—'},{label:'审核时间',value:formatTime(refund.reviewedAt)}]" /></a-card>
     <a-card class="step-card" :bordered="false"><div class="section-title">退款原因</div><p class="reason">{{ refund.reason || '—' }}</p><div v-if="refund.evidenceImages?.length" class="evidence"><img v-for="(url, index) in refund.evidenceImages" :key="url" :src="url" :alt="`退款凭证 ${index + 1}`" /></div></a-card>

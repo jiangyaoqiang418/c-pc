@@ -155,7 +155,7 @@ function cancel() {
     <a-spin :loading="loading">
       <template v-if="request">
         <a-breadcrumb class="bread">
-          <a-breadcrumb-item @click="router.push('/purchase/hall')">求购大厅</a-breadcrumb-item>
+          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/purchase/hall')" @keydown.enter="router.push('/purchase/hall')" @keydown.space.prevent="router.push('/purchase/hall')">求购大厅</a-breadcrumb-item>
           <a-breadcrumb-item>{{ request.code }}</a-breadcrumb-item>
         </a-breadcrumb>
 

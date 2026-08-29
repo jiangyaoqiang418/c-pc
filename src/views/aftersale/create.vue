@@ -111,7 +111,7 @@ function submit() {
   <div class="aftersale-create-page shop-container">
     <a-spin :loading="loading">
       <template v-if="order">
-        <a-breadcrumb class="bread"><a-breadcrumb-item @click="router.push('/order')">我的订单</a-breadcrumb-item><a-breadcrumb-item>申请仅退款</a-breadcrumb-item></a-breadcrumb>
+        <a-breadcrumb class="bread"><a-breadcrumb-item role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">我的订单</a-breadcrumb-item><a-breadcrumb-item>申请仅退款</a-breadcrumb-item></a-breadcrumb>
         <a-card class="order-card" :bordered="false"><div class="order-row"><img :src="order.productCover" :alt="order.productTitle || '商品图片'" class="cover" /><div><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /> · 订单 {{ order.code }}</div></div><strong>U {{ order.totalAmount }}</strong></div></a-card>
         <a-alert v-if="!eligible" type="warning" class="notice">仅“待发货”或“待收货”订单可申请仅退款。</a-alert>
         <a-card class="step-card" :bordered="false"><div class="step-title">退款原因</div><a-textarea v-model="form.reason" :max-length="512" show-word-limit :rows="5" placeholder="请说明退款原因，例如商品与描述不符" /></a-card>
