@@ -60,7 +60,14 @@ onMounted(async () => {
   await load();
 });
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => userStore.currentUser?.id, load);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  vipStatus.value = undefined;
+  audience.value = 'customer';
+  vipLoadError.value = '';
+  void load();
+});
 
 const progressPct = computed(() => {
   if (!user.value || !vipStatus.value?.nextThreshold) return 100;
