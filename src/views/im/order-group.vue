@@ -43,6 +43,8 @@ const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
 const imageUrls = computed(() => conversationImageUrls(messages.value));
 const requestGuard = createLatestRequestGuard();
+const olderMessagesGuard = createLatestRequestGuard();
+const incrementalMessagesGuard = createLatestRequestGuard();
 let messageWriteVersion = 0;
 let recallWriteVersion = 0;
 
@@ -73,6 +75,8 @@ function isCurrentRecallContext(
 }
 
 async function load() {
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
   const isCurrent = requestGuard.begin();
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
@@ -112,21 +116,30 @@ async function loadOlderMessages() {
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
+  const isCurrent = olderMessagesGuard.begin();
   loadingOlder.value = true;
   const container = scrollRef.value;
   const oldHeight = container?.scrollHeight || 0;
   try {
     const nextPage = pageNo.value + 1;
-      const response = await notifyApi.fetchConversationMessages({ conversationId: requestedConversationId, pageNo: nextPage, pageSize: 50 });
-      if (orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
-        || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
-      messages.value = mergeMessages(response.records || [], messages.value);
+    const response = await notifyApi.fetchConversationMessages(
+      { conversationId: requestedConversationId, pageNo: nextPage, pageSize: 50 },
+      { signal: isCurrent.signal }
+    );
+    if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+      || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
+    messages.value = mergeMessages(response.records || [], messages.value);
     pageNo.value = nextPage;
     hasOlder.value = messages.value.length < (response.total || 0);
     await nextTick();
+    if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+      || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
     if (container) container.scrollTop = container.scrollHeight - oldHeight;
+  } catch {
+    if (!isCurrent()) return;
+    // 请求层已展示错误；保留当前消息和滚动位置，用户可再次加载历史。
   } finally {
-    loadingOlder.value = false;
+    if (isCurrent()) loadingOlder.value = false;
   }
 }
 
@@ -146,15 +159,18 @@ async function syncIncremental() {
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
+  const isCurrent = incrementalMessagesGuard.begin();
   const incoming = await notifyApi.fetchIncrementalMessages({
     conversationId: requestedConversationId,
     sinceId: latestServerMessageId(messages.value),
     limit: 200
-  });
-  if (!incoming.length || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+  }, { signal: isCurrent.signal });
+  if (!isCurrent() || !incoming.length || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
     || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
   messages.value = mergeMessages(messages.value, incoming);
   await reportRead();
+  if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+    || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
   await scrollToBottom();
 }
 
@@ -323,12 +339,16 @@ onBeforeUnmount(() => {
   messageWriteVersion += 1;
   recallWriteVersion += 1;
   requestGuard.invalidate();
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
 });
 watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCode, nextUserId], [prevCode, prevUserId]) => {
   if (String(nextCode) === String(prevCode) && String(nextUserId) === String(prevUserId)) return;
   messageWriteVersion += 1;
   recallWriteVersion += 1;
   requestGuard.invalidate();
+  olderMessagesGuard.invalidate();
+  incrementalMessagesGuard.invalidate();
   conversation.value = undefined;
   messages.value = [];
   loadError.value = '';
