@@ -8,3 +8,10 @@ const PRODUCT_IMAGE_PLACEHOLDER_SVG = `
 `;
 
 export const PRODUCT_IMAGE_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponent(PRODUCT_IMAGE_PLACEHOLDER_SVG)}`;
+
+export function setImageFallback(event: Event) {
+  const image = event.currentTarget as HTMLImageElement | null;
+  if (!image || image.dataset.fallback === '1') return;
+  image.dataset.fallback = '1';
+  image.src = PRODUCT_IMAGE_PLACEHOLDER;
+}

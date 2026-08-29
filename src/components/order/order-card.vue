@@ -7,7 +7,7 @@ import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';
 import * as orderApi from '@/service/api/order';
 import { useUserStore } from '@/stores';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -180,7 +180,7 @@ function contactShopper() {
       <OrderStatusTag :status="order.status" />
     </div>
     <div class="body">
-      <img :src="cover" :alt="order.productTitle" class="cover" />
+      <img :src="cover" :alt="order.productTitle" class="cover" @error="setImageFallback" />
       <div class="info">
         <div class="title">{{ order.productTitle }}</div>
         <div class="addr">收货：{{ order.receiverName }} · {{ order.shippingAddress }}</div>

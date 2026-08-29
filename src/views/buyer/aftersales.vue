@@ -5,6 +5,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as refundApi from '@/service/api/refund';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { setImageFallback } from '@/utils/image-placeholder';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -132,7 +133,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
         <a-card v-for="row in refunds" :key="row.refundId" :bordered="false" class="refund-card">
           <div class="card-head">
             <div class="product-summary">
-              <img v-if="row.productImage" :src="row.productImage" :alt="row.productTitle || '商品图片'" />
+              <img v-if="row.productImage" :src="row.productImage" :alt="row.productTitle || '商品图片'" @error="setImageFallback" />
               <div class="product-text">
                 <strong>{{ row.productTitle || '仅退款申请' }}</strong>
                 <span>订单号：{{ row.orderNo || '—' }}</span>

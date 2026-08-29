@@ -8,7 +8,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import PriceTag from '@/components/product/price-tag.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import { useCartStore } from '@/stores';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 const router = useRouter();
 const cart = useCartStore();
@@ -78,7 +78,7 @@ onMounted(() => {
             />
           </div>
           <div class="col-product">
-            <img v-if="item.product" :src="item.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product.title || '商品图片'" class="cover" />
+            <img v-if="item.product" :src="item.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product.title || '商品图片'" class="cover" @error="setImageFallback" />
             <div class="product-info">
               <div class="product-title">{{ item.product?.title || '商品已删除' }}</div>
               <div class="product-tags">

@@ -9,7 +9,7 @@ import * as realWalletApi from '@/service/api/wallet';
 import { RequestError } from '@/service/request';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import AddressSelector from '@/components/common/address-selector.vue';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useCartStore, useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -320,7 +320,7 @@ async function doSubmit() {
         </div>
         <div class="goods-list">
           <div v-for="item in items" :key="item.productId" class="goods-row">
-            <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" class="cover" />
+            <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" class="cover" @error="setImageFallback" />
             <div class="info">
               <div class="title">{{ item.product?.title }}</div>
               <div class="tags">

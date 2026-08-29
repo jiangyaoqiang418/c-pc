@@ -6,6 +6,7 @@ import * as flashSaleApi from '@/service/api/flash-sale';
 import * as productApi from '@/service/api/product';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { setImageFallback } from '@/utils/image-placeholder';
 
 const activeTab = ref<'sessions' | 'mine'>('sessions');
 const userStore = useUserStore();
@@ -212,7 +213,7 @@ watch(() => userStore.currentUser?.id, () => {
             <a-table-column title="商品" :width="260">
               <template #cell="{ record }">
                 <div class="product-cell">
-                  <img v-if="record.image" :src="record.image" :alt="record.title || '秒杀商品'" />
+                  <img v-if="record.image" :src="record.image" :alt="record.title || '秒杀商品'" @error="setImageFallback" />
                   <span>{{ record.title }}</span>
                 </div>
               </template>

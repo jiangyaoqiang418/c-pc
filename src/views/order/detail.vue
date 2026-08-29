@@ -13,7 +13,7 @@ import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
 
 const route = useRoute();
@@ -292,7 +292,7 @@ function contactShopper() {
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">商品信息</div>
           <div class="goods-row">
-            <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" />
+            <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" />
             <div class="info">
               <div
                 class="title"

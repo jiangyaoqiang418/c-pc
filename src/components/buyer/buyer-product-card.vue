@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { enums, formatAmount } from '@shared';
 import PriceTag from '@/components/product/price-tag.vue';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
@@ -49,7 +49,7 @@ function toggleShelf() {
 <template>
   <div class="bp-card">
     <div class="cover-wrap">
-      <img :src="cover" :alt="product.title" class="cover" />
+      <img :src="cover" :alt="product.title" class="cover" @error="setImageFallback" />
       <div v-if="product.status !== 'NORMAL'" class="status-overlay">
         {{ statusMeta.label }}
       </div>

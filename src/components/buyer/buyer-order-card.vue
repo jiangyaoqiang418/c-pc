@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -46,7 +46,7 @@ function goIm() {
         @keydown.enter="goDetail"
         @keydown.space.prevent="goDetail"
       >
-        <img :src="cover" :alt="order.productTitle" class="cover" />
+        <img :src="cover" :alt="order.productTitle" class="cover" @error="setImageFallback" />
       </div>
       <div class="info">
         <div class="title" role="link" tabindex="0" :aria-label="`打开订单 ${order.code} 的商品详情`" @click="goDetail" @keydown.enter="goDetail" @keydown.space.prevent="goDetail">{{ order.productTitle }}</div>
