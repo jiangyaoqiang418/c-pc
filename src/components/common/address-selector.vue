@@ -21,6 +21,7 @@ const modalOpen = ref(false);
 const submitting = ref(false);
 const loadedUserId = ref('');
 const requestGuard = createLatestRequestGuard();
+let writeVersion = 0;
 
 const form = reactive({
   receiverName: '',
@@ -66,8 +67,16 @@ async function load() {
 }
 
 onMounted(load);
-watch(() => props.userId, load);
-onBeforeUnmount(requestGuard.invalidate);
+watch(() => props.userId, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  writeVersion += 1;
+  submitting.value = false;
+  void load();
+});
+onBeforeUnmount(() => {
+  writeVersion += 1;
+  requestGuard.invalidate();
+});
 
 function onSelect(addr: Api.RealAddress.AddressRecord) {
   emit('update:modelValue', addr.id);
@@ -97,6 +106,8 @@ async function submit() {
     return false;
   }
   const userId = String(props.userId);
+  const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(props.userId) === userId;
   submitting.value = true;
   try {
     try {
@@ -110,17 +121,17 @@ async function submit() {
         detailAddress: form.detail,
         defaultFlag: form.isDefault
       });
-      if (String(props.userId) !== userId) return false;
+      if (!isCurrentWrite()) return false;
       Message.success('地址已添加');
       await load();
-      if (String(props.userId) === userId) onSelect(created);
+      if (isCurrentWrite()) onSelect(created);
       return true;
     } catch {
       // 请求层已展示错误，保留表单供用户修正后重试。
       return false;
     }
   } finally {
-    submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 </script>
