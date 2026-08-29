@@ -248,7 +248,7 @@ async function changePrice() {
   if (priceSubmitting.value) return false;
   const orderId = priceOrder.value?.id;
   const amount = priceAmount.value;
-  if (orderId === undefined || orderId === null || !amount || amount <= 0) {
+  if (orderId === undefined || orderId === null || amount === undefined || !Number.isFinite(amount) || amount <= 0) {
     Message.warning('请输入正确的订单金额');
     return false;
   }

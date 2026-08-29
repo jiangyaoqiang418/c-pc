@@ -90,6 +90,22 @@ function submit() {
     Message.warning('请选择商品分类');
     return;
   }
+  if (!Number.isFinite(form.price) || form.price <= 0) {
+    Message.warning('请输入正确的商品售价');
+    return;
+  }
+  if (!Number.isFinite(form.shippingFee) || form.shippingFee < 0) {
+    Message.warning('请输入正确的运费');
+    return;
+  }
+  if (!Number.isFinite(form.tax) || form.tax < 0) {
+    Message.warning('请输入正确的税费');
+    return;
+  }
+  if (!Number.isFinite(form.stock) || form.stock < 0) {
+    Message.warning('请输入正确的库存');
+    return;
+  }
   if (form.images.length === 0) {
     Message.warning('至少上传 1 张商品图');
     return;

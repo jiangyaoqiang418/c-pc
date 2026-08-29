@@ -75,11 +75,11 @@ async function submit() {
     Message.warning('请选择报名商品');
     return;
   }
-  if (form.flashPrice !== undefined && form.flashPrice <= 0) {
+  if (form.flashPrice != null && (!Number.isFinite(form.flashPrice) || form.flashPrice <= 0)) {
     Message.warning('秒杀价必须大于 0');
     return;
   }
-  if (form.flashStock !== undefined && form.flashStock < 1) {
+  if (form.flashStock != null && (!Number.isFinite(form.flashStock) || form.flashStock < 1)) {
     Message.warning('秒杀库存至少为 1');
     return;
   }

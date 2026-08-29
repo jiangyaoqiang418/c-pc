@@ -169,17 +169,18 @@ async function loadAll() {
 
 async function createRecharge() {
   if (submitting.value) return;
-  if (amount.value <= 0) {
+  if (!Number.isFinite(amount.value) || amount.value <= 0) {
     Message.warning('请输入正确的充值金额');
     return;
   }
+  const requestedAmount = amount.value;
   const chainCode = selectedChain.value?.chain;
   if (!chainCode) {
     Message.warning('当前没有可用充值链');
     return;
   }
   const minAmount = Number(selectedChain.value.minAmount || 0);
-  if (minAmount > 0 && amount.value < minAmount) {
+  if (minAmount > 0 && requestedAmount < minAmount) {
     Message.warning(`该链单笔最低充值金额为 ${minAmount} USDT`);
     return;
   }
@@ -189,7 +190,7 @@ async function createRecharge() {
   const isCurrentWrite = () => operation === createWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
-    const created = await realWalletApi.createRecharge({ chain: chainCode, amount: amount.value });
+    const created = await realWalletApi.createRecharge({ chain: chainCode, amount: requestedAmount });
     const id = getId(created);
     let nextRecharge = typeof created === 'object' ? created : await realWalletApi.fetchRechargeDetail(id);
     if (!isCurrentWrite()) return;

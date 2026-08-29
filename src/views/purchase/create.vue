@@ -99,7 +99,9 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
 });
 
 const CNY_RATE = 7.18;
-const budgetCny = computed(() => formatAmount((form.budgetAmount * CNY_RATE).toFixed(2)));
+const budgetCny = computed(() => Number.isFinite(form.budgetAmount)
+  ? formatAmount((form.budgetAmount * CNY_RATE).toFixed(2))
+  : '—');
 
 function preventImplicitSubmit(event: KeyboardEvent) {
   const target = event.target;
@@ -121,6 +123,14 @@ async function submit() {
   }
   if (form.addressId === undefined || form.addressId === null || form.addressId === '') {
     Message.warning('请选择收货地址');
+    return;
+  }
+  if (!Number.isFinite(form.budgetAmount) || form.budgetAmount < 10) {
+    Message.warning('求购预算不得低于 10 U');
+    return;
+  }
+  if (!Number.isFinite(form.expectedDays) || form.expectedDays < 1 || form.expectedDays > 60) {
+    Message.warning('期望发货天数需为 1-60 天');
     return;
   }
   const addressId = form.addressId;

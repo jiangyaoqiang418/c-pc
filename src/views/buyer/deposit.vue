@@ -108,11 +108,12 @@ function createIdempotencyKey() {
 
 async function submitDepositTransfer() {
   if (transferring.value) return;
-  if (!transferAmount.value || transferAmount.value <= 0) {
+  const amount = transferAmount.value;
+  if (amount === undefined || !Number.isFinite(amount) || amount <= 0) {
     Message.warning('请输入正确的保证金金额');
     return;
   }
-  if (transferAmount.value > maxTransferAmount.value) {
+  if (amount > maxTransferAmount.value) {
     Message.warning(transferKind.value === 'pay' ? '缴纳金额不能超过钱包可用余额' : '退还金额不能超过可用保证金');
     return;
   }
@@ -125,7 +126,7 @@ async function submitDepositTransfer() {
     && userStore.isBuyerActive;
   transferring.value = true;
   try {
-    const params = { amount: transferAmount.value, idempotencyKey: createIdempotencyKey() };
+    const params = { amount, idempotencyKey: createIdempotencyKey() };
     try {
       if (transferKind.value === 'pay') await realBuyerApi.payBuyerDeposit(params);
       else await realBuyerApi.refundBuyerDeposit(params);

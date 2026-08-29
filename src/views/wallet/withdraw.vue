@@ -42,7 +42,7 @@ const chainOptions = [
 
 const available = computed(() => Number(walletStore.account?.available || 0));
 const errMsg = computed(() => {
-  if (form.amount <= 0) return '请输入转出金额';
+  if (!Number.isFinite(form.amount) || form.amount <= 0) return '请输入转出金额';
   if (form.amount < 20) return '单笔最小转出 20 U';
   if (!form.toAddress) return '请输入目标地址';
   if (form.toAddress.length < 26) return '地址格式不合法';
@@ -296,7 +296,7 @@ watch(() => route.query.id, id => {
       <a-alert type="warning" class="confirm-alert" title="请确认目标地址与所选链一致，提交后将进入平台审核。" />
       <a-descriptions :column="1" :data="[
         { label: '链 / 币种', value: form.chain },
-        { label: '转出金额', value: 'U ' + formatAmount(form.amount.toFixed(2)) },
+        { label: '转出金额', value: 'U ' + formatAmount(form.amount) },
         { label: '目标地址', value: form.toAddress }
       ]" />
     </a-modal>
