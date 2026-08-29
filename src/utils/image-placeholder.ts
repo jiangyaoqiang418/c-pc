@@ -11,7 +11,9 @@ export const PRODUCT_IMAGE_PLACEHOLDER = `data:image/svg+xml,${encodeURIComponen
 
 export function setImageFallback(event: Event) {
   const image = event.currentTarget as HTMLImageElement | null;
-  if (!image || image.dataset.fallback === '1') return;
-  image.dataset.fallback = '1';
+  if (!image) return;
+  const source = image.getAttribute('src') || image.currentSrc;
+  if (image.dataset.fallbackSrc === source) return;
+  image.dataset.fallbackSrc = source;
   image.src = PRODUCT_IMAGE_PLACEHOLDER;
 }

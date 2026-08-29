@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { enums } from '@shared';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
-import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
@@ -19,12 +19,6 @@ function goDetail() {
   router.push({ name: 'product-detail', params: { id: String(props.product.id) } });
 }
 
-function onImgError(e: Event) {
-  const img = e.target as HTMLImageElement;
-  if (img.dataset.fallback) return;
-  img.dataset.fallback = '1';
-  img.src = PRODUCT_IMAGE_PLACEHOLDER;
-}
 </script>
 
 <template>
@@ -37,7 +31,7 @@ function onImgError(e: Event) {
     @keydown.space.prevent="goDetail"
   >
     <div class="cover-wrap">
-      <img :src="cover" :alt="product.title" class="cover" loading="lazy" @error="onImgError" />
+      <img :src="cover" :alt="product.title" class="cover" loading="lazy" @error="setImageFallback" />
       <div v-if="product.overseasCustoms" class="badge overseas">
         <Icon icon="lucide:globe" width="12" /> 海外直邮
       </div>
