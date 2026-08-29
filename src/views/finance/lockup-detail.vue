@@ -38,12 +38,14 @@ const daysPassed = computed(() => {
 
 async function load() {
   const isCurrent = requestGuard.begin();
-  if (!userStore.currentUser) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestedId = id.value;
   loading.value = true;
   loadError.value = '';
   try {
-    const next = await financeApi.fetchFinanceOrderDetail(id.value, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    const next = await financeApi.fetchFinanceOrderDetail(requestedId, { signal: isCurrent.signal });
+    if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     order.value = redeemedOrderIds.has(String(next.id))
       ? { ...next, canRedeem: false }
       : next;
@@ -58,7 +60,12 @@ async function load() {
 
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => route.params.id, load);
+watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  order.value = undefined;
+  unlockModalOpen.value = false;
+  void load();
+});
 
 function openUnlock() {
   if (!order.value || redeemedOrderIds.has(String(order.value.id))) return;

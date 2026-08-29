@@ -36,7 +36,7 @@ async function loadAll() {
     financeApi.fetchFinanceProductDetail(targetId, { signal: isCurrent.signal }),
     walletStore.fetchWallet(user.id)
   ]);
-  if (!isCurrent() || id.value !== targetId) return;
+  if (!isCurrent() || id.value !== targetId || String(userStore.currentUser?.id) !== String(user.id)) return;
   if (productResult.status === 'fulfilled') {
     product.value = productResult.value;
   } else {
@@ -48,7 +48,10 @@ async function loadAll() {
 
 onMounted(loadAll);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => route.params.id, loadAll);
+watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  void loadAll();
+});
 
 async function onSubscribe(amount: string) {
   if (!product.value || !userStore.currentUser || subscribing.value) return;

@@ -33,23 +33,25 @@ const id = computed(() => String(route.params.id || ''));
 async function load() {
   const isCurrent = requestGuard.begin();
   const requestedId = id.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loading.value = true;
   loadError.value = '';
   logisticsError.value = '';
   try {
     order.value = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     try {
       logistics.value = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
-      if (!isCurrent()) return;
+      if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     } catch {
-      if (!isCurrent()) return;
+      if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       logistics.value = undefined;
       logisticsError.value = '物流信息加载失败，请稍后重试。';
     }
     if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
       const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
-      if (!isCurrent()) return;
+      if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
     } else {
       reviewable.value = false;
@@ -67,7 +69,16 @@ async function load() {
 
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => route.params.id, load);
+watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  requestGuard.invalidate();
+  order.value = undefined;
+  logistics.value = undefined;
+  reviewable.value = false;
+  logisticsError.value = '';
+  confirmationOpen.value = false;
+  void load();
+});
 
 const aftersaleMeta = computed(() => {
   const aftersaleType = order.value?.aftersaleType;

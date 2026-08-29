@@ -24,11 +24,13 @@ const requestGuard = createLatestRequestGuard();
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  const requestedId = id.value;
+  const requestedUserId = userStore.currentUser?.id;
   loading.value = true;
   loadError.value = '';
   try {
-    request.value = await purchaseApi.fetchPurchaseDetail(id.value, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    request.value = await purchaseApi.fetchPurchaseDetail(requestedId, { signal: isCurrent.signal });
+    if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
   } catch {
     if (!isCurrent()) return;
     request.value = undefined;
@@ -42,7 +44,12 @@ onMounted(async () => {
   await load();
 });
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => route.params.id, load);
+watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  request.value = undefined;
+  cancellationPending.value = false;
+  void load();
+});
 
 const statusMeta = computed(() => (request.value ? enums.PURCHASE_STATUS_META[request.value.status] : undefined));
 const aftersaleMeta = computed(() => (request.value ? enums.AFTERSALE_TYPE_META[request.value.aftersaleType] : undefined));

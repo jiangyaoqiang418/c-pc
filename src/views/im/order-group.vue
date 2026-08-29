@@ -45,14 +45,16 @@ const requestGuard = createLatestRequestGuard();
 async function load() {
   const isCurrent = requestGuard.begin();
   const requestedOrderCode = orderCode.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loading.value = true;
   pageNo.value = 1;
   try {
     conversation.value = await notifyApi.fetchOrderConversation(requestedOrderCode, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     if (conversation.value) {
       const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 50 }, { signal: isCurrent.signal });
-      if (!isCurrent()) return;
+      if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       messages.value = mergeMessages([], response.records || []);
       hasOlder.value = messages.value.length < (response.total || 0);
       await reportRead();
@@ -69,13 +71,19 @@ async function load() {
 
 async function loadOlderMessages() {
   if (!conversation.value || !hasOlder.value || loadingOlder.value) return;
+  const requestedConversationId = conversation.value.id;
+  const requestedOrderCode = orderCode.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loadingOlder.value = true;
   const container = scrollRef.value;
   const oldHeight = container?.scrollHeight || 0;
   try {
     const nextPage = pageNo.value + 1;
-    const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: nextPage, pageSize: 50 });
-    messages.value = mergeMessages(response.records || [], messages.value);
+      const response = await notifyApi.fetchConversationMessages({ conversationId: requestedConversationId, pageNo: nextPage, pageSize: 50 });
+      if (orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+        || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
+      messages.value = mergeMessages(response.records || [], messages.value);
     pageNo.value = nextPage;
     hasOlder.value = messages.value.length < (response.total || 0);
     await nextTick();
@@ -97,12 +105,17 @@ async function reportRead() {
 
 async function syncIncremental() {
   if (!conversation.value) return;
+  const requestedConversationId = conversation.value.id;
+  const requestedOrderCode = orderCode.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   const incoming = await notifyApi.fetchIncrementalMessages({
-    conversationId: conversation.value.id,
+    conversationId: requestedConversationId,
     sinceId: latestServerMessageId(messages.value),
     limit: 200
   });
-  if (!incoming.length) return;
+  if (!incoming.length || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+    || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
   messages.value = mergeMessages(messages.value, incoming);
   await reportRead();
   await scrollToBottom();
@@ -144,6 +157,10 @@ function readText(message: Api.RealNotify.ImMessageVO) {
 
 async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaFileId?: string | number }) {
   if (!conversation.value || messageSending.value) return;
+  const requestedOrderCode = orderCode.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestedConversationId = conversation.value.id;
   messageSending.value = true;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
@@ -161,9 +178,15 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   }));
   await scrollToBottom();
   try {
-    messages.value = mergeMessages(messages.value, await notifyApi.sendConversationMessage(params));
-    await scrollToBottom();
+    const sent = await notifyApi.sendConversationMessage(params);
+    if (orderCode.value === requestedOrderCode && String(userStore.currentUser?.id) === String(requestedUserId)
+      && conversation.value && sameBusinessId(conversation.value.id, requestedConversationId)) {
+      messages.value = mergeMessages(messages.value, sent);
+      await scrollToBottom();
+    }
   } catch {
+    if (orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+      || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
     const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
     if (optimistic) optimistic.failed = true;
   } finally {
@@ -173,6 +196,10 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
 
 async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   if (!conversation.value || !message.failed) return;
+  const requestedOrderCode = orderCode.value;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const requestedConversationId = conversation.value.id;
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId: conversation.value.id,
@@ -185,9 +212,15 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     ? { ...item, clientMsgId, pending: true, failed: false, createdAt: String(Date.now()) }
     : item);
   try {
-    messages.value = mergeMessages(messages.value, await notifyApi.sendConversationMessage(params));
-    await scrollToBottom();
+    const sent = await notifyApi.sendConversationMessage(params);
+    if (orderCode.value === requestedOrderCode && String(userStore.currentUser?.id) === String(requestedUserId)
+      && conversation.value && sameBusinessId(conversation.value.id, requestedConversationId)) {
+      messages.value = mergeMessages(messages.value, sent);
+      await scrollToBottom();
+    }
   } catch {
+    if (orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
+      || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
     const optimistic = messages.value.find(item => item.clientMsgId === clientMsgId);
     if (optimistic) {
       optimistic.pending = false;
@@ -232,7 +265,18 @@ notifyStore.subscribe(async event => {
 
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => route.params.orderCode, load);
+watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCode, nextUserId], [prevCode, prevUserId]) => {
+  if (String(nextCode) === String(prevCode) && String(nextUserId) === String(prevUserId)) return;
+  requestGuard.invalidate();
+  conversation.value = undefined;
+  messages.value = [];
+  readerWatermarks.value = {};
+  pageNo.value = 1;
+  hasOlder.value = false;
+  loadingOlder.value = false;
+  imagePreviewVisible.value = false;
+  void load();
+});
 </script>
 
 <template>
