@@ -2,10 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
+import { useUserStore } from '@/stores';
 import * as refundApi from '@/service/api/refund';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const userStore = useUserStore();
 const activeKey = ref('all');
 const orderNo = ref('');
 const refunds = ref<Api.RealRefund.RefundDTO[]>([]);
@@ -38,6 +40,8 @@ function formatTime(value?: string | number) {
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
   loading.value = true;
   loadError.value = '';
   try {
@@ -47,7 +51,7 @@ async function load() {
       orderNo: orderNo.value.trim() || undefined,
       status: activeStatus.value
     }, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     refunds.value = response.records || [];
     total.value = response.total;
   } catch {
@@ -76,6 +80,15 @@ onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, () => {
   current.value = 1;
   load();
+});
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  refunds.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  void load();
 });
 </script>
 
