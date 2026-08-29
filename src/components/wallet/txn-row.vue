@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { enums, formatAmount } from '@shared';
+import { formatDateValue, parseDateValue } from '@/utils/date-range';
 
 interface Props {
   txn: Api.RealWallet.DisplayLedger;
@@ -24,7 +25,9 @@ const desc = computed(() => {
 });
 
 const relativeTime = computed(() => {
-  const diff = Date.now() - new Date(props.txn.createdAt).getTime();
+  const timestamp = parseDateValue(props.txn.createdAt);
+  if (timestamp === undefined) return '—';
+  const diff = Date.now() - timestamp;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return '刚刚';
   if (mins < 60) return `${mins} 分钟前`;
@@ -66,7 +69,7 @@ const relativeTime = computed(() => {
         <span class="sign">{{ isIn ? '+' : '−' }}</span>
         <span class="num">U {{ formatAmount(txn.amount) }}</span>
       </div>
-      <div class="time">{{ compact ? relativeTime : new Date(txn.createdAt).toLocaleString() }}</div>
+      <div class="time">{{ compact ? relativeTime : formatDateValue(txn.createdAt) }}</div>
     </div>
   </div>
 </template>
