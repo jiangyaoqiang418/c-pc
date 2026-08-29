@@ -80,7 +80,14 @@ onBeforeUnmount(() => {
   allListGuard.invalidate();
   listGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, async () => {
+watch(() => userStore.currentUser?.id, async (next, previous) => {
+  if (String(next) === String(previous)) return;
+  allListGuard.invalidate();
+  listGuard.invalidate();
+  allList.value = [];
+  list.value = [];
+  loadError.value = '';
+  cancelingId.value = undefined;
   await loadAll();
   await load();
 });

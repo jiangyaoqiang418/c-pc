@@ -40,7 +40,6 @@ async function loadAll() {
   ]);
   if (!isCurrent()) return;
   if (ledgerResult.status === 'fulfilled') recentTxns.value = ledgerResult.value.records;
-  else recentTxns.value = [];
   if (walletResult.status === 'rejected' || ledgerResult.status === 'rejected') {
     loadError.value = '钱包数据加载失败，请检查网络后重试。';
   }
@@ -49,7 +48,15 @@ async function loadAll() {
 
 onMounted(loadAll);
 watch(() => userStore.currentAudience, loadAll);
-watch(() => userStore.currentUser?.id, loadAll);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  recentTxns.value = [];
+  drawerTxn.value = undefined;
+  drawerOpen.value = false;
+  loadError.value = '';
+  void loadAll();
+});
 onBeforeUnmount(requestGuard.invalidate);
 
 import { getUsdtCnyRate } from '@shared/utils/currency';
