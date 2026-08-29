@@ -3,6 +3,7 @@ import { toPageTotal } from './page';
 import { fetchCategoryTree } from './category';
 
 let categoryPathCache: Map<string, string> | undefined;
+let categoryPathCachePromise: Promise<Map<string, string>> | undefined;
 
 function toAfterSaleType(value?: string): Api.Product.AftersaleType {
   if (value === 'NONE') return 'none';
@@ -37,22 +38,29 @@ function toIso(value?: string | number) {
 
 async function getCategoryPath(id?: string) {
   if (!id) return '';
-  if (!categoryPathCache) {
-    categoryPathCache = new Map();
-    const walk = (nodes: Api.RealCategory.DisplayCategoryNode[], path: string[] = []) => {
-      nodes.forEach(node => {
-        const next = [...path, node.name];
-        categoryPathCache!.set(String(node.id), next.join(' / '));
-        if (node.children?.length) walk(node.children, next);
-      });
-    };
-    try {
-      walk(await fetchCategoryTree());
-    } catch {
-      categoryPathCache.set(id, id);
-    }
+  if (categoryPathCache) return categoryPathCache.get(id) || id;
+  if (!categoryPathCachePromise) {
+    categoryPathCachePromise = (async () => {
+      const nextCache = new Map<string, string>();
+      const walk = (nodes: Api.RealCategory.DisplayCategoryNode[], path: string[] = []) => {
+        nodes.forEach(node => {
+          const next = [...path, node.name];
+          nextCache.set(String(node.id), next.join(' / '));
+          if (node.children?.length) walk(node.children, next);
+        });
+      };
+      try {
+        walk(await fetchCategoryTree());
+      } catch {
+        // 分类树失败时保留空缓存，调用方仍可展示原始分类 ID，不重复并发请求。
+        nextCache.set(id, id);
+      }
+      categoryPathCache = nextCache;
+      return nextCache;
+    })();
   }
-  return categoryPathCache.get(id) || id;
+  const cache = await categoryPathCachePromise;
+  return cache.get(id) || id;
 }
 
 async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promise<Api.RealPurchase.Record> {
