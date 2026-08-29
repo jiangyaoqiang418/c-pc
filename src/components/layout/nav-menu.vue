@@ -76,8 +76,14 @@ function gotoCategory(rootId?: string | number, subId?: string | number, brandId
       :key="item.name"
       class="nav-item"
       :class="{ active: isActive(item) }"
+      role="link"
+      tabindex="0"
+      :aria-current="isActive(item) ? 'page' : undefined"
       @click="go(item)"
       @mouseenter="item.hover ? (subMenuOpen = true) : (subMenuOpen = false)"
+      @focus="item.hover ? (subMenuOpen = true) : (subMenuOpen = false)"
+      @keydown.enter.prevent="go(item)"
+      @keydown.space.prevent="go(item)"
     >
       {{ item.label }}
     </div>
@@ -85,14 +91,19 @@ function gotoCategory(rootId?: string | number, subId?: string | number, brandId
     <Transition name="fade">
       <div v-if="subMenuOpen" class="mega" @mouseenter="subMenuOpen = true">
         <div class="mega-inner">
-          <ul class="col col-root">
+          <ul class="col col-root" role="menu" aria-label="商品分类">
             <li
               v-for="root in categories"
               :key="root.id"
               class="root-row"
               :class="{ active: hovered === root.id }"
+              role="menuitem"
+              tabindex="0"
               @mouseenter="hovered = root.id; subHovered = undefined"
+              @focus="hovered = root.id; subHovered = undefined"
               @click="gotoCategory(root.id)"
+              @keydown.enter.prevent="gotoCategory(root.id)"
+              @keydown.space.prevent="gotoCategory(root.id)"
             >
               {{ root.name }}
               <span class="arrow">›</span>
@@ -100,13 +111,24 @@ function gotoCategory(rootId?: string | number, subId?: string | number, brandId
           </ul>
           <div v-if="hovered" class="col col-sub">
             <div v-for="sub in categories.find(r => r.id === hovered)?.children || []" :key="sub.id" class="sub-block">
-              <div class="sub-title" @click="gotoCategory(undefined, sub.id)">{{ sub.name }}</div>
+              <div
+                class="sub-title"
+                role="menuitem"
+                tabindex="0"
+                @click="gotoCategory(undefined, sub.id)"
+                @keydown.enter.prevent="gotoCategory(undefined, sub.id)"
+                @keydown.space.prevent="gotoCategory(undefined, sub.id)"
+              >{{ sub.name }}</div>
               <div class="brand-list">
                 <a
                   v-for="brand in (sub.children || []).slice(0, 12)"
                   :key="brand.id"
                   class="brand-link"
+                  role="menuitem"
+                  tabindex="0"
                   @click="gotoCategory(undefined, undefined, brand.id)"
+                  @keydown.enter.prevent="gotoCategory(undefined, undefined, brand.id)"
+                  @keydown.space.prevent="gotoCategory(undefined, undefined, brand.id)"
                 >
                   {{ brand.name }}
                 </a>
@@ -137,6 +159,13 @@ function gotoCategory(rootId?: string | number, subId?: string | number, brandId
 .nav-item:hover,
 .nav-item.active {
   color: var(--bw-brand-primary);
+}
+.nav-item:focus-visible,
+.root-row:focus-visible,
+.sub-title:focus-visible,
+.brand-link:focus-visible {
+  outline: 2px solid var(--bw-brand-primary);
+  outline-offset: 2px;
 }
 .mega {
   position: absolute;
