@@ -101,6 +101,14 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
 const CNY_RATE = 7.18;
 const budgetCny = computed(() => formatAmount((form.budgetAmount * CNY_RATE).toFixed(2)));
 
+function preventImplicitSubmit(event: KeyboardEvent) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  if (['text', 'number', 'search', 'tel', 'email'].includes(target.type)) {
+    event.preventDefault();
+  }
+}
+
 async function submit() {
   if (submitting.value || confirmationOpen.value) return;
   if (!form.productTitle.trim()) {
@@ -187,7 +195,7 @@ async function submit() {
     </section>
 
     <!-- ============ Form Body ============ -->
-    <a-form :model="form" layout="vertical" class="form-body">
+    <a-form :model="form" layout="vertical" class="form-body" @submit.prevent @keydown.enter.capture="preventImplicitSubmit">
       <!-- ─── BASIC INFO ─── -->
       <div class="form-block">
         <div class="block-eyebrow">
@@ -295,10 +303,10 @@ async function submit() {
 
       <!-- ─── Actions ─── -->
       <div class="actions">
-        <button class="btn ghost" @click="router.back()">
+        <button type="button" class="btn ghost" @click="router.back()">
           <Icon icon="lucide:x" width="14" /> 取消
         </button>
-        <button class="btn primary" :disabled="submitting || confirmationOpen" @click="submit">
+        <button type="button" class="btn primary" :disabled="submitting || confirmationOpen" @click="submit">
           <Icon icon="lucide:send" width="14" />
           {{ submitting || confirmationOpen ? '提交中…' : '立即提交求购' }}
         </button>
