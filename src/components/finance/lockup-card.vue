@@ -21,20 +21,33 @@ const meta = computed(() => ({
 
 const startMs = computed(() => parseDateValue(props.order.startAt));
 const maturityMs = computed(() => parseDateValue(props.order.maturityAt));
+const safeLockDays = computed(() => {
+  const days = Number(props.order.lockDays);
+  return Number.isFinite(days) && days > 0 ? days : undefined;
+});
 const daysPassed = computed(() => {
   if (startMs.value === undefined) return 0;
   const now = Math.min(Date.now(), maturityMs.value ?? Date.now());
   return Math.max(0, Math.floor((now - startMs.value) / 86400_000));
 });
+const remainingDays = computed(() => {
+  const backendValue = Number(props.order.remainingDays);
+  if (props.order.remainingDays !== undefined && Number.isFinite(backendValue) && backendValue >= 0) {
+    return backendValue;
+  }
+  return safeLockDays.value === undefined
+    ? undefined
+    : Math.max(0, safeLockDays.value - daysPassed.value);
+});
 const progressPct = computed(() => {
   if (props.order.status === 'HOLDING') {
-    return Math.min(100, Math.round((daysPassed.value / props.order.lockDays) * 100));
+    if (safeLockDays.value === undefined) return 0;
+    return Math.min(100, Math.max(0, Math.round((daysPassed.value / safeLockDays.value) * 100)));
   }
   if (props.order.status === 'SETTLED') return 100;
   return 0;
 });
-
-const remainingDays = computed(() => Math.max(0, props.order.lockDays - daysPassed.value));
+const lockDaysLabel = computed(() => safeLockDays.value === undefined ? '—' : String(safeLockDays.value));
 
 function goDetail() {
   router.push({ name: 'finance-lockup-detail', params: { id: String(props.order.id) } });
@@ -77,7 +90,7 @@ function goDetail() {
       </div>
       <div class="cell">
         <div class="lbl">{{ order.status === 'HOLDING' ? '剩余天数' : '锁定天数' }}</div>
-        <div class="val">{{ order.status === 'HOLDING' ? (order.remainingDays ?? remainingDays) : order.lockDays }} 天</div>
+        <div class="val">{{ order.status === 'HOLDING' ? (remainingDays ?? '—') : lockDaysLabel }} 天</div>
       </div>
     </div>
 
@@ -89,7 +102,7 @@ function goDetail() {
         :color="order.status === 'SETTLED' ? '#00b42a' : '#722ed1'"
       />
       <div class="progress-text">
-        已过 {{ daysPassed }} / {{ order.lockDays }} 天
+        已过 {{ daysPassed }} / {{ lockDaysLabel }} 天
         <span class="muted">· 到期 {{ formatDateValue(order.maturityAt, true) }}</span>
       </div>
     </div>

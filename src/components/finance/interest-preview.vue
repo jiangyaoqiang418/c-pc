@@ -13,19 +13,45 @@ const emit = defineEmits<{ (e: 'subscribe', amount: string): void }>();
 const amount = ref<number>();
 amount.value = Number(props.product.minAmount) || 100;
 
-const annualRate = computed(() => Number(props.product.annualRate) || 0);
+const annualRate = computed(() => {
+  const parsed = Number(props.product.annualRate);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+});
+const lockDays = computed(() => {
+  const parsed = Number(props.product.lockDays);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+});
 const normalizedAmount = computed(() => Number.isFinite(amount.value) ? Number(amount.value) : 0);
-const expectedInterest = computed(() => (normalizedAmount.value * annualRate.value * props.product.lockDays / 365).toFixed(8));
-const maturityDate = computed(() => new Date(Date.now() + props.product.lockDays * 86400_000).toLocaleDateString());
+const expectedInterest = computed(() => (
+  normalizedAmount.value * (annualRate.value ?? 0) * (lockDays.value ?? 0) / 365
+).toFixed(8));
+const maturityDate = computed(() => lockDays.value === undefined
+  ? '—'
+  : new Date(Date.now() + lockDays.value * 86400_000).toLocaleDateString());
 
-const min = computed(() => Number(props.product.minAmount) || 0);
-const max = computed(() => (props.product.maxAmount ? Number(props.product.maxAmount) : undefined));
-const balance = computed(() => Number(props.availableBalance || '0'));
+const min = computed(() => {
+  const parsed = Number(props.product.minAmount);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+});
+const max = computed(() => {
+  if (props.product.maxAmount === undefined || props.product.maxAmount === null) return undefined;
+  const parsed = Number(props.product.maxAmount);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+});
+const balance = computed(() => {
+  if (props.availableBalance === undefined || props.availableBalance === null || props.availableBalance === '') return 0;
+  const parsed = Number(props.availableBalance);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+});
 
 const errMsg = computed(() => {
   if (amount.value === undefined || !Number.isFinite(amount.value)) return '请输入投入金额';
+  if (lockDays.value === undefined) return '产品锁定期限无效，暂不可申购';
+  if (annualRate.value === undefined) return '产品年化利率无效，暂不可申购';
+  if (min.value === undefined) return '产品起投金额无效，暂不可申购';
   if (normalizedAmount.value < min.value) return `最少投入 ${min.value} U`;
-  if (max.value && normalizedAmount.value > max.value) return `单笔最高 ${max.value} U`;
+  if (max.value !== undefined && normalizedAmount.value > max.value) return `单笔最高 ${max.value} U`;
+  if (balance.value === undefined) return '钱包余额无效，暂不可申购';
   if (normalizedAmount.value > balance.value) return `可用余额 U ${formatAmount(props.availableBalance || '0')} 不足`;
   return '';
 });
@@ -66,7 +92,7 @@ watch(
     </div>
     <div class="result-row">
       <div class="lbl">锁定天数</div>
-      <div class="val">{{ product.lockDays }} 天</div>
+      <div class="val">{{ lockDays ?? '—' }} 天</div>
     </div>
     <div class="result-row">
       <div class="lbl">预计到期日</div>
