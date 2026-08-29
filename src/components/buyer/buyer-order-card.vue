@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -32,7 +33,7 @@ function goIm() {
   <div class="buyer-order-card">
     <div class="head">
       <span class="code">{{ order.code }}</span>
-      <span class="time">{{ new Date(order.createdAt).toLocaleString() }}</span>
+      <span class="time">{{ formatDateValue(order.createdAt) }}</span>
       <OrderStatusTag :status="order.status" />
     </div>
 

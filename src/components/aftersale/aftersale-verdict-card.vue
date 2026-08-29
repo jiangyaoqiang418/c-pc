@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { formatAmount } from '@shared';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   caseRecord: Api.Order.AftersaleCase;
@@ -28,7 +29,7 @@ const meta = computed(() => (props.caseRecord.verdict ? VERDICT_META[props.caseR
       { label: '仲裁员', value: caseRecord.arbitrator || '—' },
       { label: '退款金额', value: caseRecord.refundAmount ? 'U ' + formatAmount(caseRecord.refundAmount) : '—' },
       { label: '押金扣罚', value: caseRecord.depositDeductAmount ? 'U ' + formatAmount(caseRecord.depositDeductAmount) : '—' },
-      { label: '结案时间', value: caseRecord.closedAt ? new Date(caseRecord.closedAt).toLocaleString() : '—' }
+      { label: '结案时间', value: formatDateValue(caseRecord.closedAt) }
     ]" />
     <div v-if="caseRecord.verdictNote" class="note">
       <span class="lbl">仲裁说明：</span>{{ caseRecord.verdictNote }}

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { formatPoints } from '@shared';
 import PointBehaviorTag from './point-behavior-tag.vue';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   log: Api.RealPoint.Ledger;
@@ -36,7 +37,7 @@ const appealMeta = computed(() => {
     </div>
     <div class="middle">
       <div class="desc">{{ refDesc || log.behavior }}</div>
-      <div class="time">{{ new Date(log.createdAt).toLocaleString() }}</div>
+      <div class="time">{{ formatDateValue(log.createdAt) }}</div>
     </div>
     <div class="right">
       <div class="change" :style="{ color: amountColor }">

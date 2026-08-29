@@ -9,6 +9,7 @@ import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
+import { formatDateValue } from '@/utils/date-range';
 
 const route = useRoute();
 const router = useRouter();
@@ -195,7 +196,7 @@ function cancel() {
           class="review-alert"
           :title="request.reviewComment || '求购审核未通过'"
         >
-          审核时间：{{ request.reviewedAt ? new Date(request.reviewedAt).toLocaleString() : '—' }}
+          审核时间：{{ formatDateValue(request.reviewedAt) }}
         </a-alert>
 
         <div class="layout-2col">
@@ -203,11 +204,11 @@ function cancel() {
             <div class="section-title">求购信息</div>
             <a-descriptions :column="2" :data="[
               { label: '期望发货', value: request.expectedDays + ' 天内' },
-              { label: '接单截止', value: request.claimExpiresAt ? new Date(request.claimExpiresAt).toLocaleString() : '—' },
+              { label: '接单截止', value: formatDateValue(request.claimExpiresAt) },
               { label: '海外过关', value: request.overseasCustoms ? '是' : '否' },
               { label: '售后类型', value: aftersaleMeta?.label || '—' },
-              { label: '审核时间', value: request.reviewedAt ? new Date(request.reviewedAt).toLocaleString() : '—' },
-              { label: '创建时间', value: new Date(request.createdAt).toLocaleString() }
+              { label: '审核时间', value: formatDateValue(request.reviewedAt) },
+              { label: '创建时间', value: formatDateValue(request.createdAt) }
             ]" />
 
             <a-divider />

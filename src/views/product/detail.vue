@@ -309,7 +309,7 @@ async function favorite() {
             <div class="spec-row"><span class="k">所属分类</span><span class="v">{{ product.categoryPath }}</span></div>
             <div class="spec-row"><span class="k">海外过关</span><span class="v">{{ product.overseasCustoms ? '是' : '否' }}</span></div>
             <div class="spec-row"><span class="k">售后类型</span><span class="v">{{ aftersaleMeta?.label || '—' }}</span></div>
-            <div class="spec-row"><span class="k">上架时间</span><span class="v">{{ new Date(product.publishedAt || product.createdAt).toLocaleDateString() }}</span></div>
+            <div class="spec-row"><span class="k">上架时间</span><span class="v">{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</span></div>
           </div>
           <div v-else-if="activeTab === 'review'">
             <div v-if="reviews.length" class="review-list">

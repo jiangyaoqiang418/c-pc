@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -59,7 +60,7 @@ const steps = computed<Step[]>(() => {
     <div v-for="(step, i) in steps" :key="step.key" class="step" :class="step.status">
       <div class="dot">{{ i + 1 }}</div>
       <div class="label">{{ step.label }}</div>
-      <div v-if="step.time" class="time">{{ new Date(step.time).toLocaleString() }}</div>
+      <div v-if="step.time" class="time">{{ formatDateValue(step.time) }}</div>
       <div v-if="i < steps.length - 1" class="line" />
     </div>
   </div>

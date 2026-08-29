@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { cmsApi } from '@shared';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   visible: boolean;
@@ -66,7 +67,7 @@ onBeforeUnmount(() => {
         <div class="version">
           <span class="ver">版本 {{ agreement.version }}</span>
           <span class="dot">·</span>
-          <span>生效于 {{ new Date(agreement.effectiveAt).toLocaleDateString() }}</span>
+          <span>生效于 {{ formatDateValue(agreement.effectiveAt, true) }}</span>
           <span class="dot">·</span>
           <span>发布人 {{ agreement.publishedBy }}</span>
         </div>

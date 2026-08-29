@@ -4,6 +4,7 @@ import { cmsApi } from '@shared';
 import AnnouncementCard from '@/components/cms/announcement-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { formatDateValue } from '@/utils/date-range';
 
 const activeType = ref<Api.Cms.AnnouncementType | 'all'>('all');
 const list = ref<Api.Cms.Announcement[]>([]);
@@ -121,7 +122,7 @@ async function open(a: Api.Cms.Announcement) {
       <template v-if="drawerAnn">
         <div class="drawer-meta">
           <a-tag>{{ drawerAnn.type }}</a-tag>
-          <span class="time">{{ new Date(drawerAnn.publishAt || drawerAnn.createdAt).toLocaleString() }}</span>
+          <span class="time">{{ formatDateValue(drawerAnn.publishAt || drawerAnn.createdAt) }}</span>
           <span class="dot">·</span>
           <span>{{ drawerAnn.viewsCount.toLocaleString() }} 浏览</span>
         </div>

@@ -247,7 +247,7 @@ function contactShopper() {
             <OrderStatusTag :status="order.status" size="large" />
             <div class="hero-text">
               <div class="hero-code">订单号：{{ order.code }}</div>
-              <div class="hero-meta">创建于 {{ new Date(order.createdAt).toLocaleString() }} · 买手 {{ order.shopperName }}</div>
+              <div class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</div>
             </div>
             <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" />
           </div>
@@ -364,7 +364,7 @@ function contactShopper() {
                 <a-timeline-item v-for="(h, i) in order.priceHistory" :key="i">
                   <div>{{ h.field }} <span class="yb-mono">{{ formatUsdt(h.before) }}</span> → <span class="yb-mono">{{ formatUsdt(h.after) }}</span></div>
                   <div class="muted small">≈ {{ formatCny(h.before) }} → {{ formatCny(h.after) }}</div>
-                  <div class="muted small">{{ h.operator || '系统' }} · {{ new Date(h.changedAt).toLocaleString() }} · {{ h.reason }}</div>
+                  <div class="muted small">{{ h.operator || '系统' }} · {{ formatTime(h.changedAt) }} · {{ h.reason }}</div>
                 </a-timeline-item>
               </a-timeline>
             </a-collapse-item>
@@ -384,12 +384,12 @@ function contactShopper() {
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">关键时间</div>
           <a-descriptions :data="[
-            { label: '下单', value: new Date(order.createdAt).toLocaleString() },
-            { label: '付款', value: order.paidAt ? new Date(order.paidAt).toLocaleString() : '—' },
-            { label: '采购完成', value: order.procuredAt ? new Date(order.procuredAt).toLocaleString() : '—' },
-            { label: '发货', value: order.shippedAt ? new Date(order.shippedAt).toLocaleString() : '—' },
-            { label: '签收', value: order.deliveredAt ? new Date(order.deliveredAt).toLocaleString() : '—' },
-            { label: '归档', value: order.archivedAt ? new Date(order.archivedAt).toLocaleString() : '—' }
+            { label: '下单', value: formatTime(order.createdAt) },
+            { label: '付款', value: formatTime(order.paidAt) },
+            { label: '采购完成', value: formatTime(order.procuredAt) },
+            { label: '发货', value: formatTime(order.shippedAt) },
+            { label: '签收', value: formatTime(order.deliveredAt) },
+            { label: '归档', value: formatTime(order.archivedAt) }
           ]" :column="3" />
         </a-card>
       </template>

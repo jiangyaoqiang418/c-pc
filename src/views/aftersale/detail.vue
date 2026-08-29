@@ -6,6 +6,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { formatDateValue } from '@/utils/date-range';
 
 const route = useRoute(); const router = useRouter();
 const userStore = useUserStore();
@@ -15,7 +16,7 @@ const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 const labels: Record<string, string> = { APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
 const canCancel = computed(() => String(refund.value?.status) === 'APPLYING');
-const formatTime = (value?: string | number) => value ? new Date(typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value).toLocaleString() : '—';
+const formatTime = (value?: string | number) => formatDateValue(value);
 async function load() {
   const isCurrent = requestGuard.begin();
   const requestedId = id.value;

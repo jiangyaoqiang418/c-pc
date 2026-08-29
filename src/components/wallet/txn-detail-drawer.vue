@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
 import { enums, formatAmount, shortAddress } from '@shared';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   visible: boolean;
@@ -54,7 +55,7 @@ function copy(text?: string) {
         <div class="dl-row"><span class="k">入账桶</span><span class="v">{{ txn.bucketTo || '—' }}</span></div>
         <div class="dl-row"><span class="k">操作人</span><span class="v">{{ txn.operator || '系统' }}</span></div>
         <div class="dl-row"><span class="k">备注</span><span class="v">{{ txn.remark || '—' }}</span></div>
-        <div class="dl-row"><span class="k">时间</span><span class="v yb-mono">{{ new Date(txn.createdAt).toLocaleString() }}</span></div>
+        <div class="dl-row"><span class="k">时间</span><span class="v yb-mono">{{ formatDateValue(txn.createdAt) }}</span></div>
       </div>
 
       <div v-if="txn.refType || txn.refId" class="ref-block">

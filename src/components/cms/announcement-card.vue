@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   announcement: Api.Cms.Announcement;
@@ -35,7 +36,7 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
     </div>
     <div class="summary">{{ announcement.summary }}</div>
     <div class="meta">
-      <span class="time">{{ new Date(announcement.publishAt || announcement.createdAt).toLocaleDateString() }}</span>
+      <span class="time">{{ formatDateValue(announcement.publishAt || announcement.createdAt, true) }}</span>
       <span class="dot">·</span>
       <span>{{ announcement.viewsCount.toLocaleString() }} 浏览</span>
       <span class="dot">·</span>

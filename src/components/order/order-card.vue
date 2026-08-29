@@ -8,6 +8,7 @@ import OrderActions from './order-actions.vue';
 import * as orderApi from '@/service/api/order';
 import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -175,7 +176,7 @@ function contactShopper() {
   >
     <div class="head">
       <span class="code">订单号：{{ order.code }}</span>
-      <span class="time">下单于 {{ new Date(order.createdAt).toLocaleString() }}</span>
+      <span class="time">下单于 {{ formatDateValue(order.createdAt) }}</span>
       <span class="seller">买手：{{ order.shopperName }}</span>
       <OrderStatusTag :status="order.status" />
     </div>

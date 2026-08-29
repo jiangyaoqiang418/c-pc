@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { enums, formatAmount } from '@shared';
 import PushTierBadge from './push-tier-badge.vue';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   request: Api.RealPurchase.DisplayRecord;
@@ -63,7 +64,7 @@ function goDetail() {
           </span>
           <span v-if="request.status === 'pushing' && request.claimExpiresAt" class="chip">
             <Icon icon="lucide:clock-3" width="11" />
-            截止 {{ new Date(request.claimExpiresAt).toLocaleString() }}
+            截止 {{ formatDateValue(request.claimExpiresAt) }}
           </span>
           <span class="chip">
             <Icon icon="lucide:shield-check" width="11" />
