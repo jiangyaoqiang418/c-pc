@@ -11,6 +11,7 @@ const total = ref(0);
 const current = ref(1);
 const size = ref(15);
 const loading = ref(false);
+const loadError = ref('');
 const drawerVisible = ref(false);
 const drawerAnn = ref<Api.Cms.Announcement>();
 const requestGuard = createLatestRequestGuard();
@@ -26,6 +27,7 @@ const TYPES: { key: Api.Cms.AnnouncementType | 'all'; label: string }[] = [
 async function load() {
   const isCurrent = requestGuard.begin();
   loading.value = true;
+  loadError.value = '';
   try {
     const r = await cmsApi.fetchAnnouncements({
       current: current.value,
@@ -36,6 +38,11 @@ async function load() {
     if (!isCurrent()) return;
     list.value = r.records;
     total.value = r.total;
+  } catch {
+    if (!isCurrent()) return;
+    list.value = [];
+    total.value = 0;
+    loadError.value = '公告加载失败，请稍后重试。';
   } finally {
     if (isCurrent()) loading.value = false;
   }
@@ -47,14 +54,23 @@ watch(activeType, () => {
 });
 
 async function open(a: Api.Cms.Announcement) {
-  drawerAnn.value = await cmsApi.fetchAnnouncementDetail(a.id);
-  drawerVisible.value = true;
+  try {
+    drawerAnn.value = await cmsApi.fetchAnnouncementDetail(a.id);
+    drawerVisible.value = true;
+  } catch {
+    loadError.value = '公告详情加载失败，请稍后重试。';
+  }
 }
 </script>
 
 <template>
   <div class="announcement-page shop-container">
     <h1 class="page-title">公告中心</h1>
+
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+      {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="load">重新加载</a-button></template>
+    </a-alert>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">
       <a-tabs v-model:active-key="activeType" lazy-load>
@@ -67,7 +83,13 @@ async function open(a: Api.Cms.Announcement) {
         <template v-if="list.length">
           <AnnouncementCard v-for="a in list" :key="a.id" :announcement="a" @open="open" />
         </template>
-        <EmptyState v-else title="暂无公告" />
+        <EmptyState
+          v-else
+          :title="loadError || '暂无公告'"
+          :description="loadError ? '不会把请求失败显示成没有公告。' : undefined"
+          :action-text="loadError ? '重新加载' : undefined"
+          @action="loadError && load()"
+        />
 
         <div v-if="total > size" class="pagination-bar">
           <a-pagination
