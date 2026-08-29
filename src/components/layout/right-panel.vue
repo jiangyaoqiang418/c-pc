@@ -59,16 +59,23 @@ onBeforeUnmount(orderCountsGuard.invalidate);
 watch([() => userStore.currentUser?.id, () => userStore.isBuyerActive], loadOrders);
 
 function orderCount(status: string) {
-  return orderCountsLoaded.value ? Number(orderCounts.value[status] || 0) : undefined;
+  if (!orderCountsLoaded.value) return undefined;
+  const parsed = Number(orderCounts.value[status]);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : undefined;
 }
 
 const pendingPay = computed(() => orderCount('PENDING_PAYMENT'));
-const pendingShip = computed(() => orderCountsLoaded.value
-  ? Number(orderCounts.value.PROCURING || 0) + Number(orderCounts.value.PROCURED || 0)
-  : undefined);
-const pendingReceive = computed(() => orderCountsLoaded.value
-  ? Number(orderCounts.value.IN_TRANSIT || 0) + Number(orderCounts.value.AFTERSALE_CONFIRM || 0)
-  : undefined);
+function sumOrderCounts(...statuses: string[]) {
+  if (!orderCountsLoaded.value) return undefined;
+  const counts = statuses.map(status => orderCount(status));
+  return counts.some(count => count === undefined)
+    ? undefined
+    : counts.filter((count): count is number => count !== undefined)
+      .reduce((sum, count) => sum + count, 0);
+}
+
+const pendingShip = computed(() => sumOrderCounts('PROCURING', 'PROCURED'));
+const pendingReceive = computed(() => sumOrderCounts('IN_TRANSIT', 'AFTERSALE_CONFIRM'));
 
 /** 顾客面板功能项 */
 const customerLinks = [

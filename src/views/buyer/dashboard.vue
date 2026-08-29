@@ -32,6 +32,11 @@ const account = computed(() => walletStore.account);
 const dashboardReady = computed(() => !!user.value);
 const loadError = computed(() => Object.values(loadErrors).filter(Boolean).join('；'));
 
+function finiteNonNegative(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 async function loadAll() {
   const currentUser = user.value;
   if (!currentUser) {
@@ -97,13 +102,21 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 
 const depositPct = computed(() => {
-  const total = Number(account.value?.depositAvailable || 0) + Number(account.value?.depositGuaranteed || 0);
-  return total > 0 ? (Number(account.value?.depositGuaranteed || 0) / total) * 100 : 0;
+  const available = finiteNonNegative(account.value?.depositAvailable);
+  const guaranteed = finiteNonNegative(account.value?.depositGuaranteed);
+  if (available === undefined || guaranteed === undefined) return undefined;
+  const total = available + guaranteed;
+  return total > 0 ? (guaranteed / total) * 100 : 0;
 });
 const depositTotal = computed(() => {
   if (!account.value) return '—';
-  return formatAmount(Number(account.value?.depositAvailable || 0) + Number(account.value?.depositGuaranteed || 0));
+  const available = finiteNonNegative(account.value.depositAvailable);
+  const guaranteed = finiteNonNegative(account.value.depositGuaranteed);
+  return available === undefined || guaranteed === undefined
+    ? '—'
+    : formatAmount(available + guaranteed);
 });
+const depositPctLabel = computed(() => depositPct.value === undefined ? '—' : `${depositPct.value.toFixed(1)}%`);
 
 function orderCount(status: string) {
   return countsLoaded.value ? Number(orderCounts.value[status] || 0) : undefined;
@@ -235,7 +248,7 @@ const kpis = computed(() => [
         </div>
         <div class="deposit-body">
           <div class="donut-wrap">
-            <div class="donut" :style="{ '--pct': depositPct + '%' }">
+            <div class="donut" :style="{ '--pct': (depositPct ?? 0) + '%' }">
               <div class="donut-inner">
                 <div class="donut-label">总押金</div>
                 <div class="donut-value"><span class="unit">U</span><span class="num yb-mono">{{ depositTotal }}</span></div>
@@ -253,7 +266,7 @@ const kpis = computed(() => [
             </div>
             <div class="dd-row">
               <div class="dd-key">担保占比</div>
-              <div class="dd-val yb-mono">{{ account ? `${depositPct.toFixed(1)}%` : '—' }}</div>
+              <div class="dd-val yb-mono">{{ account ? depositPctLabel : '—' }}</div>
             </div>
             <div class="deposit-actions">
               <button class="btn primary sm" @click="router.push('/buyer/deposit')">
