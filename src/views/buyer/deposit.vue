@@ -136,6 +136,11 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
   <div class="deposit-page shop-container">
     <h1 class="page-title">押金管理</h1>
 
+    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
+      {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
+
     <a-spin :loading="loading" style="width: 100%">
       <a-card v-if="account" class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
         <DepositMeter :available="account.depositAvailable" :guaranteed="account.depositGuaranteed" size="lg" />
@@ -175,7 +180,13 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
         <template v-if="txns.length">
           <TxnRow v-for="t in txns" :key="t.id" :txn="t" @detail="openTxn" />
         </template>
-        <EmptyState v-else title="暂无押金流水" />
+        <EmptyState
+          v-else
+          :title="loadError || '暂无押金流水'"
+          :description="loadError ? '不会把请求失败显示成没有流水。' : undefined"
+          :action-text="loadError ? '重新加载' : undefined"
+          @action="loadError && loadAll()"
+        />
       </a-card>
       <EmptyState v-if="!account && !loading" :title="loadError ? '押金信息加载失败' : '暂无押金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
     </a-spin>
