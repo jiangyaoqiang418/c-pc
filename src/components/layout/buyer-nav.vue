@@ -61,7 +61,7 @@ function exitBuyer() {
           <span>{{ item.label }}</span>
         </div>
       </div>
-      <button class="exit-btn" @click="exitBuyer">退出买手模式 ›</button>
+      <button type="button" class="exit-btn" @click="exitBuyer">退出买手模式 ›</button>
     </div>
   </div>
 </template>

@@ -24,7 +24,7 @@ function submit(q?: string) {
         placeholder="搜索商品 / 品牌 / 买手"
         @keydown.enter="submit()"
       />
-      <button class="search-btn" @click="submit()">
+      <button type="button" class="search-btn" @click="submit()">
         <Icon icon="lucide:search" width="16" />
         <span>搜索</span>
       </button>

@@ -139,7 +139,7 @@ async function submit() {
 <template>
   <div class="address-selector">
     <a-spin :loading="loading" style="width: 100%">
-      <div class="address-list">
+      <div class="address-list" role="radiogroup" aria-label="收货地址">
         <a-alert v-if="loadError" type="error" :show-icon="false">
           {{ loadError }}
           <template #action><a-link role="button" tabindex="0" @click="load" @keydown.enter="load" @keydown.space.prevent="load">重新加载</a-link></template>

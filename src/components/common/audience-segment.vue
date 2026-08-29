@@ -33,7 +33,7 @@ function onChange(v: 'customer' | 'buyer') {
 </script>
 
 <template>
-  <div class="audience-segment">
+  <div class="audience-segment" role="group" aria-label="当前视角">
     <div
       class="seg"
       :class="{ active: value === 'customer' }"

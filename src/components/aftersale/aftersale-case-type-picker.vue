@@ -23,7 +23,7 @@ const TYPES: TypeDef[] = [
 </script>
 
 <template>
-  <div class="type-picker">
+  <div class="type-picker" role="radiogroup" aria-label="售后类型">
     <div
       v-for="t in TYPES"
       :key="t.type"
