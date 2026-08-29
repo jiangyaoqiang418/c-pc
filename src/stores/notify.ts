@@ -21,7 +21,7 @@ const listeners = new Set<RealtimeListener>();
 
 function normalizeUnreadCount(value: unknown) {
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : undefined;
 }
 
 function realtimeURL(token: string) {
@@ -80,8 +80,14 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       notifyApi.fetchUnreadMessageCount({ signal: isCurrent.signal })
     ]);
     if (!isCurrent() || version !== unreadRefreshVersion || token !== getAccessToken()) return;
-    if (notificationResult.status === 'fulfilled') notificationUnreadCount.value = normalizeUnreadCount(notificationResult.value);
-    if (imResult.status === 'fulfilled') imUnreadCount.value = normalizeUnreadCount(imResult.value);
+    if (notificationResult.status === 'fulfilled') {
+      const next = normalizeUnreadCount(notificationResult.value);
+      if (next !== undefined) notificationUnreadCount.value = next;
+    }
+    if (imResult.status === 'fulfilled') {
+      const next = normalizeUnreadCount(imResult.value);
+      if (next !== undefined) imUnreadCount.value = next;
+    }
   }
 
   function clearHeartbeat() {
@@ -159,8 +165,12 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     if (type === 'NOTIFICATION') {
       const payload = framePayload<Api.RealNotify.NotificationSocketPayload>(frame);
       const unreadCount = payload.unreadCount ?? frame.unreadCount;
-      if (unreadCount !== undefined && unreadCount !== null) notificationUnreadCount.value = normalizeUnreadCount(unreadCount);
-      else notificationUnreadCount.value += 1;
+      if (unreadCount !== undefined && unreadCount !== null) {
+        const next = normalizeUnreadCount(unreadCount);
+        if (next !== undefined) notificationUnreadCount.value = next;
+      } else {
+        notificationUnreadCount.value += 1;
+      }
       emit({ type, payload });
     }
   }
@@ -227,11 +237,13 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   }
 
   function setImUnreadCount(value: number) {
-    imUnreadCount.value = normalizeUnreadCount(value);
+    const next = normalizeUnreadCount(value);
+    if (next !== undefined) imUnreadCount.value = next;
   }
 
   function setNotificationUnreadCount(value: number) {
-    notificationUnreadCount.value = normalizeUnreadCount(value);
+    const next = normalizeUnreadCount(value);
+    if (next !== undefined) notificationUnreadCount.value = next;
   }
 
   return {
