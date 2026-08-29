@@ -29,7 +29,12 @@ let writeVersion = 0;
 async function load() {
   const isCurrent = requestGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined) {
+    loading.value = false;
+    refunds.value = [];
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

@@ -64,7 +64,13 @@ async function load() {
   if (disposed) return;
   const isCurrent = requestGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined) {
+    loading.value = false;
+    records.value = [];
+    total.value = 0;
+    loadError.value = '';
+    return;
+  }
   loading.value = true;
   loadError.value = '';
   try {

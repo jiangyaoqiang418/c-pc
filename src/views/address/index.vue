@@ -29,6 +29,7 @@ async function load() {
     requestGuard.invalidate();
     list.value = [];
     loadError.value = '';
+    loading.value = false;
     return;
   }
   const isCurrent = requestGuard.begin();

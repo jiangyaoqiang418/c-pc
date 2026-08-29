@@ -29,6 +29,7 @@ async function loadAll() {
     requestGuard.invalidate();
     recentTxns.value = [];
     loadError.value = '';
+    loading.value = false;
     return;
   }
   const isCurrent = requestGuard.begin();

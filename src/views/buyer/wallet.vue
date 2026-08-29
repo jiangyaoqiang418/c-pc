@@ -29,6 +29,7 @@ async function loadAll() {
     drawerTxn.value = undefined;
     drawerOpen.value = false;
     loadError.value = '';
+    loading.value = false;
     return;
   }
   const isCurrent = requestGuard.begin();
