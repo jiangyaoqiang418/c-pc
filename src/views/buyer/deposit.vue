@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import DepositMeter from '@/components/buyer/deposit-meter.vue';
@@ -10,6 +10,7 @@ import * as realBuyerApi from '@/service/api/buyer';
 import * as realOrderApi from '@/service/api/order';
 import * as realWalletApi from '@/service/api/wallet';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
@@ -25,33 +26,56 @@ const transferOpen = ref(false);
 const transferKind = ref<'pay' | 'refund'>('pay');
 const transferAmount = ref<number>();
 const transferring = ref(false);
+const requestGuard = createLatestRequestGuard();
 const maxTransferAmount = computed(() => {
   const value = transferKind.value === 'pay' ? account.value?.available : account.value?.depositAvailable;
   return Number(value || 0);
 });
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
+  const currentUser = userStore.currentUser;
+  if (!currentUser) {
+    requestGuard.invalidate();
+    txns.value = [];
+    orderCounts.value = {};
+    loadError.value = '';
+    return;
+  }
+  const isCurrent = requestGuard.begin();
+  const userId = currentUser.id;
   loading.value = true;
   loadError.value = '';
   try {
-    const [, txnResult, countsResult] = await Promise.allSettled([
-      walletStore.fetchWallet(userStore.currentUser.id),
-      realBuyerApi.fetchBuyerDepositLedger({ pageNo: 1, pageSize: 20 }),
-      realOrderApi.countMySoldOrdersByStatus({ showError: false })
+    const [walletResult, txnResult, countsResult] = await Promise.allSettled([
+      walletStore.fetchWallet(userId),
+      realBuyerApi.fetchBuyerDepositLedger({ pageNo: 1, pageSize: 20 }, { signal: isCurrent.signal }),
+      realOrderApi.countMySoldOrdersByStatus({ showError: false, signal: isCurrent.signal })
     ]);
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     txns.value = txnResult.status === 'fulfilled' ? txnResult.value.records : [];
     orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
-    if (walletStore.account === undefined) loadError.value = '押金账户加载失败，请检查网络后重试。';
+    if (walletResult.status === 'rejected' || walletStore.account === undefined) {
+      loadError.value = '押金账户加载失败，请检查网络后重试。';
+    } else if (txnResult.status === 'rejected' || countsResult.status === 'rejected') {
+      loadError.value = '押金流水或订单统计加载失败，请检查网络后重试。';
+    }
   } catch {
+    if (!isCurrent()) return;
     txns.value = [];
     orderCounts.value = {};
     loadError.value = '押金信息加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(loadAll);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  txns.value = [];
+  orderCounts.value = {};
+  void loadAll();
+});
 
 const guaranteedOrderCount = computed(() =>
   ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM', 'IN_AFTERSALE']

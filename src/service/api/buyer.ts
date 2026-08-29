@@ -34,10 +34,14 @@ function toIso(value?: string | number) {
   return value;
 }
 
-export async function fetchBuyerDepositLedger(params: Api.RealBuyer.DepositLedgerPageQuery = {}) {
+export async function fetchBuyerDepositLedger(
+  params: Api.RealBuyer.DepositLedgerPageQuery = {},
+  options: { signal?: AbortSignal } = {}
+) {
   const page = await realUserRequest.post<Api.RealBuyer.DepositPageResult, Api.RealBuyer.DepositLedgerPageQuery>(
     '/buyer/deposit/page',
-    params
+    params,
+    options
   );
 
   return {

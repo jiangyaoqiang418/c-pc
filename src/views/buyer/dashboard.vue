@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
@@ -11,6 +11,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
 import * as realPurchaseApi from '@/service/api/purchase';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -23,6 +24,7 @@ const claimableTotal = ref<number>();
 const countsLoaded = ref(false);
 const loading = ref(false);
 const loadErrors = reactive({ wallet: '', orders: '', counts: '', claimable: '' });
+const requestGuard = createLatestRequestGuard();
 
 const user = computed(() => userStore.currentUser);
 const userAvatar = computed(() => (user.value ? avatarUrl(user.value.id) : ''));
@@ -31,21 +33,34 @@ const dashboardReady = computed(() => !!user.value);
 const loadError = computed(() => Object.values(loadErrors).filter(Boolean).join('；'));
 
 async function loadAll() {
-  if (!user.value || loading.value) return;
+  const currentUser = user.value;
+  if (!currentUser) {
+    requestGuard.invalidate();
+    pendingOrders.value = [];
+    claimable.value = [];
+    claimableTotal.value = undefined;
+    orderCounts.value = {};
+    countsLoaded.value = false;
+    return;
+  }
+  const isCurrent = requestGuard.begin();
+  const userId = currentUser.id;
   loading.value = true;
   Object.keys(loadErrors).forEach(key => { loadErrors[key as keyof typeof loadErrors] = ''; });
   try {
     const [walletResult, ordersResult, countsResult, claimableResult] = await Promise.allSettled([
-      walletStore.fetchWallet(user.value.id),
+      walletStore.fetchWallet(userId),
       realOrderApi.fetchMyOrders({
-        shopperId: user.value.id,
+        shopperId: userId,
         current: 1,
         size: 5,
-        statuses: ['PROCURING', 'PROCURED', 'IN_TRANSIT']
+        statuses: ['PROCURING', 'PROCURED', 'IN_TRANSIT'],
+        signal: isCurrent.signal
       }),
-      realOrderApi.countMySoldOrdersByStatus(),
-      realPurchaseApi.fetchHall({ current: 1, size: 6 })
+      realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal }),
+      realPurchaseApi.fetchHall({ current: 1, size: 6, signal: isCurrent.signal })
     ]);
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     if (walletResult.status === 'rejected') loadErrors.wallet = '钱包数据加载失败';
     if (ordersResult.status === 'fulfilled') {
       pendingOrders.value = ordersResult.value.records;
@@ -65,10 +80,20 @@ async function loadAll() {
       loadErrors.claimable = '可接求购加载失败';
     }
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(loadAll);
+onBeforeUnmount(requestGuard.invalidate);
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  pendingOrders.value = [];
+  claimable.value = [];
+  claimableTotal.value = undefined;
+  orderCounts.value = {};
+  countsLoaded.value = false;
+  void loadAll();
+});
 
 const depositPct = computed(() => {
   const total = Number(account.value?.depositAvailable || 0) + Number(account.value?.depositGuaranteed || 0);
