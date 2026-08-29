@@ -125,7 +125,8 @@ async function favorite() {
   try {
     await productApi.toggleProductFavorite(requestedProductId, { showError: false });
     if (!isCurrentWrite()) return;
-    product.value.favoriteCount = Number(product.value.favoriteCount || 0) + 1;
+    const favoriteCount = Number(product.value.favoriteCount || 0);
+    product.value.favoriteCount = Number.isFinite(favoriteCount) && favoriteCount >= 0 ? favoriteCount + 1 : 1;
     Message.success('收藏状态已更新');
   } catch {
     if (isCurrentWrite()) Message.error('收藏失败，服务器暂未完成写入，请稍后重试');
