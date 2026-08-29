@@ -162,12 +162,20 @@ function changePage(page: number) {
 }
 
 watch(
-  () => userStore.currentAudience,
-  () => {
+  [() => userStore.currentAudience, () => userStore.currentUser?.id],
+  ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
+    if (String(nextAudience) === String(previousAudience) && String(nextUserId) === String(previousUserId)) return;
+    ordersGuard.invalidate();
+    countsGuard.invalidate();
+    reviewableGuard.invalidate();
+    orders.value = [];
+    total.value = 0;
+    counts.value = {};
+    reviewableOrderIds.value = new Set();
     current.value = 1;
     syncQuery(true);
-    loadCounts();
-    loadReviewableOrders();
+    void loadCounts();
+    void loadReviewableOrders();
   }
 );
 

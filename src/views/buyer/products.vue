@@ -122,6 +122,15 @@ watch(activeKey, () => {
   current.value = 1;
   void load();
 });
+watch(() => userStore.currentUser?.id, (next, previous) => {
+  if (String(next) === String(previous)) return;
+  requestGuard.invalidate();
+  products.value = [];
+  total.value = 0;
+  current.value = 1;
+  loadError.value = '';
+  void load();
+});
 
 async function toggleShelf(p: Api.RealProduct.Record) {
   if (shelvingId.value !== undefined) return;
