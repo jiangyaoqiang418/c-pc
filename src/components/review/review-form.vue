@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import ReviewStars from '@/components/common/review-stars.vue';
 import { uploadFile } from '@/service/api/product';
@@ -32,6 +32,7 @@ const form = reactive<FormState>({
 
 const uploading = ref(false);
 const fileInputRef = ref<HTMLInputElement>();
+let uploadVersion = 0;
 
 function toggleTag(t: string) {
   const idx = form.tags.indexOf(t);
@@ -58,17 +59,23 @@ async function onPhotoSelected(event: Event) {
     Message.warning('请选择图片文件');
     return;
   }
+  const operation = ++uploadVersion;
   uploading.value = true;
   try {
     const uploaded = await uploadFile(file, 'REVIEW');
+    if (operation !== uploadVersion) return;
     if (!uploaded.url) throw new Error('上传结果缺少图片地址');
     form.photoUrls.push(uploaded.url);
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '评价图片上传失败');
   } finally {
-    uploading.value = false;
+    if (operation === uploadVersion) uploading.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  uploadVersion += 1;
+});
 
 function removePhoto(idx: number) {
   form.photoUrls.splice(idx, 1);
