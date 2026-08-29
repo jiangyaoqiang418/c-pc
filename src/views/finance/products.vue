@@ -69,13 +69,17 @@ const cnyEquiv = computed(() => currentBalance.value === undefined
   : formatAmount((Number(currentBalance.value) * getUsdtCnyRate()).toFixed(2)));
 
 const bestApy = computed(() => {
-  if (!products.value.length) return 0;
-  return Math.max(...products.value.map(p => Number(p.annualRate) * 100));
+  const rates = products.value
+    .map(p => Number(p.annualRate) * 100)
+    .filter(rate => Number.isFinite(rate));
+  return rates.length ? Math.max(...rates) : 0;
 });
 
-const totalAccruedInterest = computed(() => overview.value
-  ? Number(overview.value.pendingInterest || 0).toFixed(2)
-  : undefined);
+const totalAccruedInterest = computed(() => {
+  if (!overview.value) return undefined;
+  const value = Number(overview.value.pendingInterest || 0);
+  return Number.isFinite(value) ? value.toFixed(2) : '—';
+});
 
 const availableProducts = computed(() => products.value.filter(p => p.status === 'ON_SALE'));
 const featuredProducts = computed(() => availableProducts.value.filter(p => p.lockDays <= 30));
