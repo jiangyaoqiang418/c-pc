@@ -92,8 +92,8 @@ function syncQuery() {
 }
 
 async function load() {
-  if (!userStore.currentUser) return;
   const isCurrent = requestGuard.begin();
+  if (!userStore.currentUser) return;
   loading.value = true;
   loadError.value = '';
   try {
