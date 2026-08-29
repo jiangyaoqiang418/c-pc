@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { uploadFile } from '@/service/api/product';
 import { RequestError } from '@/service/request';
@@ -17,6 +17,11 @@ const emit = defineEmits<{
 
 const uploading = ref(false);
 const inputRef = ref<HTMLInputElement>();
+let uploadVersion = 0;
+
+watch(() => props.modelValue, () => {
+  uploadVersion += 1;
+});
 
 function pickFile() {
   if (props.modelValue.length >= props.max) return;
@@ -31,9 +36,11 @@ async function onFileChange(e: Event) {
 
   const available = props.max - props.modelValue.length;
   const picked = files.slice(0, available);
+  const operation = ++uploadVersion;
   uploading.value = true;
   try {
     const uploaded = await Promise.all(picked.map(file => uploadFile(file, props.scene)));
+    if (operation !== uploadVersion) return;
     emit('update:modelValue', [...props.modelValue, ...uploaded.map(item => item.url || item.filePath)]);
     emit('uploaded', uploaded);
     Message.success(picked.length > 1 ? `已上传 ${picked.length} 张图片` : '图片已上传');
@@ -45,9 +52,13 @@ async function onFileChange(e: Event) {
       Message.error(message || '图片上传失败，请稍后重试');
     }
   } finally {
-    uploading.value = false;
+    if (operation === uploadVersion) uploading.value = false;
   }
 }
+
+onBeforeUnmount(() => {
+  uploadVersion += 1;
+});
 
 function remove(i: number) {
   const next = [...props.modelValue];
