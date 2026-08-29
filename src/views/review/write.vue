@@ -24,6 +24,10 @@ const confirmationOpen = ref(false);
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+const reviewRouteEligible = computed(() => {
+  const status = order.value?.status;
+  return !!order.value && !userStore.isBuyerActive && (status === 'COMPLETED' || status === 'WARRANTY');
+});
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -64,9 +68,10 @@ watch(() => [orderId.value, userStore.currentUser?.id], () => {
 });
 
 async function onSubmit(f: { productScore: number; sellerScore: number; content: string; tags: string[]; photoUrls: string[] }) {
-  if (!order.value || !userStore.currentUser || submitting.value || confirmationOpen.value) return;
+  if (!order.value || !reviewRouteEligible.value || !userStore.currentUser || submitting.value || confirmationOpen.value) return;
+  const targetOrder = order.value;
   const requestedUserId = userStore.currentUser.id;
-  const requestedOrderId = order.value.id;
+  const requestedOrderId = targetOrder.id;
   confirmationOpen.value = true;
   Modal.confirm({
     title: '确认提交评价？',
@@ -139,7 +144,11 @@ function handleEmptyAction() {
           </div>
         </a-card>
 
-        <ReviewForm :submitting="submitting || confirmationOpen" @submit="onSubmit" />
+        <ReviewForm v-if="reviewRouteEligible" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
+        <a-alert v-else type="warning" class="eligibility-alert">
+          当前订单状态或身份不可评价，请从订单列表的“写评价”入口进入。
+          <template #action><a-button size="mini" @click="router.push('/order')">返回订单</a-button></template>
+        </a-alert>
       </template>
 
       <EmptyState

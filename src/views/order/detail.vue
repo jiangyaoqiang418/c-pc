@@ -61,9 +61,15 @@ async function load() {
       logisticsError.value = '物流信息加载失败，请稍后重试。';
     }
     if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
-      const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
-      if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-      reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
+      try {
+        const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
+        if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+        reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
+      } catch {
+        if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+        // 评价资格是可选附加读取；失败时保留订单详情，仅隐藏“写评价”入口。
+        reviewable.value = false;
+      }
     } else {
       reviewable.value = false;
     }
