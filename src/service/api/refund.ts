@@ -9,10 +9,11 @@ export function createRefund(params: Api.RealRefund.RefundApplyParams) {
   return realOrderRequest.post<string | number, Api.RealRefund.RefundApplyParams>('/orders/refunds/create', params);
 }
 
-export async function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}) {
+export async function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.post<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
     '/orders/refunds/bought/page',
-    params
+    params,
+    options
   );
   return normalizePage(page);
 }
@@ -29,8 +30,8 @@ export async function fetchSoldRefunds(params: Api.RealRefund.RefundPageQuery = 
   return normalizePage(page);
 }
 
-export function fetchRefundDetail(id: string | number) {
-  return realOrderRequest.get<Api.RealRefund.RefundDTO>('/orders/refunds/detail', { params: { id } });
+export function fetchRefundDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealRefund.RefundDTO>('/orders/refunds/detail', { params: { id }, signal: options.signal });
 }
 
 export function cancelRefund(refundId: string | number) {

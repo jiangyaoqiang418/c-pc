@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import * as financeApi from '@/service/api/finance';
@@ -7,6 +7,7 @@ import LockupCard from '@/components/finance/lockup-card.vue';
 import EarlyUnlockModal from '@/components/finance/early-unlock-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
@@ -24,6 +25,7 @@ const allCounts = ref<Record<Api.RealFinance.OrderStatus, number>>({
 });
 const unlockModalOpen = ref(false);
 const unlockTarget = ref<Api.RealFinance.FinanceOrderVO>();
+const requestGuard = createLatestRequestGuard();
 
 const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
   { key: 'HOLDING', label: '持仓中' },
@@ -33,17 +35,20 @@ const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
 ];
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   if (!userStore.currentUser) return;
   loading.value = true;
   loadError.value = '';
   try {
-    const r = await financeApi.fetchFinanceOrders({ pageNo: 1, pageSize: 50, status: activeKey.value });
+    const r = await financeApi.fetchFinanceOrders({ pageNo: 1, pageSize: 50, status: activeKey.value }, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     orders.value = r.records;
   } catch {
+    if (!isCurrent()) return;
     orders.value = [];
     loadError.value = '锁仓列表加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -65,6 +70,7 @@ onMounted(async () => {
   await load();
   await loadCounts();
 });
+onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, load);
 
 function onUnlock(order: Api.RealFinance.FinanceOrderVO) {

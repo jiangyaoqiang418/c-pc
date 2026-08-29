@@ -99,7 +99,7 @@ async function mapPage(page: Api.Common.PaginatingQueryRecord<Api.RealPurchase.P
   };
 }
 
-export async function fetchHall(q: { current?: number; size?: number; categoryId?: string | number; keyword?: string } = {}) {
+export async function fetchHall(q: { current?: number; size?: number; categoryId?: string | number; keyword?: string; signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealPurchase.PurchaseDemandVO> & { pageNo?: number; pageSize?: number },
     Api.RealPurchase.PurchaseDemandPageQuery
@@ -108,14 +108,14 @@ export async function fetchHall(q: { current?: number; size?: number; categoryId
     pageSize: q.size || 20,
     categoryId: q.categoryId,
     keyword: q.keyword
-  });
+  }, { signal: q.signal });
   return mapPage(page);
 }
 
 export async function fetchMyPurchases(
   customerId: string | number,
   statuses?: Api.PurchaseRequest.RequestStatus[],
-  q: { current?: number; size?: number } = {}
+  q: { current?: number; size?: number; signal?: AbortSignal } = {}
 ) {
   const page = await realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealPurchase.PurchaseDemandVO> & { pageNo?: number; pageSize?: number },
@@ -123,15 +123,15 @@ export async function fetchMyPurchases(
   >('/demands/my/page', {
     pageNo: q.current || 1,
     pageSize: q.size || 30
-  });
+  }, { signal: q.signal });
   const mapped = await mapPage(page);
   mapped.records = mapped.records.map(item => ({ ...item, customerId }));
   if (statuses?.length) mapped.records = mapped.records.filter(item => statuses.includes(item.status));
   return mapped;
 }
 
-export async function fetchPurchaseDetail(id: string | number) {
-  const dto = await realOrderRequest.get<Api.RealPurchase.PurchaseDemandVO>('/demands/detail', { params: { id } });
+export async function fetchPurchaseDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  const dto = await realOrderRequest.get<Api.RealPurchase.PurchaseDemandVO>('/demands/detail', { params: { id }, signal: options.signal });
   return toPurchaseRequest(dto);
 }
 

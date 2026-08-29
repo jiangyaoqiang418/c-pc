@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import BuyerProductCard from '@/components/buyer/buyer-product-card.vue';
@@ -7,6 +7,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
 import { fetchCategoryTree } from '@/service/api/category';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -40,6 +41,7 @@ const size = ref(12);
 const total = ref(0);
 const shelvingId = ref<string | number>();
 const deletingId = ref<string | number>();
+const requestGuard = createLatestRequestGuard();
 
 function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
@@ -50,6 +52,7 @@ function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Arra
 }
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   if (!userStore.currentUser) return;
   loading.value = true;
   loadError.value = '';
@@ -61,16 +64,19 @@ async function load() {
       keyword: keyword.value.trim() || undefined,
       categoryId: categoryPath.value.at(-1),
       status: tab?.status,
-      shelf: tab?.shelf
+      shelf: tab?.shelf,
+      signal: isCurrent.signal
     });
+    if (!isCurrent()) return;
     products.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     products.value = [];
     total.value = 0;
     loadError.value = '商品列表加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
@@ -97,6 +103,7 @@ function resetFilters() {
 onMounted(() => {
   void Promise.all([load(), loadCategories()]);
 });
+onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, () => {
   current.value = 1;
   void load();

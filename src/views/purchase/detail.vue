@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { enums, formatAmount } from '@shared';
@@ -7,6 +7,7 @@ import PurchaseStatusTimeline from '@/components/purchase/purchase-status-timeli
 import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,23 +20,28 @@ const loadError = ref('');
 const claiming = ref(false);
 const canceling = ref(false);
 const cancellationPending = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
-    request.value = await purchaseApi.fetchPurchaseDetail(id.value);
+    request.value = await purchaseApi.fetchPurchaseDetail(id.value, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
   } catch {
+    if (!isCurrent()) return;
     request.value = undefined;
     loadError.value = '求购详情加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 onMounted(async () => {
   await userStore.init();
   await load();
 });
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, load);
 
 const statusMeta = computed(() => (request.value ? enums.PURCHASE_STATUS_META[request.value.status] : undefined));

@@ -2,17 +2,17 @@ import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { toPageTotal } from './page';
 
-export async function fetchMyOrders(q: Api.RealOrder.ListQuery) {
+export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const statuses = [...new Set(q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] || [])];
   const url = q.shopperId ? '/orders/sold/page' : '/orders/bought/page';
   const requestPage = (status?: Api.RealOrder.OrderStatus) => realOrderRequest.post<
     Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
     Api.RealOrder.OrderPageQuery
-  >(url, {
-    pageNo: q.current || 1,
-    pageSize: q.size || 10,
-    status
-  });
+    >(url, {
+      pageNo: q.current || 1,
+      pageSize: q.size || 10,
+      status
+    }, { signal: q.signal });
   const pages = statuses.length > 1
     ? await Promise.all(statuses.map(status => requestPage(status)))
     : [await requestPage(statuses[0])];
@@ -36,7 +36,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery) {
 
 async function countOrdersByStatus(
   url: '/orders/bought/page' | '/orders/sold/page',
-  options: { showError?: boolean } = {}
+  options: { showError?: boolean; signal?: AbortSignal } = {}
 ) {
   const counts = Object.fromEntries(
     Object.keys(reverseStatusMap).map(status => [status, 0])
@@ -55,7 +55,7 @@ async function countOrdersByStatus(
       const page = await realOrderRequest.post<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
-      >(url, { pageNo: 1, pageSize: 1, status: realStatus }, { showError: options.showError });
+      >(url, { pageNo: 1, pageSize: 1, status: realStatus }, { showError: options.showError, signal: options.signal });
       return [frontStatus, toPageTotal(page.total)] as const;
     })
   );
@@ -65,16 +65,16 @@ async function countOrdersByStatus(
   return counts;
 }
 
-export function countMyOrdersByStatus(options?: { showError?: boolean }) {
+export function countMyOrdersByStatus(options?: { showError?: boolean; signal?: AbortSignal }) {
   return countOrdersByStatus('/orders/bought/page', options);
 }
 
-export function countMySoldOrdersByStatus(options?: { showError?: boolean }) {
+export function countMySoldOrdersByStatus(options?: { showError?: boolean; signal?: AbortSignal }) {
   return countOrdersByStatus('/orders/sold/page', options);
 }
 
-export async function fetchOrderDetail(id: string | number) {
-  const dto = await realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id } });
+export async function fetchOrderDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  const dto = await realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id }, signal: options.signal });
   return toOrderRecord(dto);
 }
 
@@ -108,8 +108,8 @@ export async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   return { ok: true, message: '' };
 }
 
-export function fetchOrderLogistics(orderId: string | number) {
-  return realOrderRequest.get<Api.RealOrder.LogisticsDTO>('/orders/logistics', { params: { orderId } });
+export function fetchOrderLogistics(orderId: string | number, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealOrder.LogisticsDTO>('/orders/logistics', { params: { orderId }, signal: options.signal });
 }
 
 export function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {

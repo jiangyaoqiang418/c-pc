@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -7,6 +7,7 @@ import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue
 import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -32,38 +33,52 @@ const loading = ref(false);
 const allList = ref<Api.RealPurchase.Record[]>([]);
 const loadError = ref('');
 const cancelingId = ref<string | number>();
+const allListGuard = createLatestRequestGuard();
+const listGuard = createLatestRequestGuard();
 
 async function loadAll() {
   await userStore.init();
-  if (!userStore.currentUser) return;
+  const user = userStore.currentUser;
+  const isCurrent = allListGuard.begin();
+  if (!user) return;
   try {
-    const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id);
+    const r = await purchaseApi.fetchMyPurchases(user.id, undefined, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     allList.value = r.records;
   } catch {
+    if (!isCurrent()) return;
     allList.value = [];
   }
 }
 
 async function load() {
   await userStore.init();
-  if (!userStore.currentUser) return;
+  const user = userStore.currentUser;
+  const isCurrent = listGuard.begin();
+  if (!user) return;
   loading.value = true;
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const r = await purchaseApi.fetchMyPurchases(userStore.currentUser.id, tab?.statuses);
+    const r = await purchaseApi.fetchMyPurchases(user.id, tab?.statuses, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     list.value = r.records;
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     loadError.value = '求购列表加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(async () => {
   await loadAll();
   await load();
+});
+onBeforeUnmount(() => {
+  allListGuard.invalidate();
+  listGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, async () => {
   await loadAll();

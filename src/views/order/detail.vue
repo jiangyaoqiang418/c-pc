@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { enums } from '@shared';
@@ -12,6 +12,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -24,38 +25,47 @@ const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
 const confirmationOpen = ref(false);
+const requestGuard = createLatestRequestGuard();
 
 const id = computed(() => String(route.params.id || ''));
 
 async function load() {
+  const isCurrent = requestGuard.begin();
+  const requestedId = id.value;
   loading.value = true;
   loadError.value = '';
   logisticsError.value = '';
   try {
-    order.value = await orderApi.fetchOrderDetail(id.value);
+    order.value = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     try {
-      logistics.value = await orderApi.fetchOrderLogistics(order.value.id);
+      logistics.value = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
+      if (!isCurrent()) return;
     } catch {
+      if (!isCurrent()) return;
       logistics.value = undefined;
       logisticsError.value = '物流信息加载失败，请稍后重试。';
     }
     if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
-      const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 });
+      const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
+      if (!isCurrent()) return;
       reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
     } else {
       reviewable.value = false;
     }
   } catch {
+    if (!isCurrent()) return;
     order.value = undefined;
     logistics.value = undefined;
     reviewable.value = false;
     loadError.value = '订单详情加载失败，请检查网络后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, load);
 
 const aftersaleMeta = computed(() => (order.value ? enums.AFTERSALE_TYPE_META[order.value.aftersaleType] : undefined));

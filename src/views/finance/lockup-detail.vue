@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount, formatRate } from '@shared';
@@ -8,6 +8,7 @@ import InterestCurveChart from '@/components/finance/interest-curve-chart.vue';
 import EarlyUnlockModal from '@/components/finance/early-unlock-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,6 +20,7 @@ const loading = ref(false);
 const loadError = ref('');
 const unlockModalOpen = ref(false);
 const id = computed(() => String(route.params.id));
+const requestGuard = createLatestRequestGuard();
 
 const meta = computed(() => (order.value ? ({
   HOLDING: { label: '计息中', color: 'purple' }, SETTLED: { label: '已结算', color: 'green' },
@@ -33,20 +35,24 @@ const daysPassed = computed(() => {
 });
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   if (!userStore.currentUser) return;
   loading.value = true;
   loadError.value = '';
   try {
-    order.value = await financeApi.fetchFinanceOrderDetail(id.value);
+    order.value = await financeApi.fetchFinanceOrderDetail(id.value, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
   } catch {
+    if (!isCurrent()) return;
     order.value = undefined;
     loadError.value = '锁仓信息加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, load);
 
 function openUnlock() {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const activeKey = ref('all');
@@ -18,17 +19,24 @@ const statusDefs = [
   { key: 'AGREED', label: '已同意' }, { key: 'REJECTED', label: '已驳回' }, { key: 'CANCELED', label: '已撤销' }
 ];
 const statusColor: Record<string, string> = { APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
+const requestGuard = createLatestRequestGuard();
 const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
 const canCancel = (row: Api.RealRefund.RefundDTO) => String(row.status) === 'APPLYING';
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
-  try { refunds.value = (await refundApi.fetchMyRefunds({ pageNo: 1, pageSize: 30, status: activeStatus.value })).records || []; }
-  catch { refunds.value = []; loadError.value = '退款申请加载失败，请检查网络后重试'; }
-  finally { loading.value = false; }
+  try {
+    const result = await refundApi.fetchMyRefunds({ pageNo: 1, pageSize: 30, status: activeStatus.value }, { signal: isCurrent.signal });
+    if (isCurrent()) refunds.value = result.records || [];
+  } catch {
+    if (isCurrent()) { refunds.value = []; loadError.value = '退款申请加载失败，请检查网络后重试'; }
+  } finally {
+    if (isCurrent()) loading.value = false;
+  }
 }
-onMounted(load); watch(activeKey, load);
+onMounted(load); onBeforeUnmount(requestGuard.invalidate); watch(activeKey, load);
 
 function cancel(row: Api.RealRefund.RefundDTO) {
   if (cancellingId.value || cancellationPending.value) return;

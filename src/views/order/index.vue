@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import OrderCard from '@/components/order/order-card.vue';
@@ -7,6 +7,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 const router = useRouter();
@@ -37,11 +38,16 @@ const loading = ref(false);
 const loadError = ref('');
 const counts = ref<Record<string, number>>({});
 const reviewableOrderIds = ref(new Set<string>());
+const ordersGuard = createLatestRequestGuard();
+const countsGuard = createLatestRequestGuard();
+const reviewableGuard = createLatestRequestGuard();
 
 const role = computed(() => (userStore.isBuyerActive ? 'shopper' : 'customer'));
 
 async function load() {
-  if (!userStore.currentUser) return;
+  const isCurrent = ordersGuard.begin();
+  const user = userStore.currentUser;
+  if (!user) return;
   loading.value = true;
   loadError.value = '';
   try {
@@ -51,45 +57,59 @@ async function load() {
       size: size.value,
       statuses: tab?.statuses
     };
-    if (role.value === 'shopper') params.shopperId = userStore.currentUser.id;
-    else params.customerId = userStore.currentUser.id;
-    const r = await orderApi.fetchMyOrders(params);
+    if (role.value === 'shopper') params.shopperId = user.id;
+    else params.customerId = user.id;
+    const r = await orderApi.fetchMyOrders({ ...params, signal: isCurrent.signal });
+    if (!isCurrent()) return;
     orders.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     orders.value = [];
     total.value = 0;
     loadError.value = '订单列表加载失败，请检查网络后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 async function loadReviewableOrders() {
+  const isCurrent = reviewableGuard.begin();
   if (!userStore.currentUser || role.value === 'shopper') {
     reviewableOrderIds.value = new Set();
     return;
   }
   try {
-    const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 });
+    const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     reviewableOrderIds.value = new Set(result.records.map(item => String(item.orderId)));
   } catch {
+    if (!isCurrent()) return;
     reviewableOrderIds.value = new Set();
   }
 }
 
 async function loadCounts() {
+  const isCurrent = countsGuard.begin();
   if (!userStore.currentUser) return;
   if (role.value === 'shopper') return;
   try {
-    counts.value = await orderApi.countMyOrdersByStatus();
+    const next = await orderApi.countMyOrdersByStatus({ signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    counts.value = next;
   } catch {
+    if (!isCurrent()) return;
     counts.value = {};
   }
 }
 
 onMounted(async () => {
   await Promise.all([load(), loadCounts(), loadReviewableOrders()]);
+});
+onBeforeUnmount(() => {
+  ordersGuard.invalidate();
+  countsGuard.invalidate();
+  reviewableGuard.invalidate();
 });
 
 watch(activeKey, () => {

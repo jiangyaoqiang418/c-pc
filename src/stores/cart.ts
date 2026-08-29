@@ -21,6 +21,10 @@ export interface EnrichedCartItem extends CartItem {
 
 type CartOwnerId = string | number | undefined;
 
+function sameBusinessId(left: string | number | undefined, right: string | number | undefined) {
+  return left !== undefined && right !== undefined && String(left) === String(right);
+}
+
 /** 购物车是账号私有数据，绝不能让本地缓存跨登录用户复用。 */
 export function cartStorageKey(ownerId?: CartOwnerId) {
   return `${STORAGE_KEY.cart}:${ownerId === undefined ? 'anonymous' : String(ownerId)}`;
@@ -97,7 +101,7 @@ export const useCartStore = defineStore('bw-cart', () => {
 
   function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord) {
     if (product) upsertProduct(product);
-    const exist = items.value.find(i => i.productId === productId);
+    const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     if (exist) {
       exist.qty += qty;
       exist.selected = true;
@@ -108,7 +112,7 @@ export const useCartStore = defineStore('bw-cart', () => {
   }
 
   function update(productId: string | number, qty: number) {
-    const exist = items.value.find(i => i.productId === productId);
+    const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     if (exist) {
       exist.qty = Math.max(1, qty);
       persist();
@@ -116,12 +120,12 @@ export const useCartStore = defineStore('bw-cart', () => {
   }
 
   function remove(productId: string | number) {
-    items.value = items.value.filter(i => i.productId !== productId);
+    items.value = items.value.filter(i => !sameBusinessId(i.productId, productId));
     persist();
   }
 
   function setSelected(productId: string | number, selected: boolean) {
-    const exist = items.value.find(i => i.productId === productId);
+    const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     if (exist) {
       exist.selected = selected;
       persist();

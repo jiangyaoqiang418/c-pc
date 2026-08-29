@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -8,6 +8,7 @@ import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue
 import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -23,6 +24,7 @@ const maxBudget = ref<number>();
 const expDaysFilter = ref<number | undefined>();
 const claimingId = ref<string | number>();
 const loadError = ref('');
+const requestGuard = createLatestRequestGuard();
 
 const canClaim = computed(() => {
   if (!userStore.currentUser) return false;
@@ -30,14 +32,17 @@ const canClaim = computed(() => {
 });
 
 async function load() {
+  const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
     const r = await purchaseApi.fetchHall({
       current: current.value,
       size: size.value,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      signal: isCurrent.signal
     });
+    if (!isCurrent()) return;
     let records = r.records;
     if (minBudget.value != null) records = records.filter(x => Number(x.budgetAmount) >= minBudget.value!);
     if (maxBudget.value != null) records = records.filter(x => Number(x.budgetAmount) <= maxBudget.value!);
@@ -45,14 +50,15 @@ async function load() {
     list.value = records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     list.value = [];
     total.value = 0;
     loadError.value = '求购大厅加载失败，请检查登录状态或网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load);
+onMounted(load); onBeforeUnmount(requestGuard.invalidate);
 
 async function onClaim(req: Api.RealPurchase.Record) {
   if (claimingId.value !== undefined) return;

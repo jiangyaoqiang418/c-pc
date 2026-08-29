@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
@@ -7,6 +7,7 @@ import * as financeApi from '@/service/api/finance';
 import InterestPreview from '@/components/finance/interest-preview.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -16,26 +17,33 @@ const walletStore = useWalletStore();
 const product = ref<Api.RealFinance.FinanceProductVO>();
 const loading = ref(false);
 const loadError = ref('');
+const requestGuard = createLatestRequestGuard();
 
 const id = computed(() => String(route.params.id));
 
 async function loadAll() {
-  if (!userStore.currentUser) return;
+  const isCurrent = requestGuard.begin();
+  const user = userStore.currentUser;
+  if (!user) return;
   loading.value = true;
   loadError.value = '';
   try {
-    const p = await financeApi.fetchFinanceProductDetail(id.value);
+    const p = await financeApi.fetchFinanceProductDetail(id.value, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     product.value = p;
-    await walletStore.fetchWallet(userStore.currentUser.id);
+    await walletStore.fetchWallet(user.id);
+    if (!isCurrent()) return;
   } catch {
+    if (!isCurrent()) return;
     product.value = undefined;
     loadError.value = '产品信息加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(loadAll);
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, loadAll);
 
 async function onSubscribe(amount: string) {

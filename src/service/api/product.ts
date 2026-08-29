@@ -100,10 +100,11 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
   };
 }
 
-export async function fetchProductDetail(id: string | number, options: { showError?: boolean } = {}) {
+export async function fetchProductDetail(id: string | number, options: { showError?: boolean; signal?: AbortSignal } = {}) {
   const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/storefront/product/detail', {
     params: { id },
-    showError: options.showError
+    showError: options.showError,
+    signal: options.signal
   });
   return toProductRecord(dto);
 }
@@ -259,6 +260,7 @@ export async function fetchMyProducts(q: {
   categoryId?: string | number;
   status?: Api.Product.ProductStatus;
   shelf?: Api.Product.ShelfStatus;
+  signal?: AbortSignal;
 }) {
   const statusMap: Partial<Record<Api.Product.ProductStatus, Api.RealProduct.ProductStatus>> = {
     PENDING_AUDIT: 'REVIEWING',
@@ -279,7 +281,7 @@ export async function fetchMyProducts(q: {
     keyword: q.keyword,
     categoryId: q.categoryId,
     status
-  });
+  }, { signal: q.signal });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 50,

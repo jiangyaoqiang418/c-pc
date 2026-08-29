@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -15,6 +15,7 @@ import InfoTooltip from '@/components/common/info-tooltip.vue';
 import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
 import { useCartStore } from '@/stores';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,8 +28,10 @@ const sellerScore = ref<Api.RealReview.SellerRatingDTO>();
 const sameShop = ref<Api.RealProduct.Record[]>([]);
 const qty = ref(1);
 const loading = ref(false);
+const loadError = ref('');
 const favoriting = ref(false);
 const activeTab = ref<'desc' | 'spec' | 'review' | 'sameshop'>('desc');
+const requestGuard = createLatestRequestGuard();
 
 const id = computed(() => String(route.params.id || ''));
 const aftersaleMeta = computed(() => product.value ? enums.AFTERSALE_TYPE_META[product.value.aftersaleType] : undefined);
@@ -37,9 +40,12 @@ const sellerAvatar = computed(() => product.value ? avatarUrl(product.value.sell
 
 async function load() {
   if (!id.value) return;
+  const isCurrent = requestGuard.begin();
   loading.value = true;
+  loadError.value = '';
   try {
-    product.value = await productApi.fetchProductDetail(id.value);
+    product.value = await productApi.fetchProductDetail(id.value, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
     if (product.value) {
       productApi.trackProductBrowse(id.value).catch(() => undefined);
       productApi.trackProductView(id.value).catch(() => undefined);
@@ -48,23 +54,27 @@ async function load() {
         reviewApi.fetchReviewSummary(product.value.id),
         reviewApi.fetchSellerRating(product.value.sellerId)
       ]);
+      if (!isCurrent()) return;
       reviews.value = reviewPage.status === 'fulfilled' ? reviewPage.value.records || [] : [];
       reviewSummary.value = summary.status === 'fulfilled' ? summary.value : undefined;
       sellerScore.value = sellerRating.status === 'fulfilled' ? sellerRating.value : undefined;
       sameShop.value = [];
     }
   } catch {
+    if (!isCurrent()) return;
     product.value = undefined;
     reviews.value = [];
     reviewSummary.value = undefined;
     sellerScore.value = undefined;
     sameShop.value = [];
+    loadError.value = '商品详情加载失败，请检查网络后重试';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 watch(() => route.params.id, load);
 
 function addToCart() {
@@ -292,7 +302,14 @@ async function favorite() {
       </div>
     </template>
 
-    <EmptyState v-else-if="!loading" icon="lucide:package-x" title="商品不存在" action-text="返回首页" @action="router.push('/')" />
+    <EmptyState
+      v-else-if="!loading"
+      icon="lucide:package-x"
+      :title="loadError || '商品不存在'"
+      :description="loadError ? '不会把详情请求失败误显示为商品不存在。' : undefined"
+      :action-text="loadError ? '重新加载' : '返回首页'"
+      @action="loadError ? load() : router.push('/')"
+    />
   </div>
 </template>
 

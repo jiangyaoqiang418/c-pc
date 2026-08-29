@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
@@ -8,6 +8,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
 import { enums } from '@shared';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const userStore = useUserStore();
 
@@ -43,31 +44,38 @@ const shippingOrder = ref<Api.RealOrder.Record>();
 const logisticsModalOpen = ref(false);
 const logisticsSubmitting = ref(false);
 const logisticsOrder = ref<Api.RealOrder.Record>();
+const requestGuard = createLatestRequestGuard();
 
 async function load() {
-  if (!userStore.currentUser) return;
+  const isCurrent = requestGuard.begin();
+  const user = userStore.currentUser;
+  if (!user) return;
   loading.value = true;
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
     const r = await realOrderApi.fetchMyOrders({
-      shopperId: userStore.currentUser.id,
+      shopperId: user.id,
       current: current.value,
       size: size.value,
-      statuses: tab?.statuses
+      statuses: tab?.statuses,
+      signal: isCurrent.signal
     });
+    if (!isCurrent()) return;
     orders.value = r.records;
     total.value = r.total;
   } catch {
+    if (!isCurrent()) return;
     orders.value = [];
     total.value = 0;
     loadError.value = '买手订单加载失败，请检查网络后重试。';
   } finally {
-    loading.value = false;
+    if (isCurrent()) loading.value = false;
   }
 }
 
 onMounted(load);
+onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, () => {
   current.value = 1;
   void load();

@@ -27,6 +27,10 @@ const requestGuard = createLatestRequestGuard();
 
 const hasUnread = computed(() => records.value.some(item => !item.readFlag));
 
+function decreaseUnreadCount() {
+  notifyStore.setNotificationUnreadCount(Math.max(0, notifyStore.notificationUnreadCount - 1));
+}
+
 async function load() {
   const isCurrent = requestGuard.begin();
   loading.value = true;
@@ -74,7 +78,7 @@ async function openNotification(notification: Api.RealNotify.NotificationVO) {
   if (!notification.readFlag) {
     await notifyApi.markNotificationRead({ id: notification.id });
     notification.readFlag = true;
-    notifyStore.setNotificationUnreadCount(notifyStore.notificationUnreadCount - 1);
+    decreaseUnreadCount();
   }
   const target = notificationRoute(notification);
   if (target) router.push(target);
@@ -103,7 +107,7 @@ async function remove(notification: Api.RealNotify.NotificationVO) {
     await notifyApi.deleteNotification(notification.id);
     records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
     total.value = Math.max(0, total.value - 1);
-    if (!notification.readFlag) notifyStore.setNotificationUnreadCount(notifyStore.notificationUnreadCount - 1);
+    if (!notification.readFlag) decreaseUnreadCount();
   } catch {
     // 请求层已展示错误，保留当前通知，避免把删除失败误显示为成功。
   } finally {
