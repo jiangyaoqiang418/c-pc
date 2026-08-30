@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
@@ -110,6 +111,7 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -158,7 +160,8 @@ watch(
   ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
     if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
     requestGuard.invalidate();
-    current.value = 1;
+    // URL 是分页来源；身份切换不再偷偷显示第一页，也不在其他页面导航守卫中另发导航。
+    applyQueryParams();
     list.value = [];
     total.value = 0;
     loadError.value = '';
@@ -193,6 +196,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
 }
 
 function exportCsv() {
+  if (loading.value || loadError.value) return;
   if (!list.value.length) {
     Message.info('暂无可导出的流水');
     return;
@@ -201,7 +205,7 @@ function exportCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `油宝资金流水-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `油宝资金流水-第${current.value}页-${list.value.length}条-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -215,6 +219,7 @@ function handleEmptyAction() {
 <template>
   <div class="history-page shop-container">
     <h1 class="page-title">资金流水</h1>
+    <a-alert type="info">类型支持跨页查询；资产桶、日期、关键词仅筛选当前页，接口暂不支持对应的跨页条件。分页总数 {{ total }} 不含这些当前页条件。</a-alert>
 
     <a-card class="filter-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
       <a-form :model="filter" layout="vertical">
@@ -249,7 +254,7 @@ function handleEmptyAction() {
         <div class="filter-actions">
           <a-button type="primary" @click="queryRecords">查询</a-button>
           <a-button @click="reset">重置</a-button>
-          <a-button :disabled="!list.length" @click="exportCsv">导出 CSV</a-button>
+          <a-button :disabled="loading || !!loadError || !list.length" @click="exportCsv">导出当前页（{{ list.length }} 条）</a-button>
         </div>
       </a-form>
     </a-card>
@@ -261,7 +266,7 @@ function handleEmptyAction() {
         </template>
         <EmptyState
           v-else
-          :title="loadError || '暂无符合条件的流水'"
+          :title="loadError || '当前页暂无符合条件的流水'"
           :description="loadError ? '不会展示不完整的流水数据。' : '充值、提现、订单支付或退款后会生成资金流水'"
           :action-text="loadError ? '重新加载' : '查看钱包'"
           @action="handleEmptyAction"

@@ -6,6 +6,7 @@ import { enums, formatAmount } from '@shared';
 import PurchaseStatusTimeline from '@/components/purchase/purchase-status-timeline.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
+import { getAftersaleMeta } from '@/service/api/product';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
@@ -25,6 +26,7 @@ const cancellationPending = ref(false);
 const requestGuard = createLatestRequestGuard();
 let claimWriteVersion = 0;
 let cancelWriteVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 let disposed = false;
 
 async function load() {
@@ -52,6 +54,7 @@ onMounted(async () => {
   await load();
 });
 onBeforeUnmount(() => {
+  confirmationModal?.close();
   disposed = true;
   claimWriteVersion += 1;
   cancelWriteVersion += 1;
@@ -60,6 +63,7 @@ onBeforeUnmount(() => {
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (disposed) return;
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  confirmationModal?.close();
   claimWriteVersion += 1;
   cancelWriteVersion += 1;
   request.value = undefined;
@@ -70,7 +74,7 @@ watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUs
 });
 
 const statusMeta = computed(() => (request.value ? enums.PURCHASE_STATUS_META[request.value.status] : undefined));
-const aftersaleMeta = computed(() => (request.value ? enums.AFTERSALE_TYPE_META[request.value.aftersaleType] : undefined));
+const aftersaleMeta = computed(() => (request.value ? getAftersaleMeta(request.value.aftersaleType) : undefined));
 
 const isMyRequest = computed(() => userStore.currentUser?.id !== undefined && request.value?.customerId !== undefined
   && String(userStore.currentUser.id) === String(request.value.customerId));
@@ -115,17 +119,17 @@ function cancel() {
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && sameBusinessId(request.value?.id, requestedRequestId);
   cancellationPending.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '撤销求购？',
     content: '撤销后不可恢复',
     okButtonProps: { status: 'danger' },
     onCancel() {
+      if (!isCurrentWrite()) return;
       cancelWriteVersion += 1;
       cancellationPending.value = false;
     },
     async onOk() {
       if (!isCurrentWrite()) {
-        cancellationPending.value = false;
         return;
       }
       canceling.value = true;

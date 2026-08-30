@@ -33,7 +33,7 @@ const appealMeta = computed(() => {
 <template>
   <div class="point-log-row">
     <div class="left">
-      <PointBehaviorTag :behavior="log.behavior" />
+      <PointBehaviorTag :behavior="log.behavior" :label="log.behaviorName" />
     </div>
     <div class="middle">
       <div class="desc">{{ refDesc || log.behavior }}</div>

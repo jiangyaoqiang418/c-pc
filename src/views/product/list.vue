@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Message } from '@arco-design/web-vue';
 import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -83,6 +85,7 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -102,6 +105,7 @@ async function load() {
 }
 
 function updateUrl(replace: boolean) {
+  const before = route.fullPath;
   const location = {
     name: 'product-list',
     query: {
@@ -109,17 +113,23 @@ function updateUrl(replace: boolean) {
       categoryId: filter.categoryId ? String(filter.categoryId) : undefined,
       aftersaleType: filter.aftersaleType,
       overseas: filter.overseasCustoms ? '1' : undefined,
-      minPrice: filter.minPrice ? String(filter.minPrice) : undefined,
-      maxPrice: filter.maxPrice ? String(filter.maxPrice) : undefined,
+      minPrice: filter.minPrice !== undefined ? String(filter.minPrice) : undefined,
+      maxPrice: filter.maxPrice !== undefined ? String(filter.maxPrice) : undefined,
       sort: filter.sort,
       page: current.value === 1 ? undefined : String(current.value)
     }
   };
-  if (replace) void router.replace(location);
-  else void router.push(location);
+  void (replace ? router.replace(location) : router.push(location)).then(() => {
+    if (route.fullPath === before) void load();
+  });
 }
 
 function applyToUrl() {
+  if (filter.minPrice != null && filter.maxPrice != null && filter.minPrice > filter.maxPrice) {
+    Message.warning('最低价格不能高于最高价格');
+    return;
+  }
+  current.value = 1;
   updateUrl(false);
 }
 
@@ -154,7 +164,7 @@ const title = computed(() => {
 
 function onPageChange(p: number) {
   current.value = p;
-  applyToUrl();
+  updateUrl(false);
 }
 </script>
 
@@ -181,9 +191,9 @@ function onPageChange(p: number) {
       </div>
       <div class="filter-row">
         <span class="filter-label">价格区间</span>
-        <a-input-number v-model="filter.minPrice" :min="0" placeholder="¥ 最低" hide-button class="price-input" />
+        <a-input-number v-model="filter.minPrice" :min="0" placeholder="USDT 最低" hide-button class="price-input" />
         <span class="price-dash">—</span>
-        <a-input-number v-model="filter.maxPrice" :min="0" placeholder="¥ 最高" hide-button class="price-input" />
+        <a-input-number v-model="filter.maxPrice" :min="0" placeholder="USDT 最高" hide-button class="price-input" />
         <a-button size="small" @click="applyToUrl">确定</a-button>
         <a-link role="button" tabindex="0" @click="resetFilters" @keydown.enter="resetFilters" @keydown.space.prevent="resetFilters">重置</a-link>
       </div>

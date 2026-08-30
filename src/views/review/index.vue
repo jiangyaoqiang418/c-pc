@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import * as reviewApi from '@/service/api/review';
 import ReviewCard from '@/components/review/review-card.vue';
@@ -9,24 +9,30 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
+import { resolvePageSize } from '@/service/api/page';
+import { useReviewStore } from '@/stores/review';
+import { isDefinitiveRejection } from '@/service/request/type';
 
 type ReviewTab = 'sent' | 'received' | 'appeals';
 
 const userStore = useUserStore();
+const reviewStore = useReviewStore();
 const route = useRoute();
+const router = useRouter();
 const activeKey = ref<ReviewTab>('sent');
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
 const appeals = ref<Api.RealReview.ReviewAppealDTO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const current = ref(1);
-const pageSize = 10;
+const pageSize = ref(10);
 const total = ref(0);
 const status = ref<Api.RealReview.ReviewStatus>();
 const hasImage = ref<boolean>();
 const actionLoading = ref('');
 const replyVisible = ref(false);
 const appealVisible = ref(false);
+const appealUploading = ref(false);
 const replyTarget = ref<Api.RealReview.ReviewDTO>();
 const appealTarget = ref<Api.RealReview.ReviewDTO>();
 const notificationReview = ref<Api.RealReview.ReviewDTO>();
@@ -36,9 +42,40 @@ const appealForm = reactive({ reason: '', evidenceImages: [] as string[] });
 const requestGuard = createLatestRequestGuard();
 const notificationRequestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let replyModalVersion = 0;
+let appealModalVersion = 0;
+watch(replyVisible, () => { replyModalVersion += 1; }, { flush: 'sync' });
+watch(appealVisible, () => { appealModalVersion += 1; }, { flush: 'sync' });
 
 const isBuyer = computed(() => !!userStore.currentUser?.isBuyer);
 const isAppealTab = computed(() => activeKey.value === 'appeals');
+let syncingQuery = false;
+
+function syncFromQuery() {
+  syncingQuery = true;
+  const value = (key: string) => {
+    const raw = route.query[key];
+    return Array.isArray(raw) ? raw[0] : raw;
+  };
+  const tab = value('tab');
+  activeKey.value = isBuyer.value && (tab === 'received' || tab === 'appeals') ? tab : 'sent';
+  const state = value('status') as Api.RealReview.ReviewStatus;
+  status.value = ['PENDING', 'PUBLISHED', 'REJECTED', 'HIDDEN'].includes(state) ? state : undefined;
+  hasImage.value = value('hasImage') === 'true' ? true : value('hasImage') === 'false' ? false : undefined;
+  const page = Number(value('page'));
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  syncingQuery = false;
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  const query = { ...route.query, tab: activeKey.value === 'sent' ? undefined : activeKey.value,
+    status: status.value, hasImage: hasImage.value === undefined ? undefined : String(hasImage.value),
+    page: current.value > 1 ? String(current.value) : undefined };
+  void (replace ? router.replace({ query }) : router.push({ query })).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
 
 function formatTime(value?: string | number) {
   if (!value) return '—';
@@ -48,7 +85,7 @@ function formatTime(value?: string | number) {
 
 function resetAndLoad() {
   current.value = 1;
-  void load();
+  syncQuery();
 }
 
 async function load() {
@@ -65,12 +102,13 @@ async function load() {
   loadError.value = '';
   try {
     if (isAppealTab.value) {
-      const result = await reviewApi.fetchMyReviewAppeals({ pageNo: current.value, pageSize }, { signal: isCurrent.signal });
+      const result = await reviewApi.fetchMyReviewAppeals({ pageNo: current.value, pageSize: pageSize.value }, { signal: isCurrent.signal });
       if (!isCurrent()) return;
-      const maxPage = Math.max(1, Math.ceil(result.total / pageSize));
+      pageSize.value = resolvePageSize(result, pageSize.value);
+      const maxPage = Math.max(1, Math.ceil(result.total / pageSize.value));
       if (current.value > maxPage) {
         current.value = maxPage;
-        await load();
+        syncQuery(true);
         return;
       }
       appeals.value = result.records || [];
@@ -80,7 +118,7 @@ async function load() {
 
     const params = {
       pageNo: current.value,
-      pageSize,
+      pageSize: pageSize.value,
       status: status.value,
       hasImage: hasImage.value
     };
@@ -88,13 +126,15 @@ async function load() {
       ? await reviewApi.fetchMyReviews(params, { signal: isCurrent.signal })
       : await reviewApi.fetchReceivedReviews(params, { signal: isCurrent.signal });
     if (!isCurrent()) return;
-    const maxPage = Math.max(1, Math.ceil(result.total / pageSize));
+    pageSize.value = resolvePageSize(result, pageSize.value);
+    const maxPage = Math.max(1, Math.ceil(result.total / pageSize.value));
     if (current.value > maxPage) {
       current.value = maxPage;
-      await load();
+      syncQuery(true);
       return;
     }
     reviews.value = result.records || [];
+    if (activeKey.value === 'sent') reviews.value.forEach(reviewStore.confirmExisting);
     total.value = result.total;
   } catch {
     if (!isCurrent()) return;
@@ -123,6 +163,7 @@ async function loadNotificationReview(id: string | number) {
 }
 
 function openReply(review: Api.RealReview.ReviewDTO) {
+  replyModalVersion += 1;
   replyTarget.value = review;
   replyContent.value = '';
   replyVisible.value = true;
@@ -141,6 +182,7 @@ async function submitReply() {
   }
   const requestedUserId = userStore.currentUser?.id;
   const reviewId = replyTarget.value.reviewId;
+  const submittedModalVersion = replyModalVersion;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion
@@ -148,19 +190,22 @@ async function submitReply() {
     && sameBusinessId(replyTarget.value?.reviewId, reviewId);
   actionLoading.value = String(reviewId);
   try {
-    await reviewApi.replyReview({ reviewId, content });
+    await reviewApi.replyReview({ reviewId, content }, { showError: false });
     if (!isCurrentWrite()) return;
-    replyVisible.value = false;
+    if (submittedModalVersion === replyModalVersion) replyVisible.value = false;
     Message.success('评价回复已提交');
     await load();
-  } catch {
-    if (isCurrentWrite()) Message.error('评价回复提交失败，请稍后重试');
+  } catch (error) {
+    if (!isCurrentWrite()) return;
+    if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '评价回复未提交');
+    else Message.warning('评价回复结果待核实，请重新读取原评价，勿直接重复提交');
   } finally {
     if (operation === writeVersion) actionLoading.value = '';
   }
 }
 
 function openAppeal(review: Api.RealReview.ReviewDTO) {
+  appealModalVersion += 1;
   appealTarget.value = review;
   appealForm.reason = '';
   appealForm.evidenceImages = [];
@@ -168,7 +213,7 @@ function openAppeal(review: Api.RealReview.ReviewDTO) {
 }
 
 async function submitAppeal() {
-  if (actionLoading.value) return;
+  if (actionLoading.value || appealUploading.value) return;
   const reason = appealForm.reason.trim();
   if (!appealTarget.value || !reason) {
     Message.warning('请输入申诉理由');
@@ -180,6 +225,7 @@ async function submitAppeal() {
   }
   const requestedUserId = userStore.currentUser?.id;
   const reviewId = appealTarget.value.reviewId;
+  const submittedModalVersion = appealModalVersion;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion
@@ -190,14 +236,16 @@ async function submitAppeal() {
     await reviewApi.createReviewAppeal({
       reviewId,
       reason,
-      evidenceImages: appealForm.evidenceImages
-    });
+      evidenceImages: [...appealForm.evidenceImages]
+    }, { showError: false });
     if (!isCurrentWrite()) return;
-    appealVisible.value = false;
+    if (submittedModalVersion === appealModalVersion) appealVisible.value = false;
     Message.success('评价申诉已提交，请等待平台处理');
     await load();
-  } catch {
-    if (isCurrentWrite()) Message.error('评价申诉提交失败，请稍后重试');
+  } catch (error) {
+    if (!isCurrentWrite()) return;
+    if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '评价申诉未提交');
+    else Message.warning('评价申诉结果待核实，请先查看申诉记录，勿直接重复提交');
   } finally {
     if (operation === writeVersion) actionLoading.value = '';
   }
@@ -215,7 +263,11 @@ async function removeReview(review: Api.RealReview.ReviewDTO) {
     await reviewApi.deleteReview(reviewId);
     if (!isCurrentWrite()) return;
     Message.success('评价已删除');
-    if (reviews.value.length === 1 && current.value > 1) current.value -= 1;
+    if (reviews.value.length === 1 && current.value > 1) {
+      current.value -= 1;
+      syncQuery(true);
+      return;
+    }
     await load();
   } catch {
     if (isCurrentWrite()) Message.error('评价删除失败，请稍后重试');
@@ -226,20 +278,22 @@ async function removeReview(review: Api.RealReview.ReviewDTO) {
 
 function changePage(page: number) {
   current.value = page;
-  void load();
+  syncQuery();
 }
 
 watch(activeKey, () => {
+  if (syncingQuery) return;
   writeVersion += 1;
   actionLoading.value = '';
   if (activeKey.value === 'received' && !isBuyer.value) activeKey.value = 'sent';
   resetAndLoad();
-});
+}, { flush: 'sync' });
 watch([status, hasImage], () => {
+  if (syncingQuery) return;
   writeVersion += 1;
   actionLoading.value = '';
   if (!isAppealTab.value) resetAndLoad();
-});
+}, { flush: 'sync' });
 watch(isBuyer, value => {
   if (!value && activeKey.value !== 'sent') activeKey.value = 'sent';
 });
@@ -260,7 +314,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   appealVisible.value = false;
   replyTarget.value = undefined;
   appealTarget.value = undefined;
-  void load();
+  syncQuery(true);
   const id = route.query.id;
   if (id) void loadNotificationReview(String(id));
 });
@@ -270,7 +324,11 @@ watch(() => route.query.id, id => {
   notificationReviewError.value = '';
   if (id) void loadNotificationReview(String(id));
 }, { immediate: true });
-onMounted(load);
+onMounted(() => { syncFromQuery(); void load(); });
+watch(() => route.fullPath, () => {
+  syncFromQuery();
+  void load();
+});
 onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
@@ -281,6 +339,10 @@ onBeforeUnmount(() => {
 <template>
   <div class="review-list-page shop-container">
     <h1 class="page-title">我的评价</h1>
+    <a-alert v-for="pending in reviewStore.pendingReviews" :key="String(pending.params.orderId)" type="warning">
+      订单 {{ pending.params.orderId }} 的评价{{ pending.state === 'submitting' ? '正在提交' : '结果待核对' }}。原内容仅保留在当前登录会话，刷新或退出登录会清除快照。
+      <template #action><a-button @click="router.push({ name: 'review-write', params: { orderId: String(pending.params.orderId) } })">返回原评价</a-button></template>
+    </a-alert>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">
       <a-tabs v-model:active-key="activeKey" lazy-load>
@@ -360,17 +422,17 @@ onBeforeUnmount(() => {
       <a-pagination :total="total" :current="current" :page-size="pageSize" show-total @change="changePage" />
     </div>
 
-    <a-modal v-model:visible="replyVisible" title="回复评价" :ok-loading="!!actionLoading" @ok="submitReply">
+    <a-modal v-model:visible="replyVisible" title="回复评价" :ok-loading="!!actionLoading" :on-before-ok="() => { void submitReply(); return false; }">
       <a-textarea v-model="replyContent" :max-length="500" show-word-limit placeholder="请输入回复内容" :rows="4" />
     </a-modal>
 
-    <a-modal v-model:visible="appealVisible" title="发起评价申诉" :ok-loading="!!actionLoading" @ok="submitAppeal">
+    <a-modal v-model:visible="appealVisible" title="发起评价申诉" :ok-loading="!!actionLoading" :ok-button-props="{ disabled: appealUploading }" :on-before-ok="() => { void submitAppeal(); return false; }">
       <a-form :model="appealForm" layout="vertical">
         <a-form-item label="申诉理由" required>
           <a-textarea v-model="appealForm.reason" :max-length="512" show-word-limit placeholder="请说明申诉理由" :rows="4" />
         </a-form-item>
         <a-form-item label="申诉凭证（可选，最多 6 张）">
-          <AftersaleEvidenceUploader v-model="appealForm.evidenceImages" scene="REVIEW" :max="6" />
+          <AftersaleEvidenceUploader v-model="appealForm.evidenceImages" scene="REVIEW" :max="6" :disabled="!!actionLoading" @uploading="appealUploading = $event" />
         </a-form-item>
       </a-form>
     </a-modal>

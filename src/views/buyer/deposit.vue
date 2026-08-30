@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
+import { useRoute, useRouter } from 'vue-router';
 import { formatAmount } from '@shared';
 import DepositMeter from '@/components/buyer/deposit-meter.vue';
 import TxnRow from '@/components/wallet/txn-row.vue';
@@ -8,12 +9,31 @@ import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as realBuyerApi from '@/service/api/buyer';
 import * as realOrderApi from '@/service/api/order';
-import * as realWalletApi from '@/service/api/wallet';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { pendingDepositOperation, submitDepositOperation, type PendingDeposit } from '@/utils/financial-submission';
+import { resolvePageSize } from '@/service/api/page';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
+const route = useRoute();
+const router = useRouter();
+const current = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
+
+function readPageQuery() {
+  const page = Number(route.query.page);
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function syncPageQuery(replace = false) {
+  const before = route.fullPath;
+  void (replace ? router.replace : router.push)({ query: { ...route.query,
+    page: current.value > 1 ? String(current.value) : undefined } }).then(() => {
+    if (route.fullPath === before) void loadAll();
+  });
+}
 
 const txns = ref<Api.RealBuyer.DepositLedger[]>([]);
 const orderCounts = ref<Record<string, number>>({});
@@ -27,12 +47,24 @@ const transferOpen = ref(false);
 const transferKind = ref<'pay' | 'refund'>('pay');
 const transferAmount = ref<number>();
 const transferring = ref(false);
+const pendingTransfer = ref<PendingDeposit>();
+const pendingError = ref('');
+const transferPendingKey = ref<string>();
+function refreshPendingTransfer() {
+  try {
+    pendingTransfer.value = pendingDepositOperation(userStore.currentUser?.id);
+    pendingError.value = '';
+  } catch {
+    pendingTransfer.value = undefined;
+    pendingError.value = '无法读取原押金操作记录，请联系平台核实，暂不可发起新操作';
+  }
+}
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 const maxTransferAmount = computed(() => {
   const value = transferKind.value === 'pay' ? account.value?.available : account.value?.depositAvailable;
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  return value !== undefined && Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 });
 
 async function loadAll() {
@@ -40,6 +72,7 @@ async function loadAll() {
   if (!currentUser) {
     requestGuard.invalidate();
     txns.value = [];
+    total.value = 0;
     orderCounts.value = {};
     orderCountsLoaded.value = false;
     loadError.value = '';
@@ -54,11 +87,21 @@ async function loadAll() {
   try {
     const [walletResult, txnResult, countsResult] = await Promise.allSettled([
       walletStore.fetchWallet(userId),
-      realBuyerApi.fetchBuyerDepositLedger({ pageNo: 1, pageSize: 20 }, { signal: isCurrent.signal }),
+      realBuyerApi.fetchBuyerDepositLedger({ pageNo: current.value, pageSize: pageSize.value }, { signal: isCurrent.signal }),
       realOrderApi.countMySoldOrdersByStatus({ showError: false, signal: isCurrent.signal })
     ]);
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     txns.value = txnResult.status === 'fulfilled' ? txnResult.value.records : [];
+    total.value = txnResult.status === 'fulfilled' ? txnResult.value.total : 0;
+    if (txnResult.status === 'fulfilled') {
+      pageSize.value = resolvePageSize(txnResult.value, pageSize.value);
+      const maxPage = Math.max(1, Math.ceil(total.value / pageSize.value));
+      if (current.value > maxPage) {
+        current.value = maxPage;
+        syncPageQuery(true);
+        return;
+      }
+    }
     orderCountsLoaded.value = countsResult.status === 'fulfilled';
     orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
     if (walletResult.status === 'rejected' || walletStore.account === undefined) {
@@ -69,6 +112,7 @@ async function loadAll() {
   } catch {
     if (!isCurrent()) return;
     txns.value = [];
+    total.value = 0;
     orderCounts.value = {};
     orderCountsLoaded.value = false;
     loadError.value = '押金信息加载失败，请检查网络后重试。';
@@ -76,8 +120,17 @@ async function loadAll() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(loadAll);
+onMounted(() => {
+  readPageQuery();
+  refreshPendingTransfer();
+  window.addEventListener('focus', refreshPendingTransfer);
+  window.addEventListener('storage', refreshPendingTransfer);
+  void loadAll();
+});
+watch(() => route.query.page, () => { readPageQuery(); void loadAll(); });
 onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshPendingTransfer);
+  window.removeEventListener('storage', refreshPendingTransfer);
   writeVersion += 1;
   requestGuard.invalidate();
 });
@@ -86,10 +139,15 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
   writeVersion += 1;
   transferring.value = false;
   transferOpen.value = false;
+  drawerOpen.value = false;
+  drawerTxn.value = undefined;
+  refreshPendingTransfer();
   txns.value = [];
+  total.value = 0;
+  current.value = 1;
   orderCounts.value = {};
   orderCountsLoaded.value = false;
-  void loadAll();
+  syncPageQuery(true);
 });
 
 const guaranteedOrderCount = computed(() => {
@@ -108,23 +166,36 @@ const depositUtilization = computed(() => {
 });
 
 function openDepositTransfer(kind: 'pay' | 'refund') {
-  transferKind.value = kind;
-  transferAmount.value = undefined;
+  if (transferring.value) return;
+  refreshPendingTransfer();
+  if (pendingError.value) return;
+  writeVersion += 1;
+  transferKind.value = pendingTransfer.value?.kind || kind;
+  transferAmount.value = pendingTransfer.value?.amount;
+  transferPendingKey.value = pendingTransfer.value?.idempotencyKey;
   transferOpen.value = true;
-}
-
-function createIdempotencyKey() {
-  return crypto.randomUUID();
 }
 
 async function submitDepositTransfer() {
   if (transferring.value) return;
+  refreshPendingTransfer();
+  if (pendingError.value) return;
+  if (transferPendingKey.value !== pendingTransfer.value?.idempotencyKey) {
+    transferOpen.value = false;
+    Message.warning('原押金操作状态已变化，请重新核对后操作');
+    return;
+  }
   const amount = transferAmount.value;
+  const kind = transferKind.value;
   if (amount === undefined || !Number.isFinite(amount) || amount <= 0) {
     Message.warning('请输入正确的保证金金额');
     return;
   }
-  if (amount > maxTransferAmount.value) {
+  if (!pendingTransfer.value && (loading.value || !account.value || maxTransferAmount.value === undefined)) {
+    Message.warning('请等待押金账户读取完成后再提交');
+    return;
+  }
+  if (!pendingTransfer.value && maxTransferAmount.value !== undefined && amount > maxTransferAmount.value) {
     Message.warning(transferKind.value === 'pay' ? '缴纳金额不能超过钱包可用余额' : '退还金额不能超过可用保证金');
     return;
   }
@@ -137,17 +208,25 @@ async function submitDepositTransfer() {
     && userStore.isBuyerActive;
   transferring.value = true;
   try {
-    const params = { amount, idempotencyKey: createIdempotencyKey() };
     try {
-      if (transferKind.value === 'pay') await realBuyerApi.payBuyerDeposit(params);
-      else await realBuyerApi.refundBuyerDeposit(params);
+      await submitDepositOperation(requestedUserId, kind, amount, operation => {
+        const params = { amount: operation.amount, idempotencyKey: operation.idempotencyKey };
+        return operation.kind === 'pay'
+          ? realBuyerApi.payBuyerDeposit(params, { showError: false })
+          : realBuyerApi.refundBuyerDeposit(params, { showError: false });
+      });
       if (!isCurrentWrite()) return;
-      Message.success(transferKind.value === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
+      refreshPendingTransfer();
+      Message.success(kind === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
       transferOpen.value = false;
       await loadAll();
-    } catch {
+    } catch (error) {
       if (isCurrentWrite()) {
-        Message.error(transferKind.value === 'pay' ? '保证金缴纳失败，请稍后重试' : '保证金退还失败，请稍后重试');
+        refreshPendingTransfer();
+        transferPendingKey.value = pendingTransfer.value?.idempotencyKey;
+        Message.error(pendingTransfer.value
+          ? '押金操作结果待确认，请保留原金额与方向，使用原操作重试'
+          : error instanceof Error ? error.message : '押金操作未完成，请重新核对');
       }
     }
   } finally {
@@ -164,6 +243,10 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 <template>
   <div class="deposit-page shop-container">
     <h1 class="page-title">押金管理</h1>
+    <a-alert v-if="pendingError || pendingTransfer" type="warning" :closable="false">
+      {{ pendingError || `上次${pendingTransfer?.kind === 'pay' ? '缴纳' : '退还'}押金 U ${pendingTransfer?.amount} 结果待确认。重试将沿用原操作标识，不创建新的划转。` }}
+      <template v-if="pendingTransfer" #action><a-button :disabled="transferring" @click="openDepositTransfer(pendingTransfer.kind)">重试原操作</a-button></template>
+    </a-alert>
 
     <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
       {{ loadError }}
@@ -171,13 +254,17 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
     </a-alert>
 
     <a-spin :loading="loading" style="width: 100%">
+      <a-alert v-if="account && (account.available === undefined || account.depositAvailable === undefined || account.depositGuaranteed === undefined)" type="warning" :closable="false" class="load-alert">
+        部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。
+        <template #action><a-button size="mini" :loading="loading" :disabled="transferring" @click="loadAll">重新读取余额</a-button></template>
+      </a-alert>
       <a-card v-if="account" class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
         <DepositMeter :available="account.depositAvailable" :guaranteed="account.depositGuaranteed" size="lg" />
         <a-divider />
         <a-alert type="info" class="alert">保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</a-alert>
         <div class="actions">
-          <a-button type="primary" @click="openDepositTransfer('pay')">充值押金</a-button>
-          <a-button @click="openDepositTransfer('refund')">转出至钱包</a-button>
+          <a-button type="primary" :disabled="transferring || !!pendingTransfer || !!pendingError || loading" @click="openDepositTransfer('pay')">充值押金</a-button>
+          <a-button :disabled="transferring || !!pendingTransfer || !!pendingError || loading" @click="openDepositTransfer('refund')">转出至钱包</a-button>
           <a-tooltip content="规则：在架商品需缴纳的最低押金 = 最贵商品单价。担保中订单完成后押金自动释放。">
             <a-button type="text">📖 规则说明</a-button>
           </a-tooltip>
@@ -193,7 +280,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
           </div>
           <div class="stat">
             <div class="stat-label">已担保押金</div>
-            <div class="stat-val">U {{ formatAmount(account.depositGuaranteed || '0') }}</div>
+            <div class="stat-val">U {{ formatAmount(account.depositGuaranteed) }}</div>
           </div>
           <div class="stat">
             <div class="stat-label">担保利用率</div>
@@ -218,6 +305,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
         />
       </a-card>
       <EmptyState v-if="!account && !loading" :title="loadError ? '押金信息加载失败' : '暂无押金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
+      <a-pagination v-if="total > pageSize" v-model:current="current" :total="total" :page-size="pageSize" :disabled="loading" show-total @change="syncPageQuery()" />
     </a-spin>
 
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
@@ -226,14 +314,15 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
       v-model:visible="transferOpen"
       :title="transferKind === 'pay' ? '缴纳保证金' : '退还保证金至钱包'"
       :ok-loading="transferring"
-      @ok="submitDepositTransfer"
+      :on-before-ok="() => { void submitDepositTransfer(); return false; }"
     >
       <a-form :model="{ amount: transferAmount }" layout="vertical">
         <a-form-item label="金额 (USDT)" required>
           <a-input-number
             v-model="transferAmount"
             :min="0.01"
-            :max="maxTransferAmount"
+            :max="pendingTransfer ? undefined : maxTransferAmount"
+            :disabled="transferring || !!pendingTransfer"
             :precision="2"
             placeholder="请输入金额"
             style="width: 100%"

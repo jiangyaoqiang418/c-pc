@@ -1,17 +1,30 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 
 const router = useRouter();
+const route = useRoute();
 const kw = ref('');
+const composing = ref(false);
+watch([() => route.name, () => route.query.keyword], ([name, value], previous) => {
+  // 钱包、求购等页面也使用 keyword，不能把它们的筛选值当成商品搜索。
+  if (name === 'product-list') kw.value = typeof value === 'string' ? value : '';
+  else if (!previous || name !== previous[0]) kw.value = '';
+}, { immediate: true });
 
 const HOT_WORDS = ['平板电脑', '爆款耳机', 'iPhone 16', 'MacBook', '女装'];
 
 function submit(q?: string) {
   const query = (q || kw.value).trim();
   if (!query) return;
+  kw.value = query;
   router.push({ name: 'product-list', query: { keyword: query } });
+}
+
+function onSearchKeydown(event: KeyboardEvent) {
+  if (composing.value || event.isComposing || event.keyCode === 229) return;
+  submit();
 }
 </script>
 
@@ -22,7 +35,9 @@ function submit(q?: string) {
         v-model="kw"
         class="search-input"
         placeholder="搜索商品 / 品牌 / 买手"
-        @keydown.enter="submit()"
+        @compositionstart="composing = true"
+        @compositionend="composing = false"
+        @keydown.enter="onSearchKeydown"
       />
       <button type="button" class="search-btn" @click="submit()">
         <Icon icon="lucide:search" width="16" />

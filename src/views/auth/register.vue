@@ -1,35 +1,38 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { onBeforeUnmount, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { useUserStore } from '@/stores';
+import { prepareRegistration } from '@/service/api/auth';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 
 const form = reactive({ email: '', nickname: '', password: '', confirm: '' });
 const submitting = ref(false);
+let disposed = false;
+onBeforeUnmount(() => { disposed = true; });
+
+function goLogin() {
+  router.push({ path: '/auth/login', query: typeof route.query.redirect === 'string' ? { redirect: route.query.redirect } : {} });
+}
 
 async function submit() {
   if (submitting.value) return;
-  if (!form.email || !form.nickname || !form.password) {
-    Message.warning('请完善信息');
-    return;
-  }
-  if (form.password !== form.confirm) {
-    Message.error('两次密码不一致');
+  const prepared = prepareRegistration(form);
+  if (prepared.error) {
+    Message.warning(prepared.error);
     return;
   }
   submitting.value = true;
   try {
-    await userStore.register({
-      email: form.email,
-      nickname: form.nickname,
-      password: form.password,
-      roles: ['CUSTOMER']
-    });
+    await userStore.register(prepared.params);
+    if (disposed) return;
     Message.success('注册成功，请登录');
-    router.push('/auth/login');
+    goLogin();
+  } catch {
+    // 请求层已提示失败，离开页面后不触发旧页面导航。
   } finally {
     submitting.value = false;
   }
@@ -61,7 +64,7 @@ async function submit() {
 
     <div class="bottom">
       已有账号？
-      <a-link role="link" tabindex="0" @click="router.push('/auth/login')" @keydown.enter="router.push('/auth/login')" @keydown.space.prevent="router.push('/auth/login')">返回登录</a-link>
+      <a-link role="link" tabindex="0" @click="goLogin" @keydown.enter="goLogin" @keydown.space.prevent="goLogin">返回登录</a-link>
     </div>
   </div>
 </template>

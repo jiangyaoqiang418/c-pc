@@ -3,11 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
-import { enums } from '@shared';
 import { avatarUrl } from '@shared/utils/image';
 import { formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import ProductImageGallery from '@/components/product/product-image-gallery.vue';
-import ProductCard from '@/components/product/product-card.vue';
 import VipBadge from '@/components/common/vip-badge.vue';
 import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -17,6 +15,8 @@ import * as reviewApi from '@/service/api/review';
 import { useCartStore, useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
+import { createCheckoutIntent } from '@/utils/checkout';
+import { resolvePageSize } from '@/service/api/page';
 
 const route = useRoute();
 const router = useRouter();
@@ -25,9 +25,16 @@ const userStore = useUserStore();
 
 const product = ref<Api.RealProduct.Record>();
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
+const reviewPage = ref(1);
+const reviewPageSize = ref(20);
+const reviewTotal = ref(0);
+const reviewLoading = ref(false);
+const reviewError = ref('');
+const reviewsGuard = createLatestRequestGuard();
+const sellerScoreError = ref(false);
+const favoriteCountError = ref(false);
 const reviewSummary = ref<Api.RealReview.ReviewSummaryDTO>();
 const sellerScore = ref<Api.RealReview.SellerRatingDTO>();
-const sameShop = ref<Api.RealProduct.Record[]>([]);
 const qty = ref(1);
 const loading = ref(false);
 const loadError = ref('');
@@ -37,31 +44,41 @@ const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 
 const id = computed(() => String(route.params.id || ''));
-const aftersaleMeta = computed(() => product.value ? enums.AFTERSALE_TYPE_META[product.value.aftersaleType] : undefined);
-const canBuy = computed(() => product.value && product.value.status === 'NORMAL' && product.value.shelfStatus === 'on-shelf' && product.value.stock > 0);
+const aftersaleMeta = computed(() => product.value ? productApi.getAftersaleMeta(product.value.aftersaleType) : undefined);
+const isOwnProduct = computed(() => userStore.currentUser?.id !== undefined && product.value?.sellerId !== undefined
+  && String(userStore.currentUser.id) === String(product.value.sellerId));
+const canBuy = computed(() => !loading.value && !isOwnProduct.value && product.value && product.value.status === 'NORMAL' && product.value.shelfStatus === 'on-shelf' && product.value.stock > 0);
 const sellerAvatar = computed(() => product.value ? avatarUrl(product.value.sellerId) : '');
 
 async function load() {
   if (!id.value) return;
+  reviewsGuard.invalidate();
+  reviews.value = [];
+  reviewPage.value = 1;
+  reviewTotal.value = 0;
+  reviewError.value = '';
+  reviewLoading.value = false;
+  reviewSummary.value = undefined;
+  sellerScore.value = undefined;
+  sellerScoreError.value = false;
+  favoriteCountError.value = false;
   const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
   try {
-    product.value = await productApi.fetchProductDetail(id.value, { signal: isCurrent.signal });
+    const nextProduct = await productApi.fetchProductDetail(id.value, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    product.value = nextProduct;
     if (product.value) {
       productApi.trackProductBrowse(id.value).catch(() => undefined);
       productApi.trackProductView(id.value).catch(() => undefined);
-      const [reviewPage, summary, sellerRating] = await Promise.allSettled([
-        reviewApi.fetchStorefrontReviews({ productId: product.value.id, pageNo: 1, pageSize: 20 }, { signal: isCurrent.signal }),
-        reviewApi.fetchReviewSummary(product.value.id, { signal: isCurrent.signal }),
-        reviewApi.fetchSellerRating(product.value.sellerId, { signal: isCurrent.signal })
-      ]);
-      if (!isCurrent()) return;
-      reviews.value = reviewPage.status === 'fulfilled' ? reviewPage.value.records || [] : [];
-      reviewSummary.value = summary.status === 'fulfilled' ? summary.value : undefined;
-      sellerScore.value = sellerRating.status === 'fulfilled' ? sellerRating.value : undefined;
-      sameShop.value = [];
+      void loadReviews(1);
+      void reviewApi.fetchReviewSummary(product.value.id, { signal: isCurrent.signal }).then(summary => {
+        if (isCurrent()) reviewSummary.value = summary;
+      }).catch(() => { /* 不阻塞商品购买；评价列表保留独立读取入口。 */ });
+      void reviewApi.fetchSellerRating(product.value.sellerId, { signal: isCurrent.signal }).then(rating => {
+        if (isCurrent()) sellerScore.value = rating;
+      }).catch(() => { if (isCurrent()) sellerScoreError.value = true; });
     }
   } catch {
     if (!isCurrent()) return;
@@ -69,15 +86,42 @@ async function load() {
     reviews.value = [];
     reviewSummary.value = undefined;
     sellerScore.value = undefined;
-    sameShop.value = [];
     loadError.value = '商品详情加载失败，请检查网络后重试';
   } finally {
     if (isCurrent()) loading.value = false;
   }
 }
 
+async function loadReviews(page: number) {
+  const productId = product.value?.id;
+  if (productId === undefined) return;
+  const isCurrent = reviewsGuard.begin();
+  reviewLoading.value = true;
+  reviewError.value = '';
+  reviewPage.value = page;
+  reviews.value = [];
+  try {
+    let result = await reviewApi.fetchStorefrontReviews({ productId, pageNo: page, pageSize: reviewPageSize.value }, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    reviewPageSize.value = resolvePageSize(result, reviewPageSize.value);
+    const lastPage = Math.max(1, Math.ceil(result.total / reviewPageSize.value));
+    if (page > lastPage) {
+      reviewPage.value = lastPage;
+      result = await reviewApi.fetchStorefrontReviews({ productId, pageNo: lastPage, pageSize: reviewPageSize.value }, { signal: isCurrent.signal });
+    }
+    if (!isCurrent()) return;
+    reviews.value = result.records;
+    reviewTotal.value = result.total;
+  } catch {
+    if (isCurrent()) reviewError.value = '评价读取失败，请重新加载';
+  } finally {
+    if (isCurrent()) reviewLoading.value = false;
+  }
+}
+
 onMounted(load);
 onBeforeUnmount(() => {
+  reviewsGuard.invalidate();
   writeVersion += 1;
   requestGuard.invalidate();
 });
@@ -85,20 +129,31 @@ watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUs
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
   writeVersion += 1;
   favoriting.value = false;
+  if (String(nextId) !== String(prevId)) {
+    qty.value = 1;
+    product.value = undefined;
+  }
   void load();
 });
 
-function addToCart() {
-  if (!product.value) return;
-  cart.add(product.value.id, qty.value, product.value);
+async function addToCart() {
+  if (!product.value || !canBuy.value) return;
+  const added = await cart.add(product.value.id, qty.value, product.value);
+  if (added === undefined) return;
+  if (!added) {
+    Message.warning('购买数量超过库存，请检查购物车已有数量');
+    return;
+  }
   Message.success('已加入购物车');
 }
 function buyNow() {
-  if (!product.value) return;
-  cart.add(product.value.id, qty.value, product.value);
-  cart.setAllSelected(false);
-  cart.setSelected(product.value.id, true);
-  router.push('/checkout');
+  if (!product.value || !canBuy.value) return;
+  if (!Number.isSafeInteger(qty.value) || qty.value < 1 || qty.value > product.value.stock) {
+    Message.warning('请按当前库存调整购买数量');
+    return;
+  }
+  const contextId = createCheckoutIntent([{ productId: product.value.id, quantity: qty.value }], userStore.currentUser?.id);
+  router.push({ path: '/checkout', query: { contextId } });
 }
 function startPurchase() {
   if (!product.value) return;
@@ -125,9 +180,16 @@ async function favorite() {
   try {
     await productApi.toggleProductFavorite(requestedProductId, { showError: false });
     if (!isCurrentWrite()) return;
-    const favoriteCount = Number(product.value.favoriteCount || 0);
-    product.value.favoriteCount = Number.isFinite(favoriteCount) && favoriteCount >= 0 ? favoriteCount + 1 : 1;
     Message.success('收藏状态已更新');
+    favoriteCountError.value = true;
+    try {
+      const latest = await productApi.fetchProductDetail(requestedProductId);
+      if (!isCurrentWrite()) return;
+      product.value.favoriteCount = latest.favoriteCount;
+      favoriteCountError.value = false;
+    } catch {
+      if (isCurrentWrite()) Message.warning('收藏已成功，数量刷新失败，请重新加载商品查看');
+    }
   } catch {
     if (isCurrentWrite()) Message.error('收藏失败，服务器暂未完成写入，请稍后重试');
   } finally {
@@ -234,7 +296,7 @@ async function favorite() {
               <Icon icon="lucide:trending-up" width="12" /> 销量 {{ product.salesCount || 0 }}
             </span>
             <span class="tag-pill">
-              <Icon icon="lucide:bookmark" width="12" /> 收藏 {{ product.favoriteCount || 0 }}
+              <Icon icon="lucide:bookmark" width="12" /> 收藏 {{ favoriteCountError ? '待刷新' : (product.favoriteCount || 0) }}
             </span>
           </div>
 
@@ -252,6 +314,7 @@ async function favorite() {
             </div>
           </div>
 
+          <a-alert v-if="isOwnProduct" type="info">这是您本人出售的商品，不可购买或加入购物车。</a-alert>
           <div class="actions">
             <button class="btn primary" :disabled="!canBuy" @click="buyNow">
               <Icon icon="lucide:credit-card" width="16" /> 立即购买
@@ -282,10 +345,10 @@ async function favorite() {
                   <span class="yb-mono">{{ sellerScore.averageScore }}</span>
                   · {{ sellerScore.totalCount }} 评价
                 </span>
-                <span v-else class="muted">该买手暂无评价</span>
+                <span v-else class="muted">{{ sellerScoreError ? '买手评分读取失败' : '该买手暂无评价' }}</span>
               </div>
             </div>
-            <button class="btn ghost sm">
+            <button class="btn ghost sm" disabled title="售前联系买手暂未接入，已有订单可从订单三方群联系">
               <Icon icon="lucide:message-square" width="14" /> 联系买手
             </button>
           </div>
@@ -317,7 +380,9 @@ async function favorite() {
             <div class="spec-row"><span class="k">上架时间</span><span class="v">{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</span></div>
           </div>
           <div v-else-if="activeTab === 'review'">
-            <div v-if="reviews.length" class="review-list">
+            <a-spin v-if="reviewLoading" :loading="true" />
+            <EmptyState v-else-if="reviewError" :title="reviewError" action-text="重新加载" @action="loadReviews(reviewPage)" />
+            <div v-else-if="reviews.length" class="review-list">
               <div v-for="r in reviews" :key="r.reviewId" class="review-row">
                 <img :src="avatarUrl(0)" :alt="r.userName" class="rev-avatar" />
                 <div class="rev-body">
@@ -331,12 +396,10 @@ async function favorite() {
               </div>
             </div>
             <EmptyState v-else icon="lucide:message-square" title="暂无评价" description="尚无顾客评价，期待您成为第一位评价者" />
+            <a-pagination v-if="reviewTotal > reviewPageSize" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :disabled="reviewLoading" show-total @change="loadReviews" />
           </div>
           <div v-else-if="activeTab === 'sameshop'">
-            <div v-if="sameShop.length" class="same-shop-grid">
-              <ProductCard v-for="p in sameShop" :key="p.id" :product="p" />
-            </div>
-            <EmptyState v-else icon="lucide:store" title="同店暂无其他商品" />
+            <EmptyState icon="lucide:store" title="同店商品暂未接入" description="当前接口不支持按卖家查询商品，可返回商品列表继续浏览。" />
           </div>
         </div>
       </div>
@@ -831,14 +894,7 @@ async function favorite() {
   line-height: 1.6;
 }
 
-.same-shop-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
 @media (max-width: 1024px) {
   .hero-grid { grid-template-columns: 1fr; }
-  .same-shop-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

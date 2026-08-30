@@ -4,10 +4,11 @@ import { Message } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import { fetchCategoryTree } from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { useUnsavedForm } from '@/composables/use-unsaved-form';
 
 interface FormState {
   title: string;
-  categoryPath: Array<string | number>;
+  categoryId?: string | number;
   price: number;
   shippingFee: number;
   tax: number;
@@ -26,7 +27,7 @@ interface SubmitForm extends Omit<FormState, 'images'> {
 interface Props {
   submitting?: boolean;
 }
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
 
 interface CategoryNode {
@@ -37,12 +38,13 @@ interface CategoryNode {
 
 const cascaderOptions = ref<any[]>([]);
 const categoryLoadError = ref('');
+const uploading = ref(false);
 const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
 const categoryGuard = createLatestRequestGuard();
 
 const form = reactive<FormState>({
   title: '',
-  categoryPath: [],
+  categoryId: undefined,
   price: 100,
   shippingFee: 0,
   tax: 0,
@@ -53,6 +55,8 @@ const form = reactive<FormState>({
   description: '',
   images: []
 });
+const { markInteracted, markSaved } = useUnsavedForm(() => form, () => undefined);
+defineExpose({ markSaved });
 
 function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
@@ -82,11 +86,12 @@ async function reloadCategories() {
 onBeforeUnmount(categoryGuard.invalidate);
 
 function submit() {
+  if (uploading.value || props.submitting) return;
   if (!form.title.trim()) {
     Message.warning('请输入商品标题');
     return;
   }
-  if (!form.categoryPath.length) {
+  if (form.categoryId === undefined || form.categoryId === '') {
     Message.warning('请选择商品分类');
     return;
   }
@@ -126,14 +131,14 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
 </script>
 
 <template>
-  <a-form :model="form" layout="vertical">
+  <a-form :model="form" layout="vertical" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
     <a-form-item label="商品标题" required>
       <a-input v-model="form.title" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" size="large" />
     </a-form-item>
 
     <a-form-item label="商品分类" required>
       <a-cascader
-        v-model="form.categoryPath"
+        v-model="form.categoryId"
         :options="cascaderOptions"
         placeholder="选择分类"
         expand-trigger="hover"
@@ -194,11 +199,11 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     </a-form-item>
 
     <a-form-item label="商品图片（至少 1 张，最多 6 张）" required>
-          <AftersaleEvidenceUploader v-model="form.images" scene="PRODUCT" :max="6" @uploaded="onUploaded" />
+          <AftersaleEvidenceUploader v-model="form.images" scene="PRODUCT" :max="6" :disabled="submitting" @uploading="uploading = $event" @uploaded="onUploaded" />
     </a-form-item>
 
     <div class="actions">
-      <a-button type="primary" size="large" :loading="submitting" @click="submit">提交审核</a-button>
+      <a-button type="primary" size="large" :disabled="uploading" :loading="submitting" @click="submit">提交审核</a-button>
     </div>
   </a-form>
 </template>

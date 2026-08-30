@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { enums } from '@shared';
@@ -15,24 +15,59 @@ import * as reviewApi from '@/service/api/review';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
+import { getOrderCapabilities } from '@/utils/order';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const order = ref<Api.RealOrder.Record>();
+const permissions = computed(() => getOrderCapabilities(order.value, userStore.currentUser?.id));
+const logisticsSection = ref<HTMLElement>();
+
+function viewLogistics() {
+  logisticsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 const logistics = ref<Api.RealOrder.LogisticsDTO>();
 const logisticsError = ref('');
 const reviewable = ref(false);
+const reviewableError = ref('');
+const reviewableLoading = ref(false);
+const reviewableGuard = createLatestRequestGuard();
 const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
 const confirmationOpen = ref(false);
 const requestGuard = createLatestRequestGuard();
 let actionVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const id = computed(() => String(route.params.id || ''));
 
+async function loadReviewable() {
+  const isCurrent = reviewableGuard.begin();
+  const requestedId = order.value?.id;
+  const requestedUserId = userStore.currentUser?.id;
+  reviewable.value = false;
+  reviewableError.value = '';
+  reviewableLoading.value = false;
+  if (requestedId === undefined || requestedUserId === undefined || !permissions.value.review) return;
+  reviewableLoading.value = true;
+  try {
+    const result = await reviewApi.findReviewableOrderIds([requestedId], { signal: isCurrent.signal });
+    if (!isCurrent() || !sameBusinessId(order.value?.id, requestedId) || !sameBusinessId(userStore.currentUser?.id, requestedUserId)) return;
+    reviewable.value = result.has(String(requestedId));
+  } catch {
+    if (isCurrent()) reviewableError.value = '评价资格读取失败，请重新核对';
+  } finally {
+    if (isCurrent()) reviewableLoading.value = false;
+  }
+}
+
 async function load() {
+  reviewableGuard.invalidate();
+  reviewableLoading.value = false;
+  reviewableError.value = '';
+  reviewable.value = false;
   const isCurrent = requestGuard.begin();
   const requestedId = id.value;
   const requestedUserId = userStore.currentUser?.id;
@@ -52,26 +87,15 @@ async function load() {
     const nextOrder = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     order.value = nextOrder;
+    void loadReviewable();
     try {
-      logistics.value = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
+      const nextLogistics = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
       if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+      logistics.value = nextLogistics;
     } catch {
       if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       logistics.value = undefined;
       logisticsError.value = '物流信息加载失败，请稍后重试。';
-    }
-    if (!userStore.isBuyerActive && (order.value.status === 'COMPLETED' || order.value.status === 'WARRANTY')) {
-      try {
-        const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
-        if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-        reviewable.value = result.records.some(item => String(item.orderId) === String(order.value?.id));
-      } catch {
-        if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-        // 评价资格是可选附加读取；失败时保留订单详情，仅隐藏“写评价”入口。
-        reviewable.value = false;
-      }
-    } else {
-      reviewable.value = false;
     }
   } catch {
     if (!isCurrent()) return;
@@ -80,18 +104,25 @@ async function load() {
     reviewable.value = false;
     loadError.value = '订单详情加载失败，请检查网络后重试';
   } finally {
-    if (isCurrent()) loading.value = false;
+    if (isCurrent()) {
+      loading.value = false;
+      await nextTick();
+      if (isCurrent() && route.hash === '#logistics') viewLogistics();
+    }
   }
 }
 
 onMounted(load);
 onBeforeUnmount(() => {
   actionVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
+  reviewableGuard.invalidate();
 });
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
   actionVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
   order.value = undefined;
   logistics.value = undefined;
@@ -129,6 +160,7 @@ function formatTime(value?: string | number) {
 }
 
 async function pay() {
+  if (!permissions.value.pay) return;
   if (!order.value || acting.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
@@ -148,25 +180,26 @@ async function pay() {
 }
 
 function cancel() {
+  if (!permissions.value.cancel) return;
   if (!order.value || acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
+  const operation = ++actionVersion;
   confirmationOpen.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '取消订单？',
     content: '取消后订单将不可恢复',
     okButtonProps: { status: 'danger' },
     onCancel() {
-      confirmationOpen.value = false;
+      if (operation === actionVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      const operation = ++actionVersion;
       const isCurrentAction = () => operation === actionVersion
         && String(userStore.currentUser?.id) === String(requestedUserId)
         && sameBusinessId(order.value?.id, requestedOrderId);
-      if (!isCurrentAction()) {
-        confirmationOpen.value = false;
+      if (!isCurrentAction() || !permissions.value.cancel) {
+        if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
@@ -187,24 +220,25 @@ function cancel() {
 }
 
 function confirm() {
+  if (!permissions.value.confirm) return;
   if (!order.value || acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
+  const operation = ++actionVersion;
   confirmationOpen.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
     onCancel() {
-      confirmationOpen.value = false;
+      if (operation === actionVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      const operation = ++actionVersion;
       const isCurrentAction = () => operation === actionVersion
         && String(userStore.currentUser?.id) === String(requestedUserId)
         && sameBusinessId(order.value?.id, requestedOrderId);
-      if (!isCurrentAction()) {
-        confirmationOpen.value = false;
+      if (!isCurrentAction() || !permissions.value.confirm) {
+        if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
@@ -225,11 +259,13 @@ function confirm() {
 }
 
 function goReview() {
+  if (!permissions.value.review || !reviewable.value) return;
   if (!order.value) return;
   router.push({ name: 'review-write', params: { orderId: String(order.value.id) } });
 }
 
 function goAftersale() {
+  if (!permissions.value.refund && !permissions.value.viewAftersale) return;
   if (!order.value) return;
   if (order.value.status === 'IN_AFTERSALE') {
     router.push({ name: 'aftersale-list' });
@@ -240,7 +276,7 @@ function goAftersale() {
 
 function contactShopper() {
   if (!order.value) return;
-  router.push({ name: 'im-order-group', params: { orderCode: order.value.code } });
+  router.push({ name: 'im-order-group', params: { orderCode: String(order.value.id) } });
 }
 </script>
 
@@ -248,6 +284,11 @@ function contactShopper() {
   <div class="order-detail-page shop-container">
     <a-spin :loading="loading">
       <template v-if="order">
+        <a-alert v-if="reviewableLoading" type="info">正在核对评价资格，不影响查看订单详情。</a-alert>
+        <a-alert v-if="reviewableError" type="warning">
+          {{ reviewableError }}
+          <template #action><a-button :loading="reviewableLoading" @click="loadReviewable">重新核对</a-button></template>
+        </a-alert>
         <a-card class="hero-card" :body-style="{ padding: '24px' }">
           <div class="hero-head">
             <OrderStatusTag :status="order.status" size="large" />
@@ -255,7 +296,7 @@ function contactShopper() {
               <div class="hero-code">订单号：{{ order.code }}</div>
               <div class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</div>
             </div>
-            <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" />
+            <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" />
           </div>
         </a-card>
 
@@ -267,6 +308,7 @@ function contactShopper() {
           <OrderTimeline :order="order" />
         </a-card>
 
+        <div id="logistics" ref="logisticsSection"></div>
         <a-card v-if="logistics" class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">物流状态</div>
           <div class="logistics-meta">
@@ -381,7 +423,7 @@ function contactShopper() {
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">三方群 / 客服</div>
           <a-space>
-            <a-button type="primary" @click="router.push({ name: 'im-order-group', params: { orderCode: order.code } })">
+            <a-button type="primary" @click="contactShopper">
               打开三方群 IM
             </a-button>
             <a-button @click="router.push('/im')">联系平台客服</a-button>

@@ -120,7 +120,7 @@ function scrollToList() {
         <span class="unit">U</span>
         <span class="num">{{ formatAmount(currentBalance) }}</span>
       </div>
-      <div class="hero-sub">≈ ¥{{ cnyEquiv }}</div>
+      <div class="hero-sub">≈ ¥{{ cnyEquiv }}（本地参考折算，非实时，以 USDT 结算）</div>
       <div v-if="bestApy > 0" class="apy-badge">
         <span class="apy-icon">▁▂▃▄</span>
         <span class="apy-num">{{ bestApy.toFixed(2) }}% APY</span>

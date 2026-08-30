@@ -1,6 +1,7 @@
 import { Message } from '@arco-design/web-vue';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useUserStore } from '@/stores';
+import { waitForScrollPosition } from '@/utils/scroll';
 
 export type LayoutName = 'default' | 'checkout' | 'auth';
 
@@ -78,7 +79,7 @@ const routes: RouteRecordRaw[] = [
     path: '/checkout/success/:orderId',
     name: 'checkout-success',
     component: () => import('@/views/checkout/success.vue'),
-    meta: { layout: 'checkout', title: '支付成功', requiresAuth: true }
+    meta: { layout: 'checkout', title: '支付结果', requiresAuth: true }
   },
   {
     path: '/auth/login',
@@ -225,17 +226,24 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '买手钱包', requiresAuth: true, requiresBuyer: true } }
 ];
 
+let scrollController = new AbortController();
+
 export const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
-    return { top: 0 };
+  scrollBehavior(to, _from, savedPosition) {
+    if (to !== router.currentRoute.value) return false;
+    return savedPosition ? waitForScrollPosition(savedPosition, scrollController.signal) : { top: 0 };
   }
 });
 
 router.beforeEach(async to => {
+  scrollController.abort();
+  scrollController = new AbortController();
   const userStore = useUserStore();
   await userStore.init();
+  // 保留目标 URL，由 App 显示会话重试界面；不挂载受保护业务页、不误判为退出登录。
+  if (to.meta.requiresAuth && !userStore.isLoggedIn && userStore.initializationError) return true;
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     return { name: 'login', query: { redirect: to.fullPath } };
   }
@@ -251,8 +259,8 @@ router.beforeEach(async to => {
   return true;
 });
 
-router.afterEach(to => {
-  if (to.meta.title) {
+router.afterEach((to, _from, failure) => {
+  if (!failure && to.meta.title) {
     document.title = `${to.meta.title} · 油宝`;
   }
 });

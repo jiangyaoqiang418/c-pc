@@ -11,25 +11,37 @@ import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
+import { getOrderCapabilities } from '@/utils/order';
+import { RequestError } from '@/service/request/type';
+import { useReviewStore } from '@/stores/review';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+const reviewStore = useReviewStore();
 
 const orderId = computed(() => String(route.params.orderId));
 const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
+const reviewable = ref(false);
+const eligibilityError = ref('');
 const submitting = ref(false);
 const confirmationOpen = ref(false);
+const pendingOperation = computed(() => reviewStore.getPending(orderId.value));
+const submissionUnknown = computed(() => pendingOperation.value?.state === 'unknown');
+const pendingReview = computed(() => pendingOperation.value?.params);
+const submissionInFlight = computed(() => submitting.value || pendingOperation.value?.state === 'submitting');
+const initialReview = computed(() => pendingReview.value && ({ ...pendingReview.value, photoUrls: pendingReview.value.images || [] }));
+const formRef = ref<InstanceType<typeof ReviewForm>>();
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
-const reviewRouteEligible = computed(() => {
-  const status = order.value?.status;
-  return !!order.value && !userStore.isBuyerActive && (status === 'COMPLETED' || status === 'WARRANTY');
-});
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
+const reviewRouteEligible = computed(() => (reviewable.value || !!pendingReview.value) && getOrderCapabilities(order.value, userStore.currentUser?.id).review);
 
 async function load() {
+  reviewable.value = false;
+  eligibilityError.value = '';
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
   if (!userId) {
@@ -44,6 +56,15 @@ async function load() {
     const nextOrder = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
     order.value = nextOrder;
+    if (getOrderCapabilities(nextOrder, userStore.currentUser?.id).review && !pendingReview.value) {
+      try {
+        const ids = await reviewApi.findReviewableOrderIds([nextOrder.id], { signal: isCurrent.signal });
+        if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+        reviewable.value = ids.has(String(nextOrder.id));
+      } catch {
+        if (isCurrent()) eligibilityError.value = '评价资格读取失败，请重新核对';
+      }
+    }
   } catch {
     if (!isCurrent()) return;
     order.value = undefined;
@@ -55,10 +76,12 @@ async function load() {
 onMounted(load);
 onBeforeUnmount(() => {
   writeVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
 });
-watch(() => [orderId.value, userStore.currentUser?.id], () => {
+watch([orderId, () => userStore.currentUser?.id], () => {
   writeVersion += 1;
+  confirmationModal?.close();
   submitting.value = false;
   confirmationOpen.value = false;
   requestGuard.invalidate();
@@ -67,42 +90,49 @@ watch(() => [orderId.value, userStore.currentUser?.id], () => {
   void load();
 });
 
-async function onSubmit(f: { productScore: number; sellerScore: number; content: string; tags: string[]; photoUrls: string[] }) {
-  if (!order.value || !reviewRouteEligible.value || !userStore.currentUser || submitting.value || confirmationOpen.value) return;
+function onSubmit(f: { productScore: number; sellerScore: number; content: string; photoUrls: string[] }) {
+  if (!order.value) return;
+  confirmReview({ orderId: order.value.id, productScore: f.productScore, sellerScore: f.sellerScore,
+    content: f.content.trim() || undefined, images: [...f.photoUrls], anonymous: false });
+}
+
+function retryPendingReview() {
+  if (pendingReview.value) confirmReview(pendingReview.value, true);
+}
+
+function confirmReview(params: Api.RealReview.ReviewSubmitParams, restoring = false) {
+  if (!order.value || !reviewRouteEligible.value || !userStore.currentUser || submissionInFlight.value || confirmationOpen.value || (submissionUnknown.value && !restoring)) return;
+  if (!sameBusinessId(params.orderId, order.value.id)) return;
   const targetOrder = order.value;
   const requestedUserId = userStore.currentUser.id;
   const requestedOrderId = targetOrder.id;
+  const operation = ++writeVersion;
   confirmationOpen.value = true;
-  Modal.confirm({
-    title: '确认提交评价？',
-    content: '评价提交后不可修改，请确认评分和内容。',
+  confirmationModal = Modal.confirm({
+    title: restoring ? '按原评价核实并重试？' : '确认提交评价？',
+    content: restoring ? '按原订单、原评分及原内容重试。平台按订单幂等处理，已提交时返回原评价，不创建第二条。' : '评价提交后不可修改，请确认评分和内容。',
     onCancel() {
-      confirmationOpen.value = false;
+      if (operation === writeVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      const operation = ++writeVersion;
       const isCurrentWrite = () => operation === writeVersion
         && String(userStore.currentUser?.id) === String(requestedUserId)
         && sameBusinessId(order.value?.id, requestedOrderId);
-      if (!isCurrentWrite()) {
-        confirmationOpen.value = false;
+      if (!isCurrentWrite() || !reviewRouteEligible.value) {
+        if (operation === writeVersion) confirmationOpen.value = false;
         return;
       }
       submitting.value = true;
       try {
-        await reviewApi.submitReview({
-          orderId: requestedOrderId,
-          productScore: f.productScore,
-          sellerScore: f.sellerScore,
-          content: f.content.trim() || undefined,
-          images: f.photoUrls,
-          anonymous: false
-        });
+        await reviewStore.submit(params, restoring);
         if (!isCurrentWrite()) return;
+        formRef.value?.markSaved();
         Message.success('评价提交成功');
         router.push('/review');
-      } catch {
-        if (isCurrentWrite()) Message.error('提交失败，请稍后重试');
+      } catch (error) {
+        if (!isCurrentWrite()) return;
+        // RequestError 已由请求层按原始语义提示，不能再改成“提交失败，请重试”。
+        if (!(error instanceof RequestError)) Message.error('未能确认评价提交结果，请先核对已提交评价');
       } finally {
         if (operation === writeVersion) {
           submitting.value = false;
@@ -144,9 +174,18 @@ function handleEmptyAction() {
           </div>
         </a-card>
 
-        <ReviewForm v-if="reviewRouteEligible" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
-        <a-alert v-else type="warning" class="eligibility-alert">
-          当前订单状态或身份不可评价，请从订单列表的“写评价”入口进入。
+        <a-alert v-if="submissionUnknown" type="warning">
+          本次评价结果尚未确认，原内容保留在当前登录会话中。可查看已提交评价后返回重试；刷新或退出登录会清除本地快照，不会撤销已发出的请求。
+          <template #action><a-space><a-button :disabled="submissionInFlight || confirmationOpen" @click="retryPendingReview">按原评价重试</a-button><a-button @click="router.push('/review')">查看我的评价</a-button></a-space></template>
+        </a-alert>
+        <a-alert v-else-if="pendingOperation?.state === 'submitting'" type="info">原评价正在提交，离开页面不会取消请求，请勿重复提交。</a-alert>
+        <ReviewForm v-if="reviewRouteEligible" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${orderId}`" :initial="initialReview" :submitting="submissionInFlight || confirmationOpen || submissionUnknown" @submit="onSubmit" />
+        <a-alert v-else-if="eligibilityError" type="warning" class="eligibility-alert">
+          {{ eligibilityError }}
+          <template #action><a-button :loading="loading" @click="load">重新核对</a-button></template>
+        </a-alert>
+        <a-alert v-else-if="!loading" type="warning" class="eligibility-alert">
+          当前订单不具备评价资格（可能已评价、超过可评价期限或身份/状态不符），请从订单列表的“写评价”入口进入。
           <template #action><a-button size="mini" @click="router.push('/order')">返回订单</a-button></template>
         </a-alert>
       </template>

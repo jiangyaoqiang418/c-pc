@@ -3,9 +3,11 @@ declare namespace Api.RealPurchase {
 
   type Record = Omit<
     Api.PurchaseRequest.PurchaseRequest,
-    'id' | 'customerId' | 'categoryId' | 'pushedToBuyerIds' | 'claimedBy' | 'relatedOrderId'
+    'id' | 'customerId' | 'categoryId' | 'pushedToBuyerIds' | 'claimedBy' | 'relatedOrderId' | 'aftersaleType'
   > & {
     id: Id;
+    aftersaleType: Api.RealProduct.DisplayAfterSaleType;
+    rawAfterSaleType?: string;
     customerId: Id;
     categoryId: Id;
     pushedToBuyerIds: Id[];

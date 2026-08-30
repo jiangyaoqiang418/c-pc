@@ -5,7 +5,7 @@ import { requireArray, toPageTotal } from './page';
 const notifyRequestOptions = { skipAuthRedirect: true };
 
 export async function fetchNotifications(params: Api.RealNotify.NotificationPageQuery = {}, options: { signal?: AbortSignal } = {}) {
-  const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.NotificationVO>, Api.RealNotify.NotificationPageQuery>(
+  const page = await realNotifyRequest.postQuery<Api.RealNotify.PageResult<Api.RealNotify.NotificationVO>, Api.RealNotify.NotificationPageQuery>(
     '/notifications/page',
     params,
     { ...notifyRequestOptions, signal: options.signal }
@@ -37,7 +37,7 @@ export function clearNotifications() {
 }
 
 export async function fetchConversations(params: Api.RealNotify.PageQuery = {}, options: { signal?: AbortSignal } = {}) {
-  const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImConversationVO>, Api.RealNotify.PageQuery>(
+  const page = await realNotifyRequest.postQuery<Api.RealNotify.PageResult<Api.RealNotify.ImConversationVO>, Api.RealNotify.PageQuery>(
     '/im/conversations/page',
     params,
     { ...notifyRequestOptions, signal: options.signal }
@@ -90,11 +90,11 @@ export function deleteConversation(id: string | number) {
   });
 }
 
-export function sendConversationMessage(params: Api.RealNotify.ImSendMessageParams) {
+export function sendConversationMessage(params: Api.RealNotify.ImSendMessageParams, options: { showError?: boolean } = {}) {
   return realNotifyRequest.post<Api.RealNotify.ImMessageVO, Api.RealNotify.ImSendMessageParams>(
     '/im/messages/send',
     params,
-    notifyRequestOptions
+    { ...notifyRequestOptions, ...options }
   );
 }
 

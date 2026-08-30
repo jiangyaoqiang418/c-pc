@@ -1,10 +1,13 @@
 declare namespace Api.RealProduct {
   type Id = string | number;
 
-  type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId'> & {
+  type DisplayAfterSaleType = Api.Product.AftersaleType | 'unknown';
+  type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId' | 'aftersaleType'> & {
     id: Id;
     sellerId: Id;
     categoryId: Id;
+    aftersaleType: DisplayAfterSaleType;
+    rawAfterSaleType?: string;
   };
 
   type DisplayRecord = Api.Product.ProductRecord | Record;

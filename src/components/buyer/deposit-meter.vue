@@ -3,26 +3,29 @@ import { computed } from 'vue';
 import { formatAmount } from '@shared';
 
 interface Props {
-  available: string;
-  guaranteed: string;
+  available?: string;
+  guaranteed?: string;
   size?: 'sm' | 'lg';
 }
 const props = withDefaults(defineProps<Props>(), { size: 'lg' });
 
-function finiteAmount(value: string | number) {
+function finiteAmount(value: string | number | undefined) {
+  if (value === undefined || value === '') return undefined;
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 const availableAmount = computed(() => finiteAmount(props.available));
 const guaranteedAmount = computed(() => finiteAmount(props.guaranteed));
-const total = computed(() => availableAmount.value + guaranteedAmount.value);
-const guaranteedPct = computed(() => (total.value > 0 ? guaranteedAmount.value / total.value : 0));
+const total = computed(() => availableAmount.value === undefined || guaranteedAmount.value === undefined
+  ? undefined : availableAmount.value + guaranteedAmount.value);
+const guaranteedPct = computed(() => total.value === undefined || guaranteedAmount.value === undefined
+  ? undefined : total.value > 0 ? guaranteedAmount.value / total.value : 0);
 const ringSize = computed(() => (props.size === 'lg' ? 200 : 120));
 const ringHole = computed(() => ringSize.value - 50);
 
 const conicGradient = computed(() => {
-  if (total.value === 0) return '#f2f3f5';
+  if (!total.value || guaranteedPct.value === undefined) return '#f2f3f5';
   return `conic-gradient(#86909c 0% ${guaranteedPct.value * 100}%, #0fc6c2 ${guaranteedPct.value * 100}% 100%)`;
 });
 
@@ -58,7 +61,7 @@ const holeStyle = computed(() => ({
       </div>
       <div class="legend-row sum">
         <span class="lbl">担保占用率</span>
-        <span class="val">{{ (guaranteedPct * 100).toFixed(1) }}%</span>
+        <span class="val">{{ guaranteedPct === undefined ? '—' : `${(guaranteedPct * 100).toFixed(1)}%` }}</span>
       </div>
     </div>
   </div>

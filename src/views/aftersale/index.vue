@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { resolvePageSize } from '@/service/api/page';
 
 const router = useRouter();
+const route = useRoute();
+let syncingQuery = false;
 const userStore = useUserStore();
 const activeKey = ref('all');
 const activeStatus = computed(() => activeKey.value === 'all' ? undefined : activeKey.value);
 const refunds = ref<Api.RealRefund.RefundDTO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
+const current = ref(1);
+const pageSize = ref(30);
+const total = ref(0);
 const cancellingId = ref<string | number>();
 const cancellationPending = ref(false);
 const statusDefs = [
@@ -25,6 +31,23 @@ const requestGuard = createLatestRequestGuard();
 const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
 const canCancel = (row: Api.RealRefund.RefundDTO) => String(row.status) === 'APPLYING';
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
+
+function readQuery() {
+  syncingQuery = true;
+  activeKey.value = statusDefs.find(item => item.key === route.query.status)?.key || 'all';
+  const page = Number(route.query.page);
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  syncingQuery = false;
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  void (replace ? router.replace : router.push)({ query: { ...route.query,
+    status: activeStatus.value, page: current.value > 1 ? String(current.value) : undefined } }).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -32,36 +55,57 @@ async function load() {
   if (requestedUserId === undefined) {
     loading.value = false;
     refunds.value = [];
+    total.value = 0;
     loadError.value = '';
     return;
   }
   loading.value = true;
   loadError.value = '';
   try {
-    const result = await refundApi.fetchMyRefunds({ pageNo: 1, pageSize: 30, status: activeStatus.value }, { signal: isCurrent.signal });
-    if (isCurrent() && String(userStore.currentUser?.id) === String(requestedUserId)) refunds.value = result.records || [];
+    const result = await refundApi.fetchMyRefunds({ pageNo: current.value, pageSize: pageSize.value, status: activeStatus.value }, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    pageSize.value = resolvePageSize(result, pageSize.value);
+    total.value = result.total;
+    const maxPage = Math.max(1, Math.ceil(total.value / pageSize.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      syncQuery(true);
+      return;
+    }
+    refunds.value = result.records;
   } catch {
-    if (isCurrent()) { refunds.value = []; loadError.value = '退款申请加载失败，请检查网络后重试'; }
+    if (isCurrent()) { refunds.value = []; total.value = 0; loadError.value = '退款申请加载失败，请检查网络后重试'; }
   } finally {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(() => { writeVersion += 1; requestGuard.invalidate(); });
+onMounted(() => { readQuery(); void load(); });
+onBeforeUnmount(() => { writeVersion += 1; confirmationModal?.close(); requestGuard.invalidate(); });
 watch(activeKey, () => {
+  if (syncingQuery) return;
+  current.value = 1;
+  syncQuery();
+}, { flush: 'sync' });
+watch(() => route.query, () => {
   writeVersion += 1;
+  confirmationModal?.close();
   cancellingId.value = undefined;
   cancellationPending.value = false;
+  readQuery();
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   writeVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
   refunds.value = [];
+  total.value = 0;
+  current.value = 1;
   loadError.value = '';
   cancellingId.value = undefined;
   cancellationPending.value = false;
-  void load();
+  syncQuery(true);
 });
 
 function cancel(row: Api.RealRefund.RefundDTO) {
@@ -72,8 +116,8 @@ function cancel(row: Api.RealRefund.RefundDTO) {
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancellationPending.value = true;
-  Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { writeVersion += 1; cancellationPending.value = false; }, async onOk() {
-    if (!isCurrentWrite()) { cancellationPending.value = false; return; }
+  confirmationModal = Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; }, async onOk() {
+    if (!isCurrentWrite()) return;
     cancellingId.value = refundId;
     try { await refundApi.cancelRefund(refundId); if (!isCurrentWrite()) return; Message.success('已撤销退款申请'); await load(); }
     catch { if (isCurrentWrite()) Message.error('撤销退款申请失败，请稍后重试'); }
@@ -91,6 +135,7 @@ function cancel(row: Api.RealRefund.RefundDTO) {
       <div class="meta">订单号：{{ row.orderNo || '—' }} · 退款金额：U {{ row.amount ?? '—' }}</div><p>{{ row.reason }}</p>
       <div class="actions" @click.stop><a-button size="small" @click="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})">详情</a-button><a-button v-if="canCancel(row)" size="small" status="danger" :loading="cancellingId === row.refundId" @click="cancel(row)">撤销</a-button></div>
     </a-card></template><EmptyState v-else :title="loadError || '暂无仅退款申请'" :description="loadError ? '不会展示不完整的售后数据。' : '可在待发货或待收货订单中申请仅退款'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && load()" /></a-spin>
+    <a-pagination v-if="total > pageSize" v-model:current="current" :total="total" :page-size="pageSize" :disabled="loading || cancellationPending" show-total @change="syncQuery()" />
   </div>
 </template>
 

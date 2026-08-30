@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import * as categoryApi from '@/service/api/category';
 import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
@@ -12,6 +13,10 @@ interface CategoryNode {
   level: number;
   children?: CategoryNode[];
 }
+
+const router = useRouter();
+const route = useRoute();
+let syncingSelection = false;
 
 interface TreeData {
   key: string;
@@ -44,16 +49,37 @@ function mapTree(nodes: CategoryNode[]): TreeData[] {
   }));
 }
 
-function findNode(nodes: CategoryNode[], id: string, path: string[] = []): { node: CategoryNode; path: string[] } | undefined {
+function findNode(nodes: CategoryNode[], id: string, path: string[] = [], ids: string[] = []): { node: CategoryNode; path: string[]; ids: string[] } | undefined {
   for (const n of nodes) {
     const next = [...path, n.name];
-    if (String(n.id) === id) return { node: n, path: next };
+    const nextIds = [...ids, String(n.id)];
+    if (String(n.id) === id) return { node: n, path: next, ids: nextIds };
     if (n.children) {
-      const f = findNode(n.children, id, next);
+      const f = findNode(n.children, id, next, nextIds);
       if (f) return f;
     }
   }
   return undefined;
+}
+
+function restoreCategory() {
+  if (!tree.value.length) return;
+  const queryId = typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined;
+  const id = queryId === '' ? undefined : queryId && findNode(tree.value, queryId) ? queryId : String(tree.value[0].id);
+  syncingSelection = true;
+  selectedKeys.value = id ? [id] : [];
+  syncingSelection = false;
+  if (id) {
+    expandedKeys.value = [...new Set([...expandedKeys.value, ...(findNode(tree.value, id)?.ids || [])])];
+    void pick(id);
+  } else {
+    productRequestGuard.invalidate();
+    products.value = [];
+    total.value = 0;
+    loading.value = false;
+    productLoadError.value = '';
+    breadcrumb.value = '请选择品类';
+  }
 }
 
 async function loadTree() {
@@ -66,8 +92,7 @@ async function loadTree() {
     tree.value = nextTree;
     if (tree.value.length) {
       expandedKeys.value = [String(tree.value[0].id)];
-      // 只设 selectedKeys，让 watcher 一次性接管 fetch —— 避免直接 pick 触发 watcher 重入
-      selectedKeys.value = [String(tree.value[0].id)];
+      restoreCategory();
     } else {
       selectedKeys.value = [];
       products.value = [];
@@ -107,9 +132,14 @@ async function pick(id: string) {
 }
 
 watch(selectedKeys, keys => {
+  if (syncingSelection || !tree.value.length) return;
   const id = keys[0];
-  if (id) pick(id);
-});
+  const before = route.fullPath;
+  void router.push({ query: { ...route.query, categoryId: id || '' } }).then(() => {
+    if (route.fullPath === before) restoreCategory();
+  });
+}, { flush: 'sync' });
+watch(() => route.query.categoryId, restoreCategory);
 
 onMounted(loadTree);
 onBeforeUnmount(() => {
@@ -145,6 +175,8 @@ onBeforeUnmount(() => {
         <div class="content-bar">
           <span class="content-title">{{ breadcrumb }}</span>
           <span class="content-meta">共 {{ total }} 件商品</span>
+          <a-button v-if="selectedKeys[0] && !treeError" type="text" :disabled="loading || treeLoading || !!productLoadError"
+            @click="router.push({ name: 'product-list', query: { categoryId: selectedKeys[0] } })">查看全部</a-button>
         </div>
         <a-spin :loading="loading || treeLoading" style="width: 100%">
           <div v-if="products.length" class="shop-grid-4">

@@ -13,7 +13,6 @@ interface Props {
 const props = defineProps<Props>();
 defineEmits<{
   (e: 'change-price', order: Api.RealOrder.DisplayRecord): void;
-  (e: 'upload-proof', order: Api.RealOrder.DisplayRecord): void;
   (e: 'upload-shipping', order: Api.RealOrder.DisplayRecord): void;
   (e: 'manage-logistics', order: Api.RealOrder.DisplayRecord): void;
 }>();
@@ -25,7 +24,7 @@ function goDetail() {
   router.push({ name: 'order-detail', params: { id: String(props.order.id) } });
 }
 function goIm() {
-  router.push({ name: 'im-order-group', params: { orderCode: props.order.code } });
+  router.push({ name: 'im-order-group', params: { orderCode: String(props.order.id) } });
 }
 </script>
 
@@ -87,9 +86,10 @@ function goIm() {
         <Icon icon="lucide:badge-dollar-sign" width="14" /> 修改价格
       </button>
       <template v-else-if="order.status === 'PROCURING'">
-        <button class="btn ghost" @click="$emit('upload-proof', order)">
-          <Icon icon="lucide:upload" width="14" /> 上传采购截图
+        <button class="btn ghost" disabled title="独立上传暂不可用，可在填写发货时附上采购凭证">
+          <Icon icon="lucide:upload" width="14" /> 独立采购凭证上传暂不可用
         </button>
+        <span class="status-note">采购凭证可在填写发货时一并上传</span>
         <button class="btn primary" @click="$emit('upload-shipping', order)">
           <Icon icon="lucide:package" width="14" /> 填写发货
         </button>
@@ -267,7 +267,7 @@ function goIm() {
   color: var(--yb-ink-2);
   border-color: var(--yb-hairline);
 }
-.btn.ghost:hover {
+.btn.ghost:hover:not(:disabled) {
   background: var(--yb-surface);
   border-color: var(--yb-ink);
 }
@@ -278,6 +278,10 @@ function goIm() {
 .btn.primary:hover {
   background: var(--yb-brand-pink-2);
   transform: translateY(-1px);
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 .status-note {
   display: inline-flex;

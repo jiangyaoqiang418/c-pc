@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref } from 'vue';
+import { nextTick, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { aiApi } from '@shared';
@@ -103,14 +103,14 @@ async function send(text?: string) {
       ? `演示数据中匹配到 ${result.suggestions.length} 件相关商品，看看有没有心仪的。`
       : '演示数据中暂时没有完全匹配的商品。你可以继续体验发起求购入口。';
 
-    const botMsg: BotMsg = {
+    const botMsg = reactive<BotMsg>({
       role: 'bot',
       fullText: replyText,
       streamText: '',
       suggestions: result,
       showSuggestions: false,
       done: false
-    };
+    });
     messages.value.push(botMsg);
     scheduleStream(botMsg, () => {
       botMsg.showSuggestions = true;

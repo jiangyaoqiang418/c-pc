@@ -14,6 +14,7 @@ const id = computed(() => String(route.params.id || ''));
 const refund = ref<Api.RealRefund.RefundDTO>(); const loading = ref(false); const loadError = ref(''); const cancelling = ref(false); const cancellationPending = ref(false);
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 const labels: Record<string, string> = { APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
 const canCancel = computed(() => String(refund.value?.status) === 'APPLYING');
 const formatTime = (value?: string | number) => formatDateValue(value);
@@ -41,10 +42,11 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(() => { writeVersion += 1; requestGuard.invalidate(); });
+onMounted(load); onBeforeUnmount(() => { writeVersion += 1; confirmationModal?.close(); requestGuard.invalidate(); });
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
   writeVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
   refund.value = undefined;
   cancelling.value = false;
@@ -59,13 +61,13 @@ function cancel() {
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancellationPending.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '撤销仅退款申请？',
     content: '撤销后订单将恢复到申请前状态。',
     okButtonProps: { status: 'danger' },
-    onCancel() { writeVersion += 1; cancellationPending.value = false; },
+    onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; },
     async onOk() {
-      if (!isCurrentWrite()) { cancellationPending.value = false; return; }
+      if (!isCurrentWrite()) return;
       cancelling.value = true;
       try {
         await refundApi.cancelRefund(refundId);

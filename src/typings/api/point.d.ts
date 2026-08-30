@@ -1,8 +1,12 @@
 declare namespace Api.RealPoint {
-  type Ledger = Omit<Api.Point.LogEntry, 'id' | 'userId'> & {
+  type Ledger = Omit<Api.Point.LogEntry, 'id' | 'userId' | 'behavior'> & {
     id: string | number;
     userId: string | number;
+    behavior: string;
+    behaviorName?: string;
   };
+
+  type Rule = Omit<Api.Point.Rule, 'code'> & { code: string };
 
   interface VipBenefitItemVO {
     code: string;

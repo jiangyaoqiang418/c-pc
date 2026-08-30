@@ -179,8 +179,8 @@ function goBanner(path?: string) {
   Message.info('活动页面暂未开放');
 }
 
-function showUnavailableProductList() {
-  router.push({ name: 'product-list' });
+function goProductList(sort: realProductApi.StorefrontSort = 'DEFAULT') {
+  router.push({ name: 'product-list', query: { sort: sort === 'DEFAULT' ? undefined : sort } });
 }
 </script>
 
@@ -214,7 +214,7 @@ function showUnavailableProductList() {
           </div>
         </div>
         <div v-else class="hero-unavailable">
-          <span>{{ sectionErrors.banners ? '首页活动加载失败' : '暂无首页活动' }}</span>
+          <span>{{ sectionLoading.banners ? '正在加载首页活动…' : sectionErrors.banners ? '首页活动加载失败' : '暂无首页活动' }}</span>
           <a-button v-if="sectionErrors.banners" size="small" :loading="sectionLoading.banners" @click="sectionLoaders.banners">重新加载</a-button>
         </div>
       </div>
@@ -227,13 +227,15 @@ function showUnavailableProductList() {
       <template #action><a-button size="mini" @click="retryProductSections">重新加载</a-button></template>
     </a-alert>
 
+    <a-spin v-if="sectionLoading.recommendations || sectionLoading.hot || sectionLoading.newest || sectionLoading.flash" tip="正在加载商品栏目…" style="width: 100%; padding: 16px 0" />
+
     <!-- ============ BUYER'S PICK · 今日值得逛 ============ -->
     <section v-if="buyersPick.length" class="pick-section">
       <div class="pick-head">
         <div class="pick-eyebrow">BUYER'S PICK</div>
         <h3 class="pick-title">今日值得逛</h3>
-        <button class="pick-more" @click="showUnavailableProductList">
-          更多精选 <Icon icon="lucide:arrow-up-right" width="12" />
+        <button class="pick-more" @click="goProductList()">
+          浏览全部商品 <Icon icon="lucide:arrow-up-right" width="12" />
         </button>
       </div>
       <div class="pick-grid">
@@ -277,8 +279,8 @@ function showUnavailableProductList() {
           <h3 class="sec-title">限时秒杀</h3>
           <div class="countdown"><Icon icon="lucide:clock" width="12" /> 距结束 <span class="yb-mono">{{ flashCountdown }}</span></div>
         </div>
-        <button class="text-link" @click="showUnavailableProductList">
-          查看全部 <Icon icon="lucide:arrow-right" width="12" />
+        <button class="text-link" @click="goProductList()">
+          浏览全部商品 <Icon icon="lucide:arrow-right" width="12" />
         </button>
       </div>
       <div class="grid-4">
@@ -293,7 +295,7 @@ function showUnavailableProductList() {
           <div class="sec-tag hot"><Icon icon="lucide:trending-up" width="12" /> HOT</div>
           <h3 class="sec-title">热销榜</h3>
         </div>
-        <button class="text-link" @click="showUnavailableProductList">
+        <button class="text-link" @click="goProductList('SALES')">
           查看全部 <Icon icon="lucide:arrow-right" width="12" />
         </button>
       </div>
@@ -309,7 +311,7 @@ function showUnavailableProductList() {
           <div class="sec-tag new"><Icon icon="lucide:sparkles" width="12" /> NEW</div>
           <h3 class="sec-title">新品直邮</h3>
         </div>
-        <button class="text-link" @click="showUnavailableProductList">
+        <button class="text-link" @click="goProductList('NEW')">
           查看全部 <Icon icon="lucide:arrow-right" width="12" />
         </button>
       </div>
@@ -563,8 +565,6 @@ function showUnavailableProductList() {
   border-radius: 14px;
   overflow: hidden;
   padding: 20px;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -572,10 +572,6 @@ function showUnavailableProductList() {
 .channel-card.large {
   grid-row: span 2;
   padding: 28px;
-}
-.channel-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--yb-shadow-2);
 }
 .channel-card.bg-champagne { background: var(--yb-champagne); }
 .channel-card.bg-cream { background: #FBF7F0; }

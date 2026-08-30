@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
@@ -8,8 +8,10 @@ import EmptyState from '@/components/common/empty-state.vue';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { resolvePageSize } from '@/service/api/page';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 
 interface TabDef {
@@ -28,33 +30,41 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
+const current = ref(1);
+const pageSize = ref(20);
+const total = ref(0);
 const list = ref<Api.RealPurchase.Record[]>([]);
 const loading = ref(false);
 const allList = ref<Api.RealPurchase.Record[]>([]);
 const loadError = ref('');
 const cancelingId = ref<string | number>();
-const allListGuard = createLatestRequestGuard();
 const listGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 let disposed = false;
 
-async function loadAll() {
-  await userStore.init();
-  if (disposed) return;
-  const user = userStore.currentUser;
-  const isCurrent = allListGuard.begin();
-  if (!user || disposed) {
-    allList.value = [];
-    return;
-  }
-  try {
-    const r = await purchaseApi.fetchMyPurchases(user.id, undefined, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
-    allList.value = r.records;
-  } catch {
-    if (!isCurrent()) return;
-    allList.value = [];
-  }
+function readQuery() {
+  activeKey.value = TABS.find(tab => tab.key === route.query.tab)?.key || 'all';
+  const page = Number(route.query.page);
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  const location = { query: { ...route.query, tab: activeKey.value === 'all' ? undefined : activeKey.value, page: current.value > 1 ? String(current.value) : undefined } };
+  void (replace ? router.replace(location) : router.push(location)).then(() => {
+    if (!disposed && route.fullPath === before) void load();
+  });
+}
+
+function changeTab(key: string) {
+  activeKey.value = key;
+  syncQuery();
+}
+
+function changePage(page: number) {
+  current.value = page;
+  syncQuery();
 }
 
 async function load() {
@@ -72,45 +82,57 @@ async function load() {
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const r = await purchaseApi.fetchMyPurchases(user.id, tab?.statuses, { signal: isCurrent.signal });
+    const r = await purchaseApi.fetchMyPurchases(user.id, undefined, { current: current.value, size: pageSize.value, signal: isCurrent.signal });
     if (!isCurrent()) return;
-    list.value = r.records;
+    pageSize.value = resolvePageSize(r, pageSize.value);
+    const maxPage = Math.max(1, Math.ceil(r.total / pageSize.value));
+    if (current.value > maxPage) {
+      current.value = maxPage;
+      syncQuery(true);
+      return;
+    }
+    total.value = r.total;
+    allList.value = r.records;
+    list.value = tab?.statuses ? r.records.filter(item => tab.statuses!.includes(item.status)) : r.records;
   } catch {
     if (!isCurrent()) return;
     list.value = [];
+    allList.value = [];
+    total.value = 0;
     loadError.value = '求购列表加载失败，请检查网络后重试。';
   } finally {
     if (isCurrent()) loading.value = false;
   }
 }
 
-onMounted(async () => {
-  await loadAll();
-  if (disposed) return;
-  await load();
+onMounted(() => {
+  readQuery();
+  void load();
 });
 onBeforeUnmount(() => {
   disposed = true;
   writeVersion += 1;
-  allListGuard.invalidate();
+  confirmationModal?.close();
   listGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, async (next, previous) => {
   if (disposed) return;
   if (String(next) === String(previous)) return;
   writeVersion += 1;
-  allListGuard.invalidate();
+  confirmationModal?.close();
+  current.value = 1;
+  total.value = 0;
   listGuard.invalidate();
   allList.value = [];
   list.value = [];
   loadError.value = '';
   cancelingId.value = undefined;
-  await loadAll();
-  if (disposed) return;
-  await load();
+  syncQuery(true);
 });
-watch(activeKey, () => {
-  if (!disposed) void load();
+watch(() => route.fullPath, () => {
+  if (disposed) return;
+  readQuery();
+  void load();
 });
 
 const counts = computed(() => {
@@ -130,18 +152,18 @@ function onCancel(req: Api.RealPurchase.Record) {
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancelingId.value = requestId;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '撤销求购？',
     content: '撤销后该求购将不可恢复',
     okText: '确认撤销',
     okButtonProps: { status: 'danger' },
     onCancel() {
+      if (!isCurrentWrite()) return;
       writeVersion += 1;
       cancelingId.value = undefined;
     },
     async onOk() {
       if (!isCurrentWrite()) {
-        cancelingId.value = undefined;
         return;
       }
       try {
@@ -149,8 +171,6 @@ function onCancel(req: Api.RealPurchase.Record) {
         if (!isCurrentWrite()) return;
         if (r.ok) {
           Message.success('已撤销');
-          await loadAll();
-          if (!isCurrentWrite() || disposed) return;
           await load();
         } else {
           Message.error(r.message || '撤销求购失败');
@@ -185,7 +205,8 @@ function onCancel(req: Api.RealPurchase.Record) {
     </section>
 
     <!-- ============ Tab Pills (自定义) ============ -->
-    <section class="tabs-bar" role="tablist" aria-label="我的求购状态">
+    <a-alert type="info">状态标签及数量仅筛选当前页；接口暂不支持跨页状态筛选。未按状态筛选共 {{ total }} 条，可翻页查看其余求购。</a-alert>
+    <section class="tabs-bar" role="tablist" aria-label="当前页求购状态">
       <button
         v-for="t in TABS"
         :key="t.key"
@@ -195,7 +216,7 @@ function onCancel(req: Api.RealPurchase.Record) {
         :id="`purchase-tab-${t.key}`"
         role="tab"
         :aria-selected="activeKey === t.key"
-        @click="activeKey = t.key"
+        @click="changeTab(t.key)"
       >
         <span class="tab-label">{{ t.label }}</span>
         <span v-if="counts[t.key] != null && counts[t.key] > 0" class="tab-count">{{ counts[t.key] }}</span>
@@ -218,13 +239,14 @@ function onCancel(req: Api.RealPurchase.Record) {
         <EmptyState
           v-else
           icon="lucide:inbox"
-          :title="loadError || '暂无该状态下的求购'"
+          :title="loadError || '当前页暂无该状态下的求购'"
           :description="loadError ? '不会把请求失败误显示为没有求购。' : '想要平台没有的商品？发起求购，全球买手为您代购'"
           :action-text="loadError ? '重新加载' : '发起求购'"
           @action="loadError ? load() : router.push('/purchase/create')"
         />
       </div>
     </a-spin>
+    <a-pagination v-if="total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />
   </div>
 </template>
 

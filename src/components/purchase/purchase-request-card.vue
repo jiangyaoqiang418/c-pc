@@ -5,6 +5,7 @@ import { Icon } from '@iconify/vue';
 import { enums, formatAmount } from '@shared';
 import PushTierBadge from './push-tier-badge.vue';
 import { formatDateValue } from '@/utils/date-range';
+import { getAftersaleMeta } from '@/service/api/product';
 
 interface Props {
   request: Api.RealPurchase.DisplayRecord;
@@ -21,7 +22,7 @@ defineEmits<{
 
 const router = useRouter();
 const statusMeta = computed(() => enums.PURCHASE_STATUS_META[props.request.status]);
-const aftersaleMeta = computed(() => enums.AFTERSALE_TYPE_META[props.request.aftersaleType]);
+const aftersaleMeta = computed(() => getAftersaleMeta(props.request.aftersaleType));
 
 function goDetail() {
   router.push({ name: 'purchase-detail', params: { id: String(props.request.id) } });

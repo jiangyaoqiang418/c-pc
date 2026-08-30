@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Message } from '@arco-design/web-vue';
-import { enums, formatAmount } from '@shared';
+import { formatAmount } from '@shared';
+import { getAftersaleMeta } from '@/service/api/product';
 import PriceTag from '@/components/product/price-tag.vue';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
@@ -17,7 +18,7 @@ const emit = defineEmits<{
 }>();
 
 const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
-const aftersaleMeta = computed(() => enums.AFTERSALE_TYPE_META[props.product.aftersaleType]);
+const aftersaleMeta = computed(() => getAftersaleMeta(props.product.aftersaleType));
 
 const STATUS_META: Record<Api.Product.ProductStatus, { label: string; color: string }> = {
   PENDING_AUDIT: { label: '待审核', color: 'orange' },

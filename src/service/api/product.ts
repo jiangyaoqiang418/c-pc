@@ -2,12 +2,19 @@ import { realOrderRequest } from '@/service/request';
 import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
+import { enums } from '@shared';
 
-function toAfterSaleType(value?: string): Api.Product.AftersaleType {
+export function toAfterSaleType(value?: string): Api.RealProduct.DisplayAfterSaleType {
+  if (value === 'SEVEN_DAY_NO_REASON') return '7day-no-reason';
   if (value === 'NONE') return 'none';
   if (value === 'SHOP_WARRANTY') return 'shop-warranty';
   if (value === 'NATIONAL_WARRANTY') return 'national-warranty';
-  return '7day-no-reason';
+  return 'unknown';
+}
+
+export function getAftersaleMeta(value: Api.RealProduct.DisplayAfterSaleType) {
+  return value !== 'unknown' && Object.prototype.hasOwnProperty.call(enums.AFTERSALE_TYPE_META, value)
+    ? enums.AFTERSALE_TYPE_META[value] : { label: '售后信息待确认', color: 'gray' };
 }
 
 function fromAfterSaleType(value: Api.Product.AftersaleType): Api.RealProduct.AfterSaleType {
@@ -52,6 +59,7 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     summary: dto.brief || '',
     description: dto.description || '',
     aftersaleType: toAfterSaleType(dto.afterSaleType),
+    rawAfterSaleType: dto.afterSaleType,
     overseasCustoms: !!dto.overseasClearance,
     status,
     shelfStatus: toShelfStatus(dto.status),
@@ -83,6 +91,7 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
     summary: '',
     description: '',
     aftersaleType: toAfterSaleType(dto.afterSaleType),
+    rawAfterSaleType: dto.afterSaleType,
     overseasCustoms: !!dto.overseasClearance,
     status: 'NORMAL',
     shelfStatus: 'on-shelf',
@@ -135,7 +144,7 @@ export async function fetchStorefrontProducts(q: {
   sort?: StorefrontSort | LegacyStorefrontSort;
   signal?: AbortSignal;
 }) {
-  const page = await realOrderRequest.post<
+  const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.StorefrontProductVO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.StorefrontProductPageQuery
   >('/storefront/products/page', {
@@ -158,7 +167,7 @@ export async function fetchStorefrontProducts(q: {
 }
 
 async function fetchStorefrontPage(url: string, pageSize = 20, options: { signal?: AbortSignal } = {}) {
-  const page = await realOrderRequest.post<Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO>, { pageNo: number; pageSize: number }>(
+  const page = await realOrderRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO>, { pageNo: number; pageSize: number }>(
     url,
     { pageNo: 1, pageSize },
     options
@@ -183,7 +192,7 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
     images: dto.image ? [{ url: dto.image, name: '商品图', type: 'image', sort: 0 }] : [],
     summary: '',
     description: '',
-    aftersaleType: '7day-no-reason',
+    aftersaleType: 'unknown',
     overseasCustoms: false,
     status: 'NORMAL',
     shelfStatus: 'on-shelf',
@@ -242,7 +251,7 @@ export async function cancelProductFavorite(id: string | number) {
 }
 
 export async function fetchMyFavorites(q: { current?: number; size?: number; signal?: AbortSignal } = {}) {
-  const page = await realOrderRequest.post<
+  const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.FavoritePageQuery
   >('/products/favorites/page', {
@@ -281,7 +290,7 @@ export async function fetchMyProducts(q: {
   const status = q.shelf
     ? q.shelf === 'on-shelf' ? 'ON_SALE' : 'OFF_SHELF'
     : q.status ? statusMap[q.status] : undefined;
-  const page = await realOrderRequest.post<
+  const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.ProductPageQuery
   >('/products/my/page', {
@@ -325,7 +334,7 @@ export async function createProduct(p: {
     description: p.description,
     images: p.images
   });
-  return fetchSellerProductDetail(id);
+  return id;
 }
 
 export async function toggleProductShelf(id: string | number, onShelf: boolean) {

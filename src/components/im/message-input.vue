@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { uploadImFile } from '@/service/api/notify';
+import { shouldSendOnEnter } from '@/utils/im';
 
 interface Props {
   disabled?: boolean;
@@ -22,13 +23,19 @@ type OutgoingMessage = {
   mediaFileId?: string | number;
 };
 
-const emit = defineEmits<{ (e: 'send', payload: OutgoingMessage): void }>();
+const emit = defineEmits<{
+  (e: 'send', payload: OutgoingMessage): void;
+  (e: 'media-busy', value: boolean): void;
+}>();
 
 const text = ref('');
 const sending = ref(false);
 const uploading = ref(false);
 const fileInputRef = ref<HTMLInputElement>();
 const recording = ref(false);
+const startingRecording = ref(false);
+const mediaBusy = computed(() => uploading.value || recording.value || startingRecording.value);
+watch(mediaBusy, value => emit('media-busy', value), { flush: 'sync' });
 const recordingSeconds = ref(0);
 let mediaRecorder: MediaRecorder | undefined;
 let recordingStartedAt = 0;
@@ -45,7 +52,7 @@ function clearRecordingTimer() {
 async function send() {
   const content = text.value.trim();
   if (!content) return;
-  if (props.submitting || sending.value) return;
+  if (props.submitting || sending.value || mediaBusy.value) return;
   if (props.disabled) {
     Message.warning(props.disabledText);
     return;
@@ -60,14 +67,14 @@ async function send() {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (shouldSendOnEnter(e)) {
     e.preventDefault();
     send();
   }
 }
 
 function chooseImage() {
-  if (props.disabled || props.submitting || uploading.value) return;
+  if (props.disabled || props.submitting || mediaBusy.value) return;
   fileInputRef.value?.click();
 }
 
@@ -75,7 +82,7 @@ async function onImageSelected(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = '';
-  if (!file) return;
+  if (!file || props.disabled || props.submitting || mediaBusy.value) return;
   if (!file.type.startsWith('image/')) {
     Message.warning('请选择图片文件');
     return;
@@ -87,6 +94,7 @@ async function onImageSelected(event: Event) {
     const uploaded = await uploadImFile(file, 'IM_IMAGE');
     if (operation === uploadVersion && !props.disabled) emit('send', { type: 'image', mediaFileId: uploaded.id });
   } catch (error) {
+    if (operation !== uploadVersion) return;
     Message.error(error instanceof Error ? error.message : '图片上传失败');
   } finally {
     if (operation === uploadVersion) uploading.value = false;
@@ -94,13 +102,14 @@ async function onImageSelected(event: Event) {
 }
 
 async function startRecording() {
-  if (props.disabled || props.submitting || uploading.value || recording.value) return;
+  if (props.disabled || props.submitting || mediaBusy.value) return;
   if (!canRecord.value) {
     Message.warning('当前浏览器不支持语音录制，请使用最新版 Chrome');
     return;
   }
+  const operation = ++uploadVersion;
+  startingRecording.value = true;
   try {
-    const operation = ++uploadVersion;
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     if (operation !== uploadVersion) {
       stream.getTracks().forEach(track => track.stop());
@@ -127,6 +136,7 @@ async function startRecording() {
         const uploaded = await uploadImFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }), 'IM_VOICE', duration);
         if (operation === uploadVersion && !props.disabled) emit('send', { type: 'audio', mediaFileId: uploaded.id });
       } catch (error) {
+        if (operation !== uploadVersion) return;
         Message.error(error instanceof Error ? error.message : '语音上传失败');
       } finally {
         if (operation === uploadVersion) {
@@ -141,7 +151,9 @@ async function startRecording() {
       recordingSeconds.value = Math.floor((Date.now() - recordingStartedAt) / 1000);
     }, 1000);
   } catch {
-    Message.warning('无法使用麦克风，请检查浏览器权限后重试');
+    if (operation === uploadVersion) Message.warning('无法使用麦克风，请检查浏览器权限后重试');
+  } finally {
+    if (operation === uploadVersion) startingRecording.value = false;
   }
 }
 
@@ -150,6 +162,7 @@ watch(() => props.contextKey, () => {
   text.value = '';
   uploading.value = false;
   recording.value = false;
+  startingRecording.value = false;
   clearRecordingTimer();
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
 });
@@ -160,6 +173,7 @@ function stopRecording() {
 
 onBeforeUnmount(() => {
   uploadVersion += 1;
+  emit('media-busy', false);
   clearRecordingTimer();
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
 });
@@ -169,7 +183,7 @@ onBeforeUnmount(() => {
   <div class="input-area">
     <div class="toolbar">
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
-      <button class="tool-btn" type="button" title="上传聊天图片" aria-label="上传聊天图片" :disabled="disabled || submitting || uploading" @click="chooseImage">
+      <button class="tool-btn" type="button" title="上传聊天图片" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage">
         {{ uploading ? '图片上传中…' : '🖼 图片' }}
       </button>
       <button
@@ -177,7 +191,7 @@ onBeforeUnmount(() => {
         type="button"
         :title="recording ? '结束录音' : '录制语音'"
         :aria-label="recording ? '结束录音' : '录制语音'"
-        :disabled="disabled || submitting || uploading || !canRecord"
+        :disabled="disabled || submitting || uploading || startingRecording || !canRecord"
         @click="recording ? stopRecording() : startRecording()"
       >
         {{ recording ? `■ 结束录音 ${recordingSeconds}s` : uploading ? '语音上传中…' : '🎙 语音' }}
@@ -193,7 +207,7 @@ onBeforeUnmount(() => {
     />
     <div class="footer">
       <span class="hint">Enter 发送 · Shift+Enter 换行</span>
-      <a-button type="primary" :disabled="disabled || submitting || !text.trim()" :loading="sending || submitting" @click="send">发送</a-button>
+      <a-button type="primary" :disabled="disabled || submitting || mediaBusy || !text.trim()" :loading="sending || submitting" @click="send">发送</a-button>
     </div>
   </div>
 </template>

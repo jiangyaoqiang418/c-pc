@@ -71,7 +71,7 @@ export function priceSet(usdt: string | number | null | undefined) {
     usdt: formatUsdt(usdt),
     usdtRaw: String(usdt ?? ''),
     rate,
-    rateLabel: `1 USDT = ¥${rate.toFixed(2)}`
+    rateLabel: `本地参考折算 · 1 USDT = ¥${rate.toFixed(2)}（非实时，以 USDT 结算）`
   };
 }
 
@@ -80,4 +80,4 @@ export const TAX_TOOLTIP_TEXT =
   '税费按发货地 → 收货地距离计算。中国大陆收货：多数商品无额外税费；非中国大陆收货（港澳台/海外）：可能产生清关税费，请以实际清关为准。';
 
 /** 汇率来源提示（可选显示） */
-export const RATE_SOURCE_TEXT = '汇率来源 OKX · 每 5 分钟刷新';
+export const RATE_SOURCE_TEXT = '本地参考折算，非实时汇率，以 USDT 结算';

@@ -17,7 +17,6 @@ type RealtimeListener = (event: NotifyRealtimeEvent) => void;
 const HEARTBEAT_MS = 25_000;
 const READY_TIMEOUT_MS = 10_000;
 const MAX_RECONNECT_MS = 30_000;
-const listeners = new Set<RealtimeListener>();
 
 function normalizeUnreadCount(value: unknown) {
   const parsed = Number(value);
@@ -37,11 +36,13 @@ function framePayload<T>(frame: Api.RealNotify.SocketFrame<unknown>): T {
 }
 
 export const useNotifyStore = defineStore('bw-notify', () => {
+  const listeners = new Set<RealtimeListener>();
   const notificationUnreadCount = ref(0);
   const imUnreadCount = ref(0);
   const socketState = ref<'idle' | 'connecting' | 'open' | 'closed'>('idle');
 
   let socket: WebSocket | undefined;
+  let socketToken = '';
   let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   let readyTimer: ReturnType<typeof setTimeout> | undefined;
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -51,7 +52,10 @@ export const useNotifyStore = defineStore('bw-notify', () => {
   let lifecycleBound = false;
   let heartbeatIntervalMs = HEARTBEAT_MS;
   let unreadRefreshVersion = 0;
+  let unreadRefreshTimer: ReturnType<typeof setTimeout> | undefined;
   const unreadRequestGuard = createLatestRequestGuard();
+  let readSessionVersion = 0;
+  const notificationReads = new Map<string, { token: string; marker: symbol; task: Promise<boolean> }>();
 
   const totalUnreadCount = computed(() => notificationUnreadCount.value + imUnreadCount.value);
 
@@ -90,6 +94,42 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     }
   }
 
+  function scheduleUnreadRefresh() {
+    if (unreadRefreshTimer || !getAccessToken()) return;
+    unreadRefreshTimer = setTimeout(() => {
+      unreadRefreshTimer = undefined;
+      void refreshUnreadCounts();
+    }, 100);
+  }
+
+  function readNotification(id: string | number): Promise<boolean> {
+    const token = getAccessToken();
+    if (!token) return Promise.resolve(false);
+    const key = String(id);
+    const pending = notificationReads.get(key);
+    if (pending?.token === token) return pending.task;
+    const version = readSessionVersion;
+    const marker = Symbol();
+    const task = (async () => {
+      try {
+        await Promise.resolve();
+        if (version !== readSessionVersion || getAccessToken() !== token) return false;
+        await notifyApi.markNotificationRead({ id });
+        if (version !== readSessionVersion || getAccessToken() !== token) return false;
+        // 详情跳转后仍核对全局角标，不用本地减一覆盖并发通知或全部已读的结果。
+        scheduleUnreadRefresh();
+        return true;
+      } catch {
+        // 请求层反馈失败；不伪造已读，也不阻塞业务详情导航。
+        return false;
+      } finally {
+        if (notificationReads.get(key)?.marker === marker) notificationReads.delete(key);
+      }
+    })();
+    notificationReads.set(key, { token, marker, task });
+    return task;
+  }
+
   function clearHeartbeat() {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     heartbeatTimer = undefined;
@@ -103,13 +143,14 @@ export const useNotifyStore = defineStore('bw-notify', () => {
 
   function startHeartbeat(interval = HEARTBEAT_MS) {
     clearHeartbeat();
+    const connection = socket;
     heartbeatTimer = setInterval(() => {
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      if (!connection || socket !== connection || connection.readyState !== WebSocket.OPEN) return;
       if (missedPongs >= 2) {
-        socket.close(4000, 'heartbeat timeout');
+        connection.close(4000, 'heartbeat timeout');
         return;
       }
-      socket.send(JSON.stringify({ type: 'PING' }));
+      connection.send(JSON.stringify({ type: 'PING' }));
       missedPongs += 1;
     }, interval);
   }
@@ -151,14 +192,17 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       return;
     }
     if (type === 'IM_MESSAGE') {
+      scheduleUnreadRefresh();
       emit({ type, payload: framePayload<Api.RealNotify.ImMessageVO>(frame) });
       return;
     }
     if (type === 'IM_READ') {
+      scheduleUnreadRefresh();
       emit({ type, payload: framePayload<Api.RealNotify.ImReadEvent>(frame) });
       return;
     }
     if (type === 'IM_RECALL') {
+      scheduleUnreadRefresh();
       emit({ type, payload: framePayload<Api.RealNotify.ImRecallEvent>(frame) });
       return;
     }
@@ -177,24 +221,31 @@ export const useNotifyStore = defineStore('bw-notify', () => {
 
   function connect() {
     const token = getAccessToken();
+    if (socket && socketToken !== token) disconnect();
     if (!token || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return;
     manuallyClosed = false;
     socketState.value = 'connecting';
     const realtime = realtimeURL(token);
-    socket = new WebSocket(realtime.url, realtime.protocols);
+    const connection = new WebSocket(realtime.url, realtime.protocols);
+    socket = connection;
+    socketToken = token;
+    const isCurrent = () => socket === connection && !manuallyClosed && token === getAccessToken();
 
-    socket.onopen = () => {
+    connection.onopen = () => {
+      if (!isCurrent()) return;
       readyTimer = setTimeout(() => {
-        if (socket?.readyState === WebSocket.OPEN) socket.close(4001, 'ready timeout');
+        if (isCurrent() && connection.readyState === WebSocket.OPEN) connection.close(4001, 'ready timeout');
       }, READY_TIMEOUT_MS);
     };
-    socket.onmessage = event => {
+    connection.onmessage = event => {
+      if (!isCurrent()) return;
       if (typeof event.data === 'string') handleFrame(event.data);
     };
-    socket.onerror = () => {
-      socket?.close();
+    connection.onerror = () => {
+      if (isCurrent()) connection.close();
     };
-    socket.onclose = () => {
+    connection.onclose = () => {
+      if (socket !== connection) return;
       socket = undefined;
       clearReadyTimeout();
       clearHeartbeat();
@@ -206,15 +257,24 @@ export const useNotifyStore = defineStore('bw-notify', () => {
 
   function disconnect() {
     manuallyClosed = true;
+    readSessionVersion += 1;
+    notificationReads.clear();
     unreadRefreshVersion += 1;
     unreadRequestGuard.invalidate();
+    if (unreadRefreshTimer) clearTimeout(unreadRefreshTimer);
+    unreadRefreshTimer = undefined;
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
     clearReadyTimeout();
     clearHeartbeat();
     heartbeatIntervalMs = HEARTBEAT_MS;
-    if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, 'logout');
+    const connection = socket;
     socket = undefined;
+    socketToken = '';
+    if (connection) {
+      connection.onopen = connection.onmessage = connection.onerror = connection.onclose = null;
+      if (connection.readyState < WebSocket.CLOSING) connection.close(1000, 'logout');
+    }
     socketState.value = 'idle';
     notificationUnreadCount.value = 0;
     imUnreadCount.value = 0;
@@ -256,6 +316,8 @@ export const useNotifyStore = defineStore('bw-notify', () => {
     bindLifecycle,
     subscribe,
     refreshUnreadCounts,
+    scheduleUnreadRefresh,
+    readNotification,
     setImUnreadCount,
     setNotificationUnreadCount
   };

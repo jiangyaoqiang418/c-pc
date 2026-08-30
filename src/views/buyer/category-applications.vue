@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -28,13 +29,15 @@ const filter = reactive<{
   status?: Api.RealCategory.CategoryApplyStatus;
 }>({});
 const form = reactive({
-  parentPath: [] as string[],
+  parentId: undefined as string | undefined,
   newName: '',
   reason: ''
 });
 const requestGuard = createLatestRequestGuard();
 const categoriesGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let modalVersion = 0;
+watch(modalOpen, () => { modalVersion += 1; }, { flush: 'sync' });
 
 function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): CategoryOption[] {
   return nodes.filter(node => node.level < 3).map(node => ({
@@ -64,6 +67,7 @@ async function load() {
       status: filter.status
     }, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    size.value = resolvePageSize(result, size.value);
     const maxPage = Math.max(1, Math.ceil(result.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -97,7 +101,8 @@ async function loadCategories() {
 }
 
 function openSubmit() {
-  form.parentPath = [];
+  modalVersion += 1;
+  form.parentId = undefined;
   form.newName = '';
   form.reason = '';
   modalOpen.value = true;
@@ -116,18 +121,19 @@ async function submit() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
+  const submittedModalVersion = modalVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     try {
       await categoryApi.submitCategoryApplication({
-        parentId: form.parentPath[form.parentPath.length - 1],
+        parentId: form.parentId || undefined,
         newName: form.newName.trim(),
         reason: form.reason.trim()
       });
       if (!isCurrentWrite()) return;
       Message.success('分类申请已提交');
-      modalOpen.value = false;
+      if (submittedModalVersion === modalVersion) modalOpen.value = false;
       current.value = 1;
       await load();
     } catch {
@@ -241,11 +247,11 @@ watch(() => userStore.currentUser?.id, () => {
       <a-pagination :total="total" :current="current" :page-size="size" show-total @change="(p: number) => { current = p; load(); }" />
     </div>
 
-    <a-modal v-model:visible="modalOpen" title="提交分类申请" :ok-loading="submitting" @ok="submit">
+    <a-modal v-model:visible="modalOpen" title="提交分类申请" :ok-loading="submitting" :on-before-ok="() => { void submit(); return false; }">
       <a-form :model="form" layout="vertical">
         <a-form-item label="上级分类">
           <a-cascader
-            v-model="form.parentPath"
+            v-model="form.parentId"
             :options="categoryOptions"
             placeholder="不选择则申请顶级分类"
             check-strictly

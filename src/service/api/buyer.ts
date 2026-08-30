@@ -6,8 +6,8 @@ export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
   return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application', options);
 }
 
-export function submitBuyerApplication(params: Api.RealBuyer.BuyerApplyParams) {
-  return realUserRequest.post<void, Api.RealBuyer.BuyerApplyParams>('/buyer/apply', params);
+export function submitBuyerApplication(params: Api.RealBuyer.BuyerApplyParams, options: { showError?: boolean } = {}) {
+  return realUserRequest.post<void, Api.RealBuyer.BuyerApplyParams>('/buyer/apply', params, options);
 }
 
 function toDepositTxn(dto: Api.RealBuyer.DepositLedgerDTO): Api.RealBuyer.DepositLedger {
@@ -33,7 +33,7 @@ export async function fetchBuyerDepositLedger(
   params: Api.RealBuyer.DepositLedgerPageQuery = {},
   options: { signal?: AbortSignal } = {}
 ) {
-  const page = await realUserRequest.post<Api.RealBuyer.DepositPageResult, Api.RealBuyer.DepositLedgerPageQuery>(
+  const page = await realUserRequest.postQuery<Api.RealBuyer.DepositPageResult, Api.RealBuyer.DepositLedgerPageQuery>(
     '/buyer/deposit/page',
     params,
     options
@@ -47,10 +47,10 @@ export async function fetchBuyerDepositLedger(
   };
 }
 
-export function payBuyerDeposit(params: Api.RealBuyer.DepositOperationParams) {
-  return realUserRequest.post<string | number, Api.RealBuyer.DepositOperationParams>('/buyer/deposit/pay', params);
+export function payBuyerDeposit(params: Api.RealBuyer.DepositOperationParams, options: { showError?: boolean } = {}) {
+  return realUserRequest.post<string | number, Api.RealBuyer.DepositOperationParams>('/buyer/deposit/pay', params, options);
 }
 
-export function refundBuyerDeposit(params: Api.RealBuyer.DepositOperationParams) {
-  return realUserRequest.post<string | number, Api.RealBuyer.DepositOperationParams>('/buyer/deposit/refund', params);
+export function refundBuyerDeposit(params: Api.RealBuyer.DepositOperationParams, options: { showError?: boolean } = {}) {
+  return realUserRequest.post<string | number, Api.RealBuyer.DepositOperationParams>('/buyer/deposit/refund', params, options);
 }

@@ -6,6 +6,7 @@ import AddressForm from '@/components/profile/address-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { RequestError } from '@/service/request';
 
 const userStore = useUserStore();
 
@@ -21,7 +22,10 @@ const deletionPending = ref(false);
 const requestGuard = createLatestRequestGuard();
 let defaultWriteVersion = 0;
 let deleteWriteVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 let submitWriteVersion = 0;
+let modalVersion = 0;
+watch(modalOpen, () => { modalVersion += 1; }, { flush: 'sync' });
 
 async function load() {
   const currentUser = userStore.currentUser;
@@ -50,6 +54,7 @@ async function load() {
 }
 onMounted(load);
 onBeforeUnmount(() => {
+  confirmationModal?.close();
   defaultWriteVersion += 1;
   deleteWriteVersion += 1;
   submitWriteVersion += 1;
@@ -57,6 +62,7 @@ onBeforeUnmount(() => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  confirmationModal?.close();
   defaultWriteVersion += 1;
   deleteWriteVersion += 1;
   submitWriteVersion += 1;
@@ -71,11 +77,13 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 
 function openAdd() {
+  modalVersion += 1;
   editing.value = {};
   modalOpen.value = true;
 }
 
 function openEdit(a: Api.RealAddress.AddressRecord) {
+  modalVersion += 1;
   editing.value = { ...a };
   modalOpen.value = true;
 }
@@ -108,22 +116,21 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
   const operation = ++deleteWriteVersion;
   const isCurrentWrite = () => operation === deleteWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   deletionPending.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '删除地址？',
     content: `${a.receiverName} · ${a.detail}`,
     okText: '确认删除',
     okButtonProps: { status: 'danger' },
     onCancel() {
+      if (!isCurrentWrite()) return;
       deleteWriteVersion += 1;
       deletionPending.value = false;
     },
     async onOk() {
-      deletingId.value = addressId;
       if (!isCurrentWrite()) {
-        deletingId.value = undefined;
-        deletionPending.value = false;
         return;
       }
+      deletingId.value = addressId;
       try {
         await realAddressApi.deleteAddress(addressId);
         if (!isCurrentWrite()) return;
@@ -147,6 +154,7 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
   const operation = ++submitWriteVersion;
   const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   const editingId = editing.value?.id;
+  const submittedModalVersion = modalVersion;
   submitting.value = true;
   try {
     const params: Api.RealAddress.AddressSaveParams = {
@@ -168,10 +176,12 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
       else await realAddressApi.createAddress(params);
       if (!isCurrentWrite()) return;
       Message.success(editingId ? '已更新' : '已添加');
-      modalOpen.value = false;
+      if (submittedModalVersion === modalVersion) modalOpen.value = false;
       await load();
-    } catch {
-      // 请求层已展示错误，保留表单供用户修改后重试。
+      if (isCurrentWrite() && loadError.value) Message.warning('地址已保存，但列表读取失败，请重新加载，勿重复新增');
+    } catch (error) {
+      if (error instanceof RequestError && error.code === 'UNKNOWN_OPERATION_RESULT') Message.warning(error.message);
+      // 普通业务错误由请求层展示；缺失成功编号需在页面明确提示核实。
     }
   } finally {
     if (operation === submitWriteVersion) submitting.value = false;

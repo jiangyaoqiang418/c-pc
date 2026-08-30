@@ -2,20 +2,25 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { enums } from '@shared';
+import { getAftersaleMeta } from '@/service/api/product';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
+  demo?: boolean;
 }
 const props = defineProps<Props>();
 
 const router = useRouter();
 const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
-const aftersale = computed(() => enums.AFTERSALE_TYPE_META[props.product.aftersaleType]);
+const aftersale = computed(() => getAftersaleMeta(props.product.aftersaleType));
 
 function goDetail() {
+  if (props.demo) {
+    router.push({ name: 'product-list', query: { keyword: props.product.title } });
+    return;
+  }
   router.push({ name: 'product-detail', params: { id: String(props.product.id) } });
 }
 
@@ -25,6 +30,7 @@ function goDetail() {
   <div
     class="pc-product-card"
     role="button"
+    :aria-label="demo ? `搜索真实商品：${product.title}` : undefined"
     tabindex="0"
     @click="goDetail"
     @keydown.enter="goDetail"
@@ -48,7 +54,7 @@ function goDetail() {
       </div>
       <div class="tags-row">
         <span class="tag-pill">
-          <Icon :icon="aftersale.label.includes('7天') ? 'lucide:refresh-ccw' : aftersale.label.includes('店保') ? 'lucide:shield-check' : aftersale.label.includes('国保') ? 'lucide:badge-check' : 'lucide:x-circle'" width="11" />
+          <Icon :icon="product.aftersaleType === 'unknown' ? 'lucide:circle-help' : aftersale.label.includes('7天') ? 'lucide:refresh-ccw' : aftersale.label.includes('店保') ? 'lucide:shield-check' : aftersale.label.includes('国保') ? 'lucide:badge-check' : 'lucide:x-circle'" width="11" />
           {{ aftersale.label }}
         </span>
         <span class="sales">销量 {{ product.salesCount || 0 }}</span>

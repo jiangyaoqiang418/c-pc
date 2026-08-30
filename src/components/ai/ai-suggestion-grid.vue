@@ -40,12 +40,14 @@ function inducePurchase() {
         <a-button type="primary" @click="inducePurchase">一键发起求购 ›</a-button>
       </div>
 
-      <div v-if="result.suggestions.length" class="grid">
-        <ProductCard v-for="p in result.suggestions" :key="p.id" :product="p" />
-      </div>
+      <template v-if="result.suggestions.length">
+        <p>以下为演示推荐；点击卡片按商品名称搜索真实在售商品，不直接进入演示商品详情。</p>
+        <div class="grid">
+          <ProductCard v-for="p in result.suggestions" :key="p.id" :product="p" demo />
+        </div>
+      </template>
 
-      <EmptyState
-        v-else
+      <EmptyState v-else
         title="没有找到匹配商品"
         description="试试更具体的关键词，或发起求购"
         action-text="发起求购"

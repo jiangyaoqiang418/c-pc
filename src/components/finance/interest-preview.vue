@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { formatAmount, formatRate } from '@shared';
+import { financeSubscriptionIssue } from '@/service/api/finance';
 
 interface Props {
   product: Api.RealFinance.FinanceProductVO;
   availableBalance?: string;
   submitting?: boolean;
+  disabledReason?: string;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'subscribe', amount: string): void }>();
@@ -14,6 +16,7 @@ const amount = ref<number>();
 amount.value = Number(props.product.minAmount) || 100;
 
 const annualRate = computed(() => {
+  if (props.product.annualRate === undefined || props.product.annualRate === null || String(props.product.annualRate).trim() === '') return undefined;
   const parsed = Number(props.product.annualRate);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 });
@@ -22,9 +25,11 @@ const lockDays = computed(() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 });
 const normalizedAmount = computed(() => Number.isFinite(amount.value) ? Number(amount.value) : 0);
-const expectedInterest = computed(() => (
-  normalizedAmount.value * (annualRate.value ?? 0) * (lockDays.value ?? 0) / 365
-).toFixed(8));
+const expectedInterest = computed(() => {
+  if (amount.value === undefined || !Number.isFinite(amount.value) || amount.value < 0
+    || annualRate.value === undefined || lockDays.value === undefined) return undefined;
+  return (amount.value * annualRate.value * lockDays.value / 365).toFixed(8);
+});
 const maturityDate = computed(() => lockDays.value === undefined
   ? '—'
   : new Date(Date.now() + lockDays.value * 86400_000).toLocaleDateString());
@@ -39,12 +44,15 @@ const max = computed(() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 });
 const balance = computed(() => {
-  if (props.availableBalance === undefined || props.availableBalance === null || props.availableBalance === '') return 0;
+  if (props.availableBalance === undefined || props.availableBalance === null || props.availableBalance === '') return undefined;
   const parsed = Number(props.availableBalance);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 });
 
 const errMsg = computed(() => {
+  if (props.disabledReason) return props.disabledReason;
+  const statusIssue = financeSubscriptionIssue(props.product);
+  if (statusIssue) return statusIssue;
   if (amount.value === undefined || !Number.isFinite(amount.value)) return '请输入投入金额';
   if (lockDays.value === undefined) return '产品锁定期限无效，暂不可申购';
   if (annualRate.value === undefined) return '产品年化利率无效，暂不可申购';
@@ -76,7 +84,7 @@ watch(
     <div class="card-title">利息预估</div>
     <div class="input-row">
       <span class="lbl">投链上充值额</span>
-      <a-input-number v-model="amount" :min="0" :precision="2" size="large" class="amount-input" />
+      <a-input-number v-model="amount" :min="0" :precision="2" :disabled="submitting" size="large" class="amount-input" />
       <span class="suffix">U</span>
     </div>
     <div v-if="errMsg" class="err">{{ errMsg }}</div>
@@ -100,7 +108,7 @@ watch(
     </div>
     <div class="result-row highlight">
       <div class="lbl">预计利息</div>
-      <div class="val interest">+ U {{ formatAmount(expectedInterest) }}</div>
+      <div class="val interest">{{ expectedInterest === undefined ? '待确认' : '+ U ' + formatAmount(expectedInterest) }}</div>
     </div>
 
     <a-button

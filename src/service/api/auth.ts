@@ -1,5 +1,6 @@
-import { clearAccessToken, getAccessToken, realUserRequest, setAccessToken } from '@/service/request';
-import { toFiniteNumber } from './number';
+import { clearAccessToken, realUserRequest } from '@/service/request';
+import type { RequestOptions } from '@/service/request';
+import { toOptionalFiniteNumber } from './number';
 
 function normalizeKycStatus(status?: string): Api.User.KycStatus {
   const value = status?.toLowerCase();
@@ -10,9 +11,9 @@ function normalizeKycStatus(status?: string): Api.User.KycStatus {
   return 'none';
 }
 
-function normalizeVipLevel(level?: string): Api.User.VipLevel {
-  if (level === 'VIP1' || level === 'VIP2') return level;
-  return 'VIP0';
+function normalizeVipLevel(level?: string): Api.User.VipLevel | undefined {
+  if (level === 'VIP0' || level === 'VIP1' || level === 'VIP2') return level;
+  return undefined;
 }
 
 function hasBuyerRole(roles?: string[]) {
@@ -26,7 +27,7 @@ function toUserRecord(
 ): Api.RealSession.UserRecord {
   const roles = profile.roles || [];
   const id = profile.userId || fallback?.userId || '';
-  const points = toFiniteNumber(pointAccount?.points ?? profile.points ?? 0);
+  const points = toOptionalFiniteNumber(pointAccount?.points ?? profile.points);
   const isBuyer = hasBuyerRole(roles);
   const roleInfo = isBuyer ? pointAccount?.buyer : pointAccount?.customer;
 
@@ -41,42 +42,49 @@ function toUserRecord(
     status: '1',
     points,
     vipLevel: normalizeVipLevel(roleInfo?.level),
+    accountInfoUnavailable: !pointAccount || points === undefined || normalizeVipLevel(roleInfo?.level) === undefined,
     tagIds: [],
     registeredAt: ''
   };
 }
 
 export async function login(params: Api.RealAuth.LoginParams) {
-  const loginResult = await realUserRequest.post<Api.RealAuth.LoginVO>('/auth/login', params);
-  const previousToken = getAccessToken();
-  setAccessToken(loginResult.token);
-  try {
-    const profile = await fetchCurrentUser(loginResult);
-    return { token: loginResult.token, user: profile };
-  } catch (error) {
-    // 登录后的会话补全失败时恢复旧 token，避免 UI 仍显示旧账号但请求已切到新账号。
-    // 只有当前 token 仍是本次登录返回的 token 时才恢复，避免并发登录把更新的会话覆盖掉。
-    if (getAccessToken() === loginResult.token) {
-      if (previousToken) setAccessToken(previousToken);
-      else clearAccessToken();
-    }
-    throw error;
-  }
+  const loginResult = await realUserRequest.post<Api.RealAuth.LoginVO>('/auth/login', params, { skipAuthRedirect: true, showError: false });
+  if (!loginResult.token) throw new Error('登录未返回有效凭证');
+  const profile = await fetchCurrentUser(loginResult, {
+    skipAuthRedirect: true,
+    showError: false,
+    deferAccount: true,
+    headers: { 'X-Access-Token': loginResult.token }
+  });
+  return { token: loginResult.token, user: profile };
 }
 
 export async function register(params: Api.RealAuth.RegisterParams) {
-  return realUserRequest.post<string>('/auth/register', params);
+  return realUserRequest.post<string>('/auth/register', params, { skipAuthRedirect: true });
+}
+
+export function prepareRegistration(form: { email: string; nickname: string; password: string; confirm: string }) {
+  const params = { email: form.email.trim(), nickname: form.nickname.trim(), password: form.password, roles: ['CUSTOMER'] };
+  let error = '';
+  if (!params.email || !params.nickname || !params.password) error = '请完善信息，邮箱和昵称不能只填写空格';
+  else if (!/^[^\s@]+@[^\s@]+$/.test(params.email)) error = '请输入正确的邮箱地址';
+  else if (params.password.length < 6 || params.password.length > 64) error = '密码长度应为 6–64 位';
+  else if (params.password !== form.confirm) error = '两次密码不一致';
+  return { params, error };
 }
 
 export async function fetchCurrentUser(
   fallback?: Partial<Api.RealAuth.LoginVO>,
-  options: { signal?: AbortSignal } = {}
+  options: Pick<RequestOptions, 'signal' | 'skipAuthRedirect' | 'headers' | 'showError'> & { deferAccount?: boolean } = {}
 ) {
-  const profile = await realUserRequest.get<Api.RealAuth.UserProfileVO>('/auth/me', options);
+  const { deferAccount, ...requestOptions } = options;
+  const profile = await realUserRequest.get<Api.RealAuth.UserProfileVO>('/auth/me', requestOptions);
+  if (deferAccount) return toUserRecord(profile, fallback);
   let pointAccount: Api.RealPoint.UserPointVO | undefined;
   try {
     pointAccount = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', {
-      ...options,
+      ...requestOptions,
       showError: false
     });
   } catch (error) {
@@ -86,9 +94,16 @@ export async function fetchCurrentUser(
   return toUserRecord(profile, fallback, pointAccount);
 }
 
+/** 登录身份先完成，积分/等级单独补充，不影响登录态。 */
+export async function fetchUserAccountInfo(user: Api.RealSession.UserRecord) {
+  const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', { showError: false, skipAuthRedirect: true });
+  const points = toOptionalFiniteNumber(account?.points ?? user.points);
+  const vipLevel = normalizeVipLevel((user.isBuyer ? account?.buyer : account?.customer)?.level);
+  return { points, vipLevel, accountInfoUnavailable: points === undefined || vipLevel === undefined };
+}
+
 export async function updateProfile(params: Api.RealAuth.ProfileUpdateParams) {
   await realUserRequest.put<void, Api.RealAuth.ProfileUpdateParams>('/auth/profile', params);
-  return fetchCurrentUser();
 }
 
 export function logoutLocal() {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
@@ -11,6 +12,7 @@ import * as realOrderApi from '@/service/api/order';
 import { enums } from '@shared';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
+import { getOrderCapabilities } from '@/utils/order';
 
 const userStore = useUserStore();
 const route = useRoute();
@@ -26,7 +28,6 @@ const TABS: TabDef[] = [
   { key: 'all', label: '全部' },
   { key: 'pending-payment', label: '待付款', statuses: ['PENDING_PAYMENT'] },
   { key: 'procuring', label: '采购中', statuses: ['PROCURING'] },
-  { key: 'procured', label: '待发货', statuses: ['PROCURED'] },
   { key: 'shipping', label: '运输中', statuses: ['IN_TRANSIT', 'AFTERSALE_CONFIRM'] },
   { key: 'done', label: '已完成', statuses: ['COMPLETED', 'WARRANTY', 'ARCHIVED'] }
 ];
@@ -49,9 +50,14 @@ const logisticsModalOpen = ref(false);
 const logisticsSubmitting = ref(false);
 const logisticsOrder = ref<Api.RealOrder.Record>();
 const requestGuard = createLatestRequestGuard();
+const actionGuard = createLatestRequestGuard();
 let logisticsWriteVersion = 0;
 let shippingWriteVersion = 0;
 let priceWriteVersion = 0;
+let shippingModalVersion = 0;
+let logisticsModalVersion = 0;
+watch(shippingModalOpen, () => { shippingModalVersion += 1; }, { flush: 'sync' });
+watch(logisticsModalOpen, () => { logisticsModalVersion += 1; }, { flush: 'sync' });
 
 function syncFromQuery() {
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
@@ -97,6 +103,7 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -120,6 +127,7 @@ onMounted(() => {
   void load();
 });
 onBeforeUnmount(() => {
+  actionGuard.invalidate();
   logisticsWriteVersion += 1;
   shippingWriteVersion += 1;
   priceWriteVersion += 1;
@@ -161,32 +169,52 @@ function changePage(page: number) {
   syncQuery();
 }
 
-function onUploadProof() {
-  Message.info('采购凭证绑定订单接口暂未提供');
-}
-
 function onUploadShipping(order: Api.RealOrder.Record) {
+  shippingModalVersion += 1;
   shippingOrder.value = order;
   shippingModalOpen.value = true;
 }
 
 function manageLogistics(order: Api.RealOrder.Record) {
+  logisticsModalVersion += 1;
   logisticsOrder.value = order;
   logisticsModalOpen.value = true;
 }
+
+// 工作台入口只定位并读取原订单，仍使用本页已有弹窗，绝不自动执行写入。
+watch([() => route.query.action, () => route.query.orderId, () => userStore.currentUser?.id], async ([action, orderId, userId]) => {
+  const isCurrent = actionGuard.begin();
+  shippingModalOpen.value = false;
+  logisticsModalOpen.value = false;
+  if ((action !== 'shipping' && action !== 'logistics') || typeof orderId !== 'string' || !orderId || userId === undefined) return;
+  try {
+    const order = await realOrderApi.fetchOrderDetail(orderId, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    if (!sameBusinessId(order.id, orderId) || !getOrderCapabilities(order, userId).isSeller) {
+      Message.warning('无法操作该订单，请从本人的卖出订单重新进入');
+      return;
+    }
+    if (action === 'shipping' && ['PROCURING', 'PROCURED'].includes(order.status)) onUploadShipping(order);
+    else if (action === 'logistics' && ['IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.status)) manageLogistics(order);
+    else Message.warning('订单状态已变化，请核对最新订单后操作');
+  } catch {
+    if (isCurrent()) Message.warning('操作订单读取失败，请从下方订单列表重新进入');
+  }
+}, { immediate: true });
 
 async function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {
   if (logisticsSubmitting.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++logisticsWriteVersion;
+  const submittedModalVersion = logisticsModalVersion;
   const isCurrentWrite = () => operation === logisticsWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   logisticsSubmitting.value = true;
   try {
     await realOrderApi.createLogisticsTrack(params);
     if (!isCurrentWrite()) return;
     Message.success('物流轨迹已登记');
-    logisticsModalOpen.value = false;
+    if (submittedModalVersion === logisticsModalVersion) logisticsModalOpen.value = false;
     await load();
   } catch {
     // 请求层已展示后端业务提示，保留表单供修正后重试。
@@ -200,13 +228,14 @@ async function markLogisticsException(params: Api.RealOrder.LogisticsExceptionPa
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++logisticsWriteVersion;
+  const submittedModalVersion = logisticsModalVersion;
   const isCurrentWrite = () => operation === logisticsWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   logisticsSubmitting.value = true;
   try {
     await realOrderApi.markLogisticsException(params);
     if (!isCurrentWrite()) return;
     Message.success('物流异常已标记');
-    logisticsModalOpen.value = false;
+    if (submittedModalVersion === logisticsModalVersion) logisticsModalOpen.value = false;
     await load();
   } catch {
     // 请求层已展示后端业务提示，保留表单供修正后重试。
@@ -220,6 +249,7 @@ async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++shippingWriteVersion;
+  const submittedModalVersion = shippingModalVersion;
   const isCurrentWrite = () => operation === shippingWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   shippingSubmitting.value = true;
   try {
@@ -227,7 +257,7 @@ async function shipOrder(params: Api.RealOrder.OrderShipParams) {
       await realOrderApi.shipOrder(params);
       if (!isCurrentWrite()) return;
       Message.success('发货信息已提交');
-      shippingModalOpen.value = false;
+      if (submittedModalVersion === shippingModalVersion) shippingModalOpen.value = false;
       await load();
     } catch {
       // 请求层已展示错误，保留发货表单供用户修正后重试。
@@ -294,7 +324,6 @@ async function changePrice() {
             :key="o.id"
             :order="o"
             @change-price="openPriceModal"
-            @upload-proof="onUploadProof"
             @upload-shipping="onUploadShipping"
             @manage-logistics="manageLogistics"
           />
@@ -319,7 +348,7 @@ async function changePrice() {
       />
     </div>
 
-    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :before-ok="changePrice">
+    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :on-before-ok="changePrice">
       <a-form :model="{ priceAmount }" layout="vertical">
         <a-form-item label="订单">
           <a-input :model-value="priceOrder?.code" disabled />

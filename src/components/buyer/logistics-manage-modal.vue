@@ -70,6 +70,12 @@ function submitException() {
     location: exception.location.trim() || undefined
   });
 }
+
+function submit() {
+  if (activeTab.value === 'track') submitTrack();
+  else submitException();
+  return false;
+}
 </script>
 
 <template>
@@ -79,13 +85,13 @@ function submitException() {
     :ok-loading="submitting"
     :ok-text="activeTab === 'track' ? '登记轨迹' : '标记异常'"
     @update:visible="value => emit('update:visible', value)"
-    @ok="activeTab === 'track' ? submitTrack() : submitException()"
+    :on-before-ok="submit"
   >
     <template v-if="order">
       <p class="hint">订单 {{ order.code }} · 请仅登记已实际发生的物流信息。</p>
       <a-tabs v-model:active-key="activeTab">
-        <a-tab-pane key="track" title="登记轨迹">
-          <a-form :model="track" layout="vertical">
+        <a-tab-pane key="track" title="登记轨迹" :disabled="submitting">
+          <a-form :model="track" layout="vertical" :disabled="submitting">
             <a-form-item label="物流状态" required>
               <a-select v-model="track.status">
                 <a-option v-for="item in TRACK_STATUSES" :key="item.value" :value="item.value">{{ item.label }}</a-option>
@@ -96,9 +102,9 @@ function submitException() {
             <a-form-item label="发生时间"><a-date-picker v-model="track.occurredAt" show-time value-format="x" style="width: 100%" /></a-form-item>
           </a-form>
         </a-tab-pane>
-        <a-tab-pane key="exception" title="标记异常">
+        <a-tab-pane key="exception" title="标记异常" :disabled="submitting">
           <a-alert type="warning" class="alert" title="标记异常后，后续非异常轨迹会自动清空异常摘要。" />
-          <a-form :model="exception" layout="vertical">
+          <a-form :model="exception" layout="vertical" :disabled="submitting">
             <a-form-item label="异常说明" required><a-textarea v-model="exception.description" :max-length="200" show-word-limit /></a-form-item>
             <a-form-item label="地点"><a-input v-model="exception.location" placeholder="可选" /></a-form-item>
           </a-form>

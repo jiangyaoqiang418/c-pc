@@ -10,6 +10,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue, parseDateValue } from '@/utils/date-range';
+import { financialSubmissionIssue } from '@/utils/financial-submission';
 
 const route = useRoute();
 const router = useRouter();
@@ -21,6 +22,7 @@ const loading = ref(false);
 const loadError = ref('');
 const unlockModalOpen = ref(false);
 const unlocking = ref(false);
+const redemptionPending = ref(false);
 const redeemedOrderIds = new Set<string>();
 const id = computed(() => String(route.params.id));
 const requestGuard = createLatestRequestGuard();
@@ -82,7 +84,8 @@ watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUs
 });
 
 function openUnlock() {
-  if (!order.value || redeemedOrderIds.has(String(order.value.id))) return;
+  if (!order.value || unlocking.value || redeemedOrderIds.has(String(order.value.id))) return;
+  redemptionPending.value = !!financialSubmissionIssue(userStore.currentUser?.id, `finance-redeem:${order.value.id}`);
   unlockModalOpen.value = true;
 }
 
@@ -98,9 +101,12 @@ async function confirmUnlock(o: Api.RealFinance.FinanceOrderVO) {
   unlocking.value = true;
   try {
     try {
-      await financeApi.redeemFinance({ id: o.id });
-    } catch {
-      if (isCurrentWrite()) Message.error('解锁失败，请稍后重试');
+      await financeApi.redeemFinanceWithReadback(requestedUserId, o.id);
+    } catch (error) {
+      if (isCurrentWrite()) {
+        redemptionPending.value = !!financialSubmissionIssue(requestedUserId, `finance-redeem:${o.id}`);
+        Message.error(error instanceof Error ? error.message : '赎回未取得确定结果，请核实后再操作');
+      }
       return;
     }
     if (!isCurrentWrite()) return;
@@ -174,7 +180,7 @@ function handleEmptyAction() {
               { label: '本金', value: 'U ' + formatAmount(order.principal) },
               { label: '预期利息', value: 'U ' + formatAmount(order.expectedInterest) },
               { label: '已累积利息', value: 'U ' + formatAmount(order.accruedInterest) },
-              { label: '提前赎回违约费', value: 'U ' + formatAmount(order.redeemFee || 0) },
+              { label: '提前赎回违约费', value: order.redeemFee === undefined || order.redeemFee === null ? '待确认' : 'U ' + formatAmount(order.redeemFee) },
               { label: '锁定天数 / 已过', value: order.lockDays + ' / ' + daysPassed + ' 天' },
               { label: '起息时间', value: formatDateValue(order.startAt) },
               { label: '到期时间', value: formatDateValue(order.maturityAt) },
@@ -212,6 +218,7 @@ function handleEmptyAction() {
       v-model:visible="unlockModalOpen"
       :order="order"
       :submitting="unlocking"
+      :pending="redemptionPending"
       @confirm="confirmUnlock"
     />
   </div>

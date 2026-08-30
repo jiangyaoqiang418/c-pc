@@ -36,6 +36,7 @@ function logout() {
           <div class="meta">
             <div class="name">{{ userStore.displayName }}</div>
             <VipBadge v-if="userStore.currentUser" :level="userStore.currentUser.vipLevel" size="sm" />
+            <span v-if="userStore.currentUser?.accountInfoUnavailable">会员资料未更新</span>
           </div>
         </div>
         <template #content>

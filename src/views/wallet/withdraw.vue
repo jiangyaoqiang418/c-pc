@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
@@ -7,6 +8,7 @@ import * as realWalletApi from '@/service/api/wallet';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
 
 const router = useRouter();
 const route = useRoute();
@@ -15,17 +17,38 @@ const walletStore = useWalletStore();
 const form = reactive<Api.RealWallet.WithdrawCreateParams>({ chain: 'TRON', toAddress: '', amount: 0 });
 const submitting = ref(false);
 const modalOpen = ref(false);
+const confirmedParams = ref<Api.RealWallet.WithdrawCreateParams>();
+const submissionIssue = ref('');
+const pendingSnapshot = ref<FinancialSnapshot>();
+function refreshSubmissionIssue() {
+  submissionIssue.value = financialSubmissionIssue(userStore.currentUser?.id, 'withdraw');
+  pendingSnapshot.value = financialSubmissionSnapshot(userStore.currentUser?.id, 'withdraw');
+}
 const loadingRecords = ref(false);
 const recentWithdrawals = ref<Api.RealWallet.WithdrawVO[]>([]);
 const recordCurrent = ref(1);
 const recordSize = ref(10);
 const recordTotal = ref(0);
 const recordStatus = ref<Api.RealWallet.WithdrawStatus>();
+
+function readRecordsQuery() {
+  const page = Number(route.query.page);
+  recordCurrent.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  recordStatus.value = typeof route.query.status === 'string' && ['REVIEWING', 'APPROVED', 'SUCCESS', 'REJECTED'].includes(route.query.status)
+    ? route.query.status : undefined;
+}
+
+async function syncRecordsQuery(replace = false) {
+  const before = route.fullPath;
+  await (replace ? router.replace : router.push)({ query: { ...route.query,
+    page: recordCurrent.value > 1 ? String(recordCurrent.value) : undefined, status: recordStatus.value } });
+  if (route.fullPath === before) await loadRecords();
+}
 const createdWithdrawal = ref<Api.RealWallet.WithdrawVO>();
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.WithdrawVO>();
-const detailTarget = ref<Api.RealWallet.WithdrawVO>();
+const detailTargetId = ref<string | number>();
 const loadError = ref('');
 const recordError = ref('');
 const detailError = ref('');
@@ -40,16 +63,12 @@ const chainOptions = [
   { value: 'BSC', label: 'BEP20（USDT-BSC）' }
 ] as const;
 
-const available = computed(() => Number(walletStore.account?.available || 0));
-const errMsg = computed(() => {
-  if (!Number.isFinite(form.amount) || form.amount <= 0) return '请输入转出金额';
-  if (form.amount < 20) return '单笔最小转出 20 U';
-  if (!form.toAddress) return '请输入目标地址';
-  if (form.toAddress.length < 26) return '地址格式不合法';
-  if (form.amount > available.value) return '可用余额不足';
-  return '';
-});
-const canSubmit = computed(() => !errMsg.value);
+const available = computed(() => walletStore.account?.available === undefined ? undefined : Number(walletStore.account.available));
+const walletReady = computed(() => !walletStore.loading && !loadError.value && !!walletStore.lastFetchedAt
+  && !!walletStore.account && String(walletStore.account.userId) === String(userStore.currentUser?.id));
+const availableForSubmit = computed(() => walletReady.value ? walletStore.account?.available : undefined);
+const errMsg = computed(() => realWalletApi.prepareWithdrawal(form, availableForSubmit.value).error);
+const canSubmit = computed(() => !submitting.value && !errMsg.value && !submissionIssue.value);
 const kycTipNeeded = computed(() => userStore.currentUser && userStore.currentUser.kycStatus !== 'approved');
 
 function formatTime(value?: string | number) {
@@ -77,10 +96,11 @@ async function loadRecords() {
       status: recordStatus.value
     }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    recordSize.value = resolvePageSize(result, recordSize.value);
     const maxPage = Math.max(1, Math.ceil(result.total / recordSize.value));
     if (recordCurrent.value > maxPage) {
       recordCurrent.value = maxPage;
-      await loadRecords();
+      await syncRecordsQuery(true);
       return;
     }
     recentWithdrawals.value = result.records;
@@ -121,26 +141,42 @@ async function loadAll() {
 }
 
 function fillAll() {
+  if (!walletReady.value || available.value === undefined) return;
   form.amount = Math.max(0, available.value);
 }
 
 function openConfirm() {
+  refreshSubmissionIssue();
   if (!canSubmit.value) {
-    Message.warning(errMsg.value || '请完善表单');
+    Message.warning(submissionIssue.value || errMsg.value || '请完善表单');
     return;
   }
+  confirmedParams.value = realWalletApi.prepareWithdrawal(form, availableForSubmit.value).params;
   modalOpen.value = true;
 }
 
 async function confirm() {
-  if (submitting.value) return;
+  if (submitting.value || !modalOpen.value || !confirmedParams.value) return;
+  refreshSubmissionIssue();
+  if (submissionIssue.value) {
+    Message.warning(submissionIssue.value);
+    return;
+  }
+  const prepared = realWalletApi.prepareWithdrawal(confirmedParams.value, availableForSubmit.value);
+  if (prepared.error) {
+    Message.warning(prepared.error);
+    return;
+  }
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
-    const created = await realWalletApi.createWithdraw({ ...form, toAddress: form.toAddress.trim() });
+    const created = await submitFinancialOperation(requestedUserId, 'withdraw',
+      () => realWalletApi.createWithdraw(prepared.params, { showError: false }), getId, prepared.params);
+    if (!isCurrentWrite()) return;
+    refreshSubmissionIssue();
     const id = getId(created);
     let nextWithdrawal: Api.RealWallet.WithdrawVO | undefined = typeof created === 'object' ? created : undefined;
     let detailReadFailed = false;
@@ -157,31 +193,43 @@ async function confirm() {
     modalOpen.value = false;
     Message.success('转出申请已提交，请等待平台审核');
     recordCurrent.value = 1;
-    const [walletRefresh] = await Promise.allSettled([walletStore.refetch(), loadRecords()]);
+    const [walletRefresh] = await Promise.allSettled([walletStore.refetch(), syncRecordsQuery(true)]);
     if (!isCurrentWrite()) return;
     if (detailReadFailed || walletRefresh.status === 'rejected') {
       Message.warning('转出申请已提交，但部分数据刷新失败，请稍后重新加载');
     }
-  } catch {
-    if (isCurrentWrite()) Message.error('转出申请提交失败，请稍后重试');
+  } catch (error) {
+    if (isCurrentWrite()) {
+      refreshSubmissionIssue();
+      if (submissionIssue.value) {
+        modalOpen.value = false;
+        Message.warning(submissionIssue.value);
+      } else {
+        Message.error(error instanceof Error ? error.message : '转出申请未能提交');
+      }
+    }
   } finally {
     if (operation === writeVersion) submitting.value = false;
   }
 }
 
 async function showDetail(record: Api.RealWallet.WithdrawVO) {
-  detailTarget.value = record;
   await openDetail(record.id);
 }
 
 async function openDetail(id: string | number) {
+  detailTargetId.value = id;
   const isCurrent = detailGuard.begin();
+  const requestedUserId = userStore.currentUser?.id;
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
   detailError.value = '';
   try {
-    detail.value = await realWalletApi.fetchWithdrawDetail(id, { signal: isCurrent.signal });
+    const next = await realWalletApi.fetchWithdrawDetail(id, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (String(next.id) !== String(id)) throw new Error('转出详情对象不一致');
+    detail.value = next;
   } catch {
     if (isCurrent()) detailError.value = '转出申请详情加载失败，请稍后重试';
   } finally {
@@ -189,13 +237,30 @@ async function openDetail(id: string | number) {
   }
 }
 
+watch(detailOpen, visible => {
+  if (!visible) {
+    detailGuard.invalidate();
+    detailLoading.value = false;
+    detailTargetId.value = undefined;
+  }
+});
+
 function queryRecords() {
   recordCurrent.value = 1;
-  void loadRecords();
+  void syncRecordsQuery();
 }
 
-onMounted(loadAll);
+onMounted(() => {
+  refreshSubmissionIssue();
+  window.addEventListener('storage', refreshSubmissionIssue);
+  window.addEventListener('focus', refreshSubmissionIssue);
+  readRecordsQuery();
+  void loadAll();
+});
+watch([() => route.query.page, () => route.query.status], () => { readRecordsQuery(); void loadRecords(); });
 onBeforeUnmount(() => {
+  window.removeEventListener('storage', refreshSubmissionIssue);
+  window.removeEventListener('focus', refreshSubmissionIssue);
   writeVersion += 1;
   requestGuard.invalidate();
   recordsGuard.invalidate();
@@ -203,30 +268,43 @@ onBeforeUnmount(() => {
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
+  refreshSubmissionIssue();
   writeVersion += 1;
   requestGuard.invalidate();
   recordsGuard.invalidate();
   detailGuard.invalidate();
   submitting.value = false;
   modalOpen.value = false;
+  confirmedParams.value = undefined;
+  Object.assign(form, { chain: 'TRON', toAddress: '', amount: 0 });
   recentWithdrawals.value = [];
   recordTotal.value = 0;
   createdWithdrawal.value = undefined;
   detail.value = undefined;
-  detailTarget.value = undefined;
+  detailTargetId.value = undefined;
   detailOpen.value = false;
   void loadAll();
 });
 watch(() => route.query.id, id => {
   if (id) void openDetail(String(id));
 }, { immediate: true });
+watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; });
 </script>
 
 <template>
   <div class="withdraw-page shop-container">
     <h1 class="page-title">钱包转出</h1>
     <p class="hint">将平台可用余额提取到链上 USDT 钱包，到账状态以平台审核和链上确认结果为准。</p>
+    <a-alert v-if="submissionIssue" type="warning" class="load-alert" :closable="false">
+      {{ submissionIssue }}。刷新记录不会自动解除待确认状态；本页不会自动补交申请。
+      <div v-if="pendingSnapshot">待核对申请：{{ pendingSnapshot.chain }} · U {{ formatAmount(pendingSnapshot.amount) }} · {{ pendingSnapshot.toAddress }}</div>
+      <template #action><a-button size="mini" :loading="loadingRecords" @click="loadRecords">刷新申请记录</a-button></template>
+    </a-alert>
     <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>
+    <a-alert v-else-if="walletReady && available === undefined" type="warning" class="load-alert" :closable="false">
+      可用余额尚未取得，暂不可转出；已填写金额和地址保持不变。
+      <template #action><a-button size="mini" :loading="walletStore.loading" :disabled="submitting" @click="loadAll">重新读取余额</a-button></template>
+    </a-alert>
 
     <a-alert v-if="kycTipNeeded" type="warning" closable class="kyc-alert">
       您尚未完成 KYC 认证，实际审核结果请以后台规则为准。
@@ -234,7 +312,7 @@ watch(() => route.query.id, id => {
     </a-alert>
 
     <a-card class="form-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
-      <div class="balance-row"><span class="balance-label">可用余额</span><span class="balance-amount">U {{ formatAmount(available.toFixed(2)) }}</span></div>
+      <div class="balance-row"><span class="balance-label">可用余额</span><span class="balance-amount">{{ walletReady && available !== undefined ? 'U ' + formatAmount(available) : walletStore.loading ? '读取中…' : '—' }}</span></div>
       <a-divider />
       <a-form :model="form" layout="vertical">
         <a-row :gutter="16">
@@ -287,17 +365,17 @@ watch(() => route.query.id, id => {
           :current="recordCurrent"
           :page-size="recordSize"
           show-total
-          @change="(page: number) => { recordCurrent = page; loadRecords(); }"
+          @change="(page: number) => { recordCurrent = page; syncRecordsQuery(); }"
         />
       </div>
     </a-card>
 
-    <a-modal v-model:visible="modalOpen" title="确认提交转出申请" :ok-loading="submitting" ok-text="确认提交" @ok="confirm">
+    <a-modal v-model:visible="modalOpen" title="确认提交转出申请" :ok-loading="submitting" ok-text="确认提交" :on-before-ok="() => { void confirm(); return false; }">
       <a-alert type="warning" class="confirm-alert" title="请确认目标地址与所选链一致，提交后将进入平台审核。" />
       <a-descriptions :column="1" :data="[
-        { label: '链 / 币种', value: form.chain },
-        { label: '转出金额', value: 'U ' + formatAmount(form.amount) },
-        { label: '目标地址', value: form.toAddress }
+        { label: '链 / 币种', value: confirmedParams?.chain || '—' },
+        { label: '转出金额', value: 'U ' + formatAmount(confirmedParams?.amount) },
+        { label: '目标地址', value: confirmedParams?.toAddress || '—' }
       ]" />
     </a-modal>
 
@@ -318,7 +396,7 @@ watch(() => route.query.id, id => {
           { label: '打款时间', value: formatTime(detail.paidAt) },
           { label: '确认时间', value: formatTime(detail.confirmedAt) }
         ]" />
-        <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTarget && showDetail(detailTarget)" />
+        <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTargetId !== undefined && openDetail(detailTargetId)" />
       </a-spin>
     </a-drawer>
   </div>

@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import * as realAddressApi from '@/service/api/address';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { RequestError } from '@/service/request';
 
 interface Props {
   modelValue?: string | number;
@@ -10,8 +11,10 @@ interface Props {
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
-  (e: 'update:modelValue', v: string | number): void;
-  (e: 'changed', addr: Api.RealAddress.AddressRecord): void;
+  (e: 'update:modelValue', v: string | number | undefined): void;
+  (e: 'changed', addr: Api.RealAddress.AddressRecord | undefined): void;
+  (e: 'validity', valid: boolean): void;
+  (e: 'initialized', id: string | number | undefined): void;
 }>();
 
 const list = ref<Api.RealAddress.AddressRecord[]>([]);
@@ -20,8 +23,13 @@ const loadError = ref('');
 const modalOpen = ref(false);
 const submitting = ref(false);
 const loadedUserId = ref('');
+const pendingCreatedId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+const selectionValid = computed(() => !loading.value && !loadError.value
+  && loadedUserId.value === String(props.userId)
+  && list.value.some(address => isSelected(address)));
+watch(selectionValid, valid => emit('validity', valid), { immediate: true, flush: 'sync' });
 
 const form = reactive({
   receiverName: '',
@@ -52,12 +60,18 @@ async function load() {
     if (!isCurrent() || String(props.userId) !== userId) return;
     list.value = next;
     loadedUserId.value = userId;
-    const hasSelectedAddress = next.some(address => String(address.id) === String(props.modelValue));
-    if (next.length && !hasSelectedAddress) {
-      const def = next.find(a => a.isDefault) || next[0];
-      emit('update:modelValue', def.id);
-      emit('changed', def);
+    const selected = pendingCreatedId.value !== undefined
+      ? next.find(address => String(address.id) === String(pendingCreatedId.value))
+      : next.find(address => isSelected(address)) || next.find(a => a.isDefault) || next[0];
+    if (pendingCreatedId.value !== undefined && !selected) {
+      loadError.value = '地址已添加，但列表尚未返回新地址，请重新加载核对，勿重复新增。';
+      return;
     }
+    pendingCreatedId.value = undefined;
+    const initializingSelection = props.modelValue === undefined;
+    emit('update:modelValue', selected?.id);
+    if (initializingSelection) emit('initialized', selected?.id);
+    emit('changed', selected);
   } catch {
     if (!isCurrent() || String(props.userId) !== userId) return;
     loadError.value = '收货地址加载失败，请检查网络后重试。';
@@ -71,6 +85,13 @@ watch(() => props.userId, (next, previous) => {
   if (String(next) === String(previous)) return;
   writeVersion += 1;
   submitting.value = false;
+  modalOpen.value = false;
+  resetForm();
+  loadedUserId.value = '';
+  pendingCreatedId.value = undefined;
+  list.value = [];
+  emit('update:modelValue', undefined);
+  emit('changed', undefined);
   void load();
 });
 onBeforeUnmount(() => {
@@ -79,6 +100,8 @@ onBeforeUnmount(() => {
 });
 
 function onSelect(addr: Api.RealAddress.AddressRecord) {
+  if (loading.value || loadError.value || loadedUserId.value !== String(props.userId)) return;
+  if (!list.value.some(item => String(item.id) === String(addr.id))) return;
   emit('update:modelValue', addr.id);
   emit('changed', addr);
 }
@@ -87,7 +110,7 @@ function isSelected(addr: Api.RealAddress.AddressRecord) {
   return props.modelValue !== undefined && props.modelValue !== null && String(props.modelValue) === String(addr.id);
 }
 
-function openAdd() {
+function resetForm() {
   form.receiverName = '';
   form.receiverPhone = '';
   form.country = '中国';
@@ -96,13 +119,21 @@ function openAdd() {
   form.district = '';
   form.detail = '';
   form.isDefault = false;
+}
+
+function openAdd() {
+  if (submitting.value) return;
+  resetForm();
   modalOpen.value = true;
 }
 
 async function submit() {
   if (submitting.value) return false;
-  if (!form.receiverName || !form.receiverPhone || !form.country || !form.province || !form.detail) {
-    Message.warning('请完善地址信息');
+  const prepared = realAddressApi.prepareAddress({ receiverName: form.receiverName, receiverPhone: form.receiverPhone,
+    country: form.country, province: form.province, city: form.city, district: form.district,
+    detailAddress: form.detail, defaultFlag: form.isDefault });
+  if (prepared.error) {
+    Message.warning(prepared.error);
     return false;
   }
   const userId = String(props.userId);
@@ -111,23 +142,19 @@ async function submit() {
   submitting.value = true;
   try {
     try {
-      const created = await realAddressApi.createAddress({
-        receiverName: form.receiverName,
-        receiverPhone: form.receiverPhone,
-        country: form.country,
-        province: form.province,
-        city: form.city,
-        district: form.district,
-        detailAddress: form.detail,
-        defaultFlag: form.isDefault
-      });
+      const createdId = await realAddressApi.createAddress(prepared.params);
       if (!isCurrentWrite()) return false;
+      pendingCreatedId.value = createdId;
+      emit('update:modelValue', createdId);
+      emit('changed', undefined);
       Message.success('地址已添加');
       await load();
-      if (isCurrentWrite()) onSelect(created);
+      if (!isCurrentWrite()) return false;
+      if (loadError.value) Message.warning('地址已添加，但列表读取未完成，请重新加载核对');
       return true;
-    } catch {
-      // 请求层已展示错误，保留表单供用户修正后重试。
+    } catch (error) {
+      if (error instanceof RequestError && error.code === 'UNKNOWN_OPERATION_RESULT') Message.warning(error.message);
+      // 普通业务错误由请求层展示；缺失成功编号需在页面明确提示核实。
       return false;
     }
   } finally {
@@ -173,7 +200,7 @@ async function submit() {
       </div>
     </a-spin>
 
-    <a-modal v-model:visible="modalOpen" title="新增收货地址" :ok-loading="submitting" :before-ok="submit">
+    <a-modal v-model:visible="modalOpen" title="新增收货地址" :ok-loading="submitting" :on-before-ok="submit">
       <a-form :model="form" layout="vertical">
         <a-row :gutter="12">
           <a-col :span="12">
@@ -183,7 +210,7 @@ async function submit() {
           </a-col>
           <a-col :span="12">
             <a-form-item label="手机号" required>
-              <a-input v-model="form.receiverPhone" placeholder="11 位手机号" />
+              <a-input v-model="form.receiverPhone" placeholder="收件人电话，可含国家/地区区号" :max-length="32" />
             </a-form-item>
           </a-col>
         </a-row>

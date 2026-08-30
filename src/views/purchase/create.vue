@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -24,7 +25,7 @@ interface CategoryNode {
 const form = reactive<{
   productTitle: string;
   productDescription: string;
-  categoryPath: Array<string | number>;
+  categoryId?: string | number;
   addressId?: string | number;
   budgetAmount: number;
   expectedDays: number;
@@ -35,7 +36,7 @@ const form = reactive<{
 }>({
   productTitle: (route.query.productHint as string) || '',
   productDescription: '',
-  categoryPath: route.query.categoryId ? [String(route.query.categoryId)] : [],
+  categoryId: typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined,
   addressId: undefined,
   budgetAmount: 500,
   expectedDays: 14,
@@ -46,10 +47,21 @@ const form = reactive<{
 });
 
 const submitting = ref(false);
+const { markInteracted, markSaved, acceptAutomaticField } = useUnsavedForm(() => form,
+  () => `${String(userStore.currentUser?.id)}:${userStore.currentAudience}`);
+
+function cancelCreate() {
+  const back = router.options.history.state.back;
+  if (typeof back === 'string' && ['/purchase', '/purchase/hall'].includes(back.split(/[?#]/)[0])) router.back();
+  else void router.replace('/purchase/hall');
+}
 const confirmationOpen = ref(false);
+const addressValid = ref(false);
+const uploading = ref(false);
 const categoryLoadError = ref('');
 const categoryGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
   return nodes.map(n => ({
@@ -88,14 +100,29 @@ async function reloadCategories() {
 
 onBeforeUnmount(() => {
   writeVersion += 1;
+  confirmationModal?.close();
   categoryGuard.invalidate();
 });
 
 watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
   if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
   writeVersion += 1;
+  confirmationModal?.close();
   submitting.value = false;
   confirmationOpen.value = false;
+  if (String(nextUserId) !== String(previousUserId)) {
+    form.addressId = undefined;
+    addressValid.value = false;
+    form.productTitle = '';
+    form.productDescription = '';
+    form.categoryId = undefined;
+    form.budgetAmount = 500;
+    form.expectedDays = 14;
+    form.overseasCustoms = false;
+    form.aftersaleType = '7day-no-reason';
+    form.appeal = '';
+    form.evidenceUrls = [];
+  }
 });
 
 const CNY_RATE = 7.18;
@@ -112,17 +139,18 @@ function preventImplicitSubmit(event: KeyboardEvent) {
 }
 
 async function submit() {
-  if (submitting.value || confirmationOpen.value) return;
+  if (submitting.value || confirmationOpen.value || uploading.value) return;
   if (!form.productTitle.trim()) {
     Message.warning('请填写商品标题');
     return;
   }
-  if (!form.categoryPath.length) {
+  const categoryId = form.categoryId;
+  if (categoryId === undefined || categoryId === '') {
     Message.warning('请选择商品分类');
     return;
   }
-  if (form.addressId === undefined || form.addressId === null || form.addressId === '') {
-    Message.warning('请选择收货地址');
+  if (!addressValid.value || form.addressId === undefined || form.addressId === null || form.addressId === '') {
+    Message.warning('请等待地址读取成功后选择收货地址');
     return;
   }
   if (!Number.isFinite(form.budgetAmount) || form.budgetAmount < 10) {
@@ -146,15 +174,19 @@ async function submit() {
     && String(userStore.currentUser?.id) === String(requestedUserId);
 
   confirmationOpen.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '确认发起求购？',
     content: `预算 U ${form.budgetAmount} · 期望 ${form.expectedDays} 天内发货`,
     onCancel() {
+      if (!isCurrentWrite()) return;
       confirmationOpen.value = false;
     },
     async onOk() {
-      if (!isCurrentWrite()) {
-        confirmationOpen.value = false;
+      if (!isCurrentWrite() || !addressValid.value || String(form.addressId) !== String(addressId)) {
+        if (isCurrentWrite()) {
+          confirmationOpen.value = false;
+          Message.warning('收货地址已变化，请重新确认');
+        }
         return;
       }
       submitting.value = true;
@@ -163,18 +195,19 @@ async function submit() {
           const r = await purchaseApi.createPurchase({
             productTitle: form.productTitle.trim(),
             productDescription: form.productDescription.trim() || form.appeal.trim(),
-            categoryId: form.categoryPath[form.categoryPath.length - 1],
+            categoryId,
             addressId,
             budgetAmount: String(form.budgetAmount),
             expectedDays: form.expectedDays,
             overseasCustoms: form.overseasCustoms,
             aftersaleType: form.aftersaleType,
             appeal: form.appeal.trim(),
-            evidenceUrls: form.evidenceUrls
+            evidenceUrls: [...form.evidenceUrls]
           });
           if (r && isCurrentWrite()) {
-            Message.success(`求购已发起，编号 ${r.code}`);
-            router.push({ name: 'purchase-detail', params: { id: String(r.id) } });
+            markSaved();
+            Message.success('求购已发起');
+            router.push({ name: 'purchase-detail', params: { id: String(r) } });
           }
         } catch {
           // 请求层已展示错误，保留表单内容供用户修正后重试。
@@ -205,7 +238,7 @@ async function submit() {
     </section>
 
     <!-- ============ Form Body ============ -->
-    <a-form :model="form" layout="vertical" class="form-body" @submit.prevent @keydown.enter.capture="preventImplicitSubmit">
+    <a-form :model="form" layout="vertical" class="form-body" @submit.prevent @keydown.enter.capture="preventImplicitSubmit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
       <!-- ─── BASIC INFO ─── -->
       <div class="form-block">
         <div class="block-eyebrow">
@@ -220,11 +253,13 @@ async function submit() {
             v-if="userStore.currentUser"
             v-model="form.addressId"
             :user-id="userStore.currentUser.id"
+            @validity="addressValid = $event"
+            @initialized="acceptAutomaticField('addressId', $event)"
           />
         </a-form-item>
         <a-form-item label="商品分类" required>
           <a-cascader
-            v-model="form.categoryPath"
+            v-model="form.categoryId"
             :options="cascaderOptions"
             placeholder="选择三级分类"
             expand-trigger="hover"
@@ -307,16 +342,16 @@ async function submit() {
           />
         </a-form-item>
         <a-form-item label="参考图片（可选）">
-          <AftersaleEvidenceUploader v-model="form.evidenceUrls" scene="DEMAND" :max="4" />
+          <AftersaleEvidenceUploader v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" />
         </a-form-item>
       </div>
 
       <!-- ─── Actions ─── -->
       <div class="actions">
-        <button type="button" class="btn ghost" @click="router.back()">
+        <button type="button" class="btn ghost" @click="cancelCreate">
           <Icon icon="lucide:x" width="14" /> 取消
         </button>
-        <button type="button" class="btn primary" :disabled="submitting || confirmationOpen" @click="submit">
+        <button type="button" class="btn primary" :disabled="submitting || confirmationOpen || uploading || !addressValid" @click="submit">
           <Icon icon="lucide:send" width="14" />
           {{ submitting || confirmationOpen ? '提交中…' : '立即提交求购' }}
         </button>

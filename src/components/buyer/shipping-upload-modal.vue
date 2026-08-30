@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 
@@ -9,6 +9,8 @@ interface Props {
   submitting?: boolean;
 }
 const props = defineProps<Props>();
+const uploadStates = reactive({ purchase: false, shipping: false });
+const uploading = computed(() => uploadStates.purchase || uploadStates.shipping);
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
   (e: 'confirm', params: Api.RealOrder.OrderShipParams): void;
@@ -47,14 +49,14 @@ watch(
 );
 
 function submit() {
-  if (!props.order || props.submitting) return;
-  if (!form.trackingNumber || form.trackingNumber.length < 6) {
+  if (!props.order || props.submitting || uploading.value) return false;
+  if (form.trackingNumber.trim().length < 6) {
     Message.warning('请输入有效的运单号（至少 6 位）');
-    return;
+    return false;
   }
   if (form.carrier === 'OTHER' && !form.carrierName.trim()) {
     Message.warning('请选择其他承运商时请填写承运商名称');
-    return;
+    return false;
   }
   emit('confirm', {
     id: props.order.id,
@@ -63,10 +65,12 @@ function submit() {
     trackingNo: form.trackingNumber.trim(),
     eta: form.eta || undefined,
     purchaseNo: form.purchaseNo.trim() || undefined,
-    purchaseVouchers: form.purchaseVouchers,
-    shipVouchers: form.shipVouchers,
+    purchaseVouchers: [...form.purchaseVouchers],
+    shipVouchers: [...form.shipVouchers],
     remark: form.remark.trim() || undefined
   });
+  // 成功后由父页面关闭；校验失败或接口失败保留当前表单。
+  return false;
 }
 </script>
 
@@ -75,16 +79,17 @@ function submit() {
     :visible="visible"
     title="上传发货信息"
     :ok-loading="props.submitting"
+    :ok-button-props="{ disabled: uploading }"
     ok-text="确认发货"
     @update:visible="(v) => $emit('update:visible', v)"
-    @ok="submit"
+    :on-before-ok="submit"
   >
     <template v-if="order">
       <div class="hint">订单 {{ order.code }} · {{ order.productTitle }}</div>
       <a-alert type="info" class="alert">
         填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹
       </a-alert>
-      <a-form :model="form" layout="vertical">
+      <a-form :model="form" layout="vertical" :disabled="submitting">
         <a-form-item label="物流公司" required>
           <a-radio-group v-model="form.carrier">
             <a-radio v-for="c in CARRIER_OPTIONS" :key="c" :value="c">
@@ -98,8 +103,8 @@ function submit() {
         <a-form-item v-if="form.carrier === 'OTHER'" label="承运商名称" required><a-input v-model="form.carrierName" placeholder="请输入承运商名称" /></a-form-item>
         <a-form-item label="预计送达时间"><a-date-picker v-model="form.eta" show-time value-format="x" style="width: 100%" /></a-form-item>
         <a-form-item label="采购单号"><a-input v-model="form.purchaseNo" placeholder="可选，用于采购核对" /></a-form-item>
-        <a-form-item label="采购凭证"><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" /></a-form-item>
-        <a-form-item label="发货凭证"><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" /></a-form-item>
+        <a-form-item label="采购凭证"><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></a-form-item>
+        <a-form-item label="发货凭证"><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.shipping = $event" /></a-form-item>
         <a-form-item label="发货备注"><a-textarea v-model="form.remark" :max-length="500" show-word-limit /></a-form-item>
       </a-form>
     </template>

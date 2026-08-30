@@ -22,8 +22,9 @@ const claimable = ref<Api.RealPurchase.Record[]>([]);
 const orderCounts = ref<Record<string, number>>({});
 const claimableTotal = ref<number>();
 const countsLoaded = ref(false);
-const loading = ref(false);
 const loadErrors = reactive({ wallet: '', orders: '', counts: '', claimable: '' });
+const loadStates = reactive({ wallet: false, orders: false, counts: false, claimable: false });
+const loading = computed(() => Object.values(loadStates).some(Boolean));
 const requestGuard = createLatestRequestGuard();
 
 const user = computed(() => userStore.currentUser);
@@ -46,48 +47,46 @@ async function loadAll() {
     claimableTotal.value = undefined;
     orderCounts.value = {};
     countsLoaded.value = false;
-    loading.value = false;
+    Object.keys(loadStates).forEach(key => { loadStates[key as keyof typeof loadStates] = false; });
     return;
   }
   const isCurrent = requestGuard.begin();
   const userId = currentUser.id;
-  loading.value = true;
+  Object.keys(loadStates).forEach(key => { loadStates[key as keyof typeof loadStates] = true; });
   Object.keys(loadErrors).forEach(key => { loadErrors[key as keyof typeof loadErrors] = ''; });
-  try {
-    const [walletResult, ordersResult, countsResult, claimableResult] = await Promise.allSettled([
-      walletStore.fetchWallet(userId),
-      realOrderApi.fetchMyOrders({
+  const isCurrentUser = () => isCurrent() && String(userStore.currentUser?.id) === String(userId);
+  async function section<T>(key: keyof typeof loadStates, request: Promise<T>, apply: (value: T) => void, message: string) {
+    try {
+      const value = await request;
+      if (isCurrentUser()) apply(value);
+    } catch {
+      if (isCurrentUser()) loadErrors[key] = message;
+    } finally {
+      if (isCurrentUser()) loadStates[key] = false;
+    }
+  }
+  await Promise.all([
+    section('wallet', walletStore.fetchWallet(userId), () => undefined, '钱包数据加载失败'),
+    section('orders', realOrderApi.fetchMyOrders({
         shopperId: userId,
         current: 1,
         size: 5,
         statuses: ['PROCURING', 'PROCURED', 'IN_TRANSIT'],
         signal: isCurrent.signal
-      }),
-      realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal }),
-      realPurchaseApi.fetchHall({ current: 1, size: 6, signal: isCurrent.signal })
-    ]);
-    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
-    if (walletResult.status === 'rejected') loadErrors.wallet = '钱包数据加载失败';
-    if (ordersResult.status === 'fulfilled') {
-      pendingOrders.value = ordersResult.value.records;
-    } else {
-      loadErrors.orders = '进行中订单加载失败';
-    }
-    if (countsResult.status === 'fulfilled') {
-      orderCounts.value = countsResult.value;
+      }), value => { pendingOrders.value = value.records; }, '进行中订单加载失败'),
+    section('counts', realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal }), value => {
+      orderCounts.value = value;
       countsLoaded.value = true;
-    } else {
-      loadErrors.counts = '订单统计加载失败';
-    }
-    if (claimableResult.status === 'fulfilled') {
-      claimable.value = claimableResult.value.records.slice(0, 6);
-      claimableTotal.value = Number(claimableResult.value.total || 0);
-    } else {
-      loadErrors.claimable = '可接求购加载失败';
-    }
-  } finally {
-    if (isCurrent()) loading.value = false;
-  }
+    }, '订单统计加载失败'),
+    section('claimable', realPurchaseApi.fetchHall({ current: 1, size: 6, signal: isCurrent.signal }), value => {
+      claimable.value = value.records.slice(0, 6);
+      claimableTotal.value = value.total;
+    }, '可接求购加载失败')
+  ]);
+}
+
+function openOrderAction(order: Api.RealOrder.DisplayRecord, action: 'shipping' | 'logistics') {
+  void router.push({ name: 'buyer-orders', query: { action, orderId: String(order.id) } });
 }
 onMounted(loadAll);
 onBeforeUnmount(requestGuard.invalidate);
@@ -179,11 +178,11 @@ const kpis = computed(() => [
           </div>
           <div class="stat">
             <div class="stat-label">可用余额</div>
-            <div class="stat-val"><span class="num yb-mono">{{ account ? formatAmount(account.available || '0') : '—' }}</span><span class="unit">U</span></div>
+            <div class="stat-val"><span class="num yb-mono">{{ account?.available === undefined ? '—' : formatAmount(account.available) }}</span><span class="unit">U</span></div>
           </div>
           <div class="stat">
             <div class="stat-label">已担保</div>
-            <div class="stat-val"><span class="num yb-mono">{{ account ? formatAmount(account.depositGuaranteed || '0') : '—' }}</span><span class="unit">U</span></div>
+            <div class="stat-val"><span class="num yb-mono">{{ account?.depositGuaranteed === undefined ? '—' : formatAmount(account.depositGuaranteed) }}</span><span class="unit">U</span></div>
           </div>
         </div>
       </section>
@@ -208,8 +207,10 @@ const kpis = computed(() => [
             <button class="text-link" @click="router.push('/buyer/orders')">查看全部 <Icon icon="lucide:arrow-right" width="13" /></button>
           </div>
           <template v-if="pendingOrders.length">
-            <BuyerOrderCard v-for="o in pendingOrders" :key="o.id" :order="o" />
+            <BuyerOrderCard v-for="o in pendingOrders" :key="o.id" :order="o"
+              @upload-shipping="openOrderAction($event, 'shipping')" @manage-logistics="openOrderAction($event, 'logistics')" />
           </template>
+          <div v-else-if="loadStates.orders"><a-spin :loading="true" /> 正在加载进行中订单</div>
           <EmptyState
             v-else
             icon="lucide:inbox"
@@ -231,6 +232,7 @@ const kpis = computed(() => [
           <template v-if="claimable.length">
             <PurchaseRequestCard v-for="r in claimable" :key="r.id" :request="r" mode="hall" :can-claim="false" />
           </template>
+          <div v-else-if="loadStates.claimable"><a-spin :loading="true" /> 正在加载可接求购</div>
           <EmptyState
             v-else
             icon="lucide:sparkles"
@@ -263,11 +265,11 @@ const kpis = computed(() => [
           <div class="deposit-detail">
             <div class="dd-row">
               <div class="dd-key"><span class="dd-dot avail"></span> 可用押金</div>
-              <div class="dd-val yb-mono">U {{ account ? formatAmount(account.depositAvailable || '0') : '—' }}</div>
+              <div class="dd-val yb-mono">U {{ account?.depositAvailable === undefined ? '—' : formatAmount(account.depositAvailable) }}</div>
             </div>
             <div class="dd-row">
               <div class="dd-key"><span class="dd-dot lock"></span> 已担保</div>
-              <div class="dd-val yb-mono">U {{ account ? formatAmount(account.depositGuaranteed || '0') : '—' }}</div>
+              <div class="dd-val yb-mono">U {{ account?.depositGuaranteed === undefined ? '—' : formatAmount(account.depositGuaranteed) }}</div>
             </div>
             <div class="dd-row">
               <div class="dd-key">担保占比</div>

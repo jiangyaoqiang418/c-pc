@@ -13,8 +13,17 @@ const userStore = useUserStore();
 const sessions = ref<Api.RealFlashSale.SessionDTO[]>([]);
 const enrollments = ref<Api.RealFlashSale.EnrollmentDTO[]>([]);
 const products = ref<Api.RealProduct.Record[]>([]);
-const loading = ref(false);
-const loadError = ref('');
+const productPageNo = ref(1);
+const productTotal = ref(0);
+const productLoadedCount = ref(0);
+const loadingMoreProducts = ref(false);
+const productPageGuard = createLatestRequestGuard();
+type Section = 'sessions' | 'enrollments' | 'products';
+const sectionLoading = reactive({ sessions: false, enrollments: false, products: false });
+const sectionErrors = reactive({ sessions: '', enrollments: '', products: '' });
+const sectionGuards = { sessions: createLatestRequestGuard(), enrollments: createLatestRequestGuard(), products: createLatestRequestGuard() };
+const loading = computed(() => activeTab.value === 'sessions' ? sectionLoading.sessions : sectionLoading.enrollments);
+const loadError = computed(() => activeTab.value === 'sessions' ? sectionErrors.sessions : sectionErrors.enrollments);
 const submitting = ref(false);
 const cancelingEnrollmentKey = ref('');
 const modalOpen = ref(false);
@@ -24,44 +33,92 @@ const form = reactive<{
   flashPrice?: number;
   flashStock?: number;
 }>({ sessionId: '', productId: '' });
-const requestGuard = createLatestRequestGuard();
 let submitWriteVersion = 0;
 let cancelWriteVersion = 0;
+let modalVersion = 0;
+watch(modalOpen, () => { modalVersion += 1; }, { flush: 'sync' });
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const selectedProduct = computed(() => products.value.find(item => String(item.id) === form.productId));
 
-async function load() {
-  const isCurrent = requestGuard.begin();
+async function loadSection(section: Section) {
+  const isCurrent = sectionGuards[section].begin();
+  if (section === 'products') {
+    productPageGuard.invalidate();
+    loadingMoreProducts.value = false;
+    productPageNo.value = 1;
+    productLoadedCount.value = 0;
+    productTotal.value = 0;
+  }
   const userId = String(userStore.currentUser?.id || '');
+  sectionErrors[section] = '';
   if (!userId) {
-    loading.value = false;
-    sessions.value = [];
-    enrollments.value = [];
-    products.value = [];
-    loadError.value = '';
+    sectionLoading[section] = false;
+    if (section === 'sessions') sessions.value = [];
+    else if (section === 'enrollments') enrollments.value = [];
+    else products.value = [];
     return;
   }
-  loading.value = true;
-  loadError.value = '';
+  sectionLoading[section] = true;
   try {
-    const [sessionList, myList, productPage] = await Promise.all([
-      flashSaleApi.fetchAvailableFlashSaleSessions({ signal: isCurrent.signal }),
-      flashSaleApi.fetchMyFlashSaleEnrollments({ signal: isCurrent.signal }),
-      productApi.fetchMyProducts({ status: 'NORMAL', signal: isCurrent.signal })
-    ]);
-    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
-    sessions.value = sessionList;
-    enrollments.value = myList;
-    products.value = productPage.records.filter(item => item.shelfStatus === 'on-shelf');
-  } catch (error) {
+    if (section === 'sessions') {
+      const result = await flashSaleApi.fetchAvailableFlashSaleSessions({ signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      sessions.value = result;
+    } else if (section === 'enrollments') {
+      const result = await flashSaleApi.fetchMyFlashSaleEnrollments({ signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      enrollments.value = result;
+    } else {
+      const result = await productApi.fetchMyProducts({ status: 'NORMAL', current: 1, size: 20, signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      products.value = result.records.filter(item => item.shelfStatus === 'on-shelf');
+      productTotal.value = result.total;
+      productLoadedCount.value = result.records.length;
+    }
+  } catch {
     if (!isCurrent()) return;
-    loadError.value = error instanceof Error ? error.message : '秒杀数据暂时无法加载';
+    sectionErrors[section] = { sessions: '场次读取失败', enrollments: '报名记录读取失败', products: '报名商品读取失败' }[section];
+    if (section === 'sessions') sessions.value = [];
+    else if (section === 'enrollments') enrollments.value = [];
+    else products.value = [];
   } finally {
-    if (isCurrent()) loading.value = false;
+    if (isCurrent()) sectionLoading[section] = false;
+  }
+}
+
+function load() {
+  return Promise.all((Object.keys(sectionGuards) as Section[]).map(loadSection));
+}
+
+async function loadMoreProducts() {
+  if (loadingMoreProducts.value || sectionLoading.products || productLoadedCount.value >= productTotal.value) return;
+  const isCurrent = productPageGuard.begin();
+  loadingMoreProducts.value = true;
+  try {
+    const nextPage = productPageNo.value + 1;
+    const result = await productApi.fetchMyProducts({ status: 'NORMAL', current: nextPage, size: 20, signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    if (!result.records.length && productLoadedCount.value < result.total) {
+      Message.warning('商品分页暂未返回后续记录，请稍后重试');
+      return;
+    }
+    const merged = new Map(products.value.map(item => [String(item.id), item]));
+    result.records.filter(item => item.shelfStatus === 'on-shelf').forEach(item => merged.set(String(item.id), item));
+    products.value = [...merged.values()];
+    productPageNo.value = nextPage;
+    productTotal.value = result.total;
+    productLoadedCount.value += result.records.length;
+  } catch {
+    // 保留已选商品，允许重新加载当前下一页。
+  } finally {
+    if (isCurrent()) loadingMoreProducts.value = false;
   }
 }
 
 function openEnroll(session: Api.RealFlashSale.SessionDTO) {
+  if (sectionLoading.products || sectionErrors.products) return;
+  modalVersion += 1;
   form.sessionId = session.id;
   form.productId = '';
   form.flashPrice = undefined;
@@ -70,7 +127,7 @@ function openEnroll(session: Api.RealFlashSale.SessionDTO) {
 }
 
 async function submit() {
-  if (submitting.value) return;
+  if (submitting.value || sectionLoading.products || sectionErrors.products) return;
   if (!form.productId) {
     Message.warning('请选择报名商品');
     return;
@@ -86,6 +143,7 @@ async function submit() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++submitWriteVersion;
+  const submittedModalVersion = modalVersion;
   const requestedSessionId = form.sessionId;
   const requestedProductId = form.productId;
   const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
@@ -100,8 +158,10 @@ async function submit() {
       });
       if (!isCurrentWrite()) return;
       Message.success('秒杀报名成功');
-      modalOpen.value = false;
-      activeTab.value = 'mine';
+      if (submittedModalVersion === modalVersion) {
+        modalOpen.value = false;
+        activeTab.value = 'mine';
+      }
       await load();
     } catch {
       // 请求层已展示业务错误，保留表单供用户修正后重试。
@@ -119,16 +179,16 @@ function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
   const operation = ++cancelWriteVersion;
   const isCurrentWrite = () => operation === cancelWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancelingEnrollmentKey.value = key;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '取消秒杀报名？',
     content: `确认取消「${item.title}」的本场报名？`,
     onCancel() {
+      if (!isCurrentWrite()) return;
       cancelWriteVersion += 1;
       cancelingEnrollmentKey.value = '';
     },
     async onOk() {
       if (!isCurrentWrite()) {
-        cancelingEnrollmentKey.value = '';
         return;
       }
       try {
@@ -157,20 +217,25 @@ function formatTime(value?: string | number) {
 
 onMounted(load);
 onBeforeUnmount(() => {
+  confirmationModal?.close();
+  productPageGuard.invalidate();
   submitWriteVersion += 1;
   cancelWriteVersion += 1;
-  requestGuard.invalidate();
+  Object.values(sectionGuards).forEach(guard => guard.invalidate());
 });
 watch(() => userStore.currentUser?.id, () => {
+  confirmationModal?.close();
+  productPageGuard.invalidate();
+  loadingMoreProducts.value = false;
+  productTotal.value = 0;
   submitWriteVersion += 1;
   cancelWriteVersion += 1;
   submitting.value = false;
   cancelingEnrollmentKey.value = '';
-  requestGuard.invalidate();
+  Object.values(sectionGuards).forEach(guard => guard.invalidate());
   sessions.value = [];
   enrollments.value = [];
   products.value = [];
-  loadError.value = '';
   modalOpen.value = false;
   void load();
 });
@@ -195,20 +260,20 @@ watch(() => userStore.currentUser?.id, () => {
 
     <a-spin :loading="loading" style="width: 100%">
       <a-result v-if="loadError" status="error" title="秒杀数据加载失败" :subtitle="loadError">
-        <template #extra><a-button type="primary" @click="load">重新加载</a-button></template>
+        <template #extra><a-button type="primary" @click="loadSection(activeTab === 'sessions' ? 'sessions' : 'enrollments')">重新加载</a-button></template>
       </a-result>
       <div v-else-if="activeTab === 'sessions'" class="session-grid">
         <a-card v-for="session in sessions" :key="session.id" :bordered="false" class="session-card">
           <div class="session-title">{{ session.name }}</div>
           <div class="session-time">{{ formatTime(session.startTime) }} 至 {{ formatTime(session.endTime) }}</div>
           <div class="session-meta">已报名商品 {{ session.itemCount || 0 }} 件</div>
-          <a-button type="primary" long @click="openEnroll(session)">选择商品报名</a-button>
+          <a-button type="primary" long :disabled="sectionLoading.products || !!sectionErrors.products" @click="openEnroll(session)">选择商品报名</a-button>
         </a-card>
         <a-empty v-if="!sessions.length" description="暂无可报名场次" />
       </div>
 
       <a-card v-else :bordered="false" :body-style="{ padding: 0 }" class="table-card">
-        <a-table :data="enrollments" :pagination="false" row-key="productId">
+        <a-table :data="enrollments.map(item => ({ ...item, rowKey: JSON.stringify([item.sessionId, item.productId]) }))" :pagination="false" row-key="rowKey">
           <template #columns>
             <a-table-column title="商品" :width="260">
               <template #cell="{ record }">
@@ -237,7 +302,12 @@ watch(() => userStore.currentUser?.id, () => {
       </a-card>
     </a-spin>
 
-    <a-modal v-model:visible="modalOpen" title="报名秒杀场次" :ok-loading="submitting" @ok="submit">
+    <a-alert v-if="sectionErrors.products" type="warning">
+      {{ sectionErrors.products }}，已有报名与场次仍可查看。
+      <template #action><a-button :loading="sectionLoading.products" @click="loadSection('products')">重试商品读取</a-button></template>
+    </a-alert>
+
+    <a-modal v-model:visible="modalOpen" title="报名秒杀场次" :ok-loading="submitting" :on-before-ok="() => { void submit(); return false; }">
       <a-form :model="form" layout="vertical">
         <a-form-item label="报名商品" required>
           <a-select v-model="form.productId" placeholder="请选择在售商品">
@@ -245,6 +315,7 @@ watch(() => userStore.currentUser?.id, () => {
               {{ product.title }}（U {{ formatAmount(product.price) }} / 库存 {{ product.stock }}）
             </a-option>
           </a-select>
+          <a-button v-if="productLoadedCount < productTotal" :loading="loadingMoreProducts" @click="loadMoreProducts">加载更多商品（已读取 {{ productLoadedCount }} / {{ productTotal }}，可报名 {{ products.length }}）</a-button>
         </a-form-item>
         <a-form-item label="秒杀价">
           <a-input-number v-model="form.flashPrice" :min="0.01" :precision="2" placeholder="不填则由后端按规则处理" />

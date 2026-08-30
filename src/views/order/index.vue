@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
@@ -8,6 +9,7 @@ import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { resolveOrderView } from '@/utils/order';
 
 const userStore = useUserStore();
 const router = useRouter();
@@ -39,22 +41,35 @@ const loading = ref(false);
 const loadError = ref('');
 const counts = ref<Record<string, number>>({});
 const reviewableOrderIds = ref(new Set<string>());
+const reviewableError = ref('');
+const reviewableLoading = ref(false);
 const ordersGuard = createLatestRequestGuard();
 const countsGuard = createLatestRequestGuard();
 const reviewableGuard = createLatestRequestGuard();
 
-const role = computed(() => (userStore.isBuyerActive ? 'shopper' : 'customer'));
+const orderView = ref<'buy' | 'sell'>('buy');
+const role = computed(() => (orderView.value === 'sell' ? 'shopper' : 'customer'));
 
 function syncFromQuery() {
+  const view = route.query.view;
+  orderView.value = resolveOrderView(view, userStore.canSwitchToBuyer, userStore.currentAudience);
+  userStore.setAudience(orderView.value === 'sell' ? 'buyer' : 'customer');
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
   activeKey.value = TABS.some(item => item.key === tab) ? String(tab) : 'all';
   const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
   const page = Number(rawPage);
   current.value = Number.isInteger(page) && page > 0 ? page : 1;
+  if (view !== orderView.value) {
+    if (view === 'sell' && orderView.value === 'buy') current.value = 1;
+    syncQuery(true);
+    return false;
+  }
+  return true;
 }
 
 function currentQuery() {
   return {
+    view: orderView.value,
     ...(activeKey.value !== 'all' ? { tab: activeKey.value } : {}),
     ...(current.value > 1 ? { page: String(current.value) } : {})
   };
@@ -69,6 +84,10 @@ function syncQuery(replace = false) {
 }
 
 async function load() {
+  reviewableGuard.invalidate();
+  reviewableOrderIds.value = new Set();
+  reviewableError.value = '';
+  reviewableLoading.value = false;
   const isCurrent = ordersGuard.begin();
   const user = userStore.currentUser;
   if (!user) {
@@ -91,6 +110,7 @@ async function load() {
     else params.customerId = user.id;
     const r = await orderApi.fetchMyOrders({ ...params, signal: isCurrent.signal });
     if (!isCurrent()) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -99,6 +119,7 @@ async function load() {
     }
     orders.value = r.records;
     total.value = r.total;
+    void loadReviewableOrders();
   } catch {
     if (!isCurrent()) return;
     orders.value = [];
@@ -111,17 +132,24 @@ async function load() {
 
 async function loadReviewableOrders() {
   const isCurrent = reviewableGuard.begin();
+  reviewableError.value = '';
+  reviewableLoading.value = false;
   if (!userStore.currentUser || role.value === 'shopper') {
     reviewableOrderIds.value = new Set();
     return;
   }
+  reviewableLoading.value = true;
   try {
-    const result = await reviewApi.fetchReviewableOrders({ pageNo: 1, pageSize: 100 }, { signal: isCurrent.signal });
+    const targets = orders.value.filter(order => ['COMPLETED', 'WARRANTY'].includes(order.status)).map(order => order.id);
+    const result = await reviewApi.findReviewableOrderIds(targets, { signal: isCurrent.signal });
     if (!isCurrent()) return;
-    reviewableOrderIds.value = new Set(result.records.map(item => String(item.orderId)));
+    reviewableOrderIds.value = result;
   } catch {
     if (!isCurrent()) return;
     reviewableOrderIds.value = new Set();
+    reviewableError.value = '评价资格读取失败，不能据此判断订单不可评价';
+  } finally {
+    if (isCurrent()) reviewableLoading.value = false;
   }
 }
 
@@ -146,8 +174,8 @@ async function loadCounts() {
 }
 
 onMounted(async () => {
-  syncFromQuery();
-  await Promise.all([load(), loadCounts(), loadReviewableOrders()]);
+  if (!syncFromQuery()) return;
+  await Promise.all([load(), loadCounts()]);
 });
 onBeforeUnmount(() => {
   ordersGuard.invalidate();
@@ -156,9 +184,21 @@ onBeforeUnmount(() => {
 });
 
 watch(() => route.fullPath, () => {
-  syncFromQuery();
+  if (route.name !== 'order-list') return;
+  const previousView = orderView.value;
+  if (!syncFromQuery()) return;
+  if (previousView !== orderView.value) orders.value = [];
   void load();
+  if (previousView !== orderView.value || !Object.keys(counts.value).length) {
+    counts.value = {};
+    void loadCounts();
+  }
 });
+
+function changeView(view: 'buy' | 'sell') {
+  if (view === orderView.value || (view === 'sell' && !userStore.canSwitchToBuyer)) return;
+  void router.push({ query: { ...currentQuery(), view, page: undefined } });
+}
 
 function onTabChange() {
   current.value = 1;
@@ -171,9 +211,9 @@ function changePage(page: number) {
 }
 
 watch(
-  [() => userStore.currentAudience, () => userStore.currentUser?.id],
-  ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
-    if (String(nextAudience) === String(previousAudience) && String(nextUserId) === String(previousUserId)) return;
+  [() => userStore.canSwitchToBuyer, () => userStore.currentUser?.id],
+  ([nextPermission, nextUserId], [previousPermission, previousUserId]) => {
+    if (nextPermission === previousPermission && String(nextUserId) === String(previousUserId)) return;
     ordersGuard.invalidate();
     countsGuard.invalidate();
     reviewableGuard.invalidate();
@@ -182,9 +222,9 @@ watch(
     counts.value = {};
     reviewableOrderIds.value = new Set();
     current.value = 1;
+    orderView.value = resolveOrderView(route.query.view, userStore.canSwitchToBuyer, userStore.currentAudience);
     syncQuery(true);
     void loadCounts();
-    void loadReviewableOrders();
   }
 );
 
@@ -211,8 +251,11 @@ function handleEmptyAction() {
 <template>
   <div class="order-list-page shop-container">
     <div class="page-head">
-      <h1 class="page-title">我的订单</h1>
-      <span v-if="userStore.isBuyerActive" class="role-tag">买手视角 · 显示您接单的订单</span>
+      <h1 class="page-title">我的订单 · {{ orderView === 'sell' ? '卖出' : '买入' }}</h1>
+      <a-space v-if="userStore.canSwitchToBuyer" role="group" aria-label="订单视角">
+        <a-button :type="orderView === 'buy' ? 'primary' : 'outline'" :aria-pressed="orderView === 'buy'" @click="changeView('buy')">买入订单</a-button>
+        <a-button :type="orderView === 'sell' ? 'primary' : 'outline'" :aria-pressed="orderView === 'sell'" @click="changeView('sell')">卖出订单</a-button>
+      </a-space>
     </div>
 
     <a-card :bordered="false" :body-style="{ padding: 0 }">
@@ -227,6 +270,11 @@ function handleEmptyAction() {
     </a-card>
 
     <div class="orders">
+      <a-alert v-if="reviewableError" type="warning">
+        {{ reviewableError }}
+        <template #action><a-button :loading="reviewableLoading" @click="loadReviewableOrders">重新核对</a-button></template>
+      </a-alert>
+      <p v-else-if="reviewableLoading">正在核对评价资格…</p>
       <a-spin :loading="loading" style="width: 100%">
         <div v-if="orders.length">
           <OrderCard v-for="o in orders" :key="o.id" :order="o" :reviewable="reviewableOrderIds.has(String(o.id))" @changed="onChanged" />
@@ -267,13 +315,6 @@ function handleEmptyAction() {
   font-size: 20px;
   font-weight: 600;
   margin: 0;
-}
-.role-tag {
-  font-size: 12px;
-  color: #ff7d00;
-  background: #fff7e6;
-  padding: 2px 8px;
-  border-radius: 4px;
 }
 .badge {
   margin-left: 4px;

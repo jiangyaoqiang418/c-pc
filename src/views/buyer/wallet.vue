@@ -21,6 +21,7 @@ const loadError = ref('');
 const drawerOpen = ref(false);
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const requestGuard = createLatestRequestGuard();
+const buyerLedgerTypes: Api.Wallet.TxnType[] = ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT', 'ORDER_SETTLE', 'INTEREST_ACCRUE'];
 
 async function loadAll() {
   if (!userStore.currentUser) {
@@ -39,7 +40,7 @@ async function loadAll() {
     await walletStore.fetchWallet(userStore.currentUser.id);
     if (!isCurrent()) return;
     const r = await realWalletApi.fetchWalletLedgersByTypes({
-      types: ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT', 'ORDER_SETTLE', 'INTEREST_ACCRUE'],
+      types: buyerLedgerTypes,
       size: 30,
       signal: isCurrent.signal
     });
@@ -73,13 +74,7 @@ const cnyEquiv = computed(() =>
   walletStore.account ? formatAmount((Number(walletStore.totalAssets) * cnyRate).toFixed(2)) : '—'
 );
 const totalAssets = computed(() => walletStore.account ? formatAmount(walletStore.totalAssets) : '—');
-const totalAssetsNum = computed(() => Number(walletStore.totalAssets) || 0);
-const bucketsWithPct = computed(() =>
-  walletStore.bucketsArray.map(b => ({
-    ...b,
-    pct: totalAssetsNum.value > 0 ? (Number(b.value) / totalAssetsNum.value) * 100 : 0
-  }))
-);
+const bucketsWithPct = computed(() => walletStore.bucketsWithPct);
 
 function openTxn(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
@@ -91,6 +86,10 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
   <div class="bw-page">
     <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
       {{ loadError }}
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
+    <a-alert v-if="walletStore.partialData" type="warning" :closable="false" class="load-alert">
+      部分钱包金额尚未取得，已知金额继续显示；“—”不代表零余额。
       <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
     </a-alert>
 
@@ -110,7 +109,7 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
         <div class="hero-sub">
           ≈ <span class="cny-num">¥{{ cnyEquiv }}</span>
           <span class="rate-sep">·</span>
-          <span class="rate-info">1 USDT = ¥{{ cnyRate.toFixed(2) }}</span>
+          <span class="rate-info">本地参考折算 · 1 USDT = ¥{{ cnyRate.toFixed(2) }}（非实时，以 USDT 结算）</span>
         </div>
         <div class="hero-note">含押金 · 钱包 · 冻结 · 利息</div>
       </div>
@@ -152,8 +151,9 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
       <div class="sec-bar">
         <div>
           <div class="sec-eyebrow">BUYER TRANSACTIONS</div>
-          <h3 class="sec-title">买手专属流水（押金 / 接单结算 / 利息）</h3>
+          <h3 class="sec-title">最近 30 条买手流水（押金 / 接单结算 / 利息）</h3>
         </div>
+        <a-link @click="router.push({ name: 'wallet-history', query: { types: buyerLedgerTypes.join(',') } })">查看全部</a-link>
       </div>
       <a-spin :loading="loading" style="width: 100%">
         <div v-if="txns.length" class="txn-list">

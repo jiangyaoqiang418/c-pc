@@ -32,7 +32,7 @@ const set = computed(() => priceSet(props.price));
       <span class="approx">≈</span>
       <span class="cny-value">{{ set.cny }}</span>
     </div>
-    <!-- 副 2：实时汇率 -->
+    <!-- 副 2：本地参考折算，非实时汇率 -->
     <div v-if="showRate" class="rate-line">
       {{ set.rateLabel }}
     </div>

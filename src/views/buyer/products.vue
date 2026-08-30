@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import BuyerProductCard from '@/components/buyer/buyer-product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -10,6 +11,7 @@ import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 
 interface TabDef {
@@ -34,7 +36,7 @@ const products = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const keyword = ref('');
-const categoryPath = ref<Array<string | number>>([]);
+const categoryId = ref<string | number>();
 const categoryOptions = ref<Array<{ value: string | number; label: string; children?: any[] }>>([]);
 const current = ref(1);
 const size = ref(12);
@@ -44,6 +46,31 @@ const deletingId = ref<string | number>();
 const requestGuard = createLatestRequestGuard();
 const categoryGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let syncingQuery = false;
+
+function syncFromQuery() {
+  syncingQuery = true;
+  const value = (key: string) => {
+    const raw = route.query[key];
+    return Array.isArray(raw) ? raw[0] : raw;
+  };
+  activeKey.value = TABS.some(tab => tab.key === value('tab')) ? value('tab')! : 'all';
+  keyword.value = value('keyword') || '';
+  categoryId.value = value('categoryId') || undefined;
+  const page = Number(value('page'));
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  syncingQuery = false;
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  const query = { ...route.query, tab: activeKey.value === 'all' ? undefined : activeKey.value,
+    keyword: keyword.value.trim() || undefined, categoryId: categoryId.value === undefined || categoryId.value === '' ? undefined : String(categoryId.value),
+    page: current.value > 1 ? String(current.value) : undefined };
+  void (replace ? router.replace({ query }) : router.push({ query })).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
 
 function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
@@ -70,17 +97,18 @@ async function load() {
       current: current.value,
       size: size.value,
       keyword: keyword.value.trim() || undefined,
-      categoryId: categoryPath.value.at(-1),
+      categoryId: categoryId.value === '' ? undefined : categoryId.value,
       status: tab?.status,
       shelf: tab?.shelf,
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       // 仅回退一次到后端报告的最后有效页，避免超大页码造成空列表或重复请求。
       current.value = maxPage;
-      void load();
+      syncQuery(true);
       return;
     }
     products.value = r.records;
@@ -109,16 +137,17 @@ async function loadCategories() {
 
 function queryProducts() {
   current.value = 1;
-  void load();
+  syncQuery();
 }
 
 function resetFilters() {
   keyword.value = '';
-  categoryPath.value = [];
+  categoryId.value = undefined;
   queryProducts();
 }
 
 onMounted(() => {
+  syncFromQuery();
   void Promise.all([load(), loadCategories()]);
 });
 onBeforeUnmount(() => {
@@ -127,7 +156,12 @@ onBeforeUnmount(() => {
   categoryGuard.invalidate();
 });
 watch(activeKey, () => {
+  if (syncingQuery) return;
   current.value = 1;
+  syncQuery();
+}, { flush: 'sync' });
+watch(() => route.fullPath, () => {
+  syncFromQuery();
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {
@@ -140,7 +174,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   total.value = 0;
   current.value = 1;
   loadError.value = '';
-  void load();
+  syncQuery(true);
 });
 
 async function toggleShelf(p: Api.RealProduct.Record) {
@@ -211,7 +245,7 @@ async function deleteProduct(p: Api.RealProduct.Record) {
       <a-space wrap>
         <a-input v-model="keyword" placeholder="搜索商品名称" allow-clear style="width: 240px" @press-enter="queryProducts" />
         <a-cascader
-          v-model="categoryPath"
+          v-model="categoryId"
           :options="categoryOptions"
           placeholder="选择商品分类"
           allow-clear
@@ -250,7 +284,7 @@ async function deleteProduct(p: Api.RealProduct.Record) {
         :current="current"
         :page-size="size"
         show-total
-        @change="(page: number) => { current = page; load(); }"
+        @change="(page: number) => { current = page; syncQuery(); }"
       />
     </div>
   </div>

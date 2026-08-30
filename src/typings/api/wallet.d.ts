@@ -2,7 +2,9 @@ declare namespace Api.RealWallet {
   type Id = string | number;
 
   /** 真实钱包展示模型，不复用仅支持 number ID 的 Mock 钱包类型。 */
-  type Account = Omit<Api.Wallet.InternalAccount, 'userId'> & {
+  type BalanceKey = 'available' | 'nonWithdrawable' | 'lockedFinance' | 'frozenOrder' | 'frozenRisk'
+    | 'depositAvailable' | 'depositGuaranteed' | 'interestAccrued';
+  type Account = Omit<Api.Wallet.InternalAccount, 'userId' | BalanceKey> & Partial<Pick<Api.Wallet.InternalAccount, BalanceKey>> & {
     userId: Id;
   };
 

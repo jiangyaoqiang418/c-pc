@@ -133,7 +133,8 @@ function goProfile() { router.push({ name: 'profile' }); }
             </div>
             <div class="user-sub">
               <Icon icon="lucide:coins" width="11" />
-              <span class="yb-mono">{{ user!.points }}</span> 积分
+              <span class="yb-mono">{{ user!.points ?? '—' }}</span> 积分
+              <span v-if="user!.accountInfoUnavailable">（未更新）</span>
             </div>
           </div>
         </div>

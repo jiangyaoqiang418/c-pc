@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { parseOrderMessageCard } from '@/utils/im';
 
 interface Props {
   msg: Api.RealNotify.ImMessageVO;
@@ -50,22 +51,7 @@ const systemContent = computed(() => {
   return templates[eventType] || statusText || props.msg.content || '订单状态已更新';
 });
 
-const orderCard = computed(() => {
-  if (!isOrderCard.value || !props.msg.content) return undefined;
-  try {
-    return JSON.parse(props.msg.content) as {
-      orderId?: string | number;
-      orderNo?: string;
-      productTitle?: string;
-      productImage?: string;
-      amount?: string | number;
-      currency?: string;
-      statusText?: string;
-    };
-  } catch {
-    return undefined;
-  }
-});
+const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props.msg.content) : undefined);
 </script>
 
 <template>

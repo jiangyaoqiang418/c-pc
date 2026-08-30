@@ -9,6 +9,7 @@ import * as orderApi from '@/service/api/order';
 import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { formatDateValue } from '@/utils/date-range';
+import { getOrderCapabilities } from '@/utils/order';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -19,10 +20,12 @@ const emit = defineEmits<{ (e: 'changed'): void }>();
 
 const router = useRouter();
 const userStore = useUserStore();
+const permissions = computed(() => getOrderCapabilities(props.order, userStore.currentUser?.id));
 const cover = computed(() => props.order.productCover || PRODUCT_IMAGE_PLACEHOLDER);
 const acting = ref(false);
 const confirmationOpen = ref(false);
 let actionVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 function isCurrentAction(operation: number, userId: string | number, orderId: string | number) {
   return operation === actionVersion
@@ -35,6 +38,7 @@ function goDetail() {
 }
 
 async function pay() {
+  if (!permissions.value.pay) return;
   if (acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
@@ -58,23 +62,24 @@ async function pay() {
 }
 
 function cancel() {
+  if (!permissions.value.cancel) return;
   if (acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const requestedOrderId = props.order.id;
   const operation = ++actionVersion;
   confirmationOpen.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '取消订单？',
     content: '取消后订单将不可恢复',
     okText: '确认取消',
     okButtonProps: { status: 'danger' },
     onCancel() {
-      confirmationOpen.value = false;
+      if (operation === actionVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) {
-        confirmationOpen.value = false;
+      if (!isCurrentAction(operation, requestedUserId, requestedOrderId) || !permissions.value.cancel) {
+        if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
@@ -98,21 +103,22 @@ function cancel() {
 }
 
 async function confirm() {
+  if (!permissions.value.confirm) return;
   if (acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const requestedOrderId = props.order.id;
   const operation = ++actionVersion;
   confirmationOpen.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '确认收货？',
     content: '请确认您已收到商品并验货无误',
     onCancel() {
-      confirmationOpen.value = false;
+      if (operation === actionVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) {
-        confirmationOpen.value = false;
+      if (!isCurrentAction(operation, requestedUserId, requestedOrderId) || !permissions.value.confirm) {
+        if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
@@ -137,18 +143,22 @@ async function confirm() {
 
 onBeforeUnmount(() => {
   actionVersion += 1;
+  confirmationModal?.close();
 });
 watch([() => props.order.id, () => userStore.currentUser?.id], () => {
   actionVersion += 1;
+  confirmationModal?.close();
   acting.value = false;
   confirmationOpen.value = false;
 });
 
 function review() {
+  if (!permissions.value.review || !props.reviewable) return;
   router.push({ name: 'review-write', params: { orderId: String(props.order.id) } });
 }
 
 function aftersale() {
+  if (!permissions.value.refund && !permissions.value.viewAftersale) return;
   if (props.order.status === 'IN_AFTERSALE') {
     router.push({ name: 'aftersale-list' });
   } else {
@@ -157,7 +167,11 @@ function aftersale() {
 }
 
 function contactShopper() {
-  router.push({ name: 'im-order-group', params: { orderCode: props.order.code } });
+  router.push({ name: 'im-order-group', params: { orderCode: String(props.order.id) } });
+}
+
+function viewLogistics() {
+  router.push({ name: 'order-detail', params: { id: String(props.order.id) }, hash: '#logistics' });
 }
 </script>
 
@@ -192,7 +206,7 @@ function contactShopper() {
         <div class="amount-usdt">≈ {{ formatCny(order.totalAmount) }}</div>
       </div>
       <div class="op" @click.stop>
-        <OrderActions :order="order" :reviewable="reviewable" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" />
+        <OrderActions :order="order" :reviewable="reviewable" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" />
       </div>
     </div>
   </a-card>

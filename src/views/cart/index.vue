@@ -1,17 +1,29 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
-import { enums } from '@shared';
+import { getAftersaleMeta } from '@/service/api/product';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import EmptyState from '@/components/common/empty-state.vue';
 import PriceTag from '@/components/product/price-tag.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
-import { useCartStore } from '@/stores';
+import { useCartStore, useUserStore } from '@/stores';
+import { createCheckoutIntent } from '@/utils/checkout';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 const router = useRouter();
 const cart = useCartStore();
+const userStore = useUserStore();
+let removalVersion = 0;
+let removalModal: ReturnType<typeof Modal.confirm> | undefined;
+
+function closeRemoval() {
+  removalVersion += 1;
+  removalModal?.close();
+  removalModal = undefined;
+}
+onBeforeUnmount(closeRemoval);
+watch(() => userStore.currentUser?.id, closeRemoval);
 
 const items = computed(() => cart.enrichedItems);
 
@@ -20,27 +32,53 @@ function setAll(checked: boolean) {
 }
 
 function remove(productId: string | number) {
-  Modal.confirm({
+  if (removalModal) return;
+  const userId = userStore.currentUser?.id;
+  const addedAt = cart.items.find(item => String(item.productId) === String(productId))?.addedAt;
+  const operation = ++removalVersion;
+  removalModal = Modal.confirm({
     title: '从购物车移除？',
     content: '该商品将从购物车删除',
+    onCancel() {
+      if (operation === removalVersion) removalModal = undefined;
+    },
     async onOk() {
-      cart.remove(productId);
-      Message.success('已移除');
+      if (operation !== removalVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+      removalModal = undefined;
+      if (!cart.items.some(item => String(item.productId) === String(productId) && item.addedAt === addedAt)) return;
+      if (await cart.remove(productId)) Message.success('已移除');
     }
   });
 }
 
-function clearInvalid() {
-  items.value.filter(i => !i.available).forEach(i => cart.remove(i.productId));
-  Message.success('已清理失效商品');
+async function clearInvalid() {
+  const results = await Promise.all(items.value.filter(i => i.confirmedInvalid).map(i => cart.remove(i.productId)));
+  if (results.every(Boolean)) Message.success('已清理失效商品');
 }
 
 function goCheckout() {
+  if (cart.cacheError) {
+    Message.warning(cart.cacheError);
+    return;
+  }
+  if (cart.mutating) {
+    Message.warning('购物车正在同步，请稍候再结算');
+    return;
+  }
+  if (items.value.some(item => item.selected && !item.available)) {
+    Message.warning('已选商品尚未全部确认可购，请重试读取或调整数量和勾选');
+    return;
+  }
   if (cart.selectedQty === 0) {
     Message.warning('请先勾选至少一件可购商品');
     return;
   }
-  router.push('/checkout');
+  if (!userStore.currentUser) {
+    const contextId = createCheckoutIntent(cart.selectedItems.map(item => ({ productId: item.productId, quantity: item.qty })));
+    router.push({ path: '/checkout', query: { contextId } });
+  } else {
+    router.push('/checkout');
+  }
 }
 
 onMounted(() => {
@@ -52,7 +90,10 @@ onMounted(() => {
   <div class="cart-page shop-container">
     <h1 class="page-title">购物车</h1>
 
-    <template v-if="items.length">
+    <a-result v-if="cart.cacheError" status="error" title="购物车读取失败" :subtitle="cart.cacheError">
+      <template #extra><a-button type="primary" @click="cart.retryLoad">重新读取</a-button></template>
+    </a-result>
+    <template v-else-if="items.length">
       <a-card class="cart-card" :body-style="{ padding: 0 }">
         <div class="head-row">
           <div class="col-check">
@@ -73,21 +114,24 @@ onMounted(() => {
           <div class="col-check">
             <a-checkbox
               :model-value="item.selected"
-              :disabled="!item.available"
+              :disabled="!item.available && !item.selected"
               @change="(v) => cart.setSelected(item.productId, !!v)"
             />
           </div>
           <div class="col-product">
             <img v-if="item.product" :src="item.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product.title || '商品图片'" class="cover" @error="setImageFallback" />
             <div class="product-info">
-              <div class="product-title">{{ item.product?.title || '商品已删除' }}</div>
+              <div class="product-title">{{ item.product?.title || (item.loadState === 'error' ? '商品读取失败' : '商品加载中') }}</div>
               <div class="product-tags">
-                <a-tag v-if="item.product" :color="enums.AFTERSALE_TYPE_META[item.product.aftersaleType].color" size="small">
-                  {{ enums.AFTERSALE_TYPE_META[item.product.aftersaleType].label }}
+                <a-tag v-if="item.product" :color="getAftersaleMeta(item.product.aftersaleType).color" size="small">
+                  {{ getAftersaleMeta(item.product.aftersaleType).label }}
                 </a-tag>
                 <a-tag v-if="item.product?.overseasCustoms" color="orange" size="small">海外直邮</a-tag>
                 <span class="seller">{{ item.product?.sellerName || '—' }}</span>
-                <a-tag v-if="!item.available" color="red" size="small">已失效</a-tag>
+                <a-tag v-if="item.confirmedInvalid" color="red" size="small">已失效</a-tag>
+                <a-tag v-else-if="item.loadState === 'loading'" size="small">读取中</a-tag>
+                <a-button v-else-if="item.loadState === 'error'" type="text" size="small" @click="cart.refresh()">读取失败，重试</a-button>
+                <a-tag v-else-if="!item.available" color="orange" size="small">请检查数量或商品信息</a-tag>
               </div>
             </div>
           </div>
@@ -101,7 +145,7 @@ onMounted(() => {
               :max="item.product?.stock || 1"
               size="small"
               class="qty-input"
-              :disabled="!item.available"
+              :disabled="item.loadState !== 'ready' || item.confirmedInvalid"
               @change="(v) => cart.update(item.productId, Number(v) || 1)"
             />
           </div>
@@ -117,7 +161,7 @@ onMounted(() => {
 
       <div class="summary-card">
         <div class="summary-left">
-          <a-button type="text" size="small" @click="clearInvalid">清理失效商品</a-button>
+          <a-button type="text" size="small" :disabled="!items.some(item => item.confirmedInvalid)" @click="clearInvalid">清理失效商品</a-button>
           <span class="muted small">已选 {{ cart.selectedQty }} 件 / 共 {{ cart.totalQty }} 件</span>
         </div>
         <div class="summary-right">

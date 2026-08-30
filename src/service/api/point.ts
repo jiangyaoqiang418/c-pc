@@ -4,22 +4,8 @@ import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
 
-const behaviorMap: Partial<Record<string, Api.Point.BehaviorCode>> = {
-  CONSUME: 'CONSUME',
-  DEPOSIT_IN: 'DEPOSIT_IN',
-  RECHARGE: 'RECHARGE',
-  WITHDRAW: 'WITHDRAW',
-  FINANCE_HOLD: 'FINANCE_HOLD',
-  ORDER_DONE: 'ORDER_DONE',
-  KYC_PASS: 'KYC_PASS',
-  REVIEW_GOOD: 'REVIEW_GOOD',
-  REVIEW_BAD: 'REVIEW_BAD',
-  DEPOSIT_PLEDGE: 'DEPOSIT_PLEDGE',
-  BUYER_NO_FULFILL: 'BUYER_NO_FULFILL'
-};
-
-function toBehavior(code?: string): Api.Point.BehaviorCode {
-  return behaviorMap[code || ''] || 'CONSUME';
+function toBehavior(code?: string) {
+  return code || '';
 }
 
 function toAudience(identity?: string): Api.Point.Audience {
@@ -29,7 +15,7 @@ function toAudience(identity?: string): Api.Point.Audience {
   return 'all';
 }
 
-function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.Point.Rule {
+function toPointRule(rule: Api.RealPoint.PointRuleVO): Api.RealPoint.Rule {
   return {
     code: toBehavior(rule.behaviorCode),
     label: rule.name,
@@ -50,6 +36,7 @@ function toPointLog(item: Api.RealPoint.PointLedgerDTO): Api.RealPoint.Ledger {
     userId: item.userId,
     userName: item.userNickname || '',
     behavior: toBehavior(item.behaviorCode),
+    behaviorName: item.behaviorName,
     change: toFiniteNumber(item.score || 0),
     balanceAfter: toFiniteNumber(item.balanceAfter || 0),
     refId: item.bizNo,
@@ -75,7 +62,7 @@ export async function fetchMyPointLogs(q: {
   toAt?: string;
 }, options: { signal?: AbortSignal } = {}) {
   const behaviorCode = q.behaviors?.length === 1 ? q.behaviors[0] : undefined;
-  const result = await realUserRequest.post<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO>>(
+  const result = await realUserRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO>>(
     '/points/ledger/page',
     {
       pageNo: q.current || 1,
@@ -86,7 +73,8 @@ export async function fetchMyPointLogs(q: {
   );
   let records = requireArray<Api.RealPoint.PointLedgerDTO>(result.records, '积分流水').map(toPointLog);
   if (q.behaviors?.length && !behaviorCode) {
-    records = records.filter(item => q.behaviors?.includes(item.behavior));
+    const selected = new Set<string>(q.behaviors);
+    records = records.filter(item => selected.has(item.behavior));
   }
   if (q.fromAt || q.toAt) records = records.filter(item => isWithinDateRange(item.createdAt, q.fromAt, q.toAt));
   const page = result as Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO> & {
@@ -110,7 +98,7 @@ export async function appealPointLog(p: { logId: number | string; reason: string
 }
 
 export async function fetchMyPointAppeals(q: Api.RealPoint.PointAppealPageQuery, options: { signal?: AbortSignal } = {}) {
-  const result = await realUserRequest.post<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointAppealDTO>>(
+  const result = await realUserRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointAppealDTO>>(
     '/points/appeals/page',
     q,
     options

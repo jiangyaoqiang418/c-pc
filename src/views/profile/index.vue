@@ -15,13 +15,15 @@ const router = useRouter();
 const userStore = useUserStore();
 
 const vipStatus = ref<Api.RealVip.Status>();
-const totalAssets = ref<{ total: string; account?: Api.RealWallet.Account }>();
-const orderCounts = ref<Record<string, number>>({});
+const totalAssets = ref<{ total?: string; account?: Api.RealWallet.Account }>();
+const orderCounts = ref<Record<string, number>>();
 const announcements = ref<Api.Cms.Announcement[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const editVisible = ref(false);
 const savingProfile = ref(false);
+const profileRefreshError = ref(false);
+const refreshingProfile = ref(false);
 let profileLoadVersion = 0;
 let profileWriteVersion = 0;
 const profileRequestGuard = createLatestRequestGuard();
@@ -47,7 +49,7 @@ async function loadProfile() {
     loading.value = false;
     vipStatus.value = undefined;
     totalAssets.value = undefined;
-    orderCounts.value = {};
+    orderCounts.value = undefined;
     announcements.value = [];
     loadError.value = '';
     return;
@@ -58,12 +60,14 @@ async function loadProfile() {
   loadError.value = '';
   vipStatus.value = undefined;
   totalAssets.value = undefined;
-  orderCounts.value = {};
+  orderCounts.value = undefined;
   announcements.value = [];
   const [vip, assets, counts, anns] = await Promise.allSettled([
     vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal }),
     realWalletApi.fetchWalletOverview(uid, { signal: isCurrent.signal }),
-    realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal }),
+    userStore.isBuyerActive
+      ? realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal })
+      : realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal }),
     cmsApi.fetchAnnouncements({ size: 3 })
   ]);
   if (!isCurrent() || version !== profileLoadVersion) return;
@@ -86,13 +90,16 @@ onBeforeUnmount(() => {
 watch(() => userStore.currentUser?.id, () => {
   profileWriteVersion += 1;
   savingProfile.value = false;
+  refreshingProfile.value = false;
+  profileRefreshError.value = false;
   editVisible.value = false;
   profileRequestGuard.invalidate();
   void loadProfile();
 });
+watch(() => userStore.currentAudience, loadProfile);
 
 function openEditProfile() {
-  if (!user.value) return;
+  if (!user.value || savingProfile.value) return;
   editForm.nickname = user.value.nickname;
   editForm.phone = user.value.phone || '';
   editForm.avatar = user.value.avatar || '';
@@ -116,14 +123,30 @@ async function saveProfile() {
       avatar: editForm.avatar?.trim() || undefined
     });
     if (operation !== profileWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-    await userStore.refreshCurrentUser();
-    if (operation !== profileWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     editVisible.value = false;
     Message.success('资料已更新');
+    await refreshSavedProfile();
   } catch {
     // 请求层已展示错误，保留弹窗与当前表单供用户修正后重试。
   } finally {
     if (operation === profileWriteVersion) savingProfile.value = false;
+  }
+}
+
+async function refreshSavedProfile(saved = true) {
+  if (refreshingProfile.value) return;
+  const operation = profileWriteVersion;
+  refreshingProfile.value = true;
+  try {
+    await userStore.refreshCurrentUser();
+    if (operation === profileWriteVersion) profileRefreshError.value = false;
+  } catch {
+    if (operation === profileWriteVersion) {
+      if (saved) profileRefreshError.value = true;
+      Message.warning(saved ? '资料已保存，但最新资料读取失败，请重新读取' : '会员资料读取失败，请稍后重试');
+    }
+  } finally {
+    if (operation === profileWriteVersion) refreshingProfile.value = false;
   }
 }
 
@@ -162,17 +185,19 @@ const quickEntries = computed<QuickEntry[]>(() => [
   }
 ]);
 
-function orderCount(status: string) {
-  const count = Number(orderCounts.value[status] || 0);
-  return Number.isFinite(count) && count >= 0 ? Math.floor(count) : 0;
+function orderCount(...statuses: string[]) {
+  if (!orderCounts.value) return undefined;
+  const counts = statuses.map(status => orderCounts.value![status]);
+  if (counts.some(count => !Number.isFinite(count) || count! < 0)) return undefined;
+  return counts.reduce<number>((sum, count) => sum + count!, 0);
 }
 
 const orderTabsMeta = computed(() => [
-  { label: '待付款', count: orderCount('PENDING_PAYMENT'), status: 'PENDING_PAYMENT' },
-  { label: '待发货', count: orderCount('PROCURING') + orderCount('PROCURED') },
-  { label: '待收货', count: orderCount('IN_TRANSIT') + orderCount('AFTERSALE_CONFIRM') },
-  { label: '已完成', count: orderCount('COMPLETED') + orderCount('WARRANTY') },
-  { label: '售后中', count: orderCount('IN_AFTERSALE') }
+  { label: '待付款', count: orderCount('PENDING_PAYMENT'), tab: 'pending' },
+  { label: '待发货', count: orderCount('PROCURING', 'PROCURED'), tab: 'shipping' },
+  { label: '待收货', count: orderCount('IN_TRANSIT', 'AFTERSALE_CONFIRM'), tab: 'receiving' },
+  { label: '已完成', count: orderCount('COMPLETED', 'WARRANTY'), tab: 'done' },
+  { label: '售后中', count: orderCount('IN_AFTERSALE'), tab: 'aftersale' }
 ]);
 </script>
 
@@ -197,15 +222,17 @@ const orderTabsMeta = computed(() => [
               <div class="meta">
                 <span>{{ user.email }}</span>
                 <span class="dot">·</span>
-                <span>积分 {{ formatPoints(user.points) }}</span>
+                <span>积分 {{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
                 <span class="dot">·</span>
                 <span>注册于 {{ registeredDate }}</span>
               </div>
               <a-button type="text" size="mini" class="edit-profile" @click="openEditProfile">编辑资料</a-button>
+              <a-alert v-if="user.accountInfoUnavailable" type="warning">积分或等级资料未更新，已有值仅供参考。<template #action><a-button size="mini" :loading="refreshingProfile" @click="refreshSavedProfile(false)">重试会员资料</a-button></template></a-alert>
+              <a-alert v-if="profileRefreshError" type="warning">资料已保存，当前显示的资料尚未刷新。<template #action><a-button size="mini" :loading="refreshingProfile" @click="refreshSavedProfile()">重新读取</a-button></template></a-alert>
               <div v-if="vipStatus?.nextThreshold" class="vip-progress">
                 距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分
                 <a-progress
-                  :percent="(user.points / vipStatus.nextThreshold) * 100"
+                  :percent="Math.min(100, (vipStatus.points / vipStatus.nextThreshold) * 100)"
                   size="mini"
                   color="#722ed1"
                   style="width: 220px"
@@ -217,12 +244,12 @@ const orderTabsMeta = computed(() => [
 
         <a-card class="order-stat-card" :body-style="{ padding: '20px 24px' }">
           <div class="card-head">
-            <div class="card-title">订单概况</div>
+            <div class="card-title">{{ userStore.isBuyerActive ? '卖出订单概况' : '买入订单概况' }}</div>
             <a-link role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">查看全部 ›</a-link>
           </div>
           <div class="order-stats">
-            <div v-for="o in orderTabsMeta" :key="o.label" class="stat" role="button" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">
-              <div class="stat-num">{{ o.count }}</div>
+            <div v-for="o in orderTabsMeta" :key="o.label" class="stat" role="button" tabindex="0" @click="router.push({ path: '/order', query: { tab: o.tab } })" @keydown.enter="router.push({ path: '/order', query: { tab: o.tab } })" @keydown.space.prevent="router.push({ path: '/order', query: { tab: o.tab } })">
+              <div class="stat-num">{{ o.count ?? (loading ? '读取中' : '—') }}</div>
               <div class="stat-label">{{ o.label }}</div>
             </div>
           </div>
@@ -253,11 +280,11 @@ const orderTabsMeta = computed(() => [
       <aside class="right">
         <a-card class="asset-card" :body-style="{ padding: '20px 24px' }">
           <div class="card-title">我的资产</div>
-          <div class="asset-amount">U {{ formatAmount(totalAssets?.total || '0') }}</div>
-          <div class="asset-sub">
-            可用 U {{ formatAmount(totalAssets?.account?.available || '0') }}
+          <div class="asset-amount">{{ totalAssets ? `U ${formatAmount(totalAssets.total)}` : loading ? '读取中' : '读取失败' }}</div>
+          <div v-if="totalAssets" class="asset-sub">
+            可用 U {{ formatAmount(totalAssets.account?.available) }}
             <br />
-            锁仓 U {{ formatAmount(totalAssets?.account?.lockedFinance || '0') }}
+            锁仓 U {{ formatAmount(totalAssets.account?.lockedFinance) }}
           </div>
           <a-button long type="primary" class="asset-btn" @click="router.push('/wallet')">进入钱包 ›</a-button>
         </a-card>
@@ -275,7 +302,7 @@ const orderTabsMeta = computed(() => [
       </aside>
     </div>
 
-    <a-modal v-model:visible="editVisible" title="编辑资料" :ok-loading="savingProfile" @ok="saveProfile">
+    <a-modal v-model:visible="editVisible" title="编辑资料" :ok-loading="savingProfile" :on-before-ok="() => { void saveProfile(); return false; }">
       <a-form :model="editForm" layout="vertical">
         <a-form-item label="昵称" required>
           <a-input v-model="editForm.nickname" :max-length="64" show-word-limit placeholder="请输入昵称" />

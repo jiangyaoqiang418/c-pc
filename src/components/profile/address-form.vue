@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
+import { prepareAddress } from '@/service/api/address';
 interface Props {
   modelValue?: Partial<Api.RealAddress.AddressRecord>;
   submitting?: boolean;
@@ -35,16 +36,18 @@ function sync() {
 }
 watch(() => props.modelValue, sync, { immediate: true });
 
-const canSubmit = computed(
-  () => form.receiverName && form.receiverPhone && form.country && form.province && form.detail
-);
+const prepared = computed(() => prepareAddress({ ...form, detailAddress: form.detail }));
+const canSubmit = computed(() => !prepared.value.error);
 
 function submit() {
+  if (props.submitting) return;
   if (!canSubmit.value) {
-    Message.warning('请完善必填信息');
+    Message.warning(prepared.value.error);
     return;
   }
-  emit('submit', { ...form });
+  const values = prepared.value.params;
+  emit('submit', { ...form, receiverName: values.receiverName, receiverPhone: values.receiverPhone,
+    country: values.country, province: values.province || '', city: values.city || '', district: values.district || '', detail: values.detailAddress });
 }
 </script>
 
@@ -58,7 +61,7 @@ function submit() {
       </a-col>
       <a-col :span="12">
         <a-form-item label="手机号" required>
-          <a-input v-model="form.receiverPhone" placeholder="11 位手机号" :max-length="11" />
+          <a-input v-model="form.receiverPhone" placeholder="收件人电话，可含国家/地区区号" :max-length="32" />
         </a-form-item>
       </a-col>
     </a-row>

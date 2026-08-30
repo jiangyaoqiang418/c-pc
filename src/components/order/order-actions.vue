@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useUserStore } from '@/stores';
+import { getOrderCapabilities } from '@/utils/order';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -7,6 +9,7 @@ interface Props {
   reviewable?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), { variant: 'card', reviewable: false });
+const userStore = useUserStore();
 
 const emit = defineEmits<{
   (e: 'pay'): void;
@@ -23,27 +26,30 @@ const actions = computed(() => {
   const a: { type: string; label: string; primary?: boolean; emit: () => void; disabled?: boolean; tip?: string }[] =
     [];
   const s = props.order.status;
-  if (s === 'PENDING_PAYMENT') {
+  const permissions = getOrderCapabilities(props.order, userStore.currentUser?.id);
+  if (permissions.pay) {
     a.push({ type: 'pay', label: '立即付款', primary: true, emit: () => emit('pay') });
     a.push({ type: 'cancel', label: '取消订单', emit: () => emit('cancel') });
   }
-  if (s === 'PROCURING' || s === 'PROCURED') {
+  if (permissions.isCustomer && (s === 'PROCURING' || s === 'PROCURED')) {
     a.push({ type: 'cs', label: '联系买手', emit: () => emit('cs') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
-  if (s === 'IN_TRANSIT') {
+  if (permissions.logistics) {
     a.push({ type: 'logistics', label: '查看物流', emit: () => emit('logistics') });
+  }
+  if (permissions.confirm && s === 'IN_TRANSIT') {
     a.push({ type: 'confirm', label: '确认收货', primary: true, emit: () => emit('confirm') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
-  if (s === 'AFTERSALE_CONFIRM') {
+  if (permissions.confirm && s === 'AFTERSALE_CONFIRM') {
     a.push({ type: 'confirm', label: '签字确认', primary: true, emit: () => emit('confirm') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
-  if ((s === 'COMPLETED' || s === 'WARRANTY') && props.reviewable) {
+  if (permissions.review && props.reviewable) {
     a.push({ type: 'review', label: '写评价', emit: () => emit('review') });
   }
-  if (s === 'IN_AFTERSALE') {
+  if (permissions.viewAftersale) {
     a.push({ type: 'aftersale', label: '查看售后', emit: () => emit('aftersale') });
   }
   if (props.variant === 'card') {

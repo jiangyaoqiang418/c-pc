@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { Icon } from '@iconify/vue';
 import { Message } from '@arco-design/web-vue';
 import { enums } from '@shared';
@@ -12,9 +13,12 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 const userStore = useUserStore();
 const loading = ref(false);
 const submitting = ref(false);
-const uploading = ref(false);
+const uploadStates = reactive({ front: false, back: false, holding: false });
+const uploading = computed(() => Object.values(uploadStates).some(Boolean));
+const uploadContext = computed(() => `${String(userStore.currentUser?.id)}:${form.idType}`);
 const kycDetail = ref<Api.RealKyc.KycVO | null>();
 const loadError = ref('');
+const formDisabled = computed(() => submitting.value || loading.value || !!loadError.value);
 const form = reactive<Api.RealKyc.SubmitParams>({
   realName: '',
   idType: 'ID_CARD',
@@ -25,6 +29,7 @@ const form = reactive<Api.RealKyc.SubmitParams>({
   nationality: '中国'
 });
 const requestGuard = createLatestRequestGuard();
+const { markInteracted, markSaved } = useUnsavedForm(() => form, () => userStore.currentUser?.id);
 
 function toDisplayStatus(value?: string): Api.User.KycStatus {
   if (value === 'PASSED') return 'approved';
@@ -106,7 +111,7 @@ async function load() {
   loadError.value = '';
   try {
     await userStore.init();
-    await userStore.refreshCurrentUser({ signal: isCurrent.signal });
+    await userStore.refreshCurrentUser({ signal: isCurrent.signal, deferAccount: true });
     if (!isCurrent()) return;
     const userId = String(userStore.currentUser?.id || '');
     if (!userId) return;
@@ -115,7 +120,7 @@ async function load() {
         const nextDetail = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal });
         if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
         kycDetail.value = nextDetail;
-        await refreshPrivatePreviews(kycDetail.value, isCurrent.signal, isCurrent);
+        void refreshPrivatePreviews(kycDetail.value, isCurrent.signal, isCurrent);
       } catch {
         if (!isCurrent()) return;
         kycDetail.value = null;
@@ -147,11 +152,22 @@ watch(() => userStore.currentUser?.id, () => {
   form.idCardFrontFileId = '';
   form.idCardBackFileId = '';
   form.holdingPhotoFileId = '';
+  form.idType = 'ID_CARD';
+  form.nationality = '中国';
+  Object.assign(uploadStates, { front: false, back: false, holding: false });
   void load();
 });
 
+watch(() => form.idType, () => {
+  form.idNo = '';
+  form.idCardFrontFileId = '';
+  form.idCardBackFileId = '';
+  form.holdingPhotoFileId = '';
+  Object.assign(uploadStates, { front: false, back: false, holding: false });
+});
+
 async function submit() {
-  if (submitting.value) return;
+  if (formDisabled.value) return;
   if (!form.realName.trim() || !form.idNo.trim() || !form.idCardFrontFileId) {
     Message.warning('请填写真实姓名、证件号码并上传证件人像面');
     return;
@@ -182,6 +198,7 @@ async function submit() {
       return;
     }
     if (!isCurrentWrite()) return;
+    markSaved();
     let refreshFailed = false;
     try {
       // load() 已包含一次带取消信号的当前用户刷新，避免重复并发刷新造成旧状态覆盖。
@@ -246,7 +263,7 @@ async function submit() {
         <template v-if="status !== 'approved' && status !== 'pending'">
           <a-divider />
           <a-alert :type="status === 'rejected' ? 'error' : 'info'" :title="status === 'rejected' ? statusView.description : '请填写真实资料并上传清晰的证件图片；提交后由平台审核。'" />
-          <a-form :model="form" layout="vertical" class="kyc-form">
+          <a-form :model="form" :disabled="formDisabled" layout="vertical" class="kyc-form" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
             <a-row :gutter="16">
               <a-col :span="12"><a-form-item label="真实姓名" required><a-input v-model="form.realName" placeholder="请输入证件上的真实姓名" :max-length="64" /></a-form-item></a-col>
               <a-col :span="12"><a-form-item label="国籍"><a-input v-model="form.nationality" placeholder="如：中国" :max-length="64" /></a-form-item></a-col>
@@ -257,12 +274,12 @@ async function submit() {
             </a-row>
             <a-form-item label="证件图片" required extra="身份证须上传正反面；护照至少上传资料页。请勿上传与本人无关的证件。">
               <div class="uploaders">
-                <IdCardUploader v-model="form.idCardFrontFileId" side="front" @uploading="uploading = $event" />
-                <IdCardUploader v-if="form.idType === 'ID_CARD'" v-model="form.idCardBackFileId" side="back" @uploading="uploading = $event" />
-                <IdCardUploader v-model="form.holdingPhotoFileId" side="face" @uploading="uploading = $event" />
+                <IdCardUploader v-model="form.idCardFrontFileId" :context-key="uploadContext" :disabled="formDisabled" side="front" @uploading="uploadStates.front = $event" />
+                <IdCardUploader v-if="form.idType === 'ID_CARD'" v-model="form.idCardBackFileId" :context-key="uploadContext" :disabled="formDisabled" side="back" @uploading="uploadStates.back = $event" />
+                <IdCardUploader v-model="form.holdingPhotoFileId" :context-key="uploadContext" :disabled="formDisabled" side="face" @uploading="uploadStates.holding = $event" />
               </div>
             </a-form-item>
-            <div class="actions"><a-button type="primary" :loading="submitting" :disabled="uploading" @click="submit">提交认证</a-button></div>
+            <div class="actions"><a-button type="primary" :loading="submitting" :disabled="uploading || formDisabled" @click="submit">提交认证</a-button></div>
           </a-form>
         </template>
       </a-card>

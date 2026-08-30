@@ -45,6 +45,9 @@ function toShippingCarrier(code?: string): Api.Order.ShippingCarrier | undefined
 
 /** 将订单服务 DTO 映射为页面模型；不得伪造后端没有返回的履约字段。 */
 export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record {
+  if (!dto.status || !Object.prototype.hasOwnProperty.call(statusMap, dto.status)) {
+    throw new Error('订单状态缺失或暂不支持，无法确认可执行操作');
+  }
   const id = dto.orderId;
   const customerId = dto.customerId || '';
   const shopperId = dto.sellerId || '';
@@ -57,6 +60,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     id,
     code: dto.orderNo || String(dto.orderId || ''),
     productId,
+    quantity: dto.quantity,
     productTitle: dto.productTitle || '商品快照',
     productCover: dto.productImage,
     customerId,
@@ -68,7 +72,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     tax: String(dto.taxAmount ?? dto.taxFee ?? 0),
     totalAmount,
     paidAmount: dto.paidAt ? totalAmount : '0',
-    status: statusMap[dto.status || ''] || 'PENDING_PAYMENT',
+    status: statusMap[dto.status],
     shippingAddress: toShippingAddress(dto),
     receiverName: dto.receiverName || '—',
     receiverPhone: dto.receiverPhone || '—',

@@ -1,8 +1,8 @@
 import { realUserRequest } from '@/service/request';
-import { requireArray, toPageTotal } from './page';
+import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
 import { toIsoDate } from './date';
 
-const bucketMap: Record<string, keyof Api.RealWallet.Account> = {
+const bucketMap: Record<string, Api.RealWallet.BalanceKey> = {
   AVAILABLE: 'available',
   available: 'available',
   NON_WITHDRAWABLE: 'nonWithdrawable',
@@ -26,27 +26,24 @@ function emptyAccount(userId: Api.RealSession.Id): Api.RealWallet.Account {
   return {
     userId,
     userName: '',
-    available: '0',
-    nonWithdrawable: '0',
-    lockedFinance: '0',
-    frozenOrder: '0',
-    frozenRisk: '0',
-    depositAvailable: '0',
-    depositGuaranteed: '0',
-    interestAccrued: '0',
     payPwdSet: false,
     frozen: false,
     updatedAt: ''
   };
 }
 
+/** 缺失或无效金额不能当作零余额；有效数值保留原字符串精度。 */
+function optionalAmount(value: unknown): string | undefined {
+  if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') return;
+  return Number.isFinite(Number(value)) ? String(value) : undefined;
+}
+
 function toAccount(userId: Api.RealSession.Id, wallet: Api.RealWallet.WalletVO): Api.RealWallet.Account {
   const account = emptyAccount(userId);
-  wallet.distribution?.forEach(bucket => {
+  if (!Array.isArray(wallet.distribution)) return account;
+  wallet.distribution.forEach(bucket => {
     const key = bucketMap[bucket.type];
-    if (key && typeof account[key] === 'string') {
-      (account as unknown as Record<string, string>)[key] = String(bucket.amount ?? 0);
-    }
+    if (key) account[key] = optionalAmount(bucket.amount);
   });
   return account;
 }
@@ -197,12 +194,12 @@ export async function fetchWalletOverview(userId: Api.RealSession.Id, options: {
       lockedFinance: account.lockedFinance,
       frozenOrder: account.frozenOrder,
       frozenRisk: account.frozenRisk
-    } satisfies Api.User.WalletSummary,
-    total: String(wallet.total ?? 0),
+    } satisfies Partial<Api.User.WalletSummary>,
+    total: optionalAmount(wallet.total),
     today: {
-      depositIn: String(wallet.todayIn ?? 0),
-      withdrawOut: String(wallet.todayOut ?? 0),
-      internalVolume: '0'
+      depositIn: optionalAmount(wallet.todayIn),
+      withdrawOut: optionalAmount(wallet.todayOut),
+      internalVolume: undefined
     },
     account
   };
@@ -227,7 +224,7 @@ export async function fetchWalletLedger(q: {
   if (selectedTypes.length && !selectors.length) {
     return { current, size, total: 0, records: [] as Api.RealWallet.Ledger[] };
   }
-  const requestPage = (selector?: WalletBizSelector, pageNo = current, pageSize = size) => realUserRequest.post<
+  const requestPage = (selector?: WalletBizSelector, pageNo = current, pageSize = size) => realUserRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealWallet.WalletLedgerDTO> & { pageNo?: number; pageSize?: number },
     Api.RealWallet.WalletLedgerPageQuery
   >('/wallet/ledger/page', {
@@ -239,23 +236,10 @@ export async function fetchWalletLedger(q: {
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealWallet.WalletLedgerDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
   if (selectors.length > 1) {
-    // 先取每个原始业务类型的第一页拿到 total，再按真实页大小分批读取。
-    // 避免用 current * size 触发后端 pageSize 上限，导致深分页漏记录。
-    const firstPages = await Promise.all(selectors.map(selector => requestPage(selector, 1, size)));
-    total = firstPages.reduce((sum, page) => sum + toPageTotal(page.total), 0);
-    const maxPage = Math.max(1, Math.ceil(total / size));
-    if (current > maxPage) return { current, size, total, records: [] as Api.RealWallet.Ledger[] };
-    const extraPages = await Promise.all(
-      selectors.flatMap((selector, index) => {
-        const selectorTotal = toPageTotal(firstPages[index].total);
-        const selectorMaxPage = Math.max(1, Math.ceil(selectorTotal / size));
-        const pageCount = Math.min(current, selectorMaxPage);
-        return Array.from({ length: Math.max(0, pageCount - 1) }, (_, offset) =>
-          requestPage(selector, offset + 2, size)
-        );
-      })
-    );
-    pages = [...firstPages, ...extraPages];
+    const result = await fetchMergeSourcePages({ sources: selectors, current, size,
+      request: requestPage, recordId: record => record.id, signal: q.signal });
+    pages = result.pages;
+    total = result.total;
   } else {
     pages = [await requestPage(selectors[0])];
     total = toPageTotal(pages[0].total);
@@ -272,7 +256,7 @@ export async function fetchWalletLedger(q: {
     .slice(offset, offset + size);
   return {
     current,
-    size,
+    size: selectors.length > 1 ? size : resolvePageSize(pages[0], size),
     total,
     records
   };
@@ -290,10 +274,11 @@ export async function fetchWalletLedgersByTypes(q: {
   };
 }
 
-export function createRecharge(params: Api.RealWallet.RechargeCreateParams) {
+export function createRecharge(params: Api.RealWallet.RechargeCreateParams, options: { showError?: boolean } = {}) {
   return realUserRequest.post<Api.RealWallet.RechargeVO | string | number, Api.RealWallet.RechargeCreateParams>(
     '/recharge/create',
-    params
+    params,
+    options
   );
 }
 
@@ -314,7 +299,7 @@ export async function fetchRechargePage(
   params: Api.RealWallet.RechargePageQuery = {},
   options: { signal?: AbortSignal } = {}
 ) {
-  const page = await realUserRequest.post<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
+  const page = await realUserRequest.postQuery<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
     '/recharge/page',
     params,
     options
@@ -331,10 +316,25 @@ export function cancelRecharge(id: string | number) {
   return realUserRequest.put<string | number, { id: string | number }>('/recharge/cancel', { id });
 }
 
-export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams) {
+/** 打开确认框与最终提交使用同一份规范化参数和校验，不改变现有最低金额规则。 */
+export function prepareWithdrawal(params: Api.RealWallet.WithdrawCreateParams, available?: string | number) {
+  const normalized = { ...params, toAddress: params.toAddress.trim() };
+  const balance = optionalAmount(available) === undefined ? NaN : Number(available);
+  let error = '';
+  if (!Number.isFinite(balance) || balance < 0) error = '请先成功读取钱包余额';
+  else if (!Number.isFinite(normalized.amount) || normalized.amount <= 0) error = '请输入转出金额';
+  else if (normalized.amount < 20) error = '单笔最小转出 20 U';
+  else if (!normalized.toAddress) error = '请输入目标地址';
+  else if (normalized.toAddress.length < 26 || /\s/.test(normalized.toAddress)) error = '地址格式不合法';
+  else if (normalized.amount > balance) error = '可用余额不足';
+  return { params: normalized, error };
+}
+
+export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams, options: { showError?: boolean } = {}) {
   return realUserRequest.post<Api.RealWallet.WithdrawVO | string | number, Api.RealWallet.WithdrawCreateParams>(
     '/withdraw/create',
-    params
+    params,
+    options
   );
 }
 
@@ -346,7 +346,7 @@ export async function fetchWithdrawPage(
   params: Api.RealWallet.WithdrawPageQuery = {},
   options: { signal?: AbortSignal } = {}
 ) {
-  const page = await realUserRequest.post<Api.RealWallet.PageResult<Api.RealWallet.WithdrawVO>, Api.RealWallet.WithdrawPageQuery>(
+  const page = await realUserRequest.postQuery<Api.RealWallet.PageResult<Api.RealWallet.WithdrawVO>, Api.RealWallet.WithdrawPageQuery>(
     '/withdraw/page',
     params,
     options

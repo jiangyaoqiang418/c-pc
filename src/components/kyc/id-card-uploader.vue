@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue';
+import { onBeforeUnmount, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import { uploadKycFile } from '@/service/api/kyc';
 import { RequestError } from '@/service/request';
@@ -7,6 +7,8 @@ import { RequestError } from '@/service/request';
 interface Props {
   side: 'front' | 'back' | 'face';
   modelValue?: string | number;
+  contextKey: string;
+  disabled?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -26,14 +28,14 @@ const sideLabel: Record<'front' | 'back' | 'face', string> = {
 };
 
 function pickFile() {
-  if (!uploading.value) inputRef.value?.click();
+  if (!props.disabled && !uploading.value) inputRef.value?.click();
 }
 
 async function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = '';
-  if (!file) return;
+  if (!file || props.disabled || uploading.value) return;
   if (!file.type.startsWith('image/')) {
     Message.warning('请上传 JPG、PNG 或 WebP 格式的图片');
     return;
@@ -53,6 +55,7 @@ async function onFileChange(event: Event) {
     previewUrl.value = uploaded.url || '';
     Message.success(`${sideLabel[props.side]}上传成功`);
   } catch (error) {
+    if (operation !== uploadVersion) return;
     const message = error instanceof RequestError ? error.message : '';
     Message.error(message || '图片上传失败，请稍后重试');
   } finally {
@@ -73,20 +76,34 @@ function clear() {
   emit('update:modelValue', '');
 }
 
+function clearFromUser() {
+  if (!props.disabled) clear();
+}
+
+watch(() => props.contextKey, clear, { flush: 'sync' });
+watch(() => props.modelValue, value => {
+  if (value !== undefined && value !== '') return;
+  uploadVersion += 1;
+  previewUrl.value = '';
+  uploading.value = false;
+  emit('uploading', false);
+}, { flush: 'sync' });
+
 onBeforeUnmount(() => {
   uploadVersion += 1;
+  if (uploading.value) emit('uploading', false);
 });
 </script>
 
 <template>
   <div class="id-uploader" :class="{ uploaded: !!modelValue, face: side === 'face' }">
-    <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" @change="onFileChange" />
+    <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled || uploading" @change="onFileChange" />
     <div
       class="preview"
       role="button"
-      tabindex="0"
+      :tabindex="disabled || uploading ? -1 : 0"
       :aria-label="`上传${sideLabel[side]}`"
-      :aria-disabled="uploading ? 'true' : undefined"
+      :aria-disabled="disabled || uploading ? 'true' : undefined"
       @click="pickFile"
       @keydown.enter="pickFile"
       @keydown.space.prevent="pickFile"
@@ -100,7 +117,7 @@ onBeforeUnmount(() => {
     </div>
     <div class="meta">
       <span class="title">{{ sideLabel[side] }}</span>
-      <a-link v-if="modelValue" role="button" tabindex="0" status="danger" @click="clear" @keydown.enter="clear" @keydown.space.prevent="clear">重新上传</a-link>
+      <a-link v-if="modelValue" role="button" :tabindex="disabled ? -1 : 0" :disabled="disabled" status="danger" @click="clearFromUser" @keydown.enter="clearFromUser" @keydown.space.prevent="clearFromUser">重新上传</a-link>
       <span v-else class="hint">上传真实证件资料</span>
     </div>
   </div>

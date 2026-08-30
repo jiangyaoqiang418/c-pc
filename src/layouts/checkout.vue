@@ -22,7 +22,7 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
         <div class="steps">
           <a-steps :current="currentStep" size="small" line-less>
             <a-step description="确认信息">收货 + 支付</a-step>
-            <a-step description="完成">支付成功</a-step>
+            <a-step description="核对订单状态">支付结果</a-step>
           </a-steps>
         </div>
       </div>

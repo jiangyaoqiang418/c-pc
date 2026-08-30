@@ -25,6 +25,10 @@ function onChange(v: 'customer' | 'buyer') {
     router.push('/kyc');
     return;
   }
+  if (router.currentRoute.value.name === 'order-list') {
+    void router.push({ query: { ...router.currentRoute.value.query, view: v === 'buyer' ? 'sell' : 'buy', page: undefined } });
+    return;
+  }
   const ok = userStore.setAudience(v);
   if (ok !== false) {
     Message.success(v === 'buyer' ? '已切换为买手视角' : '已切换为顾客视角');

@@ -2,7 +2,8 @@
 import { computed } from 'vue';
 
 interface Props {
-  behavior: Api.Point.BehaviorCode;
+  behavior: string;
+  label?: string;
   size?: 'small' | 'medium';
 }
 const props = withDefaults(defineProps<Props>(), { size: 'small' });
@@ -21,7 +22,12 @@ const META: Record<Api.Point.BehaviorCode, { label: string; color: string; emoji
   BUYER_NO_FULFILL: { label: '买手未履约', color: 'red', emoji: '⚠️' }
 };
 
-const meta = computed(() => META[props.behavior]);
+const meta = computed(() => {
+  const known = Object.prototype.hasOwnProperty.call(META, props.behavior)
+    ? META[props.behavior as Api.Point.BehaviorCode] : undefined;
+  if (known) return { ...known, label: props.label || known.label };
+  return { label: props.label || (props.behavior ? `未识别类型（${props.behavior}）` : '未识别类型'), color: 'gray', emoji: 'ℹ️' };
+});
 </script>
 
 <template>

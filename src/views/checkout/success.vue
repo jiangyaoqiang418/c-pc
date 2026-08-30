@@ -18,6 +18,15 @@ const errorMessage = ref('');
 
 const orderId = computed(() => String(route.params.orderId || ''));
 const requestGuard = createLatestRequestGuard();
+const paymentConfirmed = computed(() => !!order.value
+  && ['PROCURING', 'IN_TRANSIT', 'COMPLETED', 'IN_AFTERSALE'].includes(order.value.status));
+const resultTitle = computed(() => {
+  if (paymentConfirmed.value) return '支付成功';
+  if (order.value?.status === 'PENDING_PAYMENT') return '订单尚未付款';
+  if (order.value?.status === 'CANCELLED') return '订单已取消';
+  if (order.value?.status === 'REFUNDED') return '订单已退款';
+  return '请查看订单实际状态';
+});
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -34,18 +43,18 @@ async function load() {
     return;
   }
   loading.value = true;
+  // 推荐是独立区域，慢请求或失败不能延迟已取得的付款结果。
+  void realProductApi.fetchHomeRecommendations(4, { signal: isCurrent.signal }).then(result => {
+    if (isCurrent() && String(userStore.currentUser?.id) === String(requestedUserId)) recommends.value = result;
+  }).catch(() => { /* 推荐失败不影响订单结果。 */ });
   try {
-    const [orderResult, recommendResult] = await Promise.allSettled([
-      realOrderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal }),
-      realProductApi.fetchHomeRecommendations(4, { signal: isCurrent.signal })
-    ]);
+    const result = await realOrderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-    if (orderResult.status === 'fulfilled') {
-      order.value = orderResult.value;
-    } else {
-      errorMessage.value = orderResult.reason instanceof Error ? orderResult.reason.message : '订单信息读取失败';
+    order.value = result;
+  } catch (error) {
+    if (isCurrent() && String(userStore.currentUser?.id) === String(requestedUserId)) {
+      errorMessage.value = error instanceof Error ? error.message : '订单信息读取失败';
     }
-    if (recommendResult.status === 'fulfilled') recommends.value = recommendResult.value;
   } finally {
     if (isCurrent()) loading.value = false;
   }
@@ -64,8 +73,8 @@ watch([orderId, () => userStore.currentUser?.id], () => {
     <a-spin :loading="loading">
       <a-result
         v-if="order"
-        status="success"
-        :title="'支付成功'"
+        :status="paymentConfirmed ? 'success' : 'info'"
+        :title="resultTitle"
         :subtitle="`订单号 ${order.code} · 金额 U ${formatAmount(order.totalAmount)}`"
       >
         <template #extra>

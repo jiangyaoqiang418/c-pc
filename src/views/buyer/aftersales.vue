@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as refundApi from '@/service/api/refund';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { setImageFallback } from '@/utils/image-placeholder';
+import { resolvePageSize } from '@/service/api/page';
 
 const router = useRouter();
+const route = useRoute();
+let syncingQuery = false;
 const userStore = useUserStore();
 const activeKey = ref('all');
 const orderNo = ref('');
@@ -15,7 +18,7 @@ const refunds = ref<Api.RealRefund.RefundDTO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const current = ref(1);
-const pageSize = 10;
+const pageSize = ref(10);
 const total = ref(0);
 const requestGuard = createLatestRequestGuard();
 
@@ -28,6 +31,24 @@ const statusDefs = [
 ];
 const statusColor: Record<string, string> = { APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
 const activeStatus = computed(() => activeKey.value === 'all' ? undefined : activeKey.value as Api.RealRefund.RefundStatus);
+
+function readQuery() {
+  syncingQuery = true;
+  activeKey.value = statusDefs.find(item => item.key === route.query.status)?.key || 'all';
+  orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo : '';
+  const page = Number(route.query.page);
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  syncingQuery = false;
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  void (replace ? router.replace : router.push)({ query: { ...route.query,
+    status: activeStatus.value, orderNo: orderNo.value.trim() || undefined,
+    page: current.value > 1 ? String(current.value) : undefined } }).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
 
 function statusLabel(row: Api.RealRefund.RefundDTO) {
   return row.statusText || ({ APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' }[String(row.status)] || row.status || '—');
@@ -54,15 +75,16 @@ async function load() {
   try {
     const response = await refundApi.fetchSoldRefunds({
       pageNo: current.value,
-      pageSize,
+      pageSize: pageSize.value,
       orderNo: orderNo.value.trim() || undefined,
       status: activeStatus.value
     }, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-    const maxPage = Math.max(1, Math.ceil(response.total / pageSize));
+    pageSize.value = resolvePageSize(response, pageSize.value);
+    const maxPage = Math.max(1, Math.ceil(response.total / pageSize.value));
     if (current.value > maxPage) {
       current.value = maxPage;
-      await load();
+      syncQuery(true);
       return;
     }
     refunds.value = response.records || [];
@@ -79,21 +101,23 @@ async function load() {
 
 function search() {
   current.value = 1;
-  load();
+  syncQuery();
 }
 
 function reset() {
   orderNo.value = '';
   current.value = 1;
-  load();
+  syncQuery();
 }
 
-onMounted(load);
+onMounted(() => { readQuery(); void load(); });
 onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, () => {
+  if (syncingQuery) return;
   current.value = 1;
-  load();
-});
+  syncQuery();
+}, { flush: 'sync' });
+watch(() => route.query, () => { readQuery(); void load(); });
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   requestGuard.invalidate();
@@ -101,7 +125,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   total.value = 0;
   current.value = 1;
   loadError.value = '';
-  void load();
+  syncQuery(true);
 });
 </script>
 
@@ -172,7 +196,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
     </a-spin>
 
     <div v-if="total > pageSize" class="pagination">
-      <a-pagination :current="current" :total="total" :page-size="pageSize" @change="(page: number) => { current = page; load(); }" />
+      <a-pagination :current="current" :total="total" :page-size="pageSize" @change="(page: number) => { current = page; syncQuery(); }" />
     </div>
   </div>
 </template>

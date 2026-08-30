@@ -63,17 +63,10 @@ onBeforeUnmount(requestGuard.invalidate);
 import { getUsdtCnyRate } from '@shared/utils/currency';
 const cnyRate = getUsdtCnyRate();
 const cnyEquiv = computed(() =>
-  formatAmount((Number(walletStore.totalAssets) * cnyRate).toFixed(2))
+  walletStore.account ? formatAmount((Number(walletStore.totalAssets) * cnyRate).toFixed(2)) : '—'
 );
 
-const totalAssetsNum = computed(() => Number(walletStore.totalAssets) || 0);
-
-const bucketsWithPct = computed(() =>
-  walletStore.bucketsArray.map(b => ({
-    ...b,
-    pct: totalAssetsNum.value > 0 ? (Number(b.value) / totalAssetsNum.value) * 100 : 0
-  }))
-);
+const bucketsWithPct = computed(() => walletStore.bucketsWithPct);
 
 function openDetail(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
@@ -87,18 +80,22 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
       {{ loadError }}
       <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
     </a-alert>
+    <a-alert v-if="walletStore.partialData" type="warning" :closable="false" class="load-error">
+      部分钱包金额尚未取得，已知金额继续显示；“—”不代表零余额。
+      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
+    </a-alert>
     <!-- ============ Hero (白底 · BiyaPay 风) ============ -->
     <section class="hero">
       <div class="hero-top">
         <div class="hero-eyebrow">TOTAL ASSETS · USDT</div>
         <div class="hero-total">
           <span class="unit">U</span>
-          <span class="num">{{ formatAmount(walletStore.totalAssets) }}</span>
+          <span class="num">{{ walletStore.account ? formatAmount(walletStore.totalAssets) : '—' }}</span>
         </div>
         <div class="hero-sub">
           ≈ <span class="cny-num">¥{{ cnyEquiv }}</span>
           <span class="rate-sep">·</span>
-          <span class="rate-info">1 USDT = ¥{{ cnyRate.toFixed(2) }}</span>
+          <span class="rate-info">本地参考折算 · 1 USDT = ¥{{ cnyRate.toFixed(2) }}（非实时，以 USDT 结算）</span>
         </div>
       </div>
       <div class="hero-side">
@@ -137,10 +134,12 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
       <div class="dist-body">
         <div class="dist-chart">
           <AssetCompositionChart
+            v-if="walletStore.compositionReady"
             :breakdown="walletStore.compositionBreakdown"
             :total-assets="walletStore.totalAssets"
             :size="200"
           />
+          <span v-else>{{ walletStore.loading ? '资产读取中…' : walletStore.account ? '资产分布尚不完整，请重新加载' : '资产暂不可用，请重新加载' }}</span>
         </div>
         <div class="dist-list">
           <BucketCard

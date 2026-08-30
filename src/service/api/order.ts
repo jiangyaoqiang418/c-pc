@@ -1,6 +1,6 @@
 import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
-import { requireArray, toPageTotal } from './page';
+import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
 
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
@@ -11,7 +11,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
   }
   const requestedStatuses = new Set(q.statuses || []);
   const url = q.shopperId ? '/orders/sold/page' : '/orders/bought/page';
-  const requestPage = (status?: Api.RealOrder.OrderStatus, pageNo = current, pageSize = size) => realOrderRequest.post<
+  const requestPage = (status?: Api.RealOrder.OrderStatus, pageNo = current, pageSize = size) => realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
     Api.RealOrder.OrderPageQuery
     >(url, {
@@ -22,22 +22,10 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
   if (statuses.length > 1) {
-    // 先读取每个状态的 total，再按真实 pageSize 分批读取，避免后端限制大 pageSize 时深分页缺页。
-    const firstPages = await Promise.all(statuses.map(status => requestPage(status, 1, size)));
-    total = firstPages.reduce((sum, page) => sum + toPageTotal(page.total), 0);
-    const maxPage = Math.max(1, Math.ceil(total / size));
-    if (current > maxPage) return { current, size, total, records: [] as Api.RealOrder.Record[] };
-    const extraPages = await Promise.all(
-      statuses.flatMap((status, index) => {
-        const statusTotal = toPageTotal(firstPages[index].total);
-        const statusMaxPage = Math.max(1, Math.ceil(statusTotal / size));
-        const pageCount = Math.min(current, statusMaxPage);
-        return Array.from({ length: Math.max(0, pageCount - 1) }, (_, offset) =>
-          requestPage(status, offset + 2, size)
-        );
-      })
-    );
-    pages = [...firstPages, ...extraPages];
+    const result = await fetchMergeSourcePages({ sources: statuses, current, size,
+      request: requestPage, recordId: record => record.orderId, signal: q.signal });
+    pages = result.pages;
+    total = result.total;
   } else {
     pages = [await requestPage(statuses[0])];
     total = toPageTotal(pages[0].total);
@@ -55,7 +43,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
 
   return {
     current,
-    size,
+    size: statuses.length > 1 ? size : resolvePageSize(pages[0], size),
     total,
     records
   };
@@ -79,7 +67,7 @@ async function countOrdersByStatus(
   ];
   const entries = await Promise.all(
     primaryStatusMap.map(async ([frontStatus, realStatus]) => {
-      const page = await realOrderRequest.post<
+      const page = await realOrderRequest.postQuery<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
       >(url, { pageNo: 1, pageSize: 1, status: realStatus }, { showError: options.showError, signal: options.signal });

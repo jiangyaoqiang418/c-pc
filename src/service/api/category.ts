@@ -30,7 +30,7 @@ export async function fetchRealCategoryTree(options: { signal?: AbortSignal } = 
 }
 
 export async function fetchMyCategoryApplications(q: Api.RealCategory.CategoryApplyPageQuery = {}, options: { signal?: AbortSignal } = {}) {
-  const result = await realOrderRequest.post<
+  const result = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealCategory.CategoryApplyDTO> & { pageNo?: number; pageSize?: number },
     Api.RealCategory.CategoryApplyPageQuery
   >('/categories/apply/my/page', {

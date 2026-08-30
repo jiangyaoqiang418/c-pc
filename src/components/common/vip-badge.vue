@@ -3,17 +3,17 @@ import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 
 interface Props {
-  level: Api.User.VipLevel;
+  level?: Api.User.VipLevel;
   size?: 'sm' | 'md' | 'lg';
 }
 const props = withDefaults(defineProps<Props>(), { size: 'md' });
 
-const label = computed(() => (props.level === 'VIP2' ? 'VIP2' : props.level === 'VIP1' ? 'VIP1' : 'VIP0'));
+const label = computed(() => props.level ?? '等级待确认');
 const iconName = computed(() => (props.level === 'VIP2' ? 'lucide:crown' : props.level === 'VIP1' ? 'lucide:star' : 'lucide:circle-user'));
 </script>
 
 <template>
-  <span class="vip-badge" :class="[size, `level-${level.toLowerCase()}`]">
+  <span class="vip-badge" :class="[size, `level-${level?.toLowerCase() ?? 'unknown'}`]">
     <Icon :icon="iconName" class="icon" />
     <span class="label">{{ label }}</span>
   </span>

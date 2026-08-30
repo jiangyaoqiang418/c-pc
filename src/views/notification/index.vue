@@ -9,6 +9,7 @@ import * as notifyApi from '@/service/api/notify';
 import { sameBusinessId } from '@/utils/im';
 import { notificationRoute } from '@/utils/notification';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { resolvePageSize } from '@/service/api/page';
 
 const router = useRouter();
 const route = useRoute();
@@ -19,7 +20,7 @@ const loading = ref(false);
 const loadError = ref('');
 const unreadOnly = ref(false);
 const pageNo = ref(1);
-const pageSize = 20;
+const pageSize = ref(20);
 const total = ref(0);
 const readingAll = ref(false);
 const clearing = ref(false);
@@ -29,7 +30,6 @@ const requestGuard = createLatestRequestGuard();
 let readAllVersion = 0;
 let deleteVersion = 0;
 let clearVersion = 0;
-let openVersion = 0;
 let disposed = false;
 
 function syncFromQuery() {
@@ -54,7 +54,8 @@ function syncQuery() {
   });
 }
 
-const hasUnread = computed(() => records.value.some(item => !item.readFlag));
+const hasUnread = computed(() => notifyStore.notificationUnreadCount > 0);
+let clearModal: ReturnType<typeof Modal.warning> | undefined;
 
 function decreaseUnreadCount() {
   notifyStore.setNotificationUnreadCount(Math.max(0, notifyStore.notificationUnreadCount - 1));
@@ -74,9 +75,10 @@ async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize, unreadOnly: unreadOnly.value }, { signal: isCurrent.signal });
+    const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize: pageSize.value, unreadOnly: unreadOnly.value }, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-    const maxPage = Math.max(1, Math.ceil((response.total || 0) / pageSize));
+    pageSize.value = resolvePageSize(response, pageSize.value);
+    const maxPage = Math.max(1, Math.ceil((response.total || 0) / pageSize.value));
     if (pageNo.value > maxPage) {
       pageNo.value = maxPage;
       void router.replace({ query: currentQuery() });
@@ -84,8 +86,8 @@ async function load() {
     }
     records.value = response.records || [];
     total.value = response.total || 0;
-    await notifyStore.refreshUnreadCounts();
-    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    // 角标独立刷新，不能让 IM/未读统计拖住已经返回的通知列表。
+    void notifyStore.refreshUnreadCounts();
   } catch {
     if (!isCurrent()) return;
     records.value = [];
@@ -119,21 +121,18 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
   return { label: '平台通知', color: 'gray' as const };
 }
 
-async function openNotification(notification: Api.RealNotify.NotificationVO) {
+function openNotification(notification: Api.RealNotify.NotificationVO) {
   if (disposed) return;
-  const operation = ++openVersion;
   const requestedUserId = userStore.currentUser?.id;
   if (!notification.readFlag) {
-    try {
-      await notifyApi.markNotificationRead({ id: notification.id });
-      if (operation !== openVersion || disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    void notifyStore.readNotification(notification.id).then(read => {
+      if (!read || disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       notification.readFlag = true;
-      decreaseUnreadCount();
-    } catch {
-      // 已读写入失败时保留未读状态，但不阻断用户查看通知对应业务。
-    }
+      const current = records.value.find(item => sameBusinessId(item.id, notification.id));
+      if (current) current.readFlag = true;
+      if (unreadOnly.value) void load();
+    });
   }
-  if (operation !== openVersion || disposed || (requestedUserId !== undefined && String(userStore.currentUser?.id) !== String(requestedUserId))) return;
   const target = notificationRoute(notification);
   if (target) router.push(target);
   else Message.info('该通知未提供可跳转的业务对象，已保留在通知列表');
@@ -151,6 +150,7 @@ async function readAll() {
     records.value.forEach(item => { item.readFlag = true; });
     notifyStore.setNotificationUnreadCount(0);
     Message.success('已全部标记为已读');
+    await load();
   } catch {
     // 请求层已展示错误，保留未读状态供用户重试。
   } finally {
@@ -170,6 +170,7 @@ async function remove(notification: Api.RealNotify.NotificationVO) {
     records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
     total.value = Math.max(0, total.value - 1);
     if (!notification.readFlag) decreaseUnreadCount();
+    await load();
   } catch {
     // 请求层已展示错误，保留当前通知，避免把删除失败误显示为成功。
   } finally {
@@ -178,9 +179,13 @@ async function remove(notification: Api.RealNotify.NotificationVO) {
 }
 
 function clearAll() {
-  if (clearing.value || clearConfirmationOpen.value) return;
+  if (disposed || clearing.value || clearConfirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++clearVersion;
+  const isCurrent = () => !disposed && operation === clearVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   clearConfirmationOpen.value = true;
-  Modal.warning({
+  clearModal = Modal.warning({
     title: '清空通知',
     content: '确认清空当前账号的全部站内通知？',
     hideCancel: false,
@@ -190,20 +195,19 @@ function clearAll() {
     },
     onOk: async () => {
       if (clearing.value) return;
-      const requestedUserId = userStore.currentUser?.id;
-      if (requestedUserId === undefined) {
+      if (!isCurrent()) {
         clearConfirmationOpen.value = false;
         return;
       }
-      const operation = ++clearVersion;
       clearing.value = true;
       try {
         await notifyApi.clearNotifications();
-        if (operation !== clearVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+        if (!isCurrent()) return;
         records.value = [];
         total.value = 0;
         notifyStore.setNotificationUnreadCount(0);
         Message.success('通知已清空');
+        await load();
       } catch {
         // 请求层已展示错误，保留当前列表供用户重试。
       } finally {
@@ -218,11 +222,8 @@ function clearAll() {
 
 notifyStore.subscribe(event => {
   if (event.type !== 'NOTIFICATION') return;
-  const notification = event.payload.notification || event.payload;
-  if (notification.id && !records.value.some(item => sameBusinessId(item.id, notification.id))) {
-    records.value.unshift(notification);
-    total.value += 1;
-  }
+  // 由当前查询回读分页和筛选，不能把推送直接插入任意页。
+  void load();
 });
 
 onMounted(() => {
@@ -231,7 +232,10 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   disposed = true;
-  openVersion += 1;
+  clearVersion += 1;
+  readAllVersion += 1;
+  deleteVersion += 1;
+  clearModal?.close();
   requestGuard.invalidate();
 });
 watch(() => route.fullPath, () => {
@@ -242,10 +246,10 @@ watch(() => route.fullPath, () => {
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (disposed) return;
   if (String(next) === String(previous)) return;
+  clearModal?.close();
   readAllVersion += 1;
   deleteVersion += 1;
   clearVersion += 1;
-  openVersion += 1;
   requestGuard.invalidate();
   records.value = [];
   total.value = 0;

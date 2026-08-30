@@ -12,14 +12,14 @@ export interface BucketView {
   color: string;
   hint: string;
   icon: string;
-  value: string;
+  value?: string;
 }
 
 export const useWalletStore = defineStore('bw-wallet', () => {
-  const summary = ref<Api.User.WalletSummary | undefined>();
+  const summary = ref<Partial<Api.User.WalletSummary> | undefined>();
   const buyerWallet = ref<Api.Buyer.Wallet | undefined>();
-  const totalAssets = ref<string>('0');
-  const today = ref<{ depositIn: string; withdrawOut: string; internalVolume: string }>();
+  const totalAssets = ref<string | undefined>('0');
+  const today = ref<{ depositIn?: string; withdrawOut?: string; internalVolume?: string }>();
   const account = ref<Api.RealWallet.Account | undefined>();
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
@@ -83,7 +83,7 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     const baseKeys: BucketKey[] = ['available', 'nonWithdrawable', 'lockedFinance', 'frozenOrder', 'frozenRisk'];
     baseKeys.forEach(k => {
       const meta = enums.BUCKET_META[k];
-      list.push({ key: k, label: meta.label, color: meta.color, hint: meta.hint, icon: meta.icon, value: acc[k] || '0' });
+      list.push({ key: k, label: meta.label, color: meta.color, hint: meta.hint, icon: meta.icon, value: acc[k] });
     });
     if (userStore.currentUser?.isBuyer) {
       const buyerKeys: BucketKey[] = ['depositAvailable', 'depositGuaranteed'];
@@ -95,17 +95,29 @@ export const useWalletStore = defineStore('bw-wallet', () => {
           color: meta.color,
           hint: meta.hint,
           icon: meta.icon,
-          value: acc[k] || '0'
+          value: acc[k]
         });
       });
     }
     return list;
   });
 
+  const compositionReady = computed(() => !!account.value && totalAssets.value !== undefined
+    && bucketsArray.value.every(bucket => bucket.value !== undefined));
+  const partialData = computed(() => !!account.value && (!compositionReady.value
+    || today.value?.depositIn === undefined || today.value?.withdrawOut === undefined));
+  const bucketsWithPct = computed(() => bucketsArray.value.map(bucket => ({
+    ...bucket,
+    pct: bucket.value === undefined || totalAssets.value === undefined ? undefined
+      : Number(totalAssets.value) > 0 ? Number(bucket.value) / Number(totalAssets.value) * 100
+        : Number(bucket.value) === 0 ? 0 : undefined
+  })));
+
   const compositionBreakdown = computed(() => {
+    if (!compositionReady.value) return [];
     const total = Number(totalAssets.value) || 0;
     return bucketsArray.value
-      .filter(b => Number(b.value) > 0)
+      .filter((b): b is BucketView & { value: string } => b.value !== undefined && Number(b.value) > 0)
       .map(b => {
         const value = Number(b.value);
         return {
@@ -126,6 +138,9 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     loading,
     lastFetchedAt,
     bucketsArray,
+    bucketsWithPct,
+    compositionReady,
+    partialData,
     compositionBreakdown,
     fetchWallet,
     refetch,

@@ -4,11 +4,14 @@ import { Message } from '@arco-design/web-vue';
 import * as buyerApi from '@/service/api/buyer';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { isDefinitiveRejection } from '@/service/request/type';
 
 const userStore = useUserStore();
 const loading = ref(false);
 const submitting = ref(false);
+const submissionUnknown = ref(false);
 const loadError = ref('');
+const applicationLoaded = ref(false);
 const application = ref<Api.RealBuyer.BuyerApplicationVO | null>();
 const form = reactive<Api.RealBuyer.BuyerApplyParams>({
   realName: '',
@@ -20,12 +23,13 @@ let writeVersion = 0;
 
 const statusMeta = computed(() => {
   const status = application.value?.status;
-  if (status === 'APPROVED') return { color: 'green', label: '审核通过', text: '您已获得买手身份，请从个人中心进入买手中心。' };
+  if (status === 'APPROVED') return { color: 'green', label: '审核通过', text: userStore.currentUser?.isBuyer ? '您已获得买手身份，请从个人中心进入买手中心。' : '申请已通过，正在核对账号买手权限；若仍未生效请重新加载。' };
   if (status === 'REJECTED') return { color: 'red', label: '审核未通过', text: application.value?.reviewRemark || '请调整申请资料后重新提交。' };
   return { color: 'orange', label: '审核中', text: '平台正在审核您的买手申请。' };
 });
 
-const canApply = computed(() => !application.value || application.value.status === 'REJECTED');
+const canApply = computed(() => !submissionUnknown.value && applicationLoaded.value && !loading.value && !loadError.value
+  && (!application.value || application.value.status === 'REJECTED'));
 
 function formatTime(value?: string | number) {
   if (!value) return '—';
@@ -34,6 +38,7 @@ function formatTime(value?: string | number) {
 }
 
 async function loadApplication() {
+  applicationLoaded.value = false;
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
   if (!userId) {
@@ -48,6 +53,17 @@ async function loadApplication() {
     const nextApplication = await buyerApi.fetchBuyerApplication({ signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
     application.value = nextApplication;
+    applicationLoaded.value = true;
+    if (nextApplication?.status === 'APPROVED' && !userStore.currentUser?.isBuyer) {
+      try {
+        await userStore.refreshCurrentUser({ signal: isCurrent.signal });
+        if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+        if (!userStore.currentUser?.isBuyer) loadError.value = '申请已通过，但账号权限尚未生效，请重新加载核对';
+      } catch {
+        if (!isCurrent()) return;
+        loadError.value = '申请已通过，账号权限刷新失败，请重新加载';
+      }
+    }
     if (!application.value && userStore.currentUser) {
       form.contact = userStore.currentUser.phone || '';
     }
@@ -61,7 +77,7 @@ async function loadApplication() {
 }
 
 async function submit() {
-  if (submitting.value) return;
+  if (submitting.value || !canApply.value) return;
   if (!form.realName.trim() || !form.contact.trim()) {
     Message.warning('请填写真实姓名和联系方式');
     return;
@@ -81,12 +97,17 @@ async function submit() {
         realName: form.realName.trim(),
         contact: form.contact.trim(),
         reason: form.reason.trim()
-      });
+      }, { showError: false });
       if (!isCurrentWrite()) return;
       Message.success('买手申请已提交');
       await loadApplication();
-    } catch {
-      if (isCurrentWrite()) Message.error('买手申请提交失败，请稍后重试');
+    } catch (error) {
+      if (!isCurrentWrite()) return;
+      if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '申请被拒绝，请核对填写内容');
+      else {
+        submissionUnknown.value = true;
+        Message.warning('买手申请结果待核实，请重新读取申请状态；未确认前请勿再次提交');
+      }
     }
   } finally {
     if (operation === writeVersion) submitting.value = false;
@@ -101,6 +122,7 @@ onBeforeUnmount(() => {
 watch(() => userStore.currentUser?.id, () => {
   writeVersion += 1;
   submitting.value = false;
+  submissionUnknown.value = false;
   requestGuard.invalidate();
   application.value = undefined;
   loadError.value = '';
@@ -115,9 +137,13 @@ watch(() => userStore.currentUser?.id, () => {
   <div class="buyer-apply-page shop-container">
     <h1 class="page-title">申请成为买手</h1>
     <p class="hint">提交后由平台审核。KYC 状态及买手资格以后台审核结果为准。</p>
+    <a-alert v-if="submissionUnknown" type="warning" :closable="false">
+      上次申请结果待核实，本页已暂停重复提交。请读取申请状态；仍无法核实时联系平台，刷新页面不代表原申请失败。
+      <template #action><a-button :loading="loading" @click="loadApplication">核对申请状态</a-button></template>
+    </a-alert>
 
     <a-spin :loading="loading">
-      <a-alert v-if="loadError" type="error" class="reject-alert" :title="loadError" closable @close="loadError = ''">
+      <a-alert v-if="loadError" type="error" class="reject-alert" :title="loadError">
         <template #action><a-button size="mini" @click="loadApplication">重新加载</a-button></template>
       </a-alert>
       <a-card v-if="application && !canApply" class="status-card" :body-style="{ padding: '24px 28px' }" :bordered="false">
@@ -149,7 +175,7 @@ watch(() => userStore.currentUser?.id, () => {
           <a-form-item label="申请说明" required extra="请说明您的采购经验、可服务的品类或地区。">
             <a-textarea v-model="form.reason" :max-length="500" show-word-limit :auto-size="{ minRows: 5, maxRows: 8 }" placeholder="至少 10 个字" />
           </a-form-item>
-          <a-button type="primary" :loading="submitting" @click="submit">提交申请</a-button>
+          <a-button type="primary" :disabled="!canApply" :loading="submitting" @click="submit">提交申请</a-button>
         </a-form>
       </a-card>
     </a-spin>

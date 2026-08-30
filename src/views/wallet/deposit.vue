@@ -1,31 +1,50 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { isDefinitiveRejection } from '@/service/request/type';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 const route = useRoute();
+const router = useRouter();
 const activeTab = ref<'create' | 'address'>('create');
 const amount = ref(100);
 const chain = ref<string>();
 const submitting = ref(false);
+const submissionUnknown = ref(false);
 const loadingRecords = ref(false);
 const currentRecharge = ref<Api.RealWallet.RechargeVO>();
+const pendingRechargeReadId = ref<string | number>();
 const recentDeposits = ref<Api.RealWallet.RechargeVO[]>([]);
 const recordCurrent = ref(1);
 const recordSize = ref(10);
 const recordTotal = ref(0);
 const recordStatus = ref<Api.RealWallet.RechargeStatus>();
+
+function readRecordsQuery() {
+  const page = Number(route.query.page);
+  recordCurrent.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  recordStatus.value = typeof route.query.status === 'string' && ['PENDING', 'CONFIRMED', 'CANCELED'].includes(route.query.status)
+    ? route.query.status : undefined;
+}
+
+async function syncRecordsQuery(replace = false) {
+  const before = route.fullPath;
+  await (replace ? router.replace : router.push)({ query: { ...route.query,
+    page: recordCurrent.value > 1 ? String(recordCurrent.value) : undefined, status: recordStatus.value } });
+  if (route.fullPath === before) await loadRecords();
+}
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.RechargeVO>();
-const detailTarget = ref<Api.RealWallet.RechargeVO>();
+const detailTargetId = ref<string | number>();
 const cancelingRechargeId = ref<string | number>();
 const loadingChains = ref(false);
 const loadingAddress = ref(false);
@@ -72,10 +91,11 @@ async function loadRecords() {
       status: recordStatus.value
     }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
+    recordSize.value = resolvePageSize(result, recordSize.value);
     const maxPage = Math.max(1, Math.ceil(result.total / recordSize.value));
     if (recordCurrent.value > maxPage) {
       recordCurrent.value = maxPage;
-      await loadRecords();
+      await syncRecordsQuery(true);
       return;
     }
     recentDeposits.value = result.records;
@@ -168,19 +188,19 @@ async function loadAll() {
 }
 
 async function createRecharge() {
-  if (submitting.value) return;
-  if (!Number.isFinite(amount.value) || amount.value <= 0) {
+  if (submitting.value || submissionUnknown.value) return;
+  if (pendingRechargeReadId.value === undefined && (!Number.isFinite(amount.value) || amount.value <= 0)) {
     Message.warning('请输入正确的充值金额');
     return;
   }
   const requestedAmount = amount.value;
   const chainCode = selectedChain.value?.chain;
-  if (!chainCode) {
+  if (pendingRechargeReadId.value === undefined && !chainCode) {
     Message.warning('当前没有可用充值链');
     return;
   }
-  const minAmount = Number(selectedChain.value.minAmount || 0);
-  if (minAmount > 0 && requestedAmount < minAmount) {
+  const minAmount = Number(selectedChain.value?.minAmount || 0);
+  if (pendingRechargeReadId.value === undefined && minAmount > 0 && requestedAmount < minAmount) {
     Message.warning(`该链单笔最低充值金额为 ${minAmount} USDT`);
     return;
   }
@@ -190,22 +210,39 @@ async function createRecharge() {
   const isCurrentWrite = () => operation === createWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
-    const created = await realWalletApi.createRecharge({ chain: chainCode, amount: requestedAmount });
-    const id = getId(created);
-    let nextRecharge = typeof created === 'object' ? created : await realWalletApi.fetchRechargeDetail(id);
-    if (!isCurrentWrite()) return;
-    if (!nextRecharge.depositAddress) {
-      nextRecharge = await realWalletApi.fetchRechargeDetail(id);
-      if (!isCurrentWrite()) return;
+    if (pendingRechargeReadId.value === undefined) {
+      try {
+        const created = await realWalletApi.createRecharge({ chain: chainCode!, amount: requestedAmount }, { showError: false });
+        if (!isCurrentWrite()) return;
+        const createdId = getId(created);
+        if (!((typeof createdId === 'string' && createdId.trim()) || (typeof createdId === 'number' && Number.isSafeInteger(createdId)))) {
+          throw new Error('未取得可核对的申报编号');
+        }
+        pendingRechargeReadId.value = createdId;
+        Message.success('充值申报已创建');
+      } catch (error) {
+        if (isCurrentWrite()) {
+          if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '申报被拒绝，请核对填写内容');
+          else {
+            submissionUnknown.value = true;
+            Message.warning('充值申报结果待核实，请查看申报记录，未确认前请勿再次创建');
+          }
+        }
+        return;
+      }
     }
-    currentRecharge.value = nextRecharge;
-    activeTab.value = 'address';
-    recordCurrent.value = 1;
-    await loadRecords();
+    try {
+      const nextRecharge = await realWalletApi.fetchRechargeDetail(pendingRechargeReadId.value!);
+      if (!isCurrentWrite()) return;
+      currentRecharge.value = nextRecharge;
+      pendingRechargeReadId.value = undefined;
+      activeTab.value = 'address';
+    } catch {
+      if (isCurrentWrite()) Message.warning('申报已创建，详情读取失败。请重试读取，不会重复创建申报');
+    }
     if (!isCurrentWrite()) return;
-    Message.success('充值订单已创建，请按收款信息完成链上转账');
-  } catch {
-    if (isCurrentWrite()) Message.error('充值订单创建失败，请稍后重试');
+    recordCurrent.value = 1;
+    await syncRecordsQuery(true);
   } finally {
     if (operation === createWriteVersion) submitting.value = false;
   }
@@ -218,24 +255,36 @@ async function copy(text?: string) {
 }
 
 async function showDetail(record: Api.RealWallet.RechargeVO) {
-  detailTarget.value = record;
   await openDetail(record.id);
 }
 
 async function openDetail(id: string | number) {
+  detailTargetId.value = id;
   const isCurrent = detailGuard.begin();
+  const requestedUserId = userStore.currentUser?.id;
   detailOpen.value = true;
   detailLoading.value = true;
   detail.value = undefined;
   detailError.value = '';
   try {
-    detail.value = await realWalletApi.fetchRechargeDetail(id, { signal: isCurrent.signal });
+    const next = await realWalletApi.fetchRechargeDetail(id, { signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (String(next.id) !== String(id)) throw new Error('充值详情对象不一致');
+    detail.value = next;
   } catch {
     if (isCurrent()) detailError.value = '充值订单详情加载失败，请稍后重试';
   } finally {
     if (isCurrent()) detailLoading.value = false;
   }
 }
+
+watch(detailOpen, visible => {
+  if (!visible) {
+    detailGuard.invalidate();
+    detailLoading.value = false;
+    detailTargetId.value = undefined;
+  }
+});
 
 async function cancelRecharge(record: Api.RealWallet.RechargeVO) {
   if (record.status !== 'PENDING' || cancelingRechargeId.value !== undefined) return;
@@ -248,6 +297,16 @@ async function cancelRecharge(record: Api.RealWallet.RechargeVO) {
     await realWalletApi.cancelRecharge(record.id);
     if (!isCurrentWrite()) return;
     Message.success('充值申报已取消');
+    const canceled = (item?: Api.RealWallet.RechargeVO) => item && String(item.id) === String(record.id)
+      ? { ...item, status: 'CANCELED', statusText: '已取消' } : item;
+    currentRecharge.value = canceled(currentRecharge.value);
+    if (detailOpen.value && String(detailTargetId.value) === String(record.id)) {
+      // 使取消前发出的详情读取失效，不让旧 PENDING 回包覆盖已确认结果。
+      detailGuard.invalidate();
+      detailLoading.value = false;
+      detail.value = canceled(detail.value || record);
+      detailError.value = '';
+    }
     await loadRecords();
   } catch {
     // 请求层已展示后端业务提示。
@@ -258,10 +317,11 @@ async function cancelRecharge(record: Api.RealWallet.RechargeVO) {
 
 function queryRecords() {
   recordCurrent.value = 1;
-  void loadRecords();
+  void syncRecordsQuery();
 }
 
-onMounted(loadAll);
+onMounted(() => { readRecordsQuery(); void loadAll(); });
+watch([() => route.query.page, () => route.query.status], () => { readRecordsQuery(); void loadRecords(); });
 onBeforeUnmount(() => {
   createWriteVersion += 1;
   cancelWriteVersion += 1;
@@ -281,15 +341,17 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   addressGuard.invalidate();
   detailGuard.invalidate();
   submitting.value = false;
+  submissionUnknown.value = false;
   cancelingRechargeId.value = undefined;
   chainOptions.value = [];
   chain.value = undefined;
   rechargeAddress.value = undefined;
   currentRecharge.value = undefined;
+  pendingRechargeReadId.value = undefined;
   recentDeposits.value = [];
   recordTotal.value = 0;
   detail.value = undefined;
-  detailTarget.value = undefined;
+  detailTargetId.value = undefined;
   detailOpen.value = false;
   void loadAll();
 });
@@ -303,6 +365,10 @@ watch(() => route.query.id, id => {
   <div class="deposit-page shop-container">
     <h1 class="page-title">钱包链上充值</h1>
     <p class="hint">选择充值链后，可直接使用专属地址完成 USDT 转账；如需留存申报记录，可填写金额后创建充值订单。</p>
+    <a-alert v-if="submissionUnknown" type="warning" :closable="false" class="load-alert">
+      上次申报结果待核实，本页已暂停重复创建。请查看下方申报记录；仍无法核实时联系平台，刷新页面不代表原申报失败。
+      <template #action><a-button :loading="loadingRecords" @click="loadRecords">核对申报记录</a-button></template>
+    </a-alert>
     <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>
 
     <a-card class="tab-card" :body-style="{ padding: '12px 24px 24px' }" :bordered="false">
@@ -344,7 +410,7 @@ watch(() => route.query.id, id => {
                 <div class="optional-order-title">可选：创建充值申报记录</div>
                 <div class="optional-order-hint">直接向上述地址转账即可到账；创建订单仅用于提前留存本次充值金额。</div>
               </div>
-              <a-button type="primary" size="large" :loading="submitting" @click="createRecharge">创建申报订单</a-button>
+              <a-button type="primary" size="large" :loading="submitting" :disabled="submissionUnknown" @click="createRecharge">{{ pendingRechargeReadId !== undefined ? '重试读取已创建申报' : '创建申报订单' }}</a-button>
             </div>
           </a-form>
         </a-tab-pane>
@@ -407,7 +473,7 @@ watch(() => route.query.id, id => {
           :current="recordCurrent"
           :page-size="recordSize"
           show-total
-          @change="(page: number) => { recordCurrent = page; loadRecords(); }"
+          @change="(page: number) => { recordCurrent = page; syncRecordsQuery(); }"
         />
       </div>
     </a-card>
@@ -425,7 +491,7 @@ watch(() => route.query.id, id => {
           { label: '创建时间', value: formatTime(detail.createdAt) },
           { label: '确认时间', value: formatTime(detail.confirmedAt) }
         ]" />
-        <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTarget && showDetail(detailTarget)" />
+        <EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTargetId !== undefined && openDetail(detailTargetId)" />
       </a-spin>
     </a-drawer>
   </div>

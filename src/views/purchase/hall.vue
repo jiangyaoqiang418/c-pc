@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
@@ -83,6 +84,7 @@ async function load() {
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -212,7 +214,7 @@ function changePage(page: number) {
         <p class="hero-sub">USDT 担保 · 全球买手 24h 内接单 · 三方监管</p>
         <div class="hero-stats">
           <div class="stat">
-            <div class="stat-label">进行中</div>
+            <div class="stat-label">进行中（未应用当前页条件）</div>
             <div class="stat-value">
               <span class="num">{{ total }}</span>
               <span class="unit">单</span>
@@ -220,7 +222,7 @@ function changePage(page: number) {
           </div>
           <div class="stat-divider" />
           <div class="stat">
-            <div class="stat-label">悬赏总额</div>
+            <div class="stat-label">当前页悬赏总额</div>
             <div class="stat-value">
               <span class="unit">U</span>
               <span class="num">{{ formatAmount(totalBudget) }}</span>
@@ -229,7 +231,7 @@ function changePage(page: number) {
           </div>
           <div class="stat-divider" />
           <div class="stat">
-            <div class="stat-label">平均预算</div>
+            <div class="stat-label">当前页平均预算</div>
             <div class="stat-value">
               <span class="unit">U</span>
               <span class="num">{{ formatAmount(avgBudget) }}</span>
@@ -251,7 +253,7 @@ function changePage(page: number) {
     <section class="filter">
       <div class="filter-eyebrow">
         <Icon icon="lucide:filter" width="12" />
-        <span>FILTER · 筛选条件</span>
+        <span>FILTER · 筛选条件（预算、期望天数仅筛选当前页）</span>
       </div>
       <div class="filter-row">
         <div class="fi">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
@@ -20,6 +21,7 @@ const cancellationPendingId = ref<string>();
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -36,6 +38,7 @@ async function load() {
   try {
     const r = await productApi.fetchMyFavorites({ current: current.value, size: size.value, signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
@@ -62,15 +65,17 @@ function cancelFavorite(product: Api.RealProduct.Record) {
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancellationPendingId.value = productId;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '取消收藏？',
     content: `确认将「${product.title}」移出收藏列表吗？`,
     okText: '确认取消',
     onCancel() {
+      if (!isCurrentWrite()) return;
       writeVersion += 1;
       cancellationPendingId.value = undefined;
     },
     async onOk() {
+      if (!isCurrentWrite()) return;
       cancelingId.value = productId;
       try {
         await productApi.cancelProductFavorite(product.id);
@@ -94,10 +99,12 @@ function cancelFavorite(product: Api.RealProduct.Record) {
 onMounted(load);
 onBeforeUnmount(() => {
   writeVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, () => {
   writeVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
   cancelingId.value = undefined;
   cancellationPendingId.value = undefined;

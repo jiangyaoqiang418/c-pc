@@ -2,16 +2,10 @@ import { realOrderRequest } from '@/service/request';
 import { requireArray, toPageTotal } from './page';
 import { fetchCategoryTree } from './category';
 import { toIsoDate } from './date';
+import { toAfterSaleType } from './product';
 
 let categoryPathCache: Map<string, string> | undefined;
 let categoryPathCachePromise: Promise<Map<string, string>> | undefined;
-
-function toAfterSaleType(value?: string): Api.Product.AftersaleType {
-  if (value === 'NONE') return 'none';
-  if (value === 'SHOP_WARRANTY') return 'shop-warranty';
-  if (value === 'NATIONAL_WARRANTY') return 'national-warranty';
-  return '7day-no-reason';
-}
 
 function fromAfterSaleType(value: Api.Product.AftersaleType): Api.RealProduct.AfterSaleType {
   if (value === 'none') return 'NONE';
@@ -27,7 +21,7 @@ function toStatus(value?: string): Api.PurchaseRequest.RequestStatus {
   if (key === 'REJECTED') return 'rejected';
   if (key === 'CLAIMED' || key === 'TAKEN') return 'claimed';
   if (key === 'VOID' || key === 'CANCELLED' || key === 'CANCELED') return 'cancelled';
-  return 'pushing';
+  throw new Error('求购状态缺失或暂不支持，无法确认可执行操作');
 }
 
 async function getCategoryPath(id?: string) {
@@ -46,15 +40,20 @@ async function getCategoryPath(id?: string) {
       try {
         walk(await fetchCategoryTree());
       } catch {
-        // 分类树失败时保留空缓存，调用方仍可展示原始分类 ID，不重复并发请求。
-        nextCache.set(id, id);
+        // 本次只展示分类 ID；失败不写成功缓存，下次用户查询可重新获取。
+        return nextCache;
       }
       categoryPathCache = nextCache;
       return nextCache;
     })();
   }
-  const cache = await categoryPathCachePromise;
-  return cache.get(id) || id;
+  const pending = categoryPathCachePromise;
+  try {
+    const cache = await pending;
+    return cache.get(id) || id;
+  } finally {
+    if (categoryPathCachePromise === pending) categoryPathCachePromise = undefined;
+  }
 }
 
 async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promise<Api.RealPurchase.Record> {
@@ -75,6 +74,7 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     expectedDays: dto.expectDeliveryDays || 0,
     overseasCustoms: !!dto.overseasClearance,
     aftersaleType: toAfterSaleType(dto.afterSaleType),
+    rawAfterSaleType: dto.afterSaleType,
     evidenceUrls: dto.images || [],
     appeal: dto.demandNote || dto.description || '',
     status: toStatus(dto.status),
@@ -102,7 +102,7 @@ async function mapPage(page: Api.Common.PaginatingQueryRecord<Api.RealPurchase.P
 }
 
 export async function fetchHall(q: { current?: number; size?: number; categoryId?: string | number; keyword?: string; signal?: AbortSignal } = {}) {
-  const page = await realOrderRequest.post<
+  const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealPurchase.PurchaseDemandVO> & { pageNo?: number; pageSize?: number },
     Api.RealPurchase.PurchaseDemandPageQuery
   >('/demands/hall/page', {
@@ -119,7 +119,7 @@ export async function fetchMyPurchases(
   statuses?: Api.PurchaseRequest.RequestStatus[],
   q: { current?: number; size?: number; signal?: AbortSignal } = {}
 ) {
-  const page = await realOrderRequest.post<
+  const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealPurchase.PurchaseDemandVO> & { pageNo?: number; pageSize?: number },
     Api.RealPurchase.PurchaseDemandPageQuery
   >('/demands/my/page', {
@@ -161,7 +161,7 @@ export async function createPurchase(p: {
     demandNote: p.appeal,
     images: p.evidenceUrls || []
   });
-  return fetchPurchaseDetail(id);
+  return id;
 }
 
 export async function cancelPurchase(id: string | number) {

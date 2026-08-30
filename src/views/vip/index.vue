@@ -14,7 +14,7 @@ const router = useRouter();
 
 const vipStatus = ref<Api.RealVip.Status>();
 const configs = ref<Api.Vip.LevelConfig[]>([]);
-const pointRules = ref<Api.Point.Rule[]>([]);
+const pointRules = ref<Api.RealPoint.Rule[]>([]);
 const audience = ref<Api.Vip.Audience>('customer');
 const loading = ref(false);
 const vipLoadError = ref('');
@@ -85,7 +85,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 
 const progressPct = computed(() => {
   if (!user.value || !vipStatus.value?.nextThreshold) return 100;
-  return Math.min(100, (user.value.points / vipStatus.value.nextThreshold) * 100);
+  return Math.min(100, (vipStatus.value.points / vipStatus.value.nextThreshold) * 100);
 });
 
 const filteredRules = computed(() =>
@@ -116,7 +116,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
                 <span class="user-audience">{{ user.isBuyer ? '买手' : '顾客' }}视角</span>
               </div>
               <div class="hero-points">
-                <span class="points">{{ formatPoints(user.points) }}</span>
+                <span class="points">{{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
                 <span class="unit">积分</span>
               </div>
               <div class="hero-progress">

@@ -11,7 +11,7 @@ interface Segment {
 
 interface Props {
   breakdown: Segment[];
-  totalAssets: string;
+  totalAssets?: string;
   size?: number;
 }
 const props = withDefaults(defineProps<Props>(), { size: 180 });

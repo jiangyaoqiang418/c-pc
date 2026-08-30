@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IconClose } from '@arco-design/web-vue/es/icon';
+import { Message } from '@arco-design/web-vue';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
 import RealtimeConnectionStatus from '@/components/im/realtime-connection-status.vue';
@@ -9,6 +10,9 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import {
+  applyReadEvent,
+  captureMessageAnchor,
+  restoreMessageAnchor,
   compareBusinessId,
   conversationImageUrls,
   createClientMessageId,
@@ -16,7 +20,10 @@ import {
   imagePreviewIndex,
   isRecallAvailable,
   latestServerMessageId,
+  isNearMessageBottom,
+  syncMessageGap,
   mergeMessages,
+  markUnconfirmedMessageFailed,
   sameBusinessId
 } from '@/utils/im';
 import { conversationListQuery } from '@/utils/notification';
@@ -34,10 +41,18 @@ const loading = ref(false);
 const loadError = ref('');
 const pageNo = ref(1);
 const hasOlder = ref(false);
+const syncCursor = ref<string | number>('0');
+const syncIncomplete = ref(false);
+const messageSyncError = ref('');
+const syncingMessages = ref(false);
+const newMessagesAvailable = ref(false);
 const loadingOlder = ref(false);
 const messageSending = ref(false);
+const mediaBusy = ref(false);
 const recallingMessageIds = ref(new Set<string>());
 const scrollRef = ref<HTMLDivElement>();
+let historyAnchor: ReturnType<typeof captureMessageAnchor>;
+let followingLatest = true;
 const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
@@ -47,6 +62,7 @@ const olderMessagesGuard = createLatestRequestGuard();
 const incrementalMessagesGuard = createLatestRequestGuard();
 let messageWriteVersion = 0;
 let recallWriteVersion = 0;
+let historyScrollVersion = 0;
 
 function isCurrentMessageContext(
   operation: number,
@@ -98,9 +114,13 @@ async function load() {
     if (conversation.value) {
       const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 50 }, { signal: isCurrent.signal });
       if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-      messages.value = mergeMessages([], response.records || []);
+      messages.value = mergeMessages(messages.value, response.records || []);
+      syncCursor.value = latestServerMessageId(mergeMessages([], response.records || [])) ?? '0';
+      syncIncomplete.value = false;
+      messageSyncError.value = '';
+      newMessagesAvailable.value = false;
       hasOlder.value = messages.value.length < (response.total || 0);
-      await reportRead();
+      void reportRead();
       await scrollToBottom();
     }
   } catch {
@@ -126,7 +146,6 @@ async function loadOlderMessages() {
   const isCurrent = olderMessagesGuard.begin();
   loadingOlder.value = true;
   const container = scrollRef.value;
-  const oldHeight = container?.scrollHeight || 0;
   try {
     const nextPage = pageNo.value + 1;
     const response = await notifyApi.fetchConversationMessages(
@@ -135,13 +154,16 @@ async function loadOlderMessages() {
     );
     if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
       || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
+    const anchor = captureMessageAnchor(container);
+    const scrollVersion = historyScrollVersion;
     messages.value = mergeMessages(response.records || [], messages.value);
     pageNo.value = nextPage;
     hasOlder.value = messages.value.length < (response.total || 0);
     await nextTick();
     if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
       || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
-    if (container) container.scrollTop = container.scrollHeight - oldHeight;
+    if (scrollVersion === historyScrollVersion) restoreMessageAnchor(container, anchor);
+    historyAnchor = captureMessageAnchor(container);
   } catch {
     if (!isCurrent()) return;
     // 请求层已展示错误；保留当前消息和滚动位置，用户可再次加载历史。
@@ -155,33 +177,56 @@ async function reportRead() {
   if (!conversation.value || !lastReadMessageId || document.visibilityState !== 'visible') return;
   try {
     await notifyApi.markConversationRead({ conversationId: conversation.value.id, lastReadMessageId });
+    notifyStore.scheduleUnreadRefresh();
   } catch {
     // 拉取首页同样会推进已读，显式上报作为停留期间新消息的补充。
   }
 }
 
 async function syncIncremental() {
-  if (!conversation.value) return;
+  if (!conversation.value || loading.value) return;
   const requestedConversationId = conversation.value.id;
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const isCurrent = incrementalMessagesGuard.begin();
-  const incoming = await notifyApi.fetchIncrementalMessages({
-    conversationId: requestedConversationId,
-    sinceId: latestServerMessageId(messages.value),
-    limit: 200
-  }, { signal: isCurrent.signal });
-  if (!isCurrent() || !incoming.length || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
-    || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
-  messages.value = mergeMessages(messages.value, incoming);
-  await reportRead();
-  if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
-    || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
-  await scrollToBottom();
+  const current = () => isCurrent() && orderCode.value === requestedOrderCode
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(conversation.value?.id, requestedConversationId);
+  const followBottom = isNearMessageBottom(scrollRef.value);
+  const scrollVersion = historyScrollVersion;
+  let receivedNewMessages = false;
+  syncingMessages.value = true;
+  messageSyncError.value = '';
+  try {
+    const complete = await syncMessageGap({ conversationId: requestedConversationId, sinceId: syncCursor.value, signal: isCurrent.signal,
+      request: (sinceId, limit) => notifyApi.fetchIncrementalMessages({ conversationId: requestedConversationId, sinceId, limit }, { signal: isCurrent.signal }),
+      accept: (incoming, cursor) => {
+        if (!current()) return;
+        const previousCount = messages.value.length;
+        messages.value = mergeMessages(messages.value, incoming);
+        receivedNewMessages ||= messages.value.length > previousCount;
+        syncCursor.value = cursor;
+        if (receivedNewMessages && !followBottom) newMessagesAvailable.value = true;
+      }
+    });
+    if (!current()) return;
+    syncIncomplete.value = !complete;
+    void reportRead();
+    if (!current()) return;
+    if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
+    else if (receivedNewMessages) newMessagesAvailable.value = true;
+  } catch {
+    if (current()) messageSyncError.value = '消息尚未同步完整，请重试；已读取的消息会保留';
+  } finally {
+    if (isCurrent()) syncingMessages.value = false;
+  }
 }
 
 async function scrollToBottom() {
+  newMessagesAvailable.value = false;
+  followingLatest = true;
+  historyAnchor = undefined;
   await nextTick();
   const container = scrollRef.value;
   if (!container) return;
@@ -189,6 +234,18 @@ async function scrollToBottom() {
   requestAnimationFrame(() => {
     if (scrollRef.value === container) container.scrollTop = container.scrollHeight;
   });
+}
+
+function onMessageScroll() {
+  followingLatest = isNearMessageBottom(scrollRef.value);
+  historyAnchor = followingLatest ? undefined : captureMessageAnchor(scrollRef.value);
+  if (followingLatest) newMessagesAvailable.value = false;
+  else historyScrollVersion += 1;
+}
+
+function onMessageMediaLoad() {
+  if (followingLatest) void scrollToBottom();
+  else restoreMessageAnchor(scrollRef.value, historyAnchor);
 }
 
 function previewImage(url: string) {
@@ -240,28 +297,30 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   await scrollToBottom();
   if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
   try {
-    const sent = await notifyApi.sendConversationMessage(params);
+    const sent = await notifyApi.sendConversationMessage(params, { showError: false });
     if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
     messages.value = mergeMessages(messages.value, sent);
     await scrollToBottom();
-  } catch {
+  } catch (error) {
     if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
-    const optimistic = messages.value.find(message => message.clientMsgId === clientMsgId);
-    if (optimistic) optimistic.failed = true;
+    messages.value = markUnconfirmedMessageFailed(messages.value, clientMsgId);
+    if (messages.value.some(message => message.clientMsgId === clientMsgId && message.failed)) {
+      Message.error(error instanceof Error ? error.message : '未取得消息发送结果，请核对后使用原消息重试');
+    }
   } finally {
     if (operation === messageWriteVersion) messageSending.value = false;
   }
 }
 
 async function retryMessage(message: Api.RealNotify.ImMessageVO) {
-  if (!conversation.value || !message.failed || messageSending.value) return;
+  if (!conversation.value || !message.failed || messageSending.value || mediaBusy.value) return;
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const requestedConversationId = conversation.value.id;
   const operation = ++messageWriteVersion;
   messageSending.value = true;
-  const clientMsgId = createClientMessageId();
+  const clientMsgId = message.clientMsgId || createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId: requestedConversationId,
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
@@ -273,16 +332,15 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     ? { ...item, clientMsgId, pending: true, failed: false, createdAt: String(Date.now()) }
     : item);
   try {
-    const sent = await notifyApi.sendConversationMessage(params);
+    const sent = await notifyApi.sendConversationMessage(params, { showError: false });
     if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
     messages.value = mergeMessages(messages.value, sent);
     await scrollToBottom();
-  } catch {
+  } catch (error) {
     if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
-    const optimistic = messages.value.find(item => item.clientMsgId === clientMsgId);
-    if (optimistic) {
-      optimistic.pending = false;
-      optimistic.failed = true;
+    messages.value = markUnconfirmedMessageFailed(messages.value, clientMsgId);
+    if (messages.value.some(item => item.clientMsgId === clientMsgId && item.failed)) {
+      Message.error(error instanceof Error ? error.message : '未取得消息发送结果，请核对后使用原消息重试');
     }
   } finally {
     if (operation === messageWriteVersion) messageSending.value = false;
@@ -328,16 +386,20 @@ notifyStore.subscribe(async event => {
       // 实时补偿读取失败时保留当前消息，等待下一次同步或用户刷新。
     }
   } else if (event.type === 'IM_MESSAGE' && conversation.value && sameBusinessId(event.payload.conversationId, conversation.value.id)) {
+    const followBottom = isNearMessageBottom(scrollRef.value);
+    const scrollVersion = historyScrollVersion;
+    const operation = messageWriteVersion;
     messages.value = mergeMessages(messages.value, event.payload);
-    await reportRead();
-    await scrollToBottom();
+    void reportRead();
+    if (operation !== messageWriteVersion || !sameBusinessId(conversation.value?.id, event.payload.conversationId)) return;
+    if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
+    else newMessagesAvailable.value = true;
   } else if (event.type === 'IM_RECALL') {
     const recalled = event.payload.message;
     const messageId = recalled?.id ?? event.payload.messageId ?? event.payload.id;
     if (messageId !== undefined) messages.value = messages.value.map(message => sameBusinessId(message.id, messageId) ? { ...message, ...recalled, recalled: true, content: undefined, mediaUrl: undefined } : message);
   } else if (event.type === 'IM_READ') {
-    const readerId = event.payload.readerUserId ?? event.payload.userId;
-    if (readerId !== undefined) readerWatermarks.value[String(readerId)] = event.payload.lastReadMessageId;
+    readerWatermarks.value = applyReadEvent(readerWatermarks.value, conversation.value?.id, event.payload);
   }
 });
 
@@ -362,6 +424,11 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
   readerWatermarks.value = {};
   pageNo.value = 1;
   hasOlder.value = false;
+  syncCursor.value = '0';
+  syncIncomplete.value = false;
+  messageSyncError.value = '';
+  syncingMessages.value = false;
+  newMessagesAvailable.value = false;
   loadingOlder.value = false;
   messageSending.value = false;
   recallingMessageIds.value = new Set();
@@ -384,12 +451,14 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
           实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
           <template #action><a-link role="button" tabindex="0" @click="notifyStore.connect" @keydown.enter="notifyStore.connect" @keydown.space.prevent="notifyStore.connect">立即重连</a-link></template>
         </a-alert>
-        <div ref="scrollRef" class="messages chat-scroll">
+        <a-alert v-if="syncIncomplete || messageSyncError" type="warning">{{ messageSyncError || '还有历史增量消息待同步' }}<template #action><a-button :loading="syncingMessages" @click="syncIncremental">继续同步</a-button></template></a-alert>
+        <div ref="scrollRef" class="messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
           <div v-if="hasOlder" class="load-older"><a-link role="button" tabindex="0" :loading="loadingOlder" @click="loadOlderMessages" @keydown.enter="loadOlderMessages" @keydown.space.prevent="loadOlderMessages">加载更早消息</a-link></div>
           <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
           <div v-if="!messages.length" class="empty-msg">该群暂无消息，开始聊天吧 👋</div>
         </div>
-        <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(orderCode || '')" :submitting="messageSending" @send="onSend" />
+        <a-button v-if="newMessagesAvailable" @click="scrollToBottom">有新消息，查看最新消息</a-button>
+        <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(orderCode || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
         <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
       </a-card>
       <EmptyState

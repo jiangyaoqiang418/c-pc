@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -10,6 +11,7 @@ import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 
 const list = ref<Api.RealPurchase.Record[]>([]);
@@ -23,6 +25,19 @@ const claimingId = ref<string | number>();
 const user = computed(() => userStore.currentUser);
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+
+function readQuery() {
+  const page = Number(route.query.page);
+  current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function syncQuery(replace = false) {
+  const before = route.fullPath;
+  void (replace ? router.replace : router.push)({ query: { ...route.query,
+    page: current.value > 1 ? String(current.value) : undefined } }).then(() => {
+    if (route.fullPath === before) void load();
+  });
+}
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -39,10 +54,11 @@ async function load() {
   try {
     const r = await purchaseApi.fetchHall({ current: current.value, size: size.value, signal: isCurrent.signal });
     if (!isCurrent() || String(user.value?.id || '') !== userId) return;
+    size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
       current.value = maxPage;
-      await load();
+      syncQuery(true);
       return;
     }
     list.value = r.records;
@@ -56,7 +72,8 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load);
+onMounted(() => { readQuery(); void load(); });
+watch(() => route.query.page, () => { readQuery(); void load(); });
 onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
@@ -69,7 +86,7 @@ watch([() => user.value?.id, () => userStore.currentAudience], () => {
   loadError.value = '';
   writeVersion += 1;
   claimingId.value = undefined;
-  void load();
+  syncQuery(true);
 });
 
 async function onClaim(req: Api.RealPurchase.Record) {
@@ -148,7 +165,7 @@ async function onClaim(req: Api.RealPurchase.Record) {
         :current="current"
         :page-size="size"
         show-total
-        @change="(page: number) => { current = page; load(); }"
+        @change="(page: number) => { current = page; syncQuery(); }"
       />
     </div>
   </div>

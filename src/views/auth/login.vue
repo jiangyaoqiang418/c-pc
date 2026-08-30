@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { MOCK_USERS } from '@shared';
@@ -11,7 +11,16 @@ const userStore = useUserStore();
 
 const form = reactive({ email: '', password: '' });
 const submitting = ref(false);
-const redirect = (route.query.redirect as string) || '/';
+let disposed = false;
+onBeforeUnmount(() => { disposed = true; });
+const redirect = computed(() => {
+  const target = route.query.redirect;
+  return typeof target === 'string' && /^\/(?!\/)/.test(target) && !target.startsWith('/auth/') ? target : '/';
+});
+
+function goRegister() {
+  router.push({ path: '/auth/register', query: { redirect: redirect.value } });
+}
 
 async function submit() {
   if (submitting.value) return;
@@ -22,10 +31,11 @@ async function submit() {
   submitting.value = true;
   try {
     await userStore.loginWithPassword(form);
+    if (disposed) return;
     Message.success(`欢迎回来，${userStore.displayName}`);
-    router.push(redirect);
-  } catch {
-    // 请求层已展示错误；保留邮箱和密码输入，便于用户在网络恢复后直接重试。
+    router.push(redirect.value);
+  } catch (error) {
+    if (!disposed) Message.error(error instanceof Error ? error.message : '登录失败，请稍后重试');
   } finally {
     submitting.value = false;
   }
@@ -36,11 +46,12 @@ async function oneClick(userId: number) {
   submitting.value = true;
   try {
     await userStore.login(userId);
-    Message.success('已登录演示账号');
-    router.push(redirect);
+    if (disposed) return;
+    Message.success('已进入本地演示模式，真实业务仍需平台账号登录');
+    router.push('/');
   } catch (error) {
     const message = error instanceof Error ? error.message : '演示账号初始化失败，请稍后重试';
-    Message.error(message);
+    if (!disposed) Message.error(message);
   } finally {
     submitting.value = false;
   }
@@ -50,7 +61,7 @@ async function oneClick(userId: number) {
 <template>
   <div class="login-page">
     <h2 class="title">登录</h2>
-    <p class="hint">使用平台账号 + 邮箱密码登录，或选择演示账号一键登录。</p>
+    <p class="hint">使用平台账号和邮箱密码登录。</p>
 
     <a-form :model="form" layout="vertical" @submit-success="submit">
       <a-form-item label="邮箱">
@@ -62,8 +73,8 @@ async function oneClick(userId: number) {
       <a-button type="primary" long :loading="submitting" size="large" @click="submit">登 录</a-button>
     </a-form>
 
-    <a-divider>演示账号一键登录</a-divider>
-    <div class="quick-list">
+    <a-divider v-if="userStore.demoEnabled">本地演示（不登录真实业务）</a-divider>
+    <div v-if="userStore.demoEnabled" class="quick-list">
       <a-button v-for="u in MOCK_USERS" :key="u.userId" long size="small" @click="oneClick(u.userId)">
         <span class="quick-label">{{ u.label }}</span>
         <span class="quick-desc">{{ u.desc }}</span>
@@ -72,7 +83,7 @@ async function oneClick(userId: number) {
 
     <div class="bottom">
       还没有账号？
-      <a-link role="link" tabindex="0" @click="router.push('/auth/register')" @keydown.enter="router.push('/auth/register')" @keydown.space.prevent="router.push('/auth/register')">立即注册</a-link>
+      <a-link role="link" tabindex="0" @click="goRegister" @keydown.enter="goRegister" @keydown.space.prevent="goRegister">立即注册</a-link>
     </div>
   </div>
 </template>

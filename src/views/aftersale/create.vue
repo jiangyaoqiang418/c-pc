@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { isDefinitiveRejection } from '@/service/request/type';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
@@ -10,6 +12,7 @@ import * as refundApi from '@/service/api/refund';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
+import { getOrderCapabilities } from '@/utils/order';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 const route = useRoute();
@@ -20,11 +23,14 @@ const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
 const loadError = ref('');
 const submitting = ref(false);
+const uploading = ref(false);
 const confirmationOpen = ref(false);
 const form = reactive({ reason: '', evidenceImages: [] as string[] });
-const eligible = computed(() => ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.value?.status || ''));
+const { markInteracted, markSaved } = useUnsavedForm(() => form, () => userStore.currentUser?.id);
+const eligible = computed(() => getOrderCapabilities(order.value, userStore.currentUser?.id).refund);
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -52,11 +58,15 @@ async function load() {
 onMounted(load);
 onBeforeUnmount(() => {
   writeVersion += 1;
+  confirmationModal?.close();
   requestGuard.invalidate();
 });
-watch(() => [orderId.value, userStore.currentUser?.id], () => {
+watch([orderId, () => userStore.currentUser?.id], () => {
   requestGuard.invalidate();
   writeVersion += 1;
+  confirmationModal?.close();
+  form.reason = '';
+  form.evidenceImages = [];
   submitting.value = false;
   confirmationOpen.value = false;
   order.value = undefined;
@@ -65,37 +75,43 @@ watch(() => [orderId.value, userStore.currentUser?.id], () => {
 });
 
 function submit() {
-  if (submitting.value || confirmationOpen.value) return;
+  if (submitting.value || confirmationOpen.value || uploading.value) return;
   if (!order.value || !eligible.value) return Message.warning('当前订单状态不可申请仅退款');
   if (!form.reason.trim()) return Message.warning('请填写退款原因');
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
+  const operation = ++writeVersion;
   confirmationOpen.value = true;
-  Modal.confirm({
+  confirmationModal = Modal.confirm({
     title: '确认申请仅退款？',
     content: '申请将由平台后台审核；审核通过后退款会原路退回钱包。',
     okText: '提交申请',
     onCancel() {
-      confirmationOpen.value = false;
+      if (operation === writeVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      const operation = ++writeVersion;
       const isCurrentWrite = () => operation === writeVersion
         && String(userStore.currentUser?.id) === String(requestedUserId)
         && sameBusinessId(order.value?.id, requestedOrderId);
-      if (!isCurrentWrite()) {
-        confirmationOpen.value = false;
+      if (!isCurrentWrite() || !eligible.value) {
+        if (operation === writeVersion) confirmationOpen.value = false;
         return;
       }
       submitting.value = true;
       try {
-        const refundId = await refundApi.createRefund({ orderId: requestedOrderId, reason: form.reason.trim(), evidenceImages: form.evidenceImages });
+        const refundId = await refundApi.createRefund({ orderId: requestedOrderId, reason: form.reason.trim(), evidenceImages: form.evidenceImages }, { showError: false });
         if (!isCurrentWrite()) return;
+        markSaved();
         Message.success('仅退款申请已提交，等待平台审核');
         router.replace({ name: 'aftersale-detail', params: { id: String(refundId) } });
-      } catch {
-        if (isCurrentWrite()) Message.error('仅退款申请提交失败，请稍后重试');
+      } catch (error) {
+        if (!isCurrentWrite()) return;
+        if (isDefinitiveRejection(error)) {
+          Message.error(error instanceof Error ? error.message : '申请未被接受，请核对后重试');
+        } else {
+          Message.warning('未取得仅退款申请的确定结果，请先到我的售后核对原订单，勿直接重复提交');
+        }
       } finally {
         if (operation === writeVersion) {
           submitting.value = false;
@@ -108,15 +124,15 @@ function submit() {
 </script>
 
 <template>
-  <div class="aftersale-create-page shop-container">
+  <div class="aftersale-create-page shop-container" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
     <a-spin :loading="loading">
       <template v-if="order">
         <a-breadcrumb class="bread"><a-breadcrumb-item role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">我的订单</a-breadcrumb-item><a-breadcrumb-item>申请仅退款</a-breadcrumb-item></a-breadcrumb>
         <a-card class="order-card" :bordered="false"><div class="order-row"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /> · 订单 {{ order.code }}</div></div><strong>U {{ order.totalAmount }}</strong></div></a-card>
         <a-alert v-if="!eligible" type="warning" class="notice">仅“待发货”或“待收货”订单可申请仅退款。</a-alert>
         <a-card class="step-card" :bordered="false"><div class="step-title">退款原因</div><a-textarea v-model="form.reason" :max-length="512" show-word-limit :rows="5" placeholder="请说明退款原因，例如商品与描述不符" /></a-card>
-        <a-card class="step-card" :bordered="false"><div class="step-title">上传凭证（可选，最多 6 张）</div><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" /></a-card>
-        <a-card class="actions-card" :bordered="false"><a-button @click="router.back()">取消</a-button><a-button type="primary" :disabled="!eligible" :loading="submitting || confirmationOpen" @click="submit">提交仅退款申请</a-button></a-card>
+        <a-card class="step-card" :bordered="false"><div class="step-title">上传凭证（可选，最多 6 张）</div><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></a-card>
+        <a-card class="actions-card" :bordered="false"><a-button @click="router.back()">取消</a-button><a-button type="primary" :disabled="!eligible || uploading" :loading="submitting || confirmationOpen" @click="submit">提交仅退款申请</a-button></a-card>
       </template>
       <EmptyState v-else-if="!loading" :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />
     </a-spin>

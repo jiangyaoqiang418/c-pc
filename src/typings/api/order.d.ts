@@ -19,6 +19,7 @@ declare namespace Api.RealOrder {
     id: Id;
     groupId?: Id;
     productId: Id;
+    quantity?: number;
     customerId: Id;
     shopperId: Id;
     activeAftersaleId?: Id;

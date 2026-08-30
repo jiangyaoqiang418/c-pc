@@ -7,7 +7,7 @@ import type { BucketKey } from '@shared/enums/wallet';
 
 interface Props {
   bucketKey: BucketKey;
-  amount: string;
+  amount?: string;
   variant?: 'card' | 'row';
   pct?: number; // 占比 0-100，仅 row variant 用
 }
