@@ -27,8 +27,10 @@ const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 
 function readQuery() {
-  const page = Number(route.query.page);
+  const rawPage = route.query.page;
+  const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  return rawPage !== undefined && (Array.isArray(rawPage) || !Number.isSafeInteger(page) || page <= 0);
 }
 
 function syncQuery(replace = false) {
@@ -72,8 +74,20 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(() => { readQuery(); void load(); });
-watch(() => route.query.page, () => { readQuery(); void load(); });
+onMounted(() => {
+  if (readQuery()) {
+    syncQuery(true);
+    return;
+  }
+  void load();
+});
+watch(() => route.query.page, () => {
+  if (readQuery()) {
+    syncQuery(true);
+    return;
+  }
+  void load();
+});
 onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();

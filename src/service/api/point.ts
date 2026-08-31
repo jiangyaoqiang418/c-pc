@@ -60,7 +60,7 @@ export async function fetchMyPointLogs(q: {
   behaviors?: Api.Point.BehaviorCode[];
   fromAt?: string;
   toAt?: string;
-}, options: { signal?: AbortSignal } = {}) {
+}, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const behaviorCode = q.behaviors?.length === 1 ? q.behaviors[0] : undefined;
   const result = await realUserRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO>>(
     '/points/ledger/page',
@@ -97,7 +97,7 @@ export async function appealPointLog(p: { logId: number | string; reason: string
   return { ok: true, message: '' };
 }
 
-export async function fetchMyPointAppeals(q: Api.RealPoint.PointAppealPageQuery, options: { signal?: AbortSignal } = {}) {
+export async function fetchMyPointAppeals(q: Api.RealPoint.PointAppealPageQuery, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const result = await realUserRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointAppealDTO>>(
     '/points/appeals/page',
     q,

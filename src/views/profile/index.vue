@@ -63,11 +63,11 @@ async function loadProfile() {
   orderCounts.value = undefined;
   announcements.value = [];
   const [vip, assets, counts, anns] = await Promise.allSettled([
-    vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal }),
-    realWalletApi.fetchWalletOverview(uid, { signal: isCurrent.signal }),
+    vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal, showError: false }),
+    realWalletApi.fetchWalletOverview(uid, { signal: isCurrent.signal, showError: false }),
     userStore.isBuyerActive
-      ? realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal })
-      : realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal }),
+      ? realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal, showError: false })
+      : realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal, showError: false }),
     cmsApi.fetchAnnouncements({ size: 3 })
   ]);
   if (!isCurrent() || version !== profileLoadVersion) return;

@@ -69,7 +69,7 @@ async function loadAll() {
     if (current()) walletLoadError.value = '钱包余额加载失败，已暂时禁用申购。';
   });
   try {
-    const detail = await financeApi.fetchFinanceProductDetail(targetId, { signal: isCurrent.signal });
+    const detail = await financeApi.fetchFinanceProductDetail(targetId, { signal: isCurrent.signal, showError: false });
     if (current()) product.value = detail;
   } catch {
     if (current()) loadError.value = '产品信息加载失败，请检查网络后重试。';

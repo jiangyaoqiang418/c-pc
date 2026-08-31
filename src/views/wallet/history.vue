@@ -59,8 +59,9 @@ function applyQueryParams() {
     const query = route.query[key];
     return Array.isArray(query) ? query[0] : query;
   };
-  const types = (value('types') || value('type') || '')
-    .split(',')
+  const rawTypes = value('types') || value('type') || '';
+  const typeValues = rawTypes.split(',').filter(Boolean);
+  const types = typeValues
     .filter((type): type is Api.Wallet.TxnType => TYPE_GROUPS.some(group => group.types.includes(type as Api.Wallet.TxnType)));
   const bucket = value('bucket') as Api.Wallet.Bucket | undefined;
   const from = value('from');
@@ -68,10 +69,15 @@ function applyQueryParams() {
   const page = Number(value('page'));
 
   filter.types = types;
-  filter.bucket = BUCKET_OPTIONS.some(option => option.value === bucket) ? bucket : undefined;
+  const validBucket = BUCKET_OPTIONS.some(option => option.value === bucket);
+  filter.bucket = validBucket ? bucket : undefined;
   filter.dateRange = from || to ? [from || '', to || ''] : undefined;
   filter.keyword = value('keyword') || '';
   current.value = Number.isInteger(page) && page > 0 ? page : 1;
+  const rawTypesQuery = route.query.types ?? route.query.type;
+  const hasInvalidTypes = rawTypesQuery !== undefined && (Array.isArray(rawTypesQuery)
+    || typeValues.some(type => !TYPE_GROUPS.some(group => group.types.includes(type as Api.Wallet.TxnType))));
+  return hasInvalidTypes || (route.query.bucket !== undefined && (!validBucket || Array.isArray(route.query.bucket)));
 }
 
 function currentQuery() {
@@ -145,13 +151,19 @@ async function load() {
 }
 
 onMounted(() => {
-  applyQueryParams();
+  if (applyQueryParams()) {
+    syncQuery();
+    return;
+  }
   void load();
 });
 onBeforeUnmount(requestGuard.invalidate);
 
 watch(() => route.query, () => {
-  applyQueryParams();
+  if (applyQueryParams()) {
+    syncQuery();
+    return;
+  }
   void load();
 });
 

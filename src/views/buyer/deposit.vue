@@ -23,8 +23,10 @@ const pageSize = ref(20);
 const total = ref(0);
 
 function readPageQuery() {
-  const page = Number(route.query.page);
+  const rawPage = route.query.page;
+  const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  return rawPage !== undefined && (Array.isArray(rawPage) || !Number.isSafeInteger(page) || page <= 0);
 }
 
 function syncPageQuery(replace = false) {
@@ -121,13 +123,20 @@ async function loadAll() {
   }
 }
 onMounted(() => {
-  readPageQuery();
+  const hasInvalidPage = readPageQuery();
   refreshPendingTransfer();
   window.addEventListener('focus', refreshPendingTransfer);
   window.addEventListener('storage', refreshPendingTransfer);
+  if (hasInvalidPage) syncPageQuery(true);
+  else void loadAll();
+});
+watch(() => route.query.page, () => {
+  if (readPageQuery()) {
+    syncPageQuery(true);
+    return;
+  }
   void loadAll();
 });
-watch(() => route.query.page, () => { readPageQuery(); void loadAll(); });
 onBeforeUnmount(() => {
   window.removeEventListener('focus', refreshPendingTransfer);
   window.removeEventListener('storage', refreshPendingTransfer);

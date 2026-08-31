@@ -50,21 +50,35 @@ function optionalQueryNumber(value: unknown) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
-function queryPage(value: unknown) {
-  const parsed = optionalQueryNumber(value);
-  return parsed ? Math.max(1, Math.floor(parsed)) : 1;
-}
-
 function syncFromQuery() {
   filter.keyword = (route.query.keyword as string) || '';
   filter.categoryId = (route.query.categoryId as string) || undefined;
-  filter.aftersaleType = (route.query.aftersaleType as Api.Product.AftersaleType) || undefined;
-  filter.overseasCustoms = route.query.overseas === '1' ? true : undefined;
-  filter.minPrice = route.query.minPrice ? optionalQueryNumber(route.query.minPrice) : undefined;
-  filter.maxPrice = route.query.maxPrice ? optionalQueryNumber(route.query.maxPrice) : undefined;
+  const rawAftersaleType = Array.isArray(route.query.aftersaleType) ? route.query.aftersaleType[0] : route.query.aftersaleType;
+  const validAftersaleType = typeof rawAftersaleType === 'string'
+    && aftersaleOptions.some(option => option.value === rawAftersaleType);
+  filter.aftersaleType = validAftersaleType ? rawAftersaleType as Api.Product.AftersaleType : undefined;
+  const rawOverseas = route.query.overseas;
+  const validOverseas = rawOverseas === undefined || rawOverseas === '1';
+  filter.overseasCustoms = rawOverseas === '1' ? true : undefined;
+  const rawMinPrice = Array.isArray(route.query.minPrice) ? route.query.minPrice[0] : route.query.minPrice;
+  const rawMaxPrice = Array.isArray(route.query.maxPrice) ? route.query.maxPrice[0] : route.query.maxPrice;
+  const minPrice = typeof rawMinPrice === 'string' ? optionalQueryNumber(rawMinPrice) : undefined;
+  const maxPrice = typeof rawMaxPrice === 'string' ? optionalQueryNumber(rawMaxPrice) : undefined;
+  filter.minPrice = minPrice;
+  filter.maxPrice = maxPrice;
   const querySort = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort;
   filter.sort = productApi.normalizeStorefrontSort(querySort || undefined);
-  current.value = queryPage(route.query.page);
+  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
+  const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
+  const validPage = Number.isSafeInteger(page) && page > 0;
+  current.value = validPage ? page : 1;
+  return Array.isArray(route.query.sort)
+    || (querySort !== undefined && querySort !== filter.sort)
+    || (route.query.aftersaleType !== undefined && (Array.isArray(route.query.aftersaleType) || !validAftersaleType))
+    || (Array.isArray(rawOverseas) || !validOverseas)
+    || (route.query.minPrice !== undefined && (Array.isArray(route.query.minPrice) || minPrice === undefined))
+    || (route.query.maxPrice !== undefined && (Array.isArray(route.query.maxPrice) || maxPrice === undefined))
+    || (route.query.page !== undefined && (Array.isArray(route.query.page) || !validPage));
 }
 
 async function load() {
@@ -143,16 +157,16 @@ function resetFilters() {
 }
 
 onMounted(() => {
-  syncFromQuery();
-  load();
+  if (syncFromQuery()) updateUrl(true);
+  else load();
 });
 onBeforeUnmount(requestGuard.invalidate);
 
 watch(
   () => route.fullPath,
   () => {
-    syncFromQuery();
-    load();
+    if (syncFromQuery()) updateUrl(true);
+    else load();
   }
 );
 

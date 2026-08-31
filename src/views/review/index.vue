@@ -58,13 +58,21 @@ function syncFromQuery() {
     return Array.isArray(raw) ? raw[0] : raw;
   };
   const tab = value('tab');
-  activeKey.value = isBuyer.value && (tab === 'received' || tab === 'appeals') ? tab : 'sent';
+  const validTab = tab === 'sent' || (isBuyer.value && (tab === 'received' || tab === 'appeals'));
+  activeKey.value = validTab ? tab : 'sent';
   const state = value('status') as Api.RealReview.ReviewStatus;
-  status.value = ['PENDING', 'PUBLISHED', 'REJECTED', 'HIDDEN'].includes(state) ? state : undefined;
-  hasImage.value = value('hasImage') === 'true' ? true : value('hasImage') === 'false' ? false : undefined;
+  const validStatus = ['PENDING', 'PUBLISHED', 'REJECTED', 'HIDDEN'].includes(state);
+  status.value = validStatus ? state : undefined;
+  const imageQuery = value('hasImage');
+  const validHasImage = imageQuery === 'true' || imageQuery === 'false';
+  hasImage.value = imageQuery === 'true' ? true : imageQuery === 'false' ? false : undefined;
   const page = Number(value('page'));
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
   syncingQuery = false;
+  return (route.query.tab !== undefined && (Array.isArray(route.query.tab) || !validTab))
+    || (route.query.status !== undefined && (Array.isArray(route.query.status) || !validStatus))
+    || (route.query.hasImage !== undefined && (Array.isArray(route.query.hasImage) || !validHasImage))
+    || (route.query.page !== undefined && (Array.isArray(route.query.page) || !Number.isSafeInteger(page) || page <= 0));
 }
 
 function syncQuery(replace = false) {
@@ -324,9 +332,18 @@ watch(() => route.query.id, id => {
   notificationReviewError.value = '';
   if (id) void loadNotificationReview(String(id));
 }, { immediate: true });
-onMounted(() => { syncFromQuery(); void load(); });
+onMounted(() => {
+  if (syncFromQuery()) {
+    syncQuery(true);
+    return;
+  }
+  void load();
+});
 watch(() => route.fullPath, () => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    syncQuery(true);
+    return;
+  }
   void load();
 });
 onBeforeUnmount(() => {

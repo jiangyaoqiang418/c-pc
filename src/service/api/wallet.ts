@@ -182,7 +182,7 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
   };
 }
 
-export async function fetchWalletOverview(userId: Api.RealSession.Id, options: { signal?: AbortSignal } = {}) {
+export async function fetchWalletOverview(userId: Api.RealSession.Id, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const wallet = await realUserRequest.get<Api.RealWallet.WalletVO>('/wallet/overview', options);
   const account = toAccount(userId, wallet);
 
@@ -282,22 +282,22 @@ export function createRecharge(params: Api.RealWallet.RechargeCreateParams, opti
   );
 }
 
-export async function fetchRechargeChains(options: { signal?: AbortSignal } = {}) {
+export async function fetchRechargeChains(options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const list = await realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', options);
   return requireArray<Api.RealWallet.RechargeChainVO>(list, '充值链列表');
 }
 
-export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal } = {}) {
+export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...options, params: { chain } });
 }
 
-export function fetchRechargeDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+export function fetchRechargeDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { ...options, params: { id } });
 }
 
 export async function fetchRechargePage(
   params: Api.RealWallet.RechargePageQuery = {},
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; showError?: boolean } = {}
 ) {
   const page = await realUserRequest.postQuery<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
     '/recharge/page',

@@ -39,8 +39,8 @@ async function loadAll() {
   productLoadError.value = false;
   try {
     const [productsResult, overviewResult, walletResult] = await Promise.allSettled([
-      financeApi.fetchFinanceProducts({ signal: isCurrent.signal }),
-      financeApi.fetchFinanceOverview({ signal: isCurrent.signal }),
+      financeApi.fetchFinanceProducts({ signal: isCurrent.signal, showError: false }),
+      financeApi.fetchFinanceOverview({ signal: isCurrent.signal, showError: false }),
       walletStore.fetchWallet(userId)
     ]);
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;

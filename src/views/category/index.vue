@@ -65,10 +65,12 @@ function findNode(nodes: CategoryNode[], id: string, path: string[] = [], ids: s
 function restoreCategory() {
   if (!tree.value.length) return;
   const queryId = typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined;
-  const id = queryId === '' ? undefined : queryId && findNode(tree.value, queryId) ? queryId : String(tree.value[0].id);
+  const matched = queryId ? findNode(tree.value, queryId) : undefined;
+  const id = queryId === '' ? undefined : matched ? queryId : String(tree.value[0].id);
   syncingSelection = true;
   selectedKeys.value = id ? [id] : [];
   syncingSelection = false;
+  if (queryId && !matched) void router.replace({ query: { ...route.query, categoryId: id } });
   if (id) {
     expandedKeys.value = [...new Set([...expandedKeys.value, ...(findNode(tree.value, id)?.ids || [])])];
     void pick(id);

@@ -93,7 +93,7 @@ export async function fetchVipConfigs(options: { signal?: AbortSignal } = {}) {
   })));
 }
 
-export async function fetchMyVipStatus(userId: string | number, options: { signal?: AbortSignal } = {}): Promise<Api.RealVip.Status> {
+export async function fetchMyVipStatus(userId: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}): Promise<Api.RealVip.Status> {
   const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', options);
   const customer = account.customer;
   const buyer = account.buyer;

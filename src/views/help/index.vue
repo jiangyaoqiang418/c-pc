@@ -66,7 +66,11 @@ async function load() {
 }
 function openAgreementFromQuery() {
   const raw = Array.isArray(route.query.agreement) ? route.query.agreement[0] : route.query.agreement;
-  if (!raw || !AGREEMENTS.some(item => item.kind === raw)) return;
+  if (!raw) return;
+  if (!AGREEMENTS.some(item => item.kind === raw)) {
+    void router.replace({ query: { ...route.query, agreement: undefined } });
+    return;
+  }
   openAgreement(raw as Api.Cms.AgreementKind);
   const query = { ...route.query };
   delete query.agreement;

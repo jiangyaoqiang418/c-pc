@@ -96,7 +96,8 @@ async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null, signal?:
   const results = await Promise.all(entries.map(async ([key, fileId]) => {
     if (!fileId) return [key, ''] as const;
     try {
-      const access = await realKycApi.refreshKycFileAccess(fileId, { signal });
+      // 单个私有文件不可用时由页面保留无预览状态；避免请求层再弹出脱离上下文的全局错误。
+      const access = await realKycApi.refreshKycFileAccess(fileId, { signal, showError: false });
       return [key, access.url] as const;
     } catch {
       return [key, ''] as const;
@@ -117,7 +118,8 @@ async function load() {
     if (!userId) return;
     if (getAccessToken()) {
       try {
-        const nextDetail = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal });
+        // 页面已有可重试的资料读取错误态，避免请求层重复弹出后端文件错误。
+        const nextDetail = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal, showError: false });
         if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
         kycDetail.value = nextDetail;
         void refreshPrivatePreviews(kycDetail.value, isCurrent.signal, isCurrent);

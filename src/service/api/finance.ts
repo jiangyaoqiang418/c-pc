@@ -20,13 +20,13 @@ export function financeRedemptionIssue(order: Api.RealFinance.FinanceOrderVO) {
   return '';
 }
 
-export async function fetchFinanceProducts(options: { signal?: AbortSignal } = {}) {
+export async function fetchFinanceProducts(options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const list = await realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list', options);
   return requireArray<Api.RealFinance.FinanceProductVO>(list, '理财产品');
 }
 
-export function fetchFinanceProductDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  return realUserRequest.get<Api.RealFinance.FinanceProductVO>('/finance/products/detail', { params: { id }, signal: options.signal });
+export function fetchFinanceProductDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
+  return realUserRequest.get<Api.RealFinance.FinanceProductVO>('/finance/products/detail', { params: { id }, ...options });
 }
 
 export function subscribeFinance(params: Api.RealFinance.FinanceSubscribeParams, options: { showError?: boolean } = {}) {
@@ -55,7 +55,7 @@ export async function redeemFinanceWithReadback(userId: string | number, id: str
   throw new RequestError('赎回结果待确认。再次确认仅核实原锁仓状态，不会重复提交；仍未确认时请联系平台核实。', { code: 'FINANCIAL_PENDING' });
 }
 
-export function fetchFinanceOverview(options: { signal?: AbortSignal } = {}) {
+export function fetchFinanceOverview(options: { signal?: AbortSignal; showError?: boolean } = {}) {
   return realUserRequest.get<Api.RealFinance.FinanceOverviewVO>('/finance/orders/overview', options);
 }
 

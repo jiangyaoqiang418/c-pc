@@ -34,11 +34,15 @@ const activeStatus = computed(() => activeKey.value === 'all' ? undefined : acti
 
 function readQuery() {
   syncingQuery = true;
-  activeKey.value = statusDefs.find(item => item.key === route.query.status)?.key || 'all';
+  const matchedStatus = typeof route.query.status === 'string'
+    ? statusDefs.find(item => item.key === route.query.status)
+    : undefined;
+  activeKey.value = matchedStatus?.key || 'all';
   orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo : '';
   const page = Number(route.query.page);
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
   syncingQuery = false;
+  return route.query.status !== undefined && !matchedStatus;
 }
 
 function syncQuery(replace = false) {
@@ -110,14 +114,26 @@ function reset() {
   syncQuery();
 }
 
-onMounted(() => { readQuery(); void load(); });
+onMounted(() => {
+  if (readQuery()) {
+    void router.replace({ query: { ...route.query, status: undefined } });
+    return;
+  }
+  void load();
+});
 onBeforeUnmount(requestGuard.invalidate);
 watch(activeKey, () => {
   if (syncingQuery) return;
   current.value = 1;
   syncQuery();
 }, { flush: 'sync' });
-watch(() => route.query, () => { readQuery(); void load(); });
+watch(() => route.query, () => {
+  if (readQuery()) {
+    void router.replace({ query: { ...route.query, status: undefined } });
+    return;
+  }
+  void load();
+});
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   requestGuard.invalidate();

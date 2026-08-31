@@ -35,10 +35,14 @@ let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 function readQuery() {
   syncingQuery = true;
-  activeKey.value = statusDefs.find(item => item.key === route.query.status)?.key || 'all';
+  const matchedStatus = typeof route.query.status === 'string'
+    ? statusDefs.find(item => item.key === route.query.status)
+    : undefined;
+  activeKey.value = matchedStatus?.key || 'all';
   const page = Number(route.query.page);
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
   syncingQuery = false;
+  return route.query.status !== undefined && !matchedStatus;
 }
 
 function syncQuery(replace = false) {
@@ -79,7 +83,10 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(() => { readQuery(); void load(); });
+onMounted(() => {
+  if (readQuery()) void router.replace({ query: { ...route.query, status: undefined } });
+  void load();
+});
 onBeforeUnmount(() => { writeVersion += 1; confirmationModal?.close(); requestGuard.invalidate(); });
 watch(activeKey, () => {
   if (syncingQuery) return;
@@ -91,7 +98,10 @@ watch(() => route.query, () => {
   confirmationModal?.close();
   cancellingId.value = undefined;
   cancellationPending.value = false;
-  readQuery();
+  if (readQuery()) {
+    void router.replace({ query: { ...route.query, status: undefined } });
+    return;
+  }
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {

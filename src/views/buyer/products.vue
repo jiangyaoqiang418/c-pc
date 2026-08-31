@@ -60,6 +60,8 @@ function syncFromQuery() {
   const page = Number(value('page'));
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
   syncingQuery = false;
+  const rawTab = route.query.tab;
+  return rawTab !== undefined && (Array.isArray(rawTab) || !TABS.some(tab => tab.key === rawTab));
 }
 
 function syncQuery(replace = false) {
@@ -147,8 +149,10 @@ function resetFilters() {
 }
 
 onMounted(() => {
-  syncFromQuery();
-  void Promise.all([load(), loadCategories()]);
+  const hasInvalidQuery = syncFromQuery();
+  void loadCategories();
+  if (hasInvalidQuery) syncQuery(true);
+  else void load();
 });
 onBeforeUnmount(() => {
   writeVersion += 1;
@@ -161,7 +165,10 @@ watch(activeKey, () => {
   syncQuery();
 }, { flush: 'sync' });
 watch(() => route.fullPath, () => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    syncQuery(true);
+    return;
+  }
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {

@@ -61,10 +61,12 @@ watch(logisticsModalOpen, () => { logisticsModalVersion += 1; }, { flush: 'sync'
 
 function syncFromQuery() {
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
-  activeKey.value = TABS.some(item => item.key === tab) ? String(tab) : 'all';
+  const matchedTab = TABS.some(item => item.key === tab);
+  activeKey.value = matchedTab ? String(tab) : 'all';
   const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
   const page = Number(rawPage);
   current.value = Number.isInteger(page) && page > 0 ? page : 1;
+  return route.query.tab !== undefined && (!matchedTab || Array.isArray(route.query.tab));
 }
 
 function currentQuery() {
@@ -123,7 +125,7 @@ async function load() {
 }
 
 onMounted(() => {
-  syncFromQuery();
+  if (syncFromQuery()) void router.replace({ query: currentQuery() });
   void load();
 });
 onBeforeUnmount(() => {
@@ -134,7 +136,10 @@ onBeforeUnmount(() => {
   requestGuard.invalidate();
 });
 watch(() => route.fullPath, () => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    void router.replace({ query: currentQuery() });
+    return;
+  }
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {

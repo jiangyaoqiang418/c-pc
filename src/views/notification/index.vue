@@ -38,6 +38,7 @@ function syncFromQuery() {
   const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
   const page = Number(rawPage);
   pageNo.value = Number.isInteger(page) && page > 0 ? page : 1;
+  return rawUnread !== undefined && rawUnread !== '1';
 }
 
 function currentQuery() {
@@ -227,7 +228,7 @@ notifyStore.subscribe(event => {
 });
 
 onMounted(() => {
-  syncFromQuery();
+  if (syncFromQuery()) void router.replace({ query: { ...route.query, unread: undefined } });
   void load();
 });
 onBeforeUnmount(() => {
@@ -240,7 +241,10 @@ onBeforeUnmount(() => {
 });
 watch(() => route.fullPath, () => {
   if (disposed) return;
-  syncFromQuery();
+  if (syncFromQuery()) {
+    void router.replace({ query: { ...route.query, unread: undefined } });
+    return;
+  }
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {

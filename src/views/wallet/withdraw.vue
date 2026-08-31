@@ -34,8 +34,10 @@ const recordStatus = ref<Api.RealWallet.WithdrawStatus>();
 function readRecordsQuery() {
   const page = Number(route.query.page);
   recordCurrent.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
-  recordStatus.value = typeof route.query.status === 'string' && ['REVIEWING', 'APPROVED', 'SUCCESS', 'REJECTED'].includes(route.query.status)
-    ? route.query.status : undefined;
+  const status = typeof route.query.status === 'string' && ['REVIEWING', 'APPROVED', 'SUCCESS', 'REJECTED'].includes(route.query.status)
+    ? route.query.status as Api.RealWallet.WithdrawStatus : undefined;
+  recordStatus.value = status;
+  return route.query.status !== undefined && !status;
 }
 
 async function syncRecordsQuery(replace = false) {
@@ -254,10 +256,16 @@ onMounted(() => {
   refreshSubmissionIssue();
   window.addEventListener('storage', refreshSubmissionIssue);
   window.addEventListener('focus', refreshSubmissionIssue);
-  readRecordsQuery();
+  if (readRecordsQuery()) void router.replace({ query: { ...route.query, status: undefined } });
   void loadAll();
 });
-watch([() => route.query.page, () => route.query.status], () => { readRecordsQuery(); void loadRecords(); });
+watch([() => route.query.page, () => route.query.status], () => {
+  if (readRecordsQuery()) {
+    void router.replace({ query: { ...route.query, status: undefined } });
+    return;
+  }
+  void loadRecords();
+});
 onBeforeUnmount(() => {
   window.removeEventListener('storage', refreshSubmissionIssue);
   window.removeEventListener('focus', refreshSubmissionIssue);

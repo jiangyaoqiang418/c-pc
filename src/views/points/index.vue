@@ -73,14 +73,20 @@ function syncFromQuery() {
   };
   const tab = value('tab');
   activeTab.value = tab === 'appeals' || tab === 'rules' ? tab : 'logs';
-  filter.behaviors = (value('behaviors') || '').split(',').filter((behavior): behavior is Api.Point.BehaviorCode => ALL_BEHAVIORS.includes(behavior as Api.Point.BehaviorCode));
+  const behaviorValues = (value('behaviors') || '').split(',').filter(Boolean);
+  filter.behaviors = behaviorValues.filter((behavior): behavior is Api.Point.BehaviorCode => ALL_BEHAVIORS.includes(behavior as Api.Point.BehaviorCode));
   filter.dateRange = value('from') || value('to') ? [value('from') || '', value('to') || ''] : undefined;
   current.value = pageValue('page');
   appealCurrent.value = pageValue('appealPage');
   appealFilter.keyword = value('appealKeyword') || undefined;
   const state = value('appealStatus') as Api.RealPoint.PointAppealStatus;
-  appealFilter.status = ['PENDING', 'APPROVED', 'REJECTED'].includes(state) ? state : undefined;
+  const validAppealStatus = ['PENDING', 'APPROVED', 'REJECTED'].includes(state);
+  appealFilter.status = validAppealStatus ? state : undefined;
   syncingQuery = false;
+  return (route.query.behaviors !== undefined && (Array.isArray(route.query.behaviors)
+      || behaviorValues.some(behavior => !ALL_BEHAVIORS.includes(behavior as Api.Point.BehaviorCode))))
+    || (route.query.tab !== undefined && (Array.isArray(route.query.tab) || !['appeals', 'rules'].includes(String(tab))))
+    || (route.query.appealStatus !== undefined && (Array.isArray(route.query.appealStatus) || !validAppealStatus));
 }
 
 function loadActiveTab() {
@@ -124,7 +130,7 @@ async function loadLogs() {
       behaviors: filter.behaviors.length ? filter.behaviors : undefined,
       fromAt: filter.dateRange?.[0],
       toAt: filter.dateRange?.[1]
-    }, { signal: isCurrent.signal });
+    }, { signal: isCurrent.signal, showError: false });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
@@ -181,7 +187,7 @@ async function loadAppeals() {
       keyword: appealFilter.keyword || undefined,
       status: appealFilter.status,
       userId: String(userId)
-    }, { signal: isCurrent.signal });
+    }, { signal: isCurrent.signal, showError: false });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     appealSize.value = resolvePageSize(r, appealSize.value);
     const maxPage = Math.max(1, Math.ceil(r.total / appealSize.value));
@@ -226,7 +232,10 @@ async function loadInitial() {
 }
 
 onMounted(() => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    syncQuery(true);
+    return;
+  }
   void loadInitial();
   if (activeTab.value === 'appeals') void loadAppeals();
 });
@@ -268,7 +277,10 @@ watch(activeTab, () => {
   syncQuery();
 }, { flush: 'sync' });
 watch(() => route.fullPath, () => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    syncQuery(true);
+    return;
+  }
   void loadActiveTab();
 });
 

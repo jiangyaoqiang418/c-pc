@@ -31,8 +31,10 @@ const recordStatus = ref<Api.RealWallet.RechargeStatus>();
 function readRecordsQuery() {
   const page = Number(route.query.page);
   recordCurrent.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
-  recordStatus.value = typeof route.query.status === 'string' && ['PENDING', 'CONFIRMED', 'CANCELED'].includes(route.query.status)
-    ? route.query.status : undefined;
+  const status = typeof route.query.status === 'string' && ['PENDING', 'CONFIRMED', 'CANCELED'].includes(route.query.status)
+    ? route.query.status as Api.RealWallet.RechargeStatus : undefined;
+  recordStatus.value = status;
+  return route.query.status !== undefined && !status;
 }
 
 async function syncRecordsQuery(replace = false) {
@@ -89,7 +91,7 @@ async function loadRecords() {
       pageNo: recordCurrent.value,
       pageSize: recordSize.value,
       status: recordStatus.value
-    }, { signal: isCurrent.signal });
+    }, { signal: isCurrent.signal, showError: false });
     if (!isCurrent()) return;
     recordSize.value = resolvePageSize(result, recordSize.value);
     const maxPage = Math.max(1, Math.ceil(result.total / recordSize.value));
@@ -115,7 +117,7 @@ async function loadChains() {
   loadingChains.value = true;
   loadError.value = '';
   try {
-    const chains = await realWalletApi.fetchRechargeChains({ signal: isCurrent.signal });
+    const chains = await realWalletApi.fetchRechargeChains({ signal: isCurrent.signal, showError: false });
     if (!isCurrent()) return;
     chainOptions.value = chains.filter(item => item.enabled);
     if (!chainOptions.value.some(item => item.chain === chain.value)) {
@@ -142,7 +144,7 @@ async function loadRechargeAddress(chainCode = chain.value) {
   addressError.value = '';
   rechargeAddress.value = undefined;
   try {
-    const address = await realWalletApi.fetchRechargeAddress(chainCode, { signal: isCurrent.signal });
+    const address = await realWalletApi.fetchRechargeAddress(chainCode, { signal: isCurrent.signal, showError: false });
     if (isCurrent() && chainCode === chain.value) rechargeAddress.value = address;
   } catch {
     if (isCurrent() && chainCode === chain.value) {
@@ -232,7 +234,7 @@ async function createRecharge() {
       }
     }
     try {
-      const nextRecharge = await realWalletApi.fetchRechargeDetail(pendingRechargeReadId.value!);
+      const nextRecharge = await realWalletApi.fetchRechargeDetail(pendingRechargeReadId.value!, { showError: false });
       if (!isCurrentWrite()) return;
       currentRecharge.value = nextRecharge;
       pendingRechargeReadId.value = undefined;
@@ -267,7 +269,7 @@ async function openDetail(id: string | number) {
   detail.value = undefined;
   detailError.value = '';
   try {
-    const next = await realWalletApi.fetchRechargeDetail(id, { signal: isCurrent.signal });
+    const next = await realWalletApi.fetchRechargeDetail(id, { signal: isCurrent.signal, showError: false });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     if (String(next.id) !== String(id)) throw new Error('充值详情对象不一致');
     detail.value = next;
@@ -320,8 +322,17 @@ function queryRecords() {
   void syncRecordsQuery();
 }
 
-onMounted(() => { readRecordsQuery(); void loadAll(); });
-watch([() => route.query.page, () => route.query.status], () => { readRecordsQuery(); void loadRecords(); });
+onMounted(() => {
+  if (readRecordsQuery()) void router.replace({ query: { ...route.query, status: undefined } });
+  void loadAll();
+});
+watch([() => route.query.page, () => route.query.status], () => {
+  if (readRecordsQuery()) {
+    void router.replace({ query: { ...route.query, status: undefined } });
+    return;
+  }
+  void loadRecords();
+});
 onBeforeUnmount(() => {
   createWriteVersion += 1;
   cancelWriteVersion += 1;

@@ -55,12 +55,19 @@ function syncFromQuery() {
   orderView.value = resolveOrderView(view, userStore.canSwitchToBuyer, userStore.currentAudience);
   userStore.setAudience(orderView.value === 'sell' ? 'buyer' : 'customer');
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
-  activeKey.value = TABS.some(item => item.key === tab) ? String(tab) : 'all';
+  const validTab = TABS.some(item => item.key === tab);
+  activeKey.value = validTab ? String(tab) : 'all';
   const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
   const page = Number(rawPage);
-  current.value = Number.isInteger(page) && page > 0 ? page : 1;
+  const validPage = Number.isInteger(page) && page > 0;
+  current.value = validPage ? page : 1;
   if (view !== orderView.value) {
     if (view === 'sell' && orderView.value === 'buy') current.value = 1;
+    syncQuery(true);
+    return false;
+  }
+  if ((route.query.tab !== undefined && (Array.isArray(route.query.tab) || !validTab))
+    || (route.query.page !== undefined && (Array.isArray(route.query.page) || !validPage))) {
     syncQuery(true);
     return false;
   }

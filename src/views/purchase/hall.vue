@@ -42,12 +42,24 @@ function positiveNumber(value: string | null | undefined) {
 
 function syncFromQuery() {
   keyword.value = queryValue('keyword') || '';
-  minBudget.value = positiveNumber(queryValue('minBudget'));
-  maxBudget.value = positiveNumber(queryValue('maxBudget'));
-  const days = positiveNumber(queryValue('expectedDays'));
-  expDaysFilter.value = days && [7, 15, 30].includes(days) ? days : undefined;
-  const page = positiveNumber(queryValue('page'));
-  current.value = page && Number.isInteger(page) && page > 0 ? page : 1;
+  const rawMinBudget = Array.isArray(route.query.minBudget) ? route.query.minBudget[0] : route.query.minBudget;
+  const rawMaxBudget = Array.isArray(route.query.maxBudget) ? route.query.maxBudget[0] : route.query.maxBudget;
+  const parsedMinBudget = typeof rawMinBudget === 'string' ? positiveNumber(rawMinBudget) : undefined;
+  const parsedMaxBudget = typeof rawMaxBudget === 'string' ? positiveNumber(rawMaxBudget) : undefined;
+  minBudget.value = parsedMinBudget;
+  maxBudget.value = parsedMaxBudget;
+  const rawDays = Array.isArray(route.query.expectedDays) ? route.query.expectedDays[0] : route.query.expectedDays;
+  const days = typeof rawDays === 'string' ? positiveNumber(rawDays) : undefined;
+  const validDays = days !== undefined && [7, 15, 30].includes(days);
+  expDaysFilter.value = validDays ? days : undefined;
+  const rawPage = Array.isArray(route.query.page) ? route.query.page[0] : route.query.page;
+  const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
+  const validPage = Number.isSafeInteger(page) && page > 0;
+  current.value = validPage ? page : 1;
+  return (route.query.minBudget !== undefined && (Array.isArray(route.query.minBudget) || parsedMinBudget === undefined))
+    || (route.query.maxBudget !== undefined && (Array.isArray(route.query.maxBudget) || parsedMaxBudget === undefined))
+    || (route.query.expectedDays !== undefined && (!validDays || Array.isArray(route.query.expectedDays)))
+    || (route.query.page !== undefined && (Array.isArray(route.query.page) || !validPage));
 }
 
 function currentQuery() {
@@ -107,7 +119,10 @@ async function load() {
   }
 }
 onMounted(() => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    void router.replace({ query: currentQuery() });
+    return;
+  }
   void load();
 });
 onBeforeUnmount(() => {
@@ -115,7 +130,10 @@ onBeforeUnmount(() => {
   requestGuard.invalidate();
 });
 watch(() => route.fullPath, () => {
-  syncFromQuery();
+  if (syncFromQuery()) {
+    void router.replace({ query: currentQuery() });
+    return;
+  }
   void load();
 });
 watch(() => userStore.currentUser?.id, (next, previous) => {

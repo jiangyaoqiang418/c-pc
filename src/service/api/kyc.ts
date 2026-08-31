@@ -1,6 +1,6 @@
 import { realUserRequest } from '@/service/request';
 
-export function fetchMyKycDetail(options: { signal?: AbortSignal } = {}) {
+export function fetchMyKycDetail(options: { signal?: AbortSignal; showError?: boolean } = {}) {
   return realUserRequest.get<Api.RealKyc.KycVO | null>('/kyc/detail', options);
 }
 
@@ -10,7 +10,7 @@ export function uploadKycFile(file: File) {
   return realUserRequest.post<Api.RealKyc.FileUploadResult, FormData>('/kyc/files/upload', form);
 }
 
-export function refreshKycFileAccess(fileId: string | number, options: { signal?: AbortSignal } = {}) {
+export function refreshKycFileAccess(fileId: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   return realUserRequest.get<Api.RealKyc.FileAccessResult>('/kyc/files/access', { params: { fileId }, ...options });
 }
 

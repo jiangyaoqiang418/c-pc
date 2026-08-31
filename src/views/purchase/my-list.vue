@@ -44,9 +44,15 @@ let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 let disposed = false;
 
 function readQuery() {
-  activeKey.value = TABS.find(tab => tab.key === route.query.tab)?.key || 'all';
-  const page = Number(route.query.page);
+  const matchedTab = typeof route.query.tab === 'string'
+    ? TABS.find(tab => tab.key === route.query.tab)
+    : undefined;
+  activeKey.value = matchedTab?.key || 'all';
+  const rawPage = route.query.page;
+  const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  return (route.query.tab !== undefined && !matchedTab)
+    || (rawPage !== undefined && (Array.isArray(rawPage) || !Number.isSafeInteger(page) || page <= 0));
 }
 
 function syncQuery(replace = false) {
@@ -106,7 +112,7 @@ async function load() {
 }
 
 onMounted(() => {
-  readQuery();
+  if (readQuery()) void router.replace({ query: { ...route.query, tab: activeKey.value === 'all' ? undefined : activeKey.value, page: current.value > 1 ? String(current.value) : undefined } });
   void load();
 });
 onBeforeUnmount(() => {
@@ -131,7 +137,10 @@ watch(() => userStore.currentUser?.id, async (next, previous) => {
 });
 watch(() => route.fullPath, () => {
   if (disposed) return;
-  readQuery();
+  if (readQuery()) {
+    void router.replace({ query: { ...route.query, tab: activeKey.value === 'all' ? undefined : activeKey.value, page: current.value > 1 ? String(current.value) : undefined } });
+    return;
+  }
   void load();
 });
 

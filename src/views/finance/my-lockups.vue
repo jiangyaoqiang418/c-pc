@@ -47,9 +47,15 @@ const TABS: { key: Api.RealFinance.OrderStatus; label: string }[] = [
 ];
 
 function readQuery() {
-  activeKey.value = TABS.find(tab => tab.key === route.query.tab)?.key || 'HOLDING';
-  const page = Number(route.query.page);
+  const matchedTab = typeof route.query.tab === 'string'
+    ? TABS.find(tab => tab.key === route.query.tab)
+    : undefined;
+  activeKey.value = matchedTab?.key || 'HOLDING';
+  const rawPage = route.query.page;
+  const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
+  return (route.query.tab !== undefined && !matchedTab)
+    || (rawPage !== undefined && (Array.isArray(rawPage) || !Number.isSafeInteger(page) || page <= 0));
 }
 
 function syncQuery(replace = false) {
@@ -127,7 +133,7 @@ async function loadCounts() {
 }
 
 onMounted(async () => {
-  readQuery();
+  if (readQuery()) void router.replace({ query: { ...route.query, tab: activeKey.value, page: current.value > 1 ? String(current.value) : undefined } });
   await load();
   if (disposed) return;
   await loadCounts();
@@ -157,7 +163,10 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 watch(() => route.fullPath, () => {
   if (disposed) return;
-  readQuery();
+  if (readQuery()) {
+    void router.replace({ query: { ...route.query, tab: activeKey.value, page: current.value > 1 ? String(current.value) : undefined } });
+    return;
+  }
   void load();
 });
 

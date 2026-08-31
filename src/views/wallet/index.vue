@@ -40,7 +40,9 @@ async function loadAll() {
     realWalletApi.fetchWalletLedger({ current: 1, size: 5, signal: isCurrent.signal })
   ]);
   if (!isCurrent()) return;
-  if (ledgerResult.status === 'fulfilled') recentTxns.value = ledgerResult.value.records;
+  // 本次流水读取明确失败时不能继续展示上一次快照；钱包与流水独立结算，
+  // 因此余额失败但本次流水成功仍保留本次成功结果。
+  recentTxns.value = ledgerResult.status === 'fulfilled' ? ledgerResult.value.records : [];
   if (walletResult.status === 'rejected' || ledgerResult.status === 'rejected') {
     loadError.value = '钱包数据加载失败，请检查网络后重试。';
   }
