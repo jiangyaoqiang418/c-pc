@@ -60,7 +60,7 @@ declare namespace Api.RealOrder {
     customerName?: string;
     sellerId?: string;
     sellerName?: string;
-    productId?: string;
+    productId?: string | null;
     productTitle?: string;
     productImage?: string;
     originalAmount?: string | number;

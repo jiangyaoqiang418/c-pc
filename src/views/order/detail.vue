@@ -42,6 +42,12 @@ let actionVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const id = computed(() => String(route.params.id || ''));
+const hasProduct = computed(() => order.value?.productId !== undefined && order.value?.productId !== null && String(order.value.productId).trim() !== '');
+
+function viewProduct() {
+  if (!hasProduct.value || !order.value) return;
+  router.push({ name: 'product-detail', params: { id: String(order.value.productId) } });
+}
 
 async function loadReviewable(snapshot?: Api.RealOrder.Record) {
   const isCurrent = reviewableGuard.begin();
@@ -351,11 +357,11 @@ function contactShopper() {
             <div class="info">
               <div
                 class="title"
-                role="link"
-                tabindex="0"
-                @click="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
-                @keydown.enter="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
-                @keydown.space.prevent="router.push({ name: 'product-detail', params: { id: String(order.productId) } })"
+                :role="hasProduct ? 'link' : undefined"
+                :tabindex="hasProduct ? 0 : undefined"
+                @click="viewProduct"
+                @keydown.enter="viewProduct"
+                @keydown.space.prevent="viewProduct"
               >
                 {{ order.productTitle }}
               </div>
@@ -538,13 +544,15 @@ function contactShopper() {
 .title {
   font-size: 14px;
   font-weight: 500;
-  cursor: pointer;
   color: #1d2129;
 }
-.title:hover {
+.title[role="link"] {
+  cursor: pointer;
+}
+.title[role="link"]:hover {
   color: var(--bw-brand-primary);
 }
-.title:focus-visible {
+.title[role="link"]:focus-visible {
   outline: 2px solid var(--bw-brand-primary);
   outline-offset: 2px;
   border-radius: 2px;

@@ -41,7 +41,7 @@ function goIm() {
         class="cover-wrap"
         role="link"
         tabindex="0"
-        :aria-label="`打开订单 ${order.code} 的商品详情`"
+        :aria-label="`打开订单 ${order.code} 的订单详情`"
         @click="goDetail"
         @keydown.enter="goDetail"
         @keydown.space.prevent="goDetail"
@@ -49,7 +49,7 @@ function goIm() {
         <img :src="cover" :alt="order.productTitle" class="cover" @error="setImageFallback" />
       </div>
       <div class="info">
-        <div class="title" role="link" tabindex="0" :aria-label="`打开订单 ${order.code} 的商品详情`" @click="goDetail" @keydown.enter="goDetail" @keydown.space.prevent="goDetail">{{ order.productTitle }}</div>
+        <div class="title" role="link" tabindex="0" :aria-label="`打开订单 ${order.code} 的订单详情`" @click="goDetail" @keydown.enter="goDetail" @keydown.space.prevent="goDetail">{{ order.productTitle }}</div>
         <div class="meta-row">
           <span class="tag-chip">
             <Icon icon="lucide:user" width="11" />

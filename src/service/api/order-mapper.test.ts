@@ -115,8 +115,9 @@ describe('toOrderRecord', () => {
   });
 
   it('缺失履约字段时只降级，不伪造地址或凭证', () => {
-    const record = toOrderRecord({ orderId: '1', status: 'PAID', createdAt: '1786454129000' });
+    const record = toOrderRecord({ orderId: '1', status: 'PAID', productId: null, createdAt: '1786454129000' });
 
+    expect(record.productId).toBe('');
     expect(record.shippingAddress).toBe('后端暂未返回收货地址');
     expect(record.trackingNumber).toBeUndefined();
     expect(record.purchaseScreenshotUrl).toBeUndefined();
