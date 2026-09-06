@@ -36,15 +36,21 @@ declare namespace Api.RealOrder {
     logisticsException?: string;
     purchaseNo?: string;
     purchaseVouchers?: string[];
+    reviewEligibility?: ReviewEligibility | null;
   };
 
   type DisplayRecord = Api.Order.OrderRecord | Record;
 
   type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPED' | 'REFUND_REVIEW' | 'REFUNDED' | 'COMPLETED' | 'CANCELED';
-  type Carrier = 'SF' | 'JD' | 'EMS' | 'YTO' | 'ZTO' | 'STO' | 'YUNDA' | 'JITU' | 'DHL' | 'UPS' | 'FEDEX' | 'USPS' | 'YAMATO' | 'SAGAWA' | 'JAPAN_POST' | 'OTHER';
+  type Carrier = string;
+  interface CarrierDTO { id: Id; code: string; name: string; enabled: boolean; defaultCarrier: boolean; customNameRequired: boolean; sortNo: number; }
+  interface ReviewEligibility { orderId: Id; reviewable: boolean; reason?: string | null; reasonText?: string | null; deadline?: number | null; reviewId?: Id | null; }
+  interface OrderGroupPayItem { orderId: Id; orderNo?: string; amount: string | number; success: boolean; status: OrderStatus; message?: string | null; }
+  interface OrderGroupPayResult { orderGroupNo: string; totalCount: number; paidCount: number; failedCount: number; paidAmount: string | number; unpaidAmount: string | number; items: OrderGroupPayItem[]; }
   type LogisticsStatus = 'PENDING_SHIPMENT' | 'SHIPPED' | 'IN_TRANSIT' | 'DELIVERING' | 'SIGNED' | 'EXCEPTION' | 'RETURNED';
 
   interface OrderDTO {
+    reviewEligibility?: ReviewEligibility | null;
     orderId: string;
     orderNo?: string;
     orderType?: string;
@@ -126,6 +132,9 @@ declare namespace Api.RealOrder {
   interface OrderIdParams {
     id: string | number;
   }
+  interface OrderPayParams extends OrderIdParams {
+    confirmedAmount: string;
+  }
 
   interface OrderCreateItemParams {
     productId: string | number;
@@ -148,6 +157,7 @@ declare namespace Api.RealOrder {
 
   interface OrderGroupPayParams {
     orderGroupNo: string;
+    confirmedAmount: string;
   }
 
   interface OrderShipParams {

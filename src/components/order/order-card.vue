@@ -46,7 +46,7 @@ async function pay() {
   const operation = ++actionVersion;
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(requestedOrderId);
+    const r = await orderApi.payOrder(requestedOrderId, String(props.order.totalAmount), { showError: false });
     if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
     if (r.ok) {
       Message.success('支付成功');
@@ -54,8 +54,11 @@ async function pay() {
     } else {
       Message.error(r.message || '支付失败');
     }
-  } catch {
-    if (isCurrentAction(operation, requestedUserId, requestedOrderId)) Message.error('支付请求失败，请稍后重试');
+  } catch (error) {
+    if (isCurrentAction(operation, requestedUserId, requestedOrderId)) {
+      Message.error(error instanceof Error ? error.message : '支付结果未确认，请核对订单');
+      emit('changed');
+    }
   } finally {
     if (operation === actionVersion) acting.value = false;
   }

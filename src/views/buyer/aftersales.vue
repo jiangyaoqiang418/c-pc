@@ -205,7 +205,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
       <EmptyState
         v-else-if="!loading"
         :title="loadError || '暂无卖出商品售后'"
-        :description="loadError ? '不会把请求失败误显示为没有售后。' : '买家提交仅退款申请后，会在这里显示平台审核进度。'"
+        :description="loadError ? '请稍后重试。' : '买家提交仅退款申请后，会在这里显示平台审核进度。'"
         :action-text="loadError ? '重新加载' : undefined"
         @action="load"
       />

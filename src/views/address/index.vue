@@ -217,7 +217,7 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
       <EmptyState
         v-else
         :title="loadError || '还没有收货地址'"
-        :description="loadError ? '不会把请求失败误显示为没有地址。' : '添加地址后下单更快捷'"
+        :description="loadError ? '请稍后重试。' : '添加地址后下单更快捷'"
         :action-text="loadError ? '重新加载' : '新增地址'"
         @action="loadError ? load() : openAdd()"
       />

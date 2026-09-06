@@ -56,6 +56,10 @@ declare namespace Api.RealPoint {
     pageSize?: number;
     userId?: string | number;
     behaviorCode?: string;
+    behaviorCodes?: string[];
+    earned?: boolean;
+    startAt?: number;
+    endAt?: number;
   }
 
   interface PointLedgerDTO {

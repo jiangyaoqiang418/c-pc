@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { resolvePageSize } from '@/service/api/page';
+import { enums } from '@shared';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
@@ -10,7 +11,6 @@ import { useUserStore } from '@/stores';
 import * as walletApi from '@/service/api/wallet';
 import { walletLedgerCsv } from '@/utils/wallet-csv';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { isWithinDateRange } from '@/utils/date-range';
 
 const route = useRoute();
 const router = useRouter();
@@ -114,6 +114,10 @@ async function load() {
       current: current.value,
       size: size.value,
       types: filter.types.length ? filter.types : undefined,
+      bucket: filter.bucket,
+      keyword: filter.keyword,
+      fromAt: filter.dateRange?.[0],
+      toAt: filter.dateRange?.[1],
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
@@ -124,21 +128,7 @@ async function load() {
       syncQuery();
       return;
     }
-    let records = r.records;
-    if (filter.bucket) records = records.filter(t => t.bucketFrom === filter.bucket || t.bucketTo === filter.bucket);
-    if (filter.dateRange?.[0] || filter.dateRange?.[1]) {
-      records = records.filter(t => isWithinDateRange(t.createdAt, filter.dateRange?.[0], filter.dateRange?.[1]));
-    }
-    if (filter.keyword) {
-      const kw = filter.keyword.toLowerCase();
-      records = records.filter(
-        t =>
-          (t.remark || '').toLowerCase().includes(kw) ||
-          (t.refId || '').toLowerCase().includes(kw) ||
-          (t.chainTxHash || '').toLowerCase().includes(kw)
-      );
-    }
-    list.value = records;
+    list.value = r.records;
     total.value = r.total;
   } catch {
     if (!isCurrent()) return;
@@ -231,7 +221,7 @@ function handleEmptyAction() {
 <template>
   <div class="history-page shop-container">
     <h1 class="page-title">资金流水</h1>
-    <a-alert type="info">类型支持跨页查询；资产桶、日期、关键词仅筛选当前页，接口暂不支持对应的跨页条件。分页总数 {{ total }} 不含这些当前页条件。</a-alert>
+    <p v-if="!loading && !loadError">共 {{ total }} 条；导出范围为当前页。</p>
 
     <a-card class="filter-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
       <a-form :model="filter" layout="vertical">
@@ -240,7 +230,7 @@ function handleEmptyAction() {
             <a-form-item label="类型">
               <a-select v-model="filter.types" placeholder="全部类型" multiple allow-clear>
                 <a-optgroup v-for="g in TYPE_GROUPS" :key="g.label" :label="g.label">
-                  <a-option v-for="t in g.types" :key="t" :value="t">{{ t }}</a-option>
+                  <a-option v-for="t in g.types" :key="t" :value="t">{{ enums.TXN_TYPE_META[t]?.label || '未知类型' }}</a-option>
                 </a-optgroup>
               </a-select>
             </a-form-item>
@@ -278,7 +268,7 @@ function handleEmptyAction() {
         </template>
         <EmptyState
           v-else
-          :title="loadError || '当前页暂无符合条件的流水'"
+          :title="loadError || '暂无符合条件的流水'"
           :description="loadError ? '不会展示不完整的流水数据。' : '充值、提现、订单支付或退款后会生成资金流水'"
           :action-text="loadError ? '重新加载' : '查看钱包'"
           @action="handleEmptyAction"

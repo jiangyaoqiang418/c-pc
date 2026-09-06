@@ -54,9 +54,9 @@ export function fetchOrderConversation(orderId: string | number, options: { sign
 }
 
 export async function fetchConversationMessages(params: Api.RealNotify.ImMessagePageQuery, options: { signal?: AbortSignal } = {}) {
-  const page = await realNotifyRequest.post<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>, Api.RealNotify.ImMessagePageQuery>(
+  const page = await realNotifyRequest.postQuery<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>, Api.RealNotify.ImMessagePageQuery & { markRead: false }>(
     '/im/messages/page',
-    params,
+    { ...params, markRead: false },
     { ...notifyRequestOptions, signal: options.signal }
   );
   return { ...page, records: requireArray<Api.RealNotify.ImMessageVO>(page.records, '消息分页记录'), total: toPageTotal(page.total) };

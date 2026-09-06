@@ -1,6 +1,10 @@
-import { realUserRequest } from '@/service/request';
+import { realOrderRequest, realUserRequest } from '@/service/request';
 import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
+
+export function fetchBusinessStats(params: { startTime?: number; endTime?: number } = {}, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealBuyer.BusinessStats | null>('/stats/mine', { params, ...options, showError: false });
+}
 
 export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
   return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application', options);

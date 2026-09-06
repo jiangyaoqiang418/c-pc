@@ -318,11 +318,11 @@ watch(() => userStore.currentUser?.id, () => {
           <a-button v-if="productLoadedCount < productTotal" :loading="loadingMoreProducts" @click="loadMoreProducts">加载更多商品（已读取 {{ productLoadedCount }} / {{ productTotal }}，可报名 {{ products.length }}）</a-button>
         </a-form-item>
         <a-form-item label="秒杀价">
-          <a-input-number v-model="form.flashPrice" :min="0.01" :precision="2" placeholder="不填则由后端按规则处理" />
+          <a-input-number v-model="form.flashPrice" :min="0.01" :precision="2" placeholder="选填" />
           <div v-if="selectedProduct" class="form-hint">商品原价 U {{ formatAmount(selectedProduct.price) }}</div>
         </a-form-item>
         <a-form-item label="秒杀库存">
-          <a-input-number v-model="form.flashStock" :min="1" :max="selectedProduct?.stock" placeholder="不填则由后端按规则处理" />
+          <a-input-number v-model="form.flashStock" :min="1" :max="selectedProduct?.stock" placeholder="选填" />
         </a-form-item>
       </a-form>
     </a-modal>

@@ -8,7 +8,7 @@ const groups = {
 };
 
 async function fetchJson(name, url) {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
   if (!response.ok) throw new Error(`${name} Swagger 请求失败：HTTP ${response.status}`);
   return response.json();
 }
@@ -55,6 +55,13 @@ function expectProperties(schema, fields, label) {
   if (missing.length) throw new Error(`${label} 缺少字段：${missing.join(', ')}`);
 }
 
+function expectFieldType(schema, field, type, label, format) {
+  const property = schema?.properties?.[field];
+  if (property?.type !== type || (format && property.format !== format)) {
+    throw new Error(`${label} 的 ${field} 类型应为 ${type}${format ? `/${format}` : ''}`);
+  }
+}
+
 function expectParameters(operationDefinition, names, label) {
   const actual = new Map((operationDefinition.parameters || []).map(parameter => [parameter.name, parameter]));
   const missing = names.filter(name => !actual.has(name));
@@ -81,12 +88,14 @@ function countOperations(document) {
   );
 }
 
+const unavailable = [];
 const [admin, user, order] = await Promise.all([
   fetchJson('admin', groups.admin),
-  fetchJson('user', groups.user),
+  fetchJson('user', groups.user).catch(error => { unavailable.push(error.message); return undefined; }),
   fetchJson('order', groups.order)
 ]);
 
+if (user) {
 const login = requestSchema(user, operation(user, '/auth/login', 'post'));
 expectRequired(login, ['email', 'password'], '邮箱登录');
 operation(user, '/auth/me', 'get');
@@ -112,6 +121,37 @@ expectRequired(financeSubscribe, ['productId', 'amount'], '理财申购');
 const financeRedeem = requestSchema(user, operation(user, '/finance/orders/redeem', 'post'));
 expectRequired(financeRedeem, ['id'], '理财提前赎回');
 operation(user, '/finance/orders/page', 'post');
+for (const path of ['/withdraw', '/recharge', '/finance/orders']) {
+  const createPath = path === '/finance/orders' ? `${path}/subscribe` : `${path}/create`;
+  const create = requestSchema(user, operation(user, createPath, 'post'));
+  expectFieldType(create, 'idempotencyKey', 'string', createPath);
+  if (create.properties.idempotencyKey.maxLength !== 64) throw new Error(`${createPath} 幂等键长度契约变更`);
+  const lookup = operation(user, `${path}/by-key`, 'get');
+  const key = lookup.parameters?.find(parameter => parameter.name === 'idempotencyKey');
+  if (!key?.required || key.schema?.type !== 'string') throw new Error(`${path}/by-key 缺少必填字符串幂等键`);
+  expectProperties(responseDataSchema(user, lookup), path === '/finance/orders' ? ['id', 'productId', 'principal'] : ['id', 'chain', 'amount', ...(path === '/withdraw' ? ['toAddress'] : [])], `${path}/by-key`);
+}
+const kycConfig = responseDataSchema(user, operation(user, '/kyc/schema', 'get'));
+expectProperties(kycConfig, ['version', 'allowedIdTypes', 'nationalityRequired', 'idCardBackRequired', 'holdingPhotoRequired', 'resubmitAfterRejectAllowed', 'noticeText', 'updatedAt'], 'KYC 配置');
+expectFieldType(kycConfig, 'version', 'integer', 'KYC 配置', 'int32');
+for (const field of ['nationalityRequired', 'idCardBackRequired', 'holdingPhotoRequired', 'resubmitAfterRejectAllowed']) expectFieldType(kycConfig, field, 'boolean', 'KYC 配置');
+expectFieldType(kycConfig, 'allowedIdTypes', 'array', 'KYC 配置');
+if (kycConfig.properties.allowedIdTypes.items?.type !== 'string') throw new Error('KYC 证件类型必须为字符串数组');
+expectEnum(kycSubmit, 'idType', ['ID_CARD', 'PASSPORT'], 'KYC 提交');
+expectProperties(requestSchema(user, operation(user, '/wallet/ledger/page', 'post')), ['balanceType', 'keyword', 'startAt', 'endAt'], '钱包全量筛选');
+expectProperties(requestSchema(user, operation(user, '/points/ledger/page', 'post')), ['behaviorCodes', 'earned', 'startAt', 'endAt'], '积分全量筛选');
+for (const path of ['/wallet/ledger/page', '/points/ledger/page']) {
+  const query = requestSchema(user, operation(user, path, 'post'));
+  for (const field of ['startAt', 'endAt']) expectFieldType(query, field, 'integer', path, 'int64');
+  if (path.includes('/points/')) {
+    expectFieldType(query, 'earned', 'boolean', path);
+    expectFieldType(query, 'behaviorCodes', 'array', path);
+    if (query.properties.behaviorCodes.items?.type !== 'string') throw new Error('积分行为必须为字符串数组');
+  } else {
+    for (const field of ['balanceType', 'keyword']) expectFieldType(query, field, 'string', path);
+  }
+}
+}
 
 const createBatch = operation(order, '/orders/create-batch', 'post');
 const createBatchRequest = requestSchema(order, createBatch);
@@ -128,7 +168,16 @@ const productDto = order.components?.schemas?.ProductDTO;
 expectProperties(productDto, ['sellerName', 'categoryName', 'reviewerId', 'reviewedAt'], '商品详情审核信息');
 
 const groupPay = requestSchema(order, operation(order, '/orders/group/pay', 'post'));
-expectRequired(groupPay, ['orderGroupNo'], '订单组支付');
+expectRequired(groupPay, ['orderGroupNo', 'confirmedAmount'], '订单组支付');
+expectRequired(requestSchema(order, operation(order, '/orders/pay', 'post')), ['id', 'confirmedAmount'], '单笔支付');
+for (const [path, method] of [['/orders/group/pay', 'post'], ['/orders/group/pay-result', 'get']]) {
+  const result = responseDataSchema(order, operation(order, path, method));
+  expectProperties(result, ['orderGroupNo', 'totalCount', 'paidCount', 'failedCount', 'paidAmount', 'unpaidAmount', 'items'], path);
+  expectProperties(resolveSchema(order, result.properties.items.items), ['orderId', 'orderNo', 'amount', 'success', 'status', 'message'], `${path} 逐单结果`);
+}
+expectParameters(operation(order, '/orders/group/pay-result', 'get'), ['orderGroupNo'], '付款回查');
+const carriers = responseDataSchema(order, operation(order, '/orders/carriers', 'get'));
+expectProperties(resolveSchema(order, carriers.items), ['id', 'code', 'name', 'enabled', 'defaultCarrier', 'customNameRequired', 'sortNo'], '承运商字典');
 
 const ship = requestSchema(order, operation(order, '/orders/ship', 'post'));
 expectRequired(ship, ['carrier', 'id', 'trackingNo'], '买手发货');
@@ -140,7 +189,9 @@ expectParameterEnum(orderUpload, 'scene', ['PRODUCT', 'DEMAND', 'REVIEW', 'ORDER
 const logistics = responseDataSchema(order, operation(order, '/orders/logistics', 'get'));
 expectProperties(logistics, ['logisticsStatus', 'carrier', 'trackingNo', 'tracks'], '订单物流');
 expectEnum(logistics, 'logisticsStatus', ['PENDING_SHIPMENT', 'SHIPPED', 'IN_TRANSIT', 'DELIVERING', 'SIGNED', 'EXCEPTION', 'RETURNED'], '订单物流');
-expectEnum(logistics, 'carrier', ['SF', 'JD', 'EMS', 'YTO', 'ZTO', 'STO', 'YUNDA', 'JITU', 'DHL', 'UPS', 'FEDEX', 'USPS', 'YAMATO', 'SAGAWA', 'JAPAN_POST', 'OTHER'], '订单物流');
+for (const [schema, field] of [[logistics, 'carrier'], [ship, 'carrier']]) {
+  if (schema.properties[field]?.type !== 'string' || schema.properties[field]?.enum) throw new Error('承运商仍受固定枚举限制');
+}
 const logisticsTrack = requestSchema(order, operation(order, '/orders/logistics/track/create', 'post'));
 expectRequired(logisticsTrack, ['description', 'orderId', 'status'], '物流轨迹登记');
 const logisticsException = requestSchema(order, operation(order, '/orders/logistics/exception/mark', 'put'));
@@ -160,6 +211,8 @@ expectProperties(
 
 const refundApply = requestSchema(order, operation(order, '/orders/refunds/create', 'post'));
 expectRequired(refundApply, ['orderId', 'reason'], '仅退款申请');
+expectProperties(refundApply, ['idempotencyKey'], '仅退款幂等键');
+expectParameters(operation(order, '/orders/refunds/by-key', 'get'), ['idempotencyKey'], '退款回查');
 const refundCancel = requestSchema(order, operation(order, '/orders/refunds/cancel', 'post'));
 expectRequired(refundCancel, ['refundId'], '撤销仅退款');
 operation(order, '/orders/refunds/bought/page', 'post');
@@ -175,6 +228,11 @@ expectRequired(reviewReply, ['reviewId', 'content'], '买手回复评价');
 const reviewAppeal = requestSchema(order, operation(order, '/reviews/appeals/create', 'post'));
 expectRequired(reviewAppeal, ['reviewId', 'reason'], '买手评价申诉');
 operation(order, '/reviews/delete', 'delete');
+const eligibility = requestSchema(order, operation(order, '/reviews/eligibility', 'post'));
+expectRequired(eligibility, ['orderIds'], '批量评价资格');
+if (eligibility.properties.orderIds.maxItems !== 200) throw new Error('评价资格单批上限变更');
+expectProperties(resolveSchema(order, responseDataSchema(order, operation(order, '/reviews/eligibility', 'post')).items), ['orderId', 'reviewable', 'reason', 'reasonText', 'deadline', 'reviewId'], '评价资格响应');
+expectProperties(orderDetailDto, ['reviewEligibility'], '订单详情评价资格');
 const reviewDetail = operation(order, '/reviews/detail', 'get');
 expectParameters(reviewDetail, ['id'], '评价详情');
 
@@ -186,6 +244,14 @@ expectRequired(
 );
 const demandDetail = responseDataSchema(order, operation(order, '/demands/detail', 'get'));
 expectProperties(demandDetail, ['status', 'statusText', 'reviewComment', 'reviewedAt'], '求购状态与审核信息');
+for (const path of ['/demands/my/page', '/demands/hall/page']) {
+  expectProperties(requestSchema(order, operation(order, path, 'post')), ['statuses', 'minBudget', 'maxBudget', 'minDeliveryDays', 'maxDeliveryDays'], path);
+}
+const progress = responseDataSchema(order, operation(order, '/demands/my/progress', 'get'));
+expectProperties(progress, ['demandId', 'status', 'pushBatchCount', 'reachedBuyerCount', 'lastPushedAt', 'timeline'], '求购进度');
+expectProperties(resolveSchema(order, progress.properties.timeline.items), ['code', 'name', 'description', 'occurredAt'], '进度节点');
+expectParameters(operation(order, '/stats/mine', 'get'), ['startTime', 'endTime'], '我的经营数据');
+expectProperties(responseDataSchema(order, operation(order, '/stats/mine', 'get')), ['sellerId', 'reviewRate', 'complaintRate', 'avgShipDurationMs', 'avgShipDurationHours', 'completedOrderCount', 'reviewedOrderCount', 'orderCount', 'refundCount', 'shippedOrderCount'], '经营数据响应');
 const demandCancel = requestSchema(order, operation(order, '/demands/cancel', 'post'));
 expectRequired(demandCancel, ['id'], '取消求购');
 expectProperties(demandCancel, ['reason'], '取消求购');
@@ -199,12 +265,13 @@ expectRequired(grabDemand, ['id'], '抢单');
   ['/addresses/update', 'put'],
   ['/addresses/default', 'put'],
   ['/addresses/delete', 'delete']
-].forEach(([path, method]) => operation(user, path, method));
+].forEach(([path, method]) => { if (user) operation(user, path, method); });
 
 const notifyResponse = await fetch(groups.notify);
 let notifySummary;
 if (notifyResponse.status === 404) {
   notifySummary = 'notify: HTTP 404（当前后端未提供通知 Swagger）';
+  unavailable.push(notifySummary);
 } else {
   if (!notifyResponse.ok) throw new Error(`notify Swagger 请求失败：HTTP ${notifyResponse.status}`);
   const notify = await notifyResponse.json();
@@ -225,6 +292,8 @@ if (notifyResponse.status === 404) {
   expectRequired(markRead, ['id'], '标记通知已读');
   const messagePage = requestSchema(notify, operation(notify, '/im/messages/page', 'post'));
   expectRequired(messagePage, ['conversationId'], '会话消息分页');
+  expectProperties(messagePage, ['markRead'], '显式消息已读');
+  if (messagePage.properties.markRead.type !== 'boolean' || messagePage.properties.markRead.default !== false) throw new Error('消息分页 markRead 默认值变更');
   const sendMessage = requestSchema(notify, operation(notify, '/im/messages/send', 'post'));
   expectRequired(sendMessage, ['conversationId', 'msgType'], '发送会话消息');
   expectProperties(sendMessage, ['content', 'mediaFileId', 'clientMsgId'], '发送会话消息');
@@ -249,8 +318,14 @@ if (notifyResponse.status === 404) {
 }
 
 for (const [name, document] of Object.entries({ admin, user, order })) {
+  if (!document) continue;
   const schemas = Object.keys(document.components?.schemas || {}).length;
   console.log(`${name}: ${Object.keys(document.paths || {}).length} paths, ${countOperations(document)} operations, ${schemas} schemas`);
 }
 console.log(notifySummary);
+if (unavailable.length) {
+  console.error(`部分服务已校验，其余外部阻塞：${unavailable.join('；')}`);
+  process.exitCode = 1;
+} else {
 console.log('关键 C 端契约检查通过：登录、测试充值到账、地址、订单、仅退款、合并下单、订单组支付、买手发货、确认收货、发起求购、抢单和通知/IM。');
+}

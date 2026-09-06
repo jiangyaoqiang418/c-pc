@@ -7,6 +7,7 @@ import * as realProductApi from '@/service/api/product';
 import * as realOrderApi from '@/service/api/order';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { isGroupPaymentComplete, validateGroupPayResult } from '@/utils/checkout';
 
 const route = useRoute();
 const router = useRouter();
@@ -15,13 +16,17 @@ const order = ref<Api.RealOrder.Record>();
 const recommends = ref<Api.RealProduct.Record[]>([]);
 const loading = ref(false);
 const errorMessage = ref('');
+const groupResult = ref<Api.RealOrder.OrderGroupPayResult>();
+const orderGroupNo = computed(() => typeof route.query.orderGroupNo === 'string' ? route.query.orderGroupNo : '');
 
 const orderId = computed(() => String(route.params.orderId || ''));
 const requestGuard = createLatestRequestGuard();
 const paymentConfirmed = computed(() => !!order.value
+  && (!orderGroupNo.value || (!!groupResult.value && isGroupPaymentComplete(groupResult.value, groupResult.value.items.map(item => item.orderId))))
   && ['PROCURING', 'IN_TRANSIT', 'COMPLETED', 'IN_AFTERSALE'].includes(order.value.status));
 const resultTitle = computed(() => {
   if (paymentConfirmed.value) return '支付成功';
+  if (orderGroupNo.value) return '订单组付款待核对';
   if (order.value?.status === 'PENDING_PAYMENT') return '订单尚未付款';
   if (order.value?.status === 'CANCELLED') return '订单已取消';
   if (order.value?.status === 'REFUNDED') return '订单已退款';
@@ -32,6 +37,7 @@ async function load() {
   const isCurrent = requestGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
   order.value = undefined;
+  groupResult.value = undefined;
   recommends.value = [];
   errorMessage.value = '';
   if (requestedUserId === undefined) {
@@ -50,6 +56,17 @@ async function load() {
   try {
     const result = await realOrderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (String(result.customerId) !== String(requestedUserId)) throw new Error('订单不属于当前账号');
+    if (orderGroupNo.value) {
+      const group = await realOrderApi.fetchOrderGroupPayResult(orderGroupNo.value, { signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      const checked = validateGroupPayResult(group, orderGroupNo.value, group?.items?.map(item => item.orderId) || []);
+      if (!checked.items.some(item => String(item.orderId) === orderId.value)) throw new Error('订单与付款组不匹配');
+      const details = await Promise.all(checked.items.map(item => realOrderApi.fetchOrderDetail(item.orderId, { signal: isCurrent.signal })));
+      if (!isCurrent()) return;
+      if (details.some((detail, index) => String(detail.id) !== String(checked.items[index].orderId) || String(detail.customerId) !== String(requestedUserId))) throw new Error('订单组归属未确认');
+      groupResult.value = checked;
+    }
     order.value = result;
   } catch (error) {
     if (isCurrent() && String(userStore.currentUser?.id) === String(requestedUserId)) {
@@ -62,7 +79,7 @@ async function load() {
 
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
-watch([orderId, () => userStore.currentUser?.id], () => {
+watch([orderId, orderGroupNo, () => userStore.currentUser?.id], () => {
   requestGuard.invalidate();
   void load();
 });
@@ -78,6 +95,10 @@ watch([orderId, () => userStore.currentUser?.id], () => {
         :subtitle="`订单号 ${order.code} · 金额 U ${formatAmount(order.totalAmount)}`"
       >
         <template #extra>
+          <div v-if="groupResult">
+            <p>订单组 {{ groupResult.orderGroupNo }} · 当前已付 {{ groupResult.paidCount }} 笔 · 待付 U {{ groupResult.unpaidAmount }}</p>
+            <p v-for="item in groupResult.items" :key="String(item.orderId)">{{ item.orderNo || item.orderId }} · U {{ item.amount }} · {{ item.status }} {{ item.message || '' }}</p>
+          </div>
           <a-space>
             <a-button type="primary" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })">
               查看订单

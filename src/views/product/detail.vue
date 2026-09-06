@@ -6,7 +6,6 @@ import { Icon } from '@iconify/vue';
 import { avatarUrl } from '@shared/utils/image';
 import { formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import ProductImageGallery from '@/components/product/product-image-gallery.vue';
-import VipBadge from '@/components/common/vip-badge.vue';
 import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
@@ -39,7 +38,7 @@ const qty = ref(1);
 const loading = ref(false);
 const loadError = ref('');
 const favoriting = ref(false);
-const activeTab = ref<'desc' | 'spec' | 'review' | 'sameshop'>('desc');
+const activeTab = ref<'desc' | 'spec' | 'review'>('desc');
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 
@@ -191,7 +190,7 @@ async function favorite() {
       if (isCurrentWrite()) Message.warning('收藏已成功，数量刷新失败，请重新加载商品查看');
     }
   } catch {
-    if (isCurrentWrite()) Message.error('收藏失败，服务器暂未完成写入，请稍后重试');
+    if (isCurrentWrite()) Message.error('收藏失败，请稍后重试');
   } finally {
     if (operation === writeVersion) favoriting.value = false;
   }
@@ -336,7 +335,6 @@ async function favorite() {
             <div class="seller-info">
               <div class="seller-top">
                 <span class="seller-name">{{ product.sellerName }}</span>
-                <VipBadge level="VIP1" size="sm" />
                 <span class="verified"><Icon icon="lucide:badge-check" width="14" /> 认证买手</span>
               </div>
               <div class="seller-stats">
@@ -348,9 +346,6 @@ async function favorite() {
                 <span v-else class="muted">{{ sellerScoreError ? '买手评分读取失败' : '该买手暂无评价' }}</span>
               </div>
             </div>
-            <button class="btn ghost sm" disabled title="售前联系买手暂未接入，已有订单可从订单三方群联系">
-              <Icon icon="lucide:message-square" width="14" /> 联系买手
-            </button>
           </div>
         </div>
       </div>
@@ -359,7 +354,7 @@ async function favorite() {
       <div class="tab-card">
         <div class="tab-bar" role="tablist" aria-label="商品信息">
           <button
-            v-for="t in [{key:'desc',label:'商品详情'},{key:'spec',label:'规格参数'},{key:'review',label:`用户评价 (${reviewSummary?.totalCount ?? reviews.length})`},{key:'sameshop',label:'同店推荐'}]"
+            v-for="t in [{key:'desc',label:'商品详情'},{key:'spec',label:'规格参数'},{key:'review',label:`用户评价 (${reviewSummary?.totalCount ?? reviews.length})`}]"
             :key="t.key"
             type="button"
             class="tab"
@@ -398,9 +393,6 @@ async function favorite() {
             <EmptyState v-else icon="lucide:message-square" title="暂无评价" description="尚无顾客评价，期待您成为第一位评价者" />
             <a-pagination v-if="reviewTotal > reviewPageSize" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :disabled="reviewLoading" show-total @change="loadReviews" />
           </div>
-          <div v-else-if="activeTab === 'sameshop'">
-            <EmptyState icon="lucide:store" title="同店商品暂未接入" description="当前接口不支持按卖家查询商品，可返回商品列表继续浏览。" />
-          </div>
         </div>
       </div>
     </template>
@@ -409,7 +401,7 @@ async function favorite() {
       v-else-if="!loading"
       icon="lucide:package-x"
       :title="loadError || '商品不存在'"
-      :description="loadError ? '不会把详情请求失败误显示为商品不存在。' : undefined"
+      :description="loadError ? '请稍后重试。' : undefined"
       :action-text="loadError ? '重新加载' : '返回首页'"
       @action="loadError ? load() : router.push('/')"
     />

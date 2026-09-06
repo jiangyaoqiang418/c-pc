@@ -382,7 +382,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
     </a-card>
 
     <template v-if="activeTab === 'logs'">
-      <a-alert type="info">单一行为支持跨页查询；多个行为和日期仅筛选当前页，分页总数 {{ total }} 不含这些当前页条件。</a-alert>
+      <p v-if="!loading && !logLoadError">共 {{ total }} 条积分流水</p>
       <a-card class="filter-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
         <a-form :model="filter" layout="inline">
           <a-form-item label="行为">
@@ -393,7 +393,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
               allow-clear
               style="min-width: 280px"
             >
-              <a-option v-for="b in ALL_BEHAVIORS" :key="b" :value="b">{{ b }}</a-option>
+              <a-option v-for="b in ALL_BEHAVIORS" :key="b" :value="b"><PointBehaviorTag :behavior="b" /></a-option>
             </a-select>
           </a-form-item>
           <a-form-item label="日期范围">
@@ -411,8 +411,8 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
           </template>
           <EmptyState
             v-else
-            :title="logLoadError || '当前页暂无匹配的积分流水'"
-            :description="logLoadError ? '不会把请求失败误显示为没有积分流水。' : '完成订单 / 评价 / KYC 等可获得积分'"
+            :title="logLoadError || '暂无匹配的积分流水'"
+            :description="logLoadError ? '请稍后重试。' : '完成订单 / 评价 / KYC 等可获得积分'"
             :action-text="logLoadError ? '重新加载' : undefined"
             @action="loadLogs"
           />
@@ -452,7 +452,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
         <a-table :data="appeals" :loading="appealLoading" :pagination="false" row-key="id">
           <template #columns>
             <a-table-column title="行为" :width="160">
-              <template #cell="{ record }">{{ record.behaviorName || record.behaviorCode || '-' }}</template>
+              <template #cell="{ record }"><PointBehaviorTag :behavior="record.behaviorCode || ''" :label="record.behaviorName" /></template>
             </a-table-column>
             <a-table-column title="原积分" data-index="originalScore" :width="100" />
             <a-table-column title="申诉原因" data-index="reason" />
@@ -469,7 +469,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
           <template #empty>
             <EmptyState
               :title="appealLoadError || '暂无申诉记录'"
-              :description="appealLoadError ? '不会把请求失败误显示为没有申诉记录。' : undefined"
+              :description="appealLoadError ? '请稍后重试。' : undefined"
               :action-text="appealLoadError ? '重新加载' : undefined"
               @action="loadAppeals"
             />
@@ -492,7 +492,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
       <EmptyState
         v-if="rulesLoadError"
         :title="rulesLoadError"
-        description="不会把请求失败误显示为没有积分规则。"
+        description="请稍后重试。"
         action-text="重新加载"
         @action="loadRules"
       />

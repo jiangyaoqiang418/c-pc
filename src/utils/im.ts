@@ -1,6 +1,6 @@
 import { parseJsonPreservingLong } from './json';
 
-export function parseOrderMessageCard(content?: string) {
+export function parseOrderMessageCard(content?: string | null) {
   if (!content) return;
   try {
     const card = parseJsonPreservingLong<Record<string, unknown>>(content);
@@ -85,8 +85,13 @@ export function mergeMessages(
       sameBusinessId(item.id, message.id) ||
       (!!message.clientMsgId && item.clientMsgId === message.clientMsgId)
     );
-    if (index >= 0) result[index] = { ...result[index], ...message, pending: false, failed: false };
-    else result.push(message);
+    const merged = index >= 0 ? { ...result[index], ...message, pending: false, failed: false } : { ...message };
+    // 撤回为终态；迟到分页或发送回执不能让旧内容/媒体复活，null 不回退旧值。
+    if (message.recalled || (index >= 0 && result[index].recalled)) {
+      Object.assign(merged, { recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, duration: undefined });
+    }
+    if (index >= 0) result[index] = merged;
+    else result.push(merged);
   });
 
   return result.sort((left, right) => compareBusinessId(left.id, right.id));

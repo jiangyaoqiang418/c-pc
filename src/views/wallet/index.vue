@@ -174,7 +174,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
         v-else
         icon="lucide:receipt"
         :title="loadError || '暂无交易'"
-        :description="loadError ? '未使用本地数据替代失败的真实接口。' : '完成链上充值 / 消费后这里会显示资金动态'"
+        :description="loadError ? '请稍后重试。' : '完成链上充值 / 消费后这里会显示资金动态'"
         :action-text="loadError ? '重新加载' : undefined"
         @action="loadError ? loadAll() : undefined"
       />

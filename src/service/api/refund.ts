@@ -9,6 +9,14 @@ export function createRefund(params: Api.RealRefund.RefundApplyParams, options: 
   return realOrderRequest.post<string | number, Api.RealRefund.RefundApplyParams>('/orders/refunds/create', params, options);
 }
 
+export async function fetchRefundByKey(idempotencyKey: string) {
+  const result = await realOrderRequest.get<Api.RealRefund.RefundDTO | null>('/orders/refunds/by-key', { params: { idempotencyKey }, showError: false });
+  if (result === undefined || (result !== null && (typeof result !== 'object' || result.refundId === undefined))) {
+    throw new Error('退款回查响应损坏，不能确认原申请是否落地');
+  }
+  return result;
+}
+
 export async function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.postQuery<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
     '/orders/refunds/bought/page',

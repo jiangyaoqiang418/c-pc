@@ -66,10 +66,10 @@ declare namespace Api.RealNotify {
     senderName?: string;
     senderAvatar?: string;
     msgType?: MessageType;
-    content?: string;
-    mediaUrl?: string;
-    duration?: number;
-    mediaFileId?: string | number;
+    content?: string | null;
+    mediaUrl?: string | null;
+    duration?: number | null;
+    mediaFileId?: string | number | null;
     eventType?: string;
     params?: Record<string, unknown>;
     clientMsgId?: string;
@@ -81,6 +81,7 @@ declare namespace Api.RealNotify {
 
   interface ImMessagePageQuery extends PageQuery {
     conversationId: string | number;
+    markRead?: false;
   }
 
   interface ImSendMessageParams {

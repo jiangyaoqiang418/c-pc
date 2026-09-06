@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { parseJsonPreservingLong } from './json';
 
 describe('Long 安全 JSON 解析', () => {
+  it('付款响应按需保留小数原文，计数仍为整数', () => {
+    expect(parseJsonPreservingLong('{"amount":9007199254740993.12345678,"small":1e-8,"count":2}', true))
+      .toEqual({ amount: '9007199254740993.12345678', small: '1e-8', count: 2 });
+    expect(parseJsonPreservingLong('{"amount":1.5}')).toEqual({ amount: 1.5 });
+  });
   it('保留响应中的超长业务 ID 原值', () => {
     const result = parseJsonPreservingLong<{ id: string; nested: { orderId: string }; total: number }>(
       '{"id":2089334325133266944,"nested":{"orderId":2089329381734961152},"total":2}'

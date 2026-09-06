@@ -21,6 +21,12 @@ declare namespace Api.RealPurchase {
   type DisplayRecord = Api.PurchaseRequest.PurchaseRequest | Record;
 
   type DemandStatus = string;
+  interface Progress {
+    demandId: Id; status: string; statusText?: string; reviewComment?: string | null; reviewedAt?: number | null;
+    pushBatchCount: number; reachedBuyerCount: number; lastPushedAt?: number | null; expireAt?: number | null;
+    takenAt?: number | null; orderId?: Id | null;
+    timeline: Array<{ code: string; name: string; description?: string; occurredAt: number }>;
+  }
 
   interface PurchaseDemandVO {
     id: string;
@@ -61,6 +67,11 @@ declare namespace Api.RealPurchase {
   }
 
   interface PurchaseDemandPageQuery {
+    statuses?: DemandStatus[];
+    minBudget?: number;
+    maxBudget?: number;
+    minDeliveryDays?: number;
+    maxDeliveryDays?: number;
     pageNo?: number;
     pageSize?: number;
     categoryId?: string | number;

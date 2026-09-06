@@ -9,6 +9,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { isDefinitiveRejection } from '@/service/request/type';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitKeyedFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
@@ -19,6 +20,34 @@ const amount = ref(100);
 const chain = ref<string>();
 const submitting = ref(false);
 const submissionUnknown = ref(false);
+const pendingSnapshot = ref<FinancialSnapshot>();
+function refreshSubmissionIssue() {
+  submissionUnknown.value = !!financialSubmissionIssue(userStore.currentUser?.id, 'recharge');
+  pendingSnapshot.value = financialSubmissionSnapshot(userStore.currentUser?.id, 'recharge');
+}
+const rechargeIntentApi = {
+  lookup: realWalletApi.fetchRechargeByKey,
+  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => realWalletApi.createRecharge({ chain: snapshot.chain!, amount: Number(snapshot.amount), idempotencyKey }, { showError: false })
+};
+
+async function restoreRecharge() {
+  const userId = userStore.currentUser?.id;
+  if (userId === undefined || submitting.value) return;
+  const operation = ++createWriteVersion;
+  submitting.value = true;
+  try {
+    const id = await submitKeyedFinancialOperation(userId, 'recharge', undefined, rechargeIntentApi, true);
+    if (operation !== createWriteVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+    pendingRechargeReadId.value = id;
+    refreshSubmissionIssue();
+    await openDetail(id);
+    if (operation === createWriteVersion) await loadRecords();
+  } catch (error) {
+    if (operation === createWriteVersion) Message.warning(error instanceof Error ? error.message : '原申报核对失败');
+  } finally {
+    if (operation === createWriteVersion) { submitting.value = false; refreshSubmissionIssue(); }
+  }
+}
 const loadingRecords = ref(false);
 const currentRecharge = ref<Api.RealWallet.RechargeVO>();
 const pendingRechargeReadId = ref<string | number>();
@@ -76,10 +105,6 @@ function formatTime(value?: string | number) {
   if (!value) return '—';
   const date = new Date(typeof value === 'number' || /^\d+$/.test(value) ? Number(value) : value);
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
-}
-
-function getId(result: Api.RealWallet.RechargeVO | string | number) {
-  return typeof result === 'object' ? result.id : result;
 }
 
 async function loadRecords() {
@@ -190,6 +215,7 @@ async function loadAll() {
 }
 
 async function createRecharge() {
+  refreshSubmissionIssue();
   if (submitting.value || submissionUnknown.value) return;
   if (pendingRechargeReadId.value === undefined && (!Number.isFinite(amount.value) || amount.value <= 0)) {
     Message.warning('请输入正确的充值金额');
@@ -214,9 +240,8 @@ async function createRecharge() {
   try {
     if (pendingRechargeReadId.value === undefined) {
       try {
-        const created = await realWalletApi.createRecharge({ chain: chainCode!, amount: requestedAmount }, { showError: false });
+        const createdId = await submitKeyedFinancialOperation(requestedUserId, 'recharge', { chain: chainCode!, amount: requestedAmount }, rechargeIntentApi);
         if (!isCurrentWrite()) return;
-        const createdId = getId(created);
         if (!((typeof createdId === 'string' && createdId.trim()) || (typeof createdId === 'number' && Number.isSafeInteger(createdId)))) {
           throw new Error('未取得可核对的申报编号');
         }
@@ -224,9 +249,9 @@ async function createRecharge() {
         Message.success('充值申报已创建');
       } catch (error) {
         if (isCurrentWrite()) {
+          refreshSubmissionIssue();
           if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '申报被拒绝，请核对填写内容');
           else {
-            submissionUnknown.value = true;
             Message.warning('充值申报结果待核实，请查看申报记录，未确认前请勿再次创建');
           }
         }
@@ -323,6 +348,9 @@ function queryRecords() {
 }
 
 onMounted(() => {
+  refreshSubmissionIssue();
+  window.addEventListener('storage', refreshSubmissionIssue);
+  window.addEventListener('focus', refreshSubmissionIssue);
   if (readRecordsQuery()) void router.replace({ query: { ...route.query, status: undefined } });
   void loadAll();
 });
@@ -334,6 +362,8 @@ watch([() => route.query.page, () => route.query.status], () => {
   void loadRecords();
 });
 onBeforeUnmount(() => {
+  window.removeEventListener('storage', refreshSubmissionIssue);
+  window.removeEventListener('focus', refreshSubmissionIssue);
   createWriteVersion += 1;
   cancelWriteVersion += 1;
   requestGuard.invalidate();
@@ -352,7 +382,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   addressGuard.invalidate();
   detailGuard.invalidate();
   submitting.value = false;
-  submissionUnknown.value = false;
+  refreshSubmissionIssue();
   cancelingRechargeId.value = undefined;
   chainOptions.value = [];
   chain.value = undefined;
@@ -377,8 +407,9 @@ watch(() => route.query.id, id => {
     <h1 class="page-title">钱包链上充值</h1>
     <p class="hint">选择充值链后，可直接使用专属地址完成 USDT 转账；如需留存申报记录，可填写金额后创建充值订单。</p>
     <a-alert v-if="submissionUnknown" type="warning" :closable="false" class="load-alert">
-      上次申报结果待核实，本页已暂停重复创建。请查看下方申报记录；仍无法核实时联系平台，刷新页面不代表原申报失败。
-      <template #action><a-button :loading="loadingRecords" @click="loadRecords">核对申报记录</a-button></template>
+      上次申报结果待核实，恢复时先查原单，仅明确未落地才按原键原参重试。旧无键记录只读核实。
+      <div v-if="pendingSnapshot">原申报：{{ pendingSnapshot.chain }} · U {{ formatAmount(pendingSnapshot.amount) }}</div>
+      <template #action><a-space><a-button :loading="submitting" @click="restoreRecharge">恢复原申报</a-button><a-button :loading="loadingRecords" @click="loadRecords">核对申报记录</a-button></a-space></template>
     </a-alert>
     <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>
 
@@ -414,7 +445,7 @@ watch(() => route.query.id, id => {
               <div v-if="rechargeAddress.minAmount" class="minimum-hint">建议最低充值金额：{{ rechargeAddress.minAmount }} USDT</div>
               <div v-if="rechargeAddress.minConfirmations" class="minimum-hint">到账确认数：{{ rechargeAddress.minConfirmations }}</div>
             </div>
-            <a-alert v-else-if="selectedChain && !loadingAddress" type="warning" class="direct-address" :title="addressError || '当前充值链暂未返回专属地址，请稍后重新加载。'" />
+            <a-alert v-else-if="selectedChain && !loadingAddress" type="warning" class="direct-address" :title="addressError || '充值地址暂不可用，请稍后重新加载。'" />
             <a-alert type="warning" class="chain-alert" title="请务必使用所选链转账；到账状态以链上确认和平台审核结果为准。" />
             <div class="optional-order">
               <div>
@@ -436,7 +467,7 @@ watch(() => route.query.id, id => {
             ]" />
             <div class="address-block">
               <div class="address-label">收款地址</div>
-              <div class="address-value">{{ currentRecharge.depositAddress || '后台暂未返回收款地址' }}</div>
+              <div class="address-value">{{ currentRecharge.depositAddress || '收款地址暂不可用' }}</div>
               <a-button v-if="currentRecharge.depositAddress" size="small" @click="copy(currentRecharge.depositAddress)">复制地址</a-button>
             </div>
             <div v-if="currentRecharge.memo" class="address-block">

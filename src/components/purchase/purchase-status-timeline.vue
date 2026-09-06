@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
   request: Api.RealPurchase.DisplayRecord;
+  progress?: Api.RealPurchase.Progress;
 }
 const props = defineProps<Props>();
 
 interface Step {
   label: string;
   status: 'wait' | 'process' | 'finish' | 'error';
+  description?: string;
 }
 
 const steps = computed<Step[]>(() => {
+  if (props.progress) return props.progress.timeline.map(node => ({ label: node.name, status: 'finish', description: `${formatDateValue(node.occurredAt)} ${node.description || ''}` }));
   const s = props.request.status;
   if (s === 'rejected') {
     return [
@@ -47,9 +51,10 @@ const steps = computed<Step[]>(() => {
 
 <template>
   <div class="timeline">
-    <div v-for="(step, i) in steps" :key="step.label" class="step" :class="step.status">
+    <div v-for="(step, i) in steps" :key="i" class="step" :class="step.status">
       <div class="dot">{{ i + 1 }}</div>
       <div class="label">{{ step.label }}</div>
+      <small v-if="step.description">{{ step.description }}</small>
       <div v-if="i < steps.length - 1" class="line" />
     </div>
   </div>

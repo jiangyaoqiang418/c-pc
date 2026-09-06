@@ -223,7 +223,7 @@ function goProductList(sort: realProductApi.StorefrontSort = 'DEFAULT') {
     </section>
 
     <a-alert v-if="failedProductSections.length" type="error" :closable="false" class="home-error">
-      {{ failedProductSections.join('、') }}加载失败，未使用本地数据替代。
+      {{ failedProductSections.join('、') }}加载失败，请稍后重试。
       <template #action><a-button size="mini" @click="retryProductSections">重新加载</a-button></template>
     </a-alert>
 

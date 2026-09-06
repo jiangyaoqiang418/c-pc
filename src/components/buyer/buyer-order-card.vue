@@ -86,9 +86,6 @@ function goIm() {
         <Icon icon="lucide:badge-dollar-sign" width="14" /> 修改价格
       </button>
       <template v-else-if="order.status === 'PROCURING'">
-        <button class="btn ghost" disabled title="独立上传暂不可用，可在填写发货时附上采购凭证">
-          <Icon icon="lucide:upload" width="14" /> 独立采购凭证上传暂不可用
-        </button>
         <span class="status-note">采购凭证可在填写发货时一并上传</span>
         <button class="btn primary" @click="$emit('upload-shipping', order)">
           <Icon icon="lucide:package" width="14" /> 填写发货

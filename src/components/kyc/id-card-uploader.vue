@@ -9,6 +9,7 @@ interface Props {
   modelValue?: string | number;
   contextKey: string;
   disabled?: boolean;
+  label?: string;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -53,7 +54,7 @@ async function onFileChange(event: Event) {
     if (operation !== uploadVersion) return;
     emit('update:modelValue', String(uploaded.id));
     previewUrl.value = uploaded.url || '';
-    Message.success(`${sideLabel[props.side]}上传成功`);
+    Message.success(`${props.label || sideLabel[props.side]}上传成功`);
   } catch (error) {
     if (operation !== uploadVersion) return;
     const message = error instanceof RequestError ? error.message : '';
@@ -102,21 +103,21 @@ onBeforeUnmount(() => {
       class="preview"
       role="button"
       :tabindex="disabled || uploading ? -1 : 0"
-      :aria-label="`上传${sideLabel[side]}`"
+      :aria-label="`上传${label || sideLabel[side]}`"
       :aria-disabled="disabled || uploading ? 'true' : undefined"
       @click="pickFile"
       @keydown.enter="pickFile"
       @keydown.space.prevent="pickFile"
     >
-      <img v-if="previewUrl" :src="previewUrl" :alt="sideLabel[side]" class="img" />
+      <img v-if="previewUrl" :src="previewUrl" :alt="label || sideLabel[side]" class="img" />
       <div v-else class="placeholder">
-        <span>{{ uploading ? '上传中…' : `点击上传${sideLabel[side]}` }}</span>
+        <span>{{ uploading ? '上传中…' : `点击上传${label || sideLabel[side]}` }}</span>
         <small>JPG / PNG / WebP，≤ 10 MB</small>
       </div>
       <div v-if="uploading" class="overlay">上传中…</div>
     </div>
     <div class="meta">
-      <span class="title">{{ sideLabel[side] }}</span>
+      <span class="title">{{ label || sideLabel[side] }}</span>
       <a-link v-if="modelValue" role="button" :tabindex="disabled ? -1 : 0" :disabled="disabled" status="danger" @click="clearFromUser" @keydown.enter="clearFromUser" @keydown.space.prevent="clearFromUser">重新上传</a-link>
       <span v-else class="hint">上传真实证件资料</span>
     </div>

@@ -63,6 +63,7 @@ onBeforeUnmount(() => {
     @ok="$emit('update:visible', false)"
   >
     <a-spin :loading="loading" style="width: 100%">
+      <a-alert type="info">当前为演示协议，非正式发布版本。</a-alert>
       <div v-if="agreement" class="body">
         <div class="version">
           <span class="ver">版本 {{ agreement.version }}</span>

@@ -14,7 +14,7 @@ const sign = computed(() => (props.log.change > 0 ? '+' : ''));
 const amountColor = computed(() => (props.log.change > 0 ? '#00b42a' : '#f53f3f'));
 
 const refDesc = computed(() => {
-  if (props.log.refType && props.log.refId) return `${props.log.refType} · ${props.log.refId}`;
+  if (props.log.refId) return `关联业务 · ${props.log.refId}`;
   return '';
 });
 
@@ -36,7 +36,7 @@ const appealMeta = computed(() => {
       <PointBehaviorTag :behavior="log.behavior" :label="log.behaviorName" />
     </div>
     <div class="middle">
-      <div class="desc">{{ refDesc || log.behavior }}</div>
+      <div v-if="refDesc" class="desc">{{ refDesc }}</div>
       <div class="time">{{ formatDateValue(log.createdAt) }}</div>
     </div>
     <div class="right">

@@ -163,7 +163,7 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
           v-else
           icon="lucide:receipt"
           :title="loadError || '暂无买手专属流水'"
-          :description="loadError ? '不会把请求失败显示成没有流水。' : '接单完成 / 押金变动 / 利息发放后这里会显示'"
+          :description="loadError ? '请稍后重试。' : '接单完成 / 押金变动 / 利息发放后这里会显示'"
           :action-text="loadError ? '重新加载' : undefined"
           @action="loadError && loadAll()"
         />

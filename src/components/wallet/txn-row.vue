@@ -20,7 +20,7 @@ const typeLabel = computed(() => {
 const desc = computed(() => {
   const t = props.txn;
   if (t.remark) return t.remark;
-  if (t.refType && t.refId) return `${t.refType.toUpperCase()} · ${t.refId}`;
+  if (t.refId) return `关联业务 · ${t.refId}`;
   return t.userName || '—';
 });
 
@@ -58,9 +58,9 @@ const relativeTime = computed(() => {
       </div>
       <div class="desc">{{ desc }}</div>
       <div v-if="!compact" class="meta">
-        <span v-if="txn.bucketFrom">{{ txn.bucketFrom }}</span>
+        <span v-if="txn.bucketFrom">{{ enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' }}</span>
         <span v-if="txn.bucketFrom && txn.bucketTo"> → </span>
-        <span v-if="txn.bucketTo">{{ txn.bucketTo }}</span>
+        <span v-if="txn.bucketTo">{{ enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' }}</span>
         <span v-if="txn.chainTxHash" class="hash">· {{ txn.chainTxHash.slice(0, 10) }}…</span>
       </div>
     </div>

@@ -9,6 +9,7 @@ import { getAccessToken } from '@/service/request';
 import IdCardUploader from '@/components/kyc/id-card-uploader.vue';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { parseDateValue } from '@/utils/date-range';
 
 const userStore = useUserStore();
 const loading = ref(false);
@@ -17,8 +18,11 @@ const uploadStates = reactive({ front: false, back: false, holding: false });
 const uploading = computed(() => Object.values(uploadStates).some(Boolean));
 const uploadContext = computed(() => `${String(userStore.currentUser?.id)}:${form.idType}`);
 const kycDetail = ref<Api.RealKyc.KycVO | null>();
+const schema = ref<Api.RealKyc.Schema>();
 const loadError = ref('');
-const formDisabled = computed(() => submitting.value || loading.value || !!loadError.value);
+const formDisabled = computed(() => submitting.value || loading.value || !!loadError.value || !schema.value
+  || status.value === 'pending' || status.value === 'approved'
+  || (status.value === 'rejected' && !schema.value.resubmitAfterRejectAllowed));
 const form = reactive<Api.RealKyc.SubmitParams>({
   realName: '',
   idType: 'ID_CARD',
@@ -32,7 +36,10 @@ const requestGuard = createLatestRequestGuard();
 const { markInteracted, markSaved } = useUnsavedForm(() => form, () => userStore.currentUser?.id);
 
 function toDisplayStatus(value?: string): Api.User.KycStatus {
-  if (value === 'PASSED') return 'approved';
+  if (value === 'PASSED') {
+    const expiry = parseDateValue(kycDetail.value?.expireAt);
+    return expiry !== undefined && expiry <= Date.now() ? 'expired' : 'approved';
+  }
   if (value === 'PENDING') return 'pending';
   if (value === 'REJECTED') return 'rejected';
   return userStore.currentUser?.kycStatus || 'none';
@@ -51,7 +58,7 @@ const statusView = computed(() => {
     return {
       icon: 'lucide:badge-check',
       title: '您已通过 KYC 实名认证',
-      description: '当前认证状态来自登录用户信息接口。'
+      description: '账号认证已通过，认证资料可在下方查看。'
     };
   }
   if (status.value === 'pending') {
@@ -72,7 +79,7 @@ const statusView = computed(() => {
     return {
       icon: 'lucide:calendar-x-2',
       title: 'KYC 认证已过期',
-      description: '当前接口未提供重新认证入口。'
+      description: '请按当前认证配置重新提交资料。'
     };
   }
   return {
@@ -119,13 +126,19 @@ async function load() {
     if (getAccessToken()) {
       try {
         // 页面已有可重试的资料读取错误态，避免请求层重复弹出后端文件错误。
-        const nextDetail = await realKycApi.fetchMyKycDetail({ signal: isCurrent.signal, showError: false });
+        const [nextDetail, nextSchema] = await Promise.all([
+          realKycApi.fetchMyKycDetail({ signal: isCurrent.signal, showError: false }),
+          realKycApi.fetchKycSchema({ signal: isCurrent.signal, showError: false })
+        ]);
         if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
         kycDetail.value = nextDetail;
+        schema.value = nextSchema;
+        if (!form.realName && !form.idNo && !nextSchema.allowedIdTypes.includes(form.idType)) form.idType = nextSchema.allowedIdTypes[0];
         void refreshPrivatePreviews(kycDetail.value, isCurrent.signal, isCurrent);
       } catch {
         if (!isCurrent()) return;
         kycDetail.value = null;
+        schema.value = undefined;
         loadError.value = '实名认证资料加载失败，当前状态以账号信息为准。请稍后重试。';
       }
     }
@@ -147,6 +160,7 @@ watch(() => userStore.currentUser?.id, () => {
   submitting.value = false;
   requestGuard.invalidate();
   kycDetail.value = null;
+  schema.value = undefined;
   previewUrls.value = {};
   loadError.value = '';
   form.realName = '';
@@ -170,12 +184,9 @@ watch(() => form.idType, () => {
 
 async function submit() {
   if (formDisabled.value) return;
-  if (!form.realName.trim() || !form.idNo.trim() || !form.idCardFrontFileId) {
-    Message.warning('请填写真实姓名、证件号码并上传证件人像面');
-    return;
-  }
-  if (form.idType === 'ID_CARD' && !form.idCardBackFileId) {
-    Message.warning('身份证认证请上传证件国徽面');
+  const issue = realKycApi.kycSubmissionIssue(schema.value, form, status.value);
+  if (issue) {
+    Message.warning(issue);
     return;
   }
   if (uploading.value) {
@@ -188,15 +199,27 @@ async function submit() {
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
+    const snapshot = { ...form, realName: form.realName.trim(), idNo: form.idNo.trim(), nationality: form.nationality?.trim() || undefined };
     try {
-      await realKycApi.submitKyc({
-        ...form,
-        realName: form.realName.trim(),
-        idNo: form.idNo.trim(),
-        nationality: form.nationality?.trim() || undefined
-      });
-    } catch {
-      // 请求层已展示业务错误，保留表单供用户修正后重试。
+      const latest = await realKycApi.fetchKycSchema({ showError: false });
+      if (!isCurrentWrite()) return;
+      const changed = schema.value?.version !== latest.version;
+      schema.value = latest;
+      const latestIssue = realKycApi.kycSubmissionIssue(latest, snapshot, status.value);
+      if (latestIssue || changed) {
+        Message.warning(latestIssue || '认证配置已更新，请核对资料后重新提交');
+        return;
+      }
+      await realKycApi.submitKyc(snapshot);
+    } catch (error) {
+      if (!isCurrentWrite()) return;
+      Message.warning(error instanceof Error ? error.message : '认证提交未完成，请核对后重试');
+      try {
+        const latest = await realKycApi.fetchKycSchema({ showError: false });
+        if (isCurrentWrite()) schema.value = latest;
+      } catch {
+        if (isCurrentWrite()) { schema.value = undefined; loadError.value = '认证配置读取失败，草稿已保留，请重新加载'; }
+      }
       return;
     }
     if (!isCurrentWrite()) return;
@@ -251,8 +274,7 @@ async function submit() {
             { label: '认证证件', value: kycDetail?.idNo || '—' },
             { label: '提交时间', value: formatTime(kycDetail?.submittedAt) },
             { label: '审核时间', value: formatTime(kycDetail?.reviewedAt) },
-            { label: '证件地址有效期', value: formatTime(kycDetail?.photoUrlExpireAt) },
-            { label: '状态来源', value: kycDetail ? '实名认证详情接口' : '当前用户信息接口' }
+            { label: '证件预览有效期', value: formatTime(kycDetail?.photoUrlExpireAt) }
           ]"
         />
         <div v-if="Object.keys(previewUrls).length" class="private-previews">
@@ -265,19 +287,21 @@ async function submit() {
         <template v-if="status !== 'approved' && status !== 'pending'">
           <a-divider />
           <a-alert :type="status === 'rejected' ? 'error' : 'info'" :title="status === 'rejected' ? statusView.description : '请填写真实资料并上传清晰的证件图片；提交后由平台审核。'" />
+          <a-alert v-if="schema?.noticeText" type="info">{{ schema.noticeText }}</a-alert>
+          <a-alert v-if="status === 'rejected' && schema && !schema.resubmitAfterRejectAllowed" type="warning">当前配置不允许驳回后重新提交，请联系平台。</a-alert>
           <a-form :model="form" :disabled="formDisabled" layout="vertical" class="kyc-form" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
             <a-row :gutter="16">
               <a-col :span="12"><a-form-item label="真实姓名" required><a-input v-model="form.realName" placeholder="请输入证件上的真实姓名" :max-length="64" /></a-form-item></a-col>
-              <a-col :span="12"><a-form-item label="国籍"><a-input v-model="form.nationality" placeholder="如：中国" :max-length="64" /></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="国籍" :required="schema?.nationalityRequired"><a-input v-model="form.nationality" placeholder="如：中国" :max-length="64" /></a-form-item></a-col>
             </a-row>
             <a-row :gutter="16">
-              <a-col :span="12"><a-form-item label="证件类型" required><a-select v-model="form.idType"><a-option value="ID_CARD">身份证</a-option><a-option value="PASSPORT">护照</a-option></a-select></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="证件类型" required><a-select v-model="form.idType"><a-option v-for="type in schema?.allowedIdTypes || []" :key="type" :value="type">{{ type === 'ID_CARD' ? '身份证' : '护照' }}</a-option></a-select></a-form-item></a-col>
               <a-col :span="12"><a-form-item label="证件号码" required><a-input v-model="form.idNo" placeholder="请输入证件号码" :max-length="64" /></a-form-item></a-col>
             </a-row>
-            <a-form-item label="证件图片" required extra="身份证须上传正反面；护照至少上传资料页。请勿上传与本人无关的证件。">
+            <a-form-item label="证件图片" required :extra="`资料页必填；背面${schema?.idCardBackRequired ? '必填' : '选填'}；手持照${schema?.holdingPhotoRequired ? '必填' : '选填'}。请勿上传与本人无关的证件。`">
               <div class="uploaders">
-                <IdCardUploader v-model="form.idCardFrontFileId" :context-key="uploadContext" :disabled="formDisabled" side="front" @uploading="uploadStates.front = $event" />
-                <IdCardUploader v-if="form.idType === 'ID_CARD'" v-model="form.idCardBackFileId" :context-key="uploadContext" :disabled="formDisabled" side="back" @uploading="uploadStates.back = $event" />
+                <IdCardUploader v-model="form.idCardFrontFileId" :context-key="uploadContext" :disabled="formDisabled" :label="form.idType === 'PASSPORT' ? '护照资料页' : '身份证人像面'" side="front" @uploading="uploadStates.front = $event" />
+                <IdCardUploader v-model="form.idCardBackFileId" :context-key="uploadContext" :disabled="formDisabled" label="证件背面" side="back" @uploading="uploadStates.back = $event" />
                 <IdCardUploader v-model="form.holdingPhotoFileId" :context-key="uploadContext" :disabled="formDisabled" side="face" @uploading="uploadStates.holding = $event" />
               </div>
             </a-form-item>

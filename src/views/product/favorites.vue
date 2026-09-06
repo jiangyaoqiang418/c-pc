@@ -120,7 +120,6 @@ watch(() => userStore.currentUser?.id, () => {
   <div class="favorites-page shop-container">
     <div class="page-head">
       <h1 class="page-title">我的收藏</h1>
-      <span class="page-sub">已收藏商品会同步到真实收藏接口</span>
     </div>
 
     <a-spin :loading="loading" style="width: 100%">
@@ -142,7 +141,7 @@ watch(() => userStore.currentUser?.id, () => {
       <EmptyState
         v-else
         :title="loadError || '暂无收藏商品'"
-        :description="loadError ? '不会把请求失败误显示为没有收藏。' : '在商品详情页点击收藏后会出现在这里'"
+        :description="loadError ? '请稍后重试。' : '在商品详情页点击收藏后会出现在这里'"
         :action-text="loadError ? '重新加载' : '去浏览商品'"
         @action="loadError ? load() : router.push('/product/list')"
       />
@@ -176,10 +175,6 @@ watch(() => userStore.currentUser?.id, () => {
   font-weight: 600;
   margin: 0;
   color: var(--yb-ink);
-}
-.page-sub {
-  color: var(--yb-muted);
-  font-size: 12px;
 }
 .product-grid {
   display: grid;

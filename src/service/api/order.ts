@@ -18,7 +18,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
       pageNo,
       pageSize,
       status
-    }, { signal: q.signal });
+    }, { signal: q.signal, preserveDecimals: true });
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
   if (statuses.length > 1) {
@@ -89,7 +89,7 @@ export function countMySoldOrdersByStatus(options?: { showError?: boolean; signa
 }
 
 export async function fetchOrderDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  const dto = await realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id }, signal: options.signal });
+  const dto = await realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id }, signal: options.signal, preserveDecimals: true });
   return toOrderRecord(dto);
 }
 
@@ -100,22 +100,31 @@ export function createOrders(
   return realOrderRequest.post<Api.RealOrder.OrderGroupVO, Api.RealOrder.OrderCreateBatchParams>(
     '/orders/create-batch',
     params,
-    options
+    { ...options, preserveDecimals: true }
   );
 }
 
-export async function payOrder(id: string | number, options: { showError?: boolean } = {}) {
-  await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/pay', { id }, options);
+export async function payOrder(id: string | number, confirmedAmount: string, options: { showError?: boolean } = {}) {
+  const receipt = await realOrderRequest.post<string | number, Api.RealOrder.OrderPayParams>('/orders/pay', { id, confirmedAmount }, options);
+  if (!((typeof receipt === 'string' && receipt.trim()) || (typeof receipt === 'number' && Number.isSafeInteger(receipt)))) throw new Error('付款回执缺失，请核对原订单状态');
   return { ok: true, message: '' };
 }
 
-export async function payOrderGroup(orderGroupNo: string, options: { showError?: boolean } = {}) {
-  await realOrderRequest.post<number, Api.RealOrder.OrderGroupPayParams>(
+export function payOrderGroup(orderGroupNo: string, confirmedAmount: string, options: { showError?: boolean } = {}) {
+  return realOrderRequest.post<Api.RealOrder.OrderGroupPayResult, Api.RealOrder.OrderGroupPayParams>(
     '/orders/group/pay',
-    { orderGroupNo },
-    options
+    { orderGroupNo, confirmedAmount },
+    { ...options, preserveDecimals: true }
   );
-  return { ok: true, message: '' };
+}
+
+export function fetchOrderGroupPayResult(orderGroupNo: string, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<Api.RealOrder.OrderGroupPayResult>('/orders/group/pay-result', { params: { orderGroupNo }, ...options, showError: false, preserveDecimals: true });
+}
+
+export async function fetchCarriers(options: { signal?: AbortSignal } = {}) {
+  const items = await realOrderRequest.get<Api.RealOrder.CarrierDTO[]>('/orders/carriers', { ...options, showError: false });
+  return requireArray<Api.RealOrder.CarrierDTO>(items, '承运商字典').filter(item => item.enabled).sort((a, b) => a.sortNo - b.sortNo);
 }
 
 export async function shipOrder(params: Api.RealOrder.OrderShipParams) {

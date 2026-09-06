@@ -11,38 +11,28 @@ export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {
   return normalizePage(page);
 }
 
-/** 仅核对当前页面的目标订单；按服务端实际页大小读取，找到全部目标后立即停止。 */
-export async function findReviewableOrderIds(orderIds: Array<string | number>, options: { signal?: AbortSignal } = {}) {
-  const targets = new Set(orderIds.map(String));
-  const found = new Set<string>();
-  if (!targets.size) return found;
-  const seen = new Set<string>();
-  let pageCount = 1;
-  let expectedTotal = 0;
-  let pageSize = 50;
-  for (let pageNo = 1; pageNo <= pageCount; pageNo += 1) {
+/** 按 ID 映射权威资格；漏项/损坏不是“不可评价”。 */
+export async function fetchReviewEligibility(orderIds: Array<string | number>, options: { signal?: AbortSignal } = {}) {
+  const ids = [...new Map(orderIds.map(id => [String(id), id])).values()];
+  const result = new Map<string, Api.RealOrder.ReviewEligibility>();
+  for (let offset = 0; offset < ids.length; offset += 200) {
     options.signal?.throwIfAborted();
-    const page = await fetchReviewableOrders({ pageNo, pageSize }, options);
-    options.signal?.throwIfAborted();
-    if (pageNo === 1) {
-      expectedTotal = page.total;
-      if (!Number.isSafeInteger(expectedTotal) || expectedTotal < 0) throw new Error('评价资格总数无效');
-      pageSize = Number(page.size ?? page.pageSize ?? (page.records.length || 50));
-      if (!Number.isSafeInteger(pageSize) || pageSize < 1) throw new Error('评价资格分页大小无效');
-      pageCount = Math.max(1, Math.ceil(expectedTotal / pageSize));
-    } else if (page.total !== expectedTotal) {
-      throw new Error('评价资格列表已变化，请重新核对');
-    }
-    for (const record of page.records) {
+    const batch = ids.slice(offset, offset + 200);
+    const records = requireArray<Api.RealOrder.ReviewEligibility>(await realOrderRequest.postQuery<Api.RealOrder.ReviewEligibility[]>(
+      '/reviews/eligibility', { orderIds: batch }, { ...options, showError: false }), '订单评价资格');
+    for (const record of records) {
       const id = String(record.orderId);
-      seen.add(id);
-      if (targets.has(id)) found.add(id);
+      if (!batch.some(target => String(target) === id) || result.has(id) || typeof record.reviewable !== 'boolean') throw new Error('评价资格响应不完整，请重新核对');
+      result.set(id, record);
     }
-    if (found.size === targets.size) return found;
-    if (pageNo < pageCount && page.records.length !== pageSize) throw new Error('评价资格分页不完整，请重试');
+    if (batch.some(id => !result.has(String(id)))) throw new Error('评价资格响应漏项，请重新核对');
   }
-  if (seen.size !== expectedTotal) throw new Error('评价资格分页不完整，请重试');
-  return found;
+  return result;
+}
+
+export async function findReviewableOrderIds(orderIds: Array<string | number>, options: { signal?: AbortSignal } = {}) {
+  const result = await fetchReviewEligibility(orderIds, options);
+  return new Set([...result].filter(([, value]) => value.reviewable).map(([id]) => id));
 }
 
 export async function submitReview(params: Api.RealReview.ReviewSubmitParams) {

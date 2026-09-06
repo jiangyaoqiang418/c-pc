@@ -1,4 +1,10 @@
 declare namespace Api.RealBuyer {
+  interface BusinessStats {
+    sellerId: string | number; startTime?: number | null; endTime?: number | null;
+    completedOrderCount: string | number; reviewedOrderCount: string | number; reviewRate: string | number;
+    orderCount: string | number; refundCount: string | number; complaintRate: string | number;
+    shippedOrderCount: string | number; avgShipDurationMs: string | number; avgShipDurationHours: string | number;
+  }
   type DepositLedger = Api.RealWallet.Ledger;
   type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | string;
 

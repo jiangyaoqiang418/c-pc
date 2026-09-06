@@ -101,7 +101,7 @@ async function mapPage(page: Api.Common.PaginatingQueryRecord<Api.RealPurchase.P
   };
 }
 
-export async function fetchHall(q: { current?: number; size?: number; categoryId?: string | number; keyword?: string; signal?: AbortSignal } = {}) {
+export async function fetchHall(q: Omit<Api.RealPurchase.PurchaseDemandPageQuery, 'statuses'> & { current?: number; size?: number; signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealPurchase.PurchaseDemandVO> & { pageNo?: number; pageSize?: number },
     Api.RealPurchase.PurchaseDemandPageQuery
@@ -109,7 +109,11 @@ export async function fetchHall(q: { current?: number; size?: number; categoryId
     pageNo: q.current || 1,
     pageSize: q.size || 20,
     categoryId: q.categoryId,
-    keyword: q.keyword
+    keyword: q.keyword,
+    minBudget: q.minBudget,
+    maxBudget: q.maxBudget,
+    minDeliveryDays: q.minDeliveryDays,
+    maxDeliveryDays: q.maxDeliveryDays
   }, { signal: q.signal });
   return mapPage(page);
 }
@@ -124,12 +128,18 @@ export async function fetchMyPurchases(
     Api.RealPurchase.PurchaseDemandPageQuery
   >('/demands/my/page', {
     pageNo: q.current || 1,
-    pageSize: q.size || 30
+    pageSize: q.size || 30,
+    statuses: statuses?.flatMap(status => ({ pending_audit: ['PENDING_REVIEW'], rejected: ['REJECTED'], pushing: ['OPEN'], claimed: ['TAKEN'], cancelled: ['VOID', 'CANCELED'] })[status])
   }, { signal: q.signal });
   const mapped = await mapPage(page);
   mapped.records = mapped.records.map(item => ({ ...item, customerId }));
-  if (statuses?.length) mapped.records = mapped.records.filter(item => statuses.includes(item.status));
   return mapped;
+}
+
+export async function fetchPurchaseProgress(id: string | number, options: { signal?: AbortSignal } = {}) {
+  const progress = await realOrderRequest.get<Api.RealPurchase.Progress>('/demands/my/progress', { params: { id }, ...options, showError: false });
+  if (!progress || String(progress.demandId) !== String(id)) throw new Error('求购进度归属不符');
+  return { ...progress, timeline: [...requireArray<Api.RealPurchase.Progress['timeline'][number]>(progress.timeline, '求购进度节点')].sort((a, b) => a.occurredAt - b.occurredAt) };
 }
 
 export async function fetchPurchaseDetail(id: string | number, options: { signal?: AbortSignal } = {}) {

@@ -162,7 +162,7 @@ function scrollToList() {
                 <div class="ef-right">
                   <div class="ef-apy-row">
                     <span class="ef-apy-label">APY</span>
-                    <InfoTooltip text="APY = 后端返回的年化收益率，实际收益以锁仓订单为准" :size="12" />
+                    <InfoTooltip text="APY 为年化收益率，实际收益以锁仓订单为准" :size="12" />
                   </div>
                   <div class="ef-apy">{{ effectiveRate(p) }}%</div>
                 </div>
@@ -187,7 +187,7 @@ function scrollToList() {
                 <div class="ef-right">
                   <div class="ef-apy-row">
                     <span class="ef-apy-label">APY</span>
-                    <InfoTooltip text="APY = 后端返回的年化收益率，实际收益以锁仓订单为准" :size="12" />
+                    <InfoTooltip text="APY 为年化收益率，实际收益以锁仓订单为准" :size="12" />
                   </div>
                   <div class="ef-apy">{{ effectiveRate(p) }}%</div>
                 </div>

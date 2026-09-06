@@ -1,5 +1,5 @@
 import { realUserRequest } from '@/service/request';
-import { isWithinDateRange } from '@/utils/date-range';
+import { parseDateValue } from '@/utils/date-range';
 import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
@@ -58,25 +58,22 @@ export async function fetchMyPointLogs(q: {
   size?: number;
   userId: number | string;
   behaviors?: Api.Point.BehaviorCode[];
+  earned?: boolean;
   fromAt?: string;
   toAt?: string;
 }, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  const behaviorCode = q.behaviors?.length === 1 ? q.behaviors[0] : undefined;
   const result = await realUserRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO>>(
     '/points/ledger/page',
     {
       pageNo: q.current || 1,
       pageSize: q.size || 20,
-      userId: q.userId,
-      behaviorCode
+      behaviorCodes: q.behaviors?.length ? [...q.behaviors] : undefined,
+      earned: q.earned,
+      startAt: parseDateValue(q.fromAt),
+      endAt: parseDateValue(q.toAt, true)
     }, options
   );
-  let records = requireArray<Api.RealPoint.PointLedgerDTO>(result.records, '积分流水').map(toPointLog);
-  if (q.behaviors?.length && !behaviorCode) {
-    const selected = new Set<string>(q.behaviors);
-    records = records.filter(item => selected.has(item.behavior));
-  }
-  if (q.fromAt || q.toAt) records = records.filter(item => isWithinDateRange(item.createdAt, q.fromAt, q.toAt));
+  const records = requireArray<Api.RealPoint.PointLedgerDTO>(result.records, '积分流水').map(toPointLog);
   const page = result as Api.Common.PaginatingQueryRecord<Api.RealPoint.PointLedgerDTO> & {
     pageNo?: number;
     pageSize?: number;

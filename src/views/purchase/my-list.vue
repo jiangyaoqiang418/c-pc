@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { Icon } from '@iconify/vue';
@@ -35,7 +35,9 @@ const pageSize = ref(20);
 const total = ref(0);
 const list = ref<Api.RealPurchase.Record[]>([]);
 const loading = ref(false);
-const allList = ref<Api.RealPurchase.Record[]>([]);
+const counts = ref<Record<string, number | undefined>>({});
+const countError = ref('');
+const countsGuard = createLatestRequestGuard();
 const loadError = ref('');
 const cancelingId = ref<string | number>();
 const listGuard = createLatestRequestGuard();
@@ -65,6 +67,7 @@ function syncQuery(replace = false) {
 
 function changeTab(key: string) {
   activeKey.value = key;
+  current.value = 1;
   syncQuery();
 }
 
@@ -86,9 +89,10 @@ async function load() {
   }
   loading.value = true;
   loadError.value = '';
+  void loadCounts(user.id);
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    const r = await purchaseApi.fetchMyPurchases(user.id, undefined, { current: current.value, size: pageSize.value, signal: isCurrent.signal });
+    const r = await purchaseApi.fetchMyPurchases(user.id, tab?.statuses, { current: current.value, size: pageSize.value, signal: isCurrent.signal });
     if (!isCurrent()) return;
     pageSize.value = resolvePageSize(r, pageSize.value);
     const maxPage = Math.max(1, Math.ceil(r.total / pageSize.value));
@@ -98,12 +102,10 @@ async function load() {
       return;
     }
     total.value = r.total;
-    allList.value = r.records;
-    list.value = tab?.statuses ? r.records.filter(item => tab.statuses!.includes(item.status)) : r.records;
+    list.value = r.records;
   } catch {
     if (!isCurrent()) return;
     list.value = [];
-    allList.value = [];
     total.value = 0;
     loadError.value = '求购列表加载失败，请检查网络后重试。';
   } finally {
@@ -120,6 +122,7 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   confirmationModal?.close();
   listGuard.invalidate();
+  countsGuard.invalidate();
 });
 watch(() => userStore.currentUser?.id, async (next, previous) => {
   if (disposed) return;
@@ -129,7 +132,9 @@ watch(() => userStore.currentUser?.id, async (next, previous) => {
   current.value = 1;
   total.value = 0;
   listGuard.invalidate();
-  allList.value = [];
+  countsGuard.invalidate();
+  counts.value = {};
+  countError.value = '';
   list.value = [];
   loadError.value = '';
   cancelingId.value = undefined;
@@ -144,14 +149,17 @@ watch(() => route.fullPath, () => {
   void load();
 });
 
-const counts = computed(() => {
-  const c: Record<string, number> = { all: allList.value.length };
-  for (const t of TABS) {
-    if (!t.statuses) continue;
-    c[t.key] = allList.value.filter(r => t.statuses!.includes(r.status)).length;
-  }
-  return c;
-});
+async function loadCounts(userId: string | number) {
+  const isCurrent = countsGuard.begin();
+  counts.value = {};
+  countError.value = '';
+  await Promise.all(TABS.map(async tab => {
+    try {
+      const page = await purchaseApi.fetchMyPurchases(userId, tab.statuses, { current: 1, size: 1, signal: isCurrent.signal });
+      if (isCurrent() && String(userStore.currentUser?.id) === String(userId)) counts.value[tab.key] = page.total;
+    } catch { if (isCurrent()) countError.value = '部分状态数量未取得，请重新加载核对'; }
+  }));
+}
 
 function onCancel(req: Api.RealPurchase.Record) {
   if (cancelingId.value !== undefined) return;
@@ -196,6 +204,7 @@ function onCancel(req: Api.RealPurchase.Record) {
 
 <template>
   <div class="my-purchase-page">
+    <a-alert v-if="countError" type="warning">{{ countError }}<template #action><a-button :loading="loading" @click="load">重新加载</a-button></template></a-alert>
     <!-- ============ Hero ============ -->
     <section class="hero">
       <div class="hero-main">
@@ -214,8 +223,8 @@ function onCancel(req: Api.RealPurchase.Record) {
     </section>
 
     <!-- ============ Tab Pills (自定义) ============ -->
-    <a-alert type="info">状态标签及数量仅筛选当前页；接口暂不支持跨页状态筛选。未按状态筛选共 {{ total }} 条，可翻页查看其余求购。</a-alert>
-    <section class="tabs-bar" role="tablist" aria-label="当前页求购状态">
+    <p v-if="!loading && !loadError">共 {{ total }} 条求购</p>
+    <section class="tabs-bar" role="tablist" aria-label="求购状态">
       <button
         v-for="t in TABS"
         :key="t.key"
@@ -228,7 +237,7 @@ function onCancel(req: Api.RealPurchase.Record) {
         @click="changeTab(t.key)"
       >
         <span class="tab-label">{{ t.label }}</span>
-        <span v-if="counts[t.key] != null && counts[t.key] > 0" class="tab-count">{{ counts[t.key] }}</span>
+        <span v-if="(counts[t.key] ?? 0) > 0" class="tab-count">{{ counts[t.key] }}</span>
       </button>
     </section>
 
@@ -248,8 +257,8 @@ function onCancel(req: Api.RealPurchase.Record) {
         <EmptyState
           v-else
           icon="lucide:inbox"
-          :title="loadError || '当前页暂无该状态下的求购'"
-          :description="loadError ? '不会把请求失败误显示为没有求购。' : '想要平台没有的商品？发起求购，全球买手为您代购'"
+          :title="loadError || '暂无该状态下的求购'"
+          :description="loadError ? '请稍后重试。' : '想要平台没有的商品？发起求购，全球买手为您代购'"
           :action-text="loadError ? '重新加载' : '发起求购'"
           @action="loadError ? load() : router.push('/purchase/create')"
         />

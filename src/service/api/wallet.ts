@@ -1,6 +1,7 @@
 import { realUserRequest } from '@/service/request';
 import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
 import { toIsoDate } from './date';
+import { parseDateValue } from '@/utils/date-range';
 
 const bucketMap: Record<string, Api.RealWallet.BalanceKey> = {
   AVAILABLE: 'available',
@@ -209,6 +210,10 @@ export async function fetchWalletLedger(q: {
   current?: number;
   size?: number;
   types?: Api.Wallet.TxnType[];
+  bucket?: Api.Wallet.Bucket;
+  keyword?: string;
+  fromAt?: string;
+  toAt?: string;
   signal?: AbortSignal;
 }) {
   const current = Math.max(1, Math.floor(q.current || 1));
@@ -231,7 +236,11 @@ export async function fetchWalletLedger(q: {
     pageNo,
     pageSize,
     bizGroup: selector?.bizGroup,
-    bizType: selector?.bizType
+    bizType: selector?.bizType,
+    balanceType: q.bucket ? { available: 'AVAILABLE', nonWithdrawable: 'NON_WITHDRAWABLE', lockedFinance: 'FINANCE_LOCKED', frozenOrder: 'ORDER_FROZEN', frozenRisk: 'RISK_FROZEN', depositAvailable: 'DEPOSIT_AVAILABLE', depositGuaranteed: 'DEPOSIT_GUARANTEED', interestAccrued: 'INTEREST_ACCRUED' }[q.bucket] : undefined,
+    keyword: q.keyword?.trim() || undefined,
+    startAt: parseDateValue(q.fromAt),
+    endAt: parseDateValue(q.toAt, true)
   }, { signal: q.signal });
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealWallet.WalletLedgerDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
@@ -247,7 +256,7 @@ export async function fetchWalletLedger(q: {
   const recordsById = new Map<string, Api.RealWallet.Ledger>();
   pages.forEach(page => {
     requireArray<Api.RealWallet.WalletLedgerDTO>(page.records, '钱包流水分页记录').map(toTxn).forEach(record => {
-      if (!selectedTypes.length || selectedTypes.includes(record.type)) recordsById.set(String(record.id), record);
+      recordsById.set(String(record.id), record);
     });
   });
   const offset = selectors.length > 1 ? (current - 1) * size : 0;
@@ -275,11 +284,23 @@ export async function fetchWalletLedgersByTypes(q: {
 }
 
 export function createRecharge(params: Api.RealWallet.RechargeCreateParams, options: { showError?: boolean } = {}) {
-  return realUserRequest.post<Api.RealWallet.RechargeVO | string | number, Api.RealWallet.RechargeCreateParams>(
+  return realUserRequest.post<string | number, Api.RealWallet.RechargeCreateParams>(
     '/recharge/create',
     params,
     options
   );
+}
+
+export async function fetchRechargeByKey(idempotencyKey: string) {
+  const result = await realUserRequest.get<Api.RealWallet.RechargeVO | null>('/recharge/by-key', { params: { idempotencyKey }, showError: false, preserveDecimals: true });
+  if (result !== null && (!result || typeof result !== 'object')) throw new Error('充值原单回查响应不完整');
+  return result;
+}
+
+export async function fetchWithdrawByKey(idempotencyKey: string) {
+  const result = await realUserRequest.get<Api.RealWallet.WithdrawVO | null>('/withdraw/by-key', { params: { idempotencyKey }, showError: false, preserveDecimals: true });
+  if (result !== null && (!result || typeof result !== 'object')) throw new Error('提现原单回查响应不完整');
+  return result;
 }
 
 export async function fetchRechargeChains(options: { signal?: AbortSignal; showError?: boolean } = {}) {
@@ -331,7 +352,7 @@ export function prepareWithdrawal(params: Api.RealWallet.WithdrawCreateParams, a
 }
 
 export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams, options: { showError?: boolean } = {}) {
-  return realUserRequest.post<Api.RealWallet.WithdrawVO | string | number, Api.RealWallet.WithdrawCreateParams>(
+  return realUserRequest.post<string | number, Api.RealWallet.WithdrawCreateParams>(
     '/withdraw/create',
     params,
     options

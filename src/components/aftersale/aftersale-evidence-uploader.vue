@@ -110,7 +110,7 @@ function remove(i: number) {
       {{ failedFiles.length }} 张图片上传失败，成功图片已保留。
       <template #action><a-button size="mini" :disabled="disabled || modelValue.length >= max" :loading="uploading" @click="uploadFiles([...failedFiles])">重试失败图片</a-button></template>
     </a-alert>
-    <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP · 上传失败不会保留本地占位图</div>
+    <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</div>
   </div>
 </template>
 

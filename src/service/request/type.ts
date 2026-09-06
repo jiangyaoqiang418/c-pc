@@ -18,6 +18,8 @@ export interface RequestOptions<TData = unknown> {
   headers?: HeadersInit;
   signal?: AbortSignal;
   showError?: boolean;
+  /** 仅金额敏感接口启用，保留 JSON 小数原文供十进制计算。 */
+  preserveDecimals?: boolean;
   skipAuthRedirect?: boolean;
 }
 

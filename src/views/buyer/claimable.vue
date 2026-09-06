@@ -148,10 +148,6 @@ async function onClaim(req: Api.RealPurchase.Record) {
       </div>
     </a-card>
 
-    <a-alert type="info" class="tip" closable>
-      当前展示求购大厅中的可接需求。后台暂未提供按买手定向推送的独立列表。
-    </a-alert>
-
     <a-spin :loading="loading" style="width: 100%">
       <div v-if="list.length" class="list">
         <PurchaseRequestCard
@@ -167,7 +163,7 @@ async function onClaim(req: Api.RealPurchase.Record) {
       <EmptyState
         v-else
         :title="loadError || '暂无可接求购'"
-        :description="loadError ? '不会把请求失败误显示为没有可接求购。' : '当前求购大厅没有可接需求'"
+        :description="loadError ? '请稍后重试。' : '当前求购大厅没有可接需求'"
         :action-text="loadError ? '重新加载' : '查看求购大厅'"
         @action="loadError ? load() : router.push('/purchase/hall')"
       />
@@ -222,9 +218,6 @@ async function onClaim(req: Api.RealPurchase.Record) {
   font-family: ui-monospace, monospace;
   font-size: 22px;
   font-weight: 700;
-}
-.tip {
-  margin-bottom: 12px;
 }
 .list {
   display: grid;

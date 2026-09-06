@@ -227,7 +227,7 @@ function onPageChange(p: number) {
       <EmptyState
         v-else
         :title="loadError || '没有找到符合条件的商品'"
-        :description="loadError ? '不会把请求失败误显示为没有商品。' : '尝试调整筛选条件或重置'"
+        :description="loadError ? '请稍后重试。' : '尝试调整筛选条件或重置'"
         :action-text="loadError ? '重新加载' : undefined"
         @action="load"
       />

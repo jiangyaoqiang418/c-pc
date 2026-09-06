@@ -127,7 +127,7 @@ class RealRequest {
 
     let body: RealResponse<T> | null = null;
     try {
-      body = parseJsonPreservingLong<RealResponse<T>>(responseText);
+      body = parseJsonPreservingLong<RealResponse<T>>(responseText, options.preserveDecimals);
     } catch (error) {
       if (options.signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error;
       body = null;

@@ -13,6 +13,7 @@ const props = defineProps<Props>();
 defineEmits<{ (e: 'update:visible', v: boolean): void }>();
 
 const isIn = computed(() => props.txn?.direction === 'in');
+const referenceLabels = { order: '订单', finance: '理财', kyc: '实名认证', manual: '人工调整', risk: '风险管理', blacklist: '黑名单管理' };
 const typeLabel = computed(() => {
   if (!props.txn) return '';
   if (props.txn.testData) return '测试模拟到账';
@@ -51,8 +52,8 @@ function copy(text?: string) {
         <div class="dl-row"><span class="k">流水编号</span><span class="v yb-mono">#{{ txn.id }}</span></div>
         <div class="dl-row"><span class="k">类型</span><span class="v">{{ typeLabel }}</span></div>
         <div class="dl-row"><span class="k">方向</span><span class="v">{{ isIn ? '收入' : '支出' }}</span></div>
-        <div class="dl-row"><span class="k">出账桶</span><span class="v">{{ txn.bucketFrom || '—' }}</span></div>
-        <div class="dl-row"><span class="k">入账桶</span><span class="v">{{ txn.bucketTo || '—' }}</span></div>
+        <div class="dl-row"><span class="k">出账账户</span><span class="v">{{ txn.bucketFrom ? enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' : '—' }}</span></div>
+        <div class="dl-row"><span class="k">入账账户</span><span class="v">{{ txn.bucketTo ? enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' : '—' }}</span></div>
         <div class="dl-row"><span class="k">操作人</span><span class="v">{{ txn.operator || '系统' }}</span></div>
         <div class="dl-row"><span class="k">备注</span><span class="v">{{ txn.remark || '—' }}</span></div>
         <div class="dl-row"><span class="k">时间</span><span class="v yb-mono">{{ formatDateValue(txn.createdAt) }}</span></div>
@@ -60,8 +61,8 @@ function copy(text?: string) {
 
       <div v-if="txn.refType || txn.refId" class="ref-block">
         <div class="block-eyebrow">RELATED</div>
-        <div class="dl-row"><span class="k">类型</span><span class="v">{{ txn.refType || '—' }}</span></div>
-        <div class="dl-row"><span class="k">引用 ID</span><span class="v yb-mono">{{ txn.refId || '—' }}</span></div>
+        <div class="dl-row"><span class="k">类型</span><span class="v">{{ txn.refType ? referenceLabels[txn.refType] || '未知类型' : '—' }}</span></div>
+        <div class="dl-row"><span class="k">关联编号</span><span class="v yb-mono">{{ txn.refId || '—' }}</span></div>
       </div>
 
       <div v-if="txn.chainTxHash || txn.fromAddress || txn.toAddress" class="chain-block">

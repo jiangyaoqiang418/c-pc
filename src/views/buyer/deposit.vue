@@ -308,7 +308,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
         <EmptyState
           v-else
           :title="loadError || '暂无押金流水'"
-          :description="loadError ? '不会把请求失败显示成没有流水。' : undefined"
+          :description="loadError ? '请稍后重试。' : undefined"
           :action-text="loadError ? '重新加载' : undefined"
           @action="loadError && loadAll()"
         />

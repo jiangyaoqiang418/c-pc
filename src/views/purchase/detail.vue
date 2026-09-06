@@ -20,6 +20,8 @@ const id = computed(() => String(route.params.id || ''));
 const request = ref<Api.RealPurchase.Record>();
 const loading = ref(false);
 const loadError = ref('');
+const progress = ref<Api.RealPurchase.Progress>();
+const progressError = ref('');
 const claiming = ref(false);
 const canceling = ref(false);
 const cancellationPending = ref(false);
@@ -36,10 +38,20 @@ async function load() {
   const requestedUserId = userStore.currentUser?.id;
   loading.value = true;
   loadError.value = '';
+  progress.value = undefined;
+  progressError.value = '';
   try {
     const nextRequest = await purchaseApi.fetchPurchaseDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     request.value = nextRequest;
+    if (sameBusinessId(nextRequest.customerId, requestedUserId)) {
+      try {
+        const result = await purchaseApi.fetchPurchaseProgress(requestedId, { signal: isCurrent.signal });
+        if (isCurrent()) progress.value = result;
+      } catch (error) {
+        if (isCurrent()) progressError.value = error instanceof Error ? error.message : '求购进度读取失败';
+      }
+    }
   } catch {
     if (!isCurrent()) return;
     request.value = undefined;
@@ -230,7 +242,13 @@ function cancel() {
 
           <a-card class="status-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
             <div class="section-title">求购进度</div>
-            <PurchaseStatusTimeline :request="request" />
+            <a-alert v-if="progressError" type="warning">{{ progressError }}<template #action><a-button @click="load">重新加载</a-button></template></a-alert>
+            <template v-else-if="progress">
+              <PurchaseStatusTimeline :request="request" :progress="progress" />
+              <p>推送 {{ progress.pushBatchCount }} 批 · 累计触达 {{ progress.reachedBuyerCount }} 位买手</p>
+              <p>最近推送：{{ formatDateValue(progress.lastPushedAt ?? undefined) }}</p>
+            </template>
+            <p v-else>{{ isMyRequest ? '正在读取处理进度' : '处理进度仅求购发起人可查看' }}</p>
 
             <a-divider />
 

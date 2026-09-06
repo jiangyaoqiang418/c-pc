@@ -27,6 +27,20 @@ describe('提现提交校验', () => {
 });
 
 describe('walletLedgerCsv', () => {
+  it('exports backend business labels without collapsing different refund types', () => {
+    const base: Api.RealWallet.Ledger = {
+      id: '90071992547409931', userId: '90071992547409932', userName: '', type: 'DEPOSIT_IN',
+      direction: 'in', amount: '100', balanceAfter: '100', createdAt: '2026-09-05T00:00:00.000Z'
+    };
+    const csv = walletLedgerCsv([
+      { ...base, bizType: 'ORDER_REFUND', bizTypeText: '订单退款' },
+      { ...base, bizType: 'CHAIN_WITHDRAW_REFUND' }
+    ]);
+    expect(csv).toContain('"订单退款"');
+    expect(csv).toContain('"CHAIN_WITHDRAW_REFUND"');
+    expect(csv).toContain('"90071992547409931"');
+  });
+
   it('keeps test recharge semantics and escapes CSV content', () => {
     const csv = walletLedgerCsv([{
       id: 1,

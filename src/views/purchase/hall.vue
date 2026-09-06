@@ -93,6 +93,9 @@ async function load() {
       current: current.value,
       size: size.value,
       keyword: keyword.value || undefined,
+      minBudget: minBudget.value,
+      maxBudget: maxBudget.value,
+      maxDeliveryDays: expDaysFilter.value,
       signal: isCurrent.signal
     });
     if (!isCurrent()) return;
@@ -103,11 +106,7 @@ async function load() {
       void router.replace({ query: currentQuery() });
       return;
     }
-    let records = r.records;
-    if (minBudget.value != null) records = records.filter(x => Number(x.budgetAmount) >= minBudget.value!);
-    if (maxBudget.value != null) records = records.filter(x => Number(x.budgetAmount) <= maxBudget.value!);
-    if (expDaysFilter.value != null) records = records.filter(x => x.expectedDays <= expDaysFilter.value!);
-    list.value = records;
+    list.value = r.records;
     total.value = r.total;
   } catch {
     if (!isCurrent()) return;
@@ -140,6 +139,9 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   writeVersion += 1;
   claimingId.value = undefined;
+  list.value = [];
+  total.value = 0;
+  void load();
 });
 
 async function onClaim(req: Api.RealPurchase.Record) {
@@ -232,7 +234,7 @@ function changePage(page: number) {
         <p class="hero-sub">USDT 担保 · 全球买手 24h 内接单 · 三方监管</p>
         <div class="hero-stats">
           <div class="stat">
-            <div class="stat-label">进行中（未应用当前页条件）</div>
+            <div class="stat-label">进行中（当前筛选条件）</div>
             <div class="stat-value">
               <span class="num">{{ total }}</span>
               <span class="unit">单</span>
@@ -271,7 +273,7 @@ function changePage(page: number) {
     <section class="filter">
       <div class="filter-eyebrow">
         <Icon icon="lucide:filter" width="12" />
-        <span>FILTER · 筛选条件（预算、期望天数仅筛选当前页）</span>
+        <span>FILTER · 筛选条件</span>
       </div>
       <div class="filter-row">
         <div class="fi">
@@ -346,7 +348,7 @@ function changePage(page: number) {
         v-else
         icon="lucide:inbox"
         :title="loadError || '暂无进行中的求购'"
-        :description="loadError ? '不会把请求失败误显示为没有求购。' : '当前没有可接的求购任务，请稍后再来'"
+        :description="loadError ? '请稍后重试。' : '当前没有可接的求购任务，请稍后再来'"
         :action-text="loadError ? '重新加载' : undefined"
         @action="load"
       />

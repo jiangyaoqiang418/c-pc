@@ -95,7 +95,7 @@ watch(
       <div class="lbl">综合年化利率</div>
       <div class="val rate">
         {{ formatRate(annualRate) }}
-        <span class="bonus">以申购时后端返回的年化与锁定天数计算</span>
+        <span class="bonus">以申购时确认的年化收益率与锁定天数计算</span>
       </div>
     </div>
     <div class="result-row">

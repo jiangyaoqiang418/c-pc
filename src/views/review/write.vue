@@ -25,6 +25,7 @@ const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
 const reviewable = ref(false);
 const eligibilityError = ref('');
+const eligibilityReason = ref('');
 const submitting = ref(false);
 const confirmationOpen = ref(false);
 const pendingOperation = computed(() => reviewStore.getPending(orderId.value));
@@ -42,6 +43,7 @@ const reviewRouteEligible = computed(() => (reviewable.value || !!pendingReview.
 async function load() {
   reviewable.value = false;
   eligibilityError.value = '';
+  eligibilityReason.value = '';
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
   if (!userId) {
@@ -58,9 +60,10 @@ async function load() {
     order.value = nextOrder;
     if (getOrderCapabilities(nextOrder, userStore.currentUser?.id).review && !pendingReview.value) {
       try {
-        const ids = await reviewApi.findReviewableOrderIds([nextOrder.id], { signal: isCurrent.signal });
-        if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
-        reviewable.value = ids.has(String(nextOrder.id));
+        const eligibility = nextOrder.reviewEligibility;
+        if (!eligibility || String(eligibility.orderId) !== String(nextOrder.id) || typeof eligibility.reviewable !== 'boolean') throw new Error('缺少评价资格');
+        reviewable.value = eligibility.reviewable;
+        eligibilityReason.value = eligibility.reviewable ? '' : eligibility.reasonText || eligibility.reason || '当前不可评价';
       } catch {
         if (isCurrent()) eligibilityError.value = '评价资格读取失败，请重新核对';
       }
@@ -180,6 +183,7 @@ function handleEmptyAction() {
         </a-alert>
         <a-alert v-else-if="pendingOperation?.state === 'submitting'" type="info">原评价正在提交，离开页面不会取消请求，请勿重复提交。</a-alert>
         <ReviewForm v-if="reviewRouteEligible" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${orderId}`" :initial="initialReview" :submitting="submissionInFlight || confirmationOpen || submissionUnknown" @submit="onSubmit" />
+        <a-alert v-else-if="eligibilityReason" type="info" class="eligibility-alert">{{ eligibilityReason }}</a-alert>
         <a-alert v-else-if="eligibilityError" type="warning" class="eligibility-alert">
           {{ eligibilityError }}
           <template #action><a-button :loading="loading" @click="load">重新核对</a-button></template>

@@ -11,6 +11,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
 import * as realPurchaseApi from '@/service/api/purchase';
+import { fetchBusinessStats } from '@/service/api/buyer';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
@@ -22,8 +23,9 @@ const claimable = ref<Api.RealPurchase.Record[]>([]);
 const orderCounts = ref<Record<string, number>>({});
 const claimableTotal = ref<number>();
 const countsLoaded = ref(false);
-const loadErrors = reactive({ wallet: '', orders: '', counts: '', claimable: '' });
-const loadStates = reactive({ wallet: false, orders: false, counts: false, claimable: false });
+const businessStats = ref<Api.RealBuyer.BusinessStats>();
+const loadErrors = reactive({ wallet: '', orders: '', counts: '', claimable: '', stats: '' });
+const loadStates = reactive({ wallet: false, orders: false, counts: false, claimable: false, stats: false });
 const loading = computed(() => Object.values(loadStates).some(Boolean));
 const requestGuard = createLatestRequestGuard();
 
@@ -39,6 +41,7 @@ function finiteNonNegative(value: unknown) {
 }
 
 async function loadAll() {
+  businessStats.value = undefined;
   const currentUser = user.value;
   if (!currentUser) {
     requestGuard.invalidate();
@@ -59,13 +62,20 @@ async function loadAll() {
     try {
       const value = await request;
       if (isCurrentUser()) apply(value);
-    } catch {
-      if (isCurrentUser()) loadErrors[key] = message;
+    } catch (error) {
+      if (isCurrentUser()) loadErrors[key] = key === 'stats' && error instanceof Error ? error.message : message;
     } finally {
       if (isCurrentUser()) loadStates[key] = false;
     }
   }
   await Promise.all([
+    section('stats', fetchBusinessStats({}, { signal: isCurrent.signal }), value => {
+      if (value === null) return;
+      if (String(value.sellerId) !== String(userId)) throw new Error('经营数据归属不符');
+      if ([value.reviewRate, value.complaintRate, value.avgShipDurationHours, value.completedOrderCount, value.reviewedOrderCount, value.refundCount]
+        .some(item => item === undefined || item === null || String(item).trim() === '' || !Number.isFinite(Number(item)))) throw new Error('经营数据响应不完整，请重新加载');
+      businessStats.value = value;
+    }, '经营数据读取失败或无权限'),
     section('wallet', walletStore.fetchWallet(userId), () => undefined, '钱包数据加载失败'),
     section('orders', realOrderApi.fetchMyOrders({
         shopperId: userId,
@@ -145,7 +155,7 @@ const kpis = computed(() => [
 <template>
   <div class="dashboard-page shop-container">
     <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
-      {{ loadError }}。未使用空数据替代失败结果。
+      {{ loadError }}
       <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
     </a-alert>
 
@@ -196,6 +206,19 @@ const kpis = computed(() => [
         </div>
       </section>
 
+      <a-card title="我的经营数据（全部时间）" :loading="loadStates.stats">
+        <a-descriptions v-if="businessStats" :column="3" :data="[
+          { label: '评价率', value: `${businessStats.reviewRate}%` },
+          { label: '客诉率', value: `${businessStats.complaintRate}%` },
+          { label: '平均发货时长', value: `${businessStats.avgShipDurationHours} 小时` },
+          { label: '完成订单', value: String(businessStats.completedOrderCount) },
+          { label: '有效评价', value: String(businessStats.reviewedOrderCount) },
+          { label: '售后申请', value: String(businessStats.refundCount) }
+        ]" />
+        <p v-else-if="!loadStates.stats">{{ loadErrors.stats || '暂无经营数据' }}</p>
+        <p>评价率按评价/完成时间，客诉率按退款创建/订单创建时间统计；平均发货时长按发货范围内的付款至发货时长统计。</p>
+      </a-card>
+
       <!-- ============ 双栏：订单 + 求购 ============ -->
       <section class="split-grid">
         <div class="split-card">
@@ -215,7 +238,7 @@ const kpis = computed(() => [
             v-else
             icon="lucide:inbox"
             :title="loadErrors.orders || '暂无进行中订单'"
-            :description="loadErrors.orders ? '不会把请求失败显示成没有订单。' : '去求购大厅接单赚取收益'"
+            :description="loadErrors.orders ? '请稍后重试。' : '去求购大厅接单赚取收益'"
             :action-text="loadErrors.orders ? '重新加载' : undefined"
             @action="loadErrors.orders && loadAll()"
           />
@@ -237,7 +260,7 @@ const kpis = computed(() => [
             v-else
             icon="lucide:sparkles"
             :title="loadErrors.claimable || '暂无可接求购'"
-            :description="loadErrors.claimable ? '不会把请求失败显示成没有求购。' : '当前暂无可接求购'"
+            :description="loadErrors.claimable ? '请稍后重试。' : '当前暂无可接求购'"
             :action-text="loadErrors.claimable ? '重新加载' : undefined"
             @action="loadErrors.claimable && loadAll()"
           />

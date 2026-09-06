@@ -5,6 +5,7 @@ declare namespace Api.RealRefund {
     orderId: string | number;
     reason: string;
     evidenceImages?: string[];
+    idempotencyKey?: string;
   }
 
   interface RefundPageQuery {

@@ -187,7 +187,7 @@ onBeforeUnmount(() => {
           <EmptyState
             v-else
             :title="productLoadError || '当前分类暂无商品'"
-            :description="productLoadError ? '不会把请求失败误显示为没有商品。' : '试试其他分类或浏览推荐'"
+            :description="productLoadError ? '请稍后重试。' : '试试其他分类或浏览推荐'"
             :action-text="productLoadError ? '重新加载' : undefined"
             @action="selectedKeys[0] && pick(selectedKeys[0])"
           />

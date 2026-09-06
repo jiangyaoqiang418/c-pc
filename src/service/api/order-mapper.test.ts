@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { cartStorageKey, useCartStore } from '@/stores/cart';
 import { getOrderCapabilities, resolveOrderView } from '@/utils/order';
-import { createCheckoutIntent, readCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout, readPendingCheckout, pendingCheckoutStorageKey } from '@/utils/checkout';
+import { createCheckoutIntent, readCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout, readPendingCheckout, pendingCheckoutStorageKey, sumPaymentAmounts, validateGroupPayResult, isGroupPaymentComplete } from '@/utils/checkout';
 import { RequestError } from '@/service/request/type';
 import * as productApi from './product';
 import { createPurchase, fetchPurchaseDetail } from './purchase';
@@ -294,6 +294,21 @@ describe('独立结算上下文', () => {
 });
 
 describe('已创建订单付款恢复', () => {
+  it('金额十进制精确合计，支持原始精度与科学计数法', () => {
+    expect(sumPaymentAmounts(['0.1', '0.2'])).toBe('0.3');
+    expect(sumPaymentAmounts(['9007199254740993.12345678', '0.00000001'])).toBe('9007199254740993.12345679');
+    expect(sumPaymentAmounts(['1e-8', '10.00'])).toBe('10.00000001');
+    expect(sumPaymentAmounts(['0.000', '100.00'])).toBe('100');
+    expect(() => sumPaymentAmounts(['NaN'])).toThrow();
+  });
+  it('回执漏项、取消和部分付款不能冒充整组成功', () => {
+    const result: Api.RealOrder.OrderGroupPayResult = { orderGroupNo: 'g', totalCount: 1, paidCount: 1, failedCount: 0, paidAmount: '1', unpaidAmount: '0', items: [{ orderId: '1', amount: '1', success: true, status: 'PAID' }] };
+    expect(isGroupPaymentComplete(validateGroupPayResult(result, 'g', ['1']), ['1'])).toBe(true);
+    expect(() => validateGroupPayResult({ ...result, totalCount: 2 }, 'g', ['1'])).toThrow('不完整');
+    expect(isGroupPaymentComplete({ ...result, unpaidAmount: '1' }, ['1'])).toBe(false);
+    expect(isGroupPaymentComplete({ ...result, items: [{ ...result.items[0], status: 'CANCELED' }] }, ['1'])).toBe(false);
+    expect(isGroupPaymentComplete(result, ['2'])).toBe(false);
+  });
   const first = toOrderRecord({ orderId: '9007199254740993', customerId: 'customer', productId: 'product-a', status: 'CREATED', totalAmount: '10.00', quantity: 1 });
   const second = toOrderRecord({ orderId: '9007199254740994', customerId: 'customer', productId: 'product-b', status: 'CREATED', totalAmount: '20.00', quantity: 2 });
 
@@ -308,7 +323,7 @@ describe('已创建订单付款恢复', () => {
     for (const status of ['PROCURING', 'CANCELLED', 'REFUNDED'] as const) {
       const orders = [{ ...first, status }, second];
       const payment = prepareCheckoutPayment(orders, orders, 'customer', 'group');
-      expect(payment.orderGroupNo).toBeUndefined();
+      expect(payment.orderGroupNo).toBe('group');
       expect(payment.payable.map(order => order.id)).toEqual([second.id]);
     }
   });

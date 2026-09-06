@@ -11,7 +11,6 @@ import OrderActions from '@/components/order/order-actions.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
-import * as reviewApi from '@/service/api/review';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
@@ -30,6 +29,7 @@ function viewLogistics() {
 const logistics = ref<Api.RealOrder.LogisticsDTO>();
 const logisticsError = ref('');
 const reviewable = ref(false);
+const reviewReason = ref('');
 const reviewableError = ref('');
 const reviewableLoading = ref(false);
 const reviewableGuard = createLatestRequestGuard();
@@ -43,19 +43,23 @@ let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const id = computed(() => String(route.params.id || ''));
 
-async function loadReviewable() {
+async function loadReviewable(snapshot?: Api.RealOrder.Record) {
   const isCurrent = reviewableGuard.begin();
   const requestedId = order.value?.id;
   const requestedUserId = userStore.currentUser?.id;
   reviewable.value = false;
+  reviewReason.value = '';
   reviewableError.value = '';
   reviewableLoading.value = false;
   if (requestedId === undefined || requestedUserId === undefined || !permissions.value.review) return;
   reviewableLoading.value = true;
   try {
-    const result = await reviewApi.findReviewableOrderIds([requestedId], { signal: isCurrent.signal });
+    const detail = snapshot || await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || !sameBusinessId(order.value?.id, requestedId) || !sameBusinessId(userStore.currentUser?.id, requestedUserId)) return;
-    reviewable.value = result.has(String(requestedId));
+    const eligibility = detail.reviewEligibility;
+    if (!eligibility || !sameBusinessId(eligibility.orderId, requestedId) || typeof eligibility.reviewable !== 'boolean') throw new Error('缺少评价资格');
+    reviewable.value = eligibility.reviewable;
+    reviewReason.value = eligibility.reviewable ? '' : eligibility.reasonText || eligibility.reason || '当前不可评价';
   } catch {
     if (isCurrent()) reviewableError.value = '评价资格读取失败，请重新核对';
   } finally {
@@ -87,7 +91,7 @@ async function load() {
     const nextOrder = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     order.value = nextOrder;
-    void loadReviewable();
+    void loadReviewable(nextOrder);
     try {
       const nextLogistics = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
       if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
@@ -136,9 +140,6 @@ const aftersaleMeta = computed(() => {
   const aftersaleType = order.value?.aftersaleType;
   return aftersaleType ? enums.AFTERSALE_TYPE_META[aftersaleType] : undefined;
 });
-const carrierMeta = computed(() =>
-  order.value?.shippingCarrier ? enums.CARRIER_META[order.value.shippingCarrier] : undefined
-);
 interface TrackEvent {
   time: string;
   location: string;
@@ -171,11 +172,16 @@ async function pay() {
     && sameBusinessId(order.value?.id, requestedOrderId);
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(requestedOrderId);
+    const r = await orderApi.payOrder(requestedOrderId, String(order.value.totalAmount), { showError: false });
     if (!isCurrentAction()) return;
     if (r.ok) { Message.success('支付成功'); await load(); }
     else Message.error(r.message || '支付失败');
-  } catch { if (isCurrentAction()) Message.error('支付请求失败，请稍后重试'); }
+  } catch (error) {
+    if (isCurrentAction()) {
+      Message.error(error instanceof Error ? error.message : '支付结果未确认，请核对订单');
+      await load();
+    }
+  }
   finally { if (operation === actionVersion) acting.value = false; }
 }
 
@@ -285,9 +291,10 @@ function contactShopper() {
     <a-spin :loading="loading">
       <template v-if="order">
         <a-alert v-if="reviewableLoading" type="info">正在核对评价资格，不影响查看订单详情。</a-alert>
+        <a-alert v-if="reviewReason && !reviewableLoading && !reviewableError" type="info">{{ reviewReason }}</a-alert>
         <a-alert v-if="reviewableError" type="warning">
           {{ reviewableError }}
-          <template #action><a-button :loading="reviewableLoading" @click="loadReviewable">重新核对</a-button></template>
+          <template #action><a-button :loading="reviewableLoading" @click="loadReviewable()">重新核对</a-button></template>
         </a-alert>
         <a-card class="hero-card" :body-style="{ padding: '24px' }">
           <div class="hero-head">
@@ -313,7 +320,7 @@ function contactShopper() {
           <div class="section-title">物流状态</div>
           <div class="logistics-meta">
             <a-tag v-if="logistics.logisticsStatusText" color="arcoblue">{{ logistics.logisticsStatusText }}</a-tag>
-            <span class="muted">{{ logistics.carrierName || logistics.carrier || '承运方待回传' }}</span>
+            <span class="muted">{{ logistics.carrierName || logistics.carrier || '承运方待确认' }}</span>
             <span class="muted">运单号 {{ logistics.trackingNo || '—' }}</span>
           </div>
           <a-timeline v-if="trackEvents.length">

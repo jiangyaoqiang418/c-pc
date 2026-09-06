@@ -33,6 +33,12 @@ export function subscribeFinance(params: Api.RealFinance.FinanceSubscribeParams,
   return realUserRequest.post<string | number, Api.RealFinance.FinanceSubscribeParams>('/finance/orders/subscribe', params, options);
 }
 
+export async function fetchFinanceOrderByKey(idempotencyKey: string) {
+  const result = await realUserRequest.get<Api.RealFinance.FinanceOrderVO | null>('/finance/orders/by-key', { params: { idempotencyKey }, showError: false, preserveDecimals: true });
+  if (result !== null && (!result || typeof result !== 'object')) throw new Error('申购原单回查响应不完整');
+  return result;
+}
+
 export function redeemFinance(params: Api.RealFinance.FinanceRedeemParams) {
   return realUserRequest.post<string | number, Api.RealFinance.FinanceRedeemParams>('/finance/orders/redeem', params, { showError: false });
 }

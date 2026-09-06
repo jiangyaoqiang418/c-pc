@@ -74,7 +74,7 @@ function submit() {
     <template v-if="displayedOrder">
       <a-alert v-if="pending" type="warning">上次赎回结果待确认，本次只读取原锁仓状态，不会重复发送赎回。</a-alert>
       <div class="warn">
-        ⚠️ 提前赎回本金将返回可用余额，已产生利息会扣除违约费。最终到账以接口返回为准。
+        ⚠️ 提前赎回本金将返回可用余额，已产生利息会扣除违约费。最终到账以结算结果为准。
       </div>
       <a-descriptions :column="1" :data="[
         { label: '小金库订单', value: (displayedOrder.productCode || displayedOrder.id) + ' · ' + (displayedOrder.productName || '—') },

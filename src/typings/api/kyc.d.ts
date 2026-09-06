@@ -1,4 +1,14 @@
 declare namespace Api.RealKyc {
+  interface Schema {
+    version: number;
+    allowedIdTypes: Array<SubmitParams['idType']>;
+    nationalityRequired: boolean;
+    idCardBackRequired: boolean;
+    holdingPhotoRequired: boolean;
+    resubmitAfterRejectAllowed: boolean;
+    noticeText?: string | null;
+    updatedAt?: string | number;
+  }
   type Status = 'PENDING' | 'PASSED' | 'REJECTED' | string;
 
   interface KycVO {

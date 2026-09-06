@@ -8,7 +8,7 @@ import InterestPreview from '@/components/finance/interest-preview.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitKeyedFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
 
 const route = useRoute();
 const router = useRouter();
@@ -114,9 +114,8 @@ async function onSubscribe(amount: string) {
   try {
     let orderId: string | number;
     try {
-      orderId = await submitFinancialOperation(requestedUserId, `finance-subscribe:${requestedProductId}`,
-        () => financeApi.subscribeFinance({ productId: requestedProductId, amount }, { showError: false }), result => result,
-        { productId: requestedProductId, amount });
+      orderId = await submitKeyedFinancialOperation(requestedUserId, `finance-subscribe:${requestedProductId}`,
+        { productId: requestedProductId, amount }, subscriptionIntentApi);
       if (isCurrentWrite()) refreshSubmissionIssue();
     } catch (error) {
       if (isCurrentWrite()) {
@@ -142,6 +141,29 @@ async function onSubscribe(amount: string) {
   }
 }
 
+const subscriptionIntentApi = {
+  lookup: financeApi.fetchFinanceOrderByKey,
+  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => financeApi.subscribeFinance({ productId: snapshot.productId!, amount: snapshot.amount, idempotencyKey }, { showError: false })
+};
+
+async function restoreSubscription() {
+  const userId = userStore.currentUser?.id;
+  const productId = id.value;
+  if (userId === undefined || subscribing.value) return;
+  const operation = ++writeVersion;
+  subscribing.value = true;
+  try {
+    const orderId = await submitKeyedFinancialOperation(userId, `finance-subscribe:${productId}`, undefined, subscriptionIntentApi, true);
+    if (operation !== writeVersion || id.value !== productId || String(userStore.currentUser?.id) !== String(userId)) return;
+    refreshSubmissionIssue();
+    await router.push({ name: 'finance-lockup-detail', params: { id: String(orderId) } });
+  } catch (error) {
+    if (operation === writeVersion) Message.warning(error instanceof Error ? error.message : '原申购核对失败');
+  } finally {
+    if (operation === writeVersion) { subscribing.value = false; refreshSubmissionIssue(); }
+  }
+}
+
 function handleEmptyAction() {
   if (loadError.value) {
     loadAll();
@@ -154,9 +176,9 @@ function handleEmptyAction() {
 <template>
   <div class="detail-page shop-container">
     <a-alert v-if="submissionIssue" type="warning" :closable="false" class="wallet-alert">
-      {{ submissionIssue }}。请在我的锁仓核对记录；本页不会自动重新申购。
+      {{ submissionIssue }}。恢复先查原单，仅明确未落地才按原键原参重试；旧无键记录不会重发。
       <div v-if="pendingSnapshot">待核对申购：产品 {{ pendingSnapshot.productId }} · U {{ formatAmount(pendingSnapshot.amount) }}</div>
-      <template #action><a-button size="mini" @click="router.push('/finance/my-lockups')">查看我的锁仓</a-button></template>
+      <template #action><a-space><a-button size="mini" :loading="subscribing" @click="restoreSubscription">恢复原申购</a-button><a-button size="mini" @click="router.push('/finance/my-lockups')">查看我的锁仓</a-button></a-space></template>
     </a-alert>
     <a-alert v-if="loadError && product" type="error" :closable="false" class="wallet-alert">
       {{ loadError }} 当前展示上次读取的产品信息，已暂停申购。

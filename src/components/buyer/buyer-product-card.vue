@@ -85,7 +85,6 @@ function toggleShelf() {
         >
           {{ product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}
         </a-button>
-        <a-button size="small" disabled>编辑（暂未开放）</a-button>
         <a-button size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving" @click="emit('delete', product)">删除</a-button>
       </div>
     </div>

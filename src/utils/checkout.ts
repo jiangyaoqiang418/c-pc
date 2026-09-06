@@ -12,6 +12,53 @@ export interface PendingCheckout {
   firstOrderId?: string | number;
   contextId?: string;
   cartSnapshot?: CartItem[];
+  paymentResult?: Api.RealOrder.OrderGroupPayResult;
+}
+
+/** 按十进制原值相加，不使用浮点累加或截断到展示精度。 */
+export function sumPaymentAmounts(values: Array<string | number>) {
+  const parts = values.map(value => {
+    let text = String(value);
+    if (/^\d+(\.\d+)?[eE][+-]?\d+$/.test(text)) {
+      const [coefficient, exponent] = text.toLowerCase().split('e');
+      const power = Number(exponent);
+      if (!Number.isSafeInteger(power) || Math.abs(power) > 100) throw new Error('订单金额格式无效，请重新核对');
+      const [integer, fraction = ''] = coefficient.split('.');
+      const digits = integer + fraction;
+      const point = integer.length + power;
+      text = point <= 0 ? `0.${'0'.repeat(-point)}${digits}`
+        : point >= digits.length ? digits + '0'.repeat(point - digits.length) : `${digits.slice(0, point)}.${digits.slice(point)}`;
+    }
+    if (!/^\d+(\.\d+)?$/.test(text)) throw new Error('订单金额格式无效，请重新核对');
+    return text.split('.');
+  });
+  const scale = Math.max(0, ...parts.map(([, fraction = '']) => fraction.length));
+  const sum = parts.reduce((total, [integer, fraction = '']) => total + BigInt(integer + fraction.padEnd(scale, '0')), 0n);
+  const digits = sum.toString().padStart(scale + 1, '0');
+  return scale ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}`.replace(/\.?0+$/, '') || '0' : digits;
+}
+
+export function validateGroupPayResult(result: Api.RealOrder.OrderGroupPayResult, group: string, orderIds: Array<string | number>) {
+  const ids = new Set(orderIds.map(String));
+  if (!result || result.orderGroupNo !== group || !Array.isArray(result.items)
+    || ![result.totalCount, result.paidCount, result.failedCount].every(n => Number.isSafeInteger(n) && n >= 0)
+    || result.totalCount !== result.items.length || result.paidCount + result.failedCount !== result.totalCount
+    || new Set(result.items.map(item => String(item.orderId))).size !== result.items.length
+    || result.items.some(item => !ids.has(String(item.orderId)) || typeof item.success !== 'boolean')
+    || result.items.filter(item => item.success).length !== result.paidCount) {
+    throw new Error('组付款回执不完整或归属不符，请重新核对订单');
+  }
+  sumPaymentAmounts([result.paidAmount, result.unpaidAmount, ...result.items.map(item => item.amount)]);
+  return result;
+}
+
+export function isPaidOrderStatus(status: string) {
+  return ['PAID', 'SHIPPED', 'REFUND_REVIEW', 'REFUNDED', 'COMPLETED'].includes(status);
+}
+
+export function isGroupPaymentComplete(result: Api.RealOrder.OrderGroupPayResult, payableIds: Array<string | number>) {
+  return Number(result.unpaidAmount) === 0 && result.failedCount === 0
+    && payableIds.every(id => result.items.some(item => String(item.orderId) === String(id) && item.success && isPaidOrderStatus(item.status)));
 }
 
 export function pendingCheckoutStorageKey(userId: string | number) {
@@ -130,5 +177,5 @@ export function prepareCheckoutPayment(
     || !Number.isFinite(Number(order.totalAmount)) || Number(order.totalAmount) < 0)) {
     throw new Error('订单待付金额无效，请重新读取订单');
   }
-  return { changed: false, payable, orderGroupNo: payable.length === latest.length ? orderGroupNo : undefined };
+  return { changed: false, payable, orderGroupNo };
 }

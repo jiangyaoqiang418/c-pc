@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { cmsApi, enums, formatAmount, formatPoints } from '@shared';
+import { enums, formatAmount, formatPoints } from '@shared';
 import * as vipApi from '@/service/api/vip';
 import * as realAuthApi from '@/service/api/auth';
 import * as realOrderApi from '@/service/api/order';
@@ -17,7 +17,6 @@ const userStore = useUserStore();
 const vipStatus = ref<Api.RealVip.Status>();
 const totalAssets = ref<{ total?: string; account?: Api.RealWallet.Account }>();
 const orderCounts = ref<Record<string, number>>();
-const announcements = ref<Api.Cms.Announcement[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const editVisible = ref(false);
@@ -50,7 +49,6 @@ async function loadProfile() {
     vipStatus.value = undefined;
     totalAssets.value = undefined;
     orderCounts.value = undefined;
-    announcements.value = [];
     loadError.value = '';
     return;
   }
@@ -61,20 +59,17 @@ async function loadProfile() {
   vipStatus.value = undefined;
   totalAssets.value = undefined;
   orderCounts.value = undefined;
-  announcements.value = [];
-  const [vip, assets, counts, anns] = await Promise.allSettled([
+  const [vip, assets, counts] = await Promise.allSettled([
     vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal, showError: false }),
     realWalletApi.fetchWalletOverview(uid, { signal: isCurrent.signal, showError: false }),
     userStore.isBuyerActive
       ? realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal, showError: false })
-      : realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal, showError: false }),
-    cmsApi.fetchAnnouncements({ size: 3 })
+      : realOrderApi.countMyOrdersByStatus({ signal: isCurrent.signal, showError: false })
   ]);
   if (!isCurrent() || version !== profileLoadVersion) return;
   if (vip.status === 'fulfilled') vipStatus.value = vip.value;
   if (assets.status === 'fulfilled') totalAssets.value = { total: assets.value.total, account: assets.value.account };
   if (counts.status === 'fulfilled') orderCounts.value = counts.value;
-  if (anns.status === 'fulfilled') announcements.value = anns.value.records.slice(0, 3);
   if ([vip, assets, counts].some(result => result.status === 'rejected')) {
     loadError.value = '部分账户数据加载失败，请稍后重试。';
   }
@@ -289,16 +284,6 @@ const orderTabsMeta = computed(() => [
           <a-button long type="primary" class="asset-btn" @click="router.push('/wallet')">进入钱包 ›</a-button>
         </a-card>
 
-        <a-card class="ann-card" :body-style="{ padding: '20px 24px' }">
-          <div class="card-head">
-            <div class="card-title">平台公告</div>
-            <a-link role="link" tabindex="0" @click="router.push('/announcement')" @keydown.enter="router.push('/announcement')" @keydown.space.prevent="router.push('/announcement')">公告中心</a-link>
-          </div>
-          <div v-for="a in announcements" :key="a.id" class="ann-row">
-            <div class="ann-title">📢 {{ a.title }}</div>
-            <div class="ann-summary">{{ a.summary }}</div>
-          </div>
-        </a-card>
       </aside>
     </div>
 
@@ -392,8 +377,7 @@ const orderTabsMeta = computed(() => [
 }
 .order-stat-card,
 .quick-card,
-.asset-card,
-.ann-card {
+.asset-card {
   background: #fff;
   border-radius: var(--bw-card-radius);
 }
@@ -506,22 +490,5 @@ const orderTabsMeta = computed(() => [
 .asset-btn.arco-btn-primary:hover {
   background-color: var(--yb-brand-pink-2) !important;
   border-color: var(--yb-brand-pink-2) !important;
-}
-.ann-row {
-  padding: 10px 0;
-  border-bottom: 1px dashed #f2f3f5;
-}
-.ann-row:last-child {
-  border-bottom: none;
-}
-.ann-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1d2129;
-}
-.ann-summary {
-  font-size: 12px;
-  color: #86909c;
-  margin-top: 4px;
 }
 </style>

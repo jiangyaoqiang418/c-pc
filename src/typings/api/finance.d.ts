@@ -57,7 +57,7 @@ declare namespace Api.RealFinance {
     holdingCount: number;
   }
 
-  interface FinanceSubscribeParams { productId: string | number; amount: string | number; }
+  interface FinanceSubscribeParams { productId: string | number; amount: string | number; idempotencyKey?: string; }
   interface FinanceRedeemParams { id: string | number; }
   interface FinanceOrderPageQuery { pageNo?: number; pageSize?: number; status?: OrderStatus; productId?: string | number; }
   interface PageResult<T> { records: T[]; total: number; current?: number; size?: number; pageNo?: number; pageSize?: number; }

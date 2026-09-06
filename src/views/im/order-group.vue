@@ -120,7 +120,6 @@ async function load() {
       messageSyncError.value = '';
       newMessagesAvailable.value = false;
       hasOlder.value = messages.value.length < (response.total || 0);
-      void reportRead();
       await scrollToBottom();
     }
   } catch {
@@ -172,15 +171,30 @@ async function loadOlderMessages() {
   }
 }
 
+const readRequests = new Set<string>();
+const onReadVisibility = () => { void reportRead(); };
+onMounted(() => document.addEventListener('visibilitychange', onReadVisibility));
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onReadVisibility));
 async function reportRead() {
+  if (!scrollRef.value || scrollRef.value.clientHeight === 0
+    || scrollRef.value.scrollHeight - scrollRef.value.scrollTop - scrollRef.value.clientHeight > 1) return;
   const lastReadMessageId = latestServerMessageId(messages.value);
   if (!conversation.value || !lastReadMessageId || document.visibilityState !== 'visible') return;
+  const currentConversation = conversation.value;
+  const userId = userStore.currentUser?.id;
+  const version = messageWriteVersion;
+  if (userId === undefined || (currentConversation.lastReadMessageId !== undefined && compareBusinessId(lastReadMessageId, currentConversation.lastReadMessageId) <= 0)) return;
+  const readKey = `${userId}:${currentConversation.id}:${lastReadMessageId}`;
+  if (readRequests.has(readKey)) return;
+  readRequests.add(readKey);
   try {
-    await notifyApi.markConversationRead({ conversationId: conversation.value.id, lastReadMessageId });
+    await notifyApi.markConversationRead({ conversationId: currentConversation.id, lastReadMessageId });
+    if (version !== messageWriteVersion || !sameBusinessId(userId, userStore.currentUser?.id) || !sameBusinessId(conversation.value?.id, currentConversation.id)) return;
+    if (currentConversation.lastReadMessageId === undefined || compareBusinessId(lastReadMessageId, currentConversation.lastReadMessageId) > 0) currentConversation.lastReadMessageId = lastReadMessageId;
     notifyStore.scheduleUnreadRefresh();
   } catch {
-    // 拉取首页同样会推进已读，显式上报作为停留期间新消息的补充。
-  }
+    // 分页只读；上报失败保留原水位，下次可见/滚动时重试。
+  } finally { readRequests.delete(readKey); }
 }
 
 async function syncIncremental() {
@@ -212,7 +226,6 @@ async function syncIncremental() {
     });
     if (!current()) return;
     syncIncomplete.value = !complete;
-    void reportRead();
     if (!current()) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else if (receivedNewMessages) newMessagesAvailable.value = true;
@@ -231,6 +244,7 @@ async function scrollToBottom() {
   const container = scrollRef.value;
   if (!container) return;
   container.scrollTop = container.scrollHeight;
+  void reportRead();
   requestAnimationFrame(() => {
     if (scrollRef.value === container) container.scrollTop = container.scrollHeight;
   });
@@ -239,7 +253,7 @@ async function scrollToBottom() {
 function onMessageScroll() {
   followingLatest = isNearMessageBottom(scrollRef.value);
   historyAnchor = followingLatest ? undefined : captureMessageAnchor(scrollRef.value);
-  if (followingLatest) newMessagesAvailable.value = false;
+  if (followingLatest) { newMessagesAvailable.value = false; void reportRead(); }
   else historyScrollVersion += 1;
 }
 
@@ -324,8 +338,8 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId: requestedConversationId,
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
-    content: message.content,
-    mediaFileId: message.mediaFileId,
+    content: message.content ?? undefined,
+    mediaFileId: message.mediaFileId ?? undefined,
     clientMsgId
   };
   messages.value = messages.value.map(item => sameBusinessId(item.id, message.id)
@@ -390,7 +404,6 @@ notifyStore.subscribe(async event => {
     const scrollVersion = historyScrollVersion;
     const operation = messageWriteVersion;
     messages.value = mergeMessages(messages.value, event.payload);
-    void reportRead();
     if (operation !== messageWriteVersion || !sameBusinessId(conversation.value?.id, event.payload.conversationId)) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else newMessagesAvailable.value = true;

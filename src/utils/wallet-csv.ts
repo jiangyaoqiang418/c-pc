@@ -6,7 +6,7 @@ function csvCell(value: unknown) {
 }
 
 function transactionLabel(txn: Api.RealWallet.DisplayLedger) {
-  return txn.testData ? '测试模拟到账' : enums.TXN_TYPE_META[txn.type]?.label || txn.type;
+  return txn.testData ? '测试模拟到账' : ('bizType' in txn ? txn.bizTypeText || txn.bizType : undefined) || enums.TXN_TYPE_META[txn.type]?.label || txn.type;
 }
 
 export function walletLedgerCsv(records: Api.RealWallet.DisplayLedger[]) {

@@ -18,6 +18,13 @@ import {
 } from './im';
 
 describe('IM Long ID 与乐观消息', () => {
+  it('撤回清理内容和媒体，迟到原消息不能复活', () => {
+    const original = { id: '1', conversationId: 'c', content: 'qa', mediaUrl: 'qa.png', mediaFileId: 'f', duration: 3 };
+    const recalled = mergeMessages([original], { id: '1', conversationId: 'c', recalled: true });
+    const late = mergeMessages(recalled, { ...original, recalled: false });
+    expect(late[0]).toMatchObject({ recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, duration: undefined });
+    expect(conversationImageUrls(late)).toEqual([]);
+  });
   it('订单卡片二次解析保留数值 Long，缺失或无效 ID 不提供跳转', () => {
     expect(parseOrderMessageCard('{"orderId":2093370220769533954,"productTitle":"QA"}')?.orderId).toBe('2093370220769533954');
     expect(parseOrderMessageCard('{"orderId":"000123"}')?.orderId).toBe('000123');

@@ -260,10 +260,6 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO)
     messageSyncError.value = '';
     newMessagesAvailable.value = false;
     hasOlder.value = messages.value.length < (response.total || 0);
-    const currentConversation = selectedConversation.value;
-    if (currentConversation) currentConversation.unreadCount = 0;
-    refreshImUnreadFromConversations();
-    void reportRead(conversationId);
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     await scrollToBottom();
   } catch {
@@ -309,14 +305,24 @@ function refreshImUnreadFromConversations() {
   notifyStore.scheduleUnreadRefresh();
 }
 
+const readRequests = new Set<string>();
+const onReadVisibility = () => { void reportRead(); };
+onMounted(() => document.addEventListener('visibilitychange', onReadVisibility));
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onReadVisibility));
 async function reportRead(expectedConversationId?: string | number) {
   if (disposed) return;
+  if (!scrollRef.value || scrollRef.value.clientHeight === 0
+    || scrollRef.value.scrollHeight - scrollRef.value.scrollTop - scrollRef.value.clientHeight > 1) return;
   const conversation = selectedConversation.value;
   const lastReadMessageId = latestServerMessageId(messages.value);
   if (!conversation || !lastReadMessageId || document.visibilityState !== 'visible') return;
   if (expectedConversationId !== undefined && !sameBusinessId(conversation.id, expectedConversationId)) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
+  if (conversation.lastReadMessageId !== undefined && compareBusinessId(lastReadMessageId, conversation.lastReadMessageId) <= 0) return;
+  const readKey = `${requestedUserId}:${conversation.id}:${lastReadMessageId}`;
+  if (readRequests.has(readKey)) return;
+  readRequests.add(readKey);
   const operation = ++readWriteVersion;
   try {
     await notifyApi.markConversationRead({ conversationId: conversation.id, lastReadMessageId });
@@ -326,10 +332,11 @@ async function reportRead(expectedConversationId?: string | number) {
       || !sameBusinessId(selectedConversationId.value, conversation.id)
     ) return;
     conversation.lastReadMessageId = lastReadMessageId;
+    conversation.unreadCount = 0;
     notifyStore.scheduleUnreadRefresh();
   } catch {
-    // 历史页首次拉取本身也会推进已读；显式上报失败时保留当前页面，不影响消息阅读。
-  }
+    // 分页不再隐式已读；失败保留未读水位，下次可见/滚动时重试。
+  } finally { readRequests.delete(readKey); }
 }
 
 async function syncCurrentConversation() {
@@ -356,7 +363,6 @@ async function syncCurrentConversation() {
     });
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     syncIncomplete.value = !complete;
-    void reportRead(conversationId);
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else if (receivedNewMessages) newMessagesAvailable.value = true;
@@ -376,6 +382,7 @@ async function scrollToBottom() {
   const container = scrollRef.value;
   if (!container) return;
   container.scrollTop = container.scrollHeight;
+  void reportRead();
   requestAnimationFrame(() => {
     if (scrollRef.value === container) container.scrollTop = container.scrollHeight;
   });
@@ -384,7 +391,7 @@ async function scrollToBottom() {
 function onMessageScroll() {
   followingLatest = isNearMessageBottom(scrollRef.value);
   historyAnchor = followingLatest ? undefined : captureMessageAnchor(scrollRef.value);
-  if (followingLatest) newMessagesAvailable.value = false;
+  if (followingLatest) { newMessagesAvailable.value = false; void reportRead(); }
   else historyScrollVersion += 1;
 }
 
@@ -472,8 +479,8 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId,
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
-    content: message.content,
-    mediaFileId: message.mediaFileId,
+    content: message.content ?? undefined,
+    mediaFileId: message.mediaFileId ?? undefined,
     clientMsgId
   };
   messages.value = messages.value.map(item => sameBusinessId(item.id, message.id)
@@ -649,8 +656,6 @@ notifyStore.subscribe(async event => {
       const followBottom = isNearMessageBottom(scrollRef.value);
       const scrollVersion = historyScrollVersion;
       messages.value = mergeMessages(messages.value, message);
-      if (conversation) conversation.unreadCount = 0;
-      void reportRead();
       if (!sameBusinessId(selectedConversationId.value, message.conversationId) || disposed) return;
       if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
       else newMessagesAvailable.value = true;
@@ -861,7 +866,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
               <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
               <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
             </div>
-            <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '不会把请求失败误显示为没有会话。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
+            <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '请稍后重试。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
           </a-spin>
         </section>
       </div>

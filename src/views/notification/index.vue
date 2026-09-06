@@ -136,7 +136,7 @@ function openNotification(notification: Api.RealNotify.NotificationVO) {
   }
   const target = notificationRoute(notification);
   if (target) router.push(target);
-  else Message.info('该通知未提供可跳转的业务对象，已保留在通知列表');
+  else Message.info('该通知暂无详情');
 }
 
 async function readAll() {
@@ -313,7 +313,7 @@ function changePage(page: number) {
         <EmptyState
           v-else-if="!loading"
           :title="loadError || '暂无站内通知'"
-          :description="loadError ? '不会把请求失败误显示为没有通知。' : '订单和退款状态变化后会在这里提醒你'"
+          :description="loadError ? '请稍后重试。' : '订单和退款状态变化后会在这里提醒你'"
           :action-text="loadError ? '重新加载' : undefined"
           @action="load"
         />

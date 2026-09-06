@@ -57,12 +57,17 @@ declare namespace Api.RealWallet {
     pageSize?: number;
     bizGroup?: string;
     bizType?: string;
+    balanceType?: string;
+    keyword?: string;
+    startAt?: number;
+    endAt?: number;
   }
 
   type RechargeStatus = 'PENDING' | 'CONFIRMED' | 'CANCELED' | string;
   type WithdrawStatus = 'REVIEWING' | 'APPROVED' | 'SUCCESS' | 'REJECTED' | string;
 
   interface RechargeCreateParams {
+    idempotencyKey?: string;
     chain: string;
     amount: number;
   }
@@ -106,6 +111,7 @@ declare namespace Api.RealWallet {
   }
 
   interface WithdrawCreateParams {
+    idempotencyKey?: string;
     chain: 'ETH' | 'TRON' | 'BSC';
     toAddress: string;
     amount: number;

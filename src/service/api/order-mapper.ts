@@ -58,6 +58,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
 
   return {
     id,
+    reviewEligibility: dto.reviewEligibility,
     code: dto.orderNo || String(dto.orderId || ''),
     productId,
     quantity: dto.quantity,
@@ -87,8 +88,8 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     logisticsCompany: dto.logisticsCompany,
     logisticsStatus: dto.logisticsStatus,
     logisticsStatusText: dto.logisticsStatusText,
-    carrier: dto.logisticsCompanyCode as Api.RealOrder.Carrier | undefined,
-    carrierName: dto.logisticsCompany,
+    carrier: dto.logisticsCompanyCode || dto.carrier,
+    carrierName: dto.logisticsCompany || dto.carrierName,
     eta: toIsoDate(dto.eta),
     logisticsException: dto.logisticsException,
     purchaseNo: dto.purchaseNo,

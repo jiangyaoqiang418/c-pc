@@ -8,7 +8,7 @@ import * as realWalletApi from '@/service/api/wallet';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitKeyedFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
 
 const router = useRouter();
 const route = useRoute();
@@ -83,8 +83,29 @@ function formatMoney(value?: string | number) {
   return value === undefined || value === null ? '—' : `U ${formatAmount(value)}`;
 }
 
-function getId(result: Api.RealWallet.WithdrawVO | string | number) {
-  return typeof result === 'object' ? result.id : result;
+const withdrawalIntentApi = {
+  lookup: realWalletApi.fetchWithdrawByKey,
+  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => realWalletApi.createWithdraw({
+    chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: Number(snapshot.amount), idempotencyKey
+  }, { showError: false })
+};
+
+async function restoreWithdrawal() {
+  const userId = userStore.currentUser?.id;
+  if (userId === undefined || submitting.value) return;
+  const operation = ++writeVersion;
+  submitting.value = true;
+  try {
+    const id = await submitKeyedFinancialOperation(userId, 'withdraw', undefined, withdrawalIntentApi, true);
+    if (operation !== writeVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+    refreshSubmissionIssue();
+    await openDetail(id);
+    if (operation === writeVersion) await loadAll();
+  } catch (error) {
+    if (operation === writeVersion) Message.warning(error instanceof Error ? error.message : '原申请核对失败');
+  } finally {
+    if (operation === writeVersion) { submitting.value = false; refreshSubmissionIssue(); }
+  }
 }
 
 async function loadRecords() {
@@ -175,12 +196,10 @@ async function confirm() {
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
-    const created = await submitFinancialOperation(requestedUserId, 'withdraw',
-      () => realWalletApi.createWithdraw(prepared.params, { showError: false }), getId, prepared.params);
+    const id = await submitKeyedFinancialOperation(requestedUserId, 'withdraw', prepared.params, withdrawalIntentApi);
     if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
-    const id = getId(created);
-    let nextWithdrawal: Api.RealWallet.WithdrawVO | undefined = typeof created === 'object' ? created : undefined;
+    let nextWithdrawal: Api.RealWallet.WithdrawVO | undefined;
     let detailReadFailed = false;
     if (!nextWithdrawal) {
       try {
@@ -304,8 +323,9 @@ watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; }
     <h1 class="page-title">钱包转出</h1>
     <p class="hint">将平台可用余额提取到链上 USDT 钱包，到账状态以平台审核和链上确认结果为准。</p>
     <a-alert v-if="submissionIssue" type="warning" class="load-alert" :closable="false">
-      {{ submissionIssue }}。刷新记录不会自动解除待确认状态；本页不会自动补交申请。
+      {{ submissionIssue }}。恢复时先查原单，仅明确未落地才使用原键、原参数重试；旧无键记录只读核实。
       <div v-if="pendingSnapshot">待核对申请：{{ pendingSnapshot.chain }} · U {{ formatAmount(pendingSnapshot.amount) }} · {{ pendingSnapshot.toAddress }}</div>
+      <a-button size="mini" :loading="submitting" @click="restoreWithdrawal">恢复原申请</a-button>
       <template #action><a-button size="mini" :loading="loadingRecords" @click="loadRecords">刷新申请记录</a-button></template>
     </a-alert>
     <a-alert v-if="loadError" type="error" class="load-alert" :closable="false">{{ loadError }}<template #action><a-button size="mini" @click="loadAll">重新加载</a-button></template></a-alert>

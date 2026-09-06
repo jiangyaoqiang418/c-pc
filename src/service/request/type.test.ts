@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Message, Modal } from '@arco-design/web-vue';
 import { isAuthenticationFailure, isDefinitiveRejection, RequestError } from './type';
-import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, pendingDepositOperation, submitDepositOperation, withSubmissionLock } from '@/utils/financial-submission';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, pendingDepositOperation, submitDepositOperation, withSubmissionLock, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
 import { getAccessToken, realUserRequest, setAccessToken, shouldRedirectAfterAuthenticationFailure } from '.';
 import { createPinia, setActivePinia } from 'pinia';
 import * as authApi from '@/service/api/auth';
@@ -32,6 +32,67 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+describe('三类资金幂等恢复', () => {
+  function storage() {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
+    return values;
+  }
+  it.each(['withdraw', 'recharge', 'finance-subscribe:9007199254740993'] as const)('%s 未知结果跨刷新保留原键原参，null 后才同键重试', async action => {
+    storage();
+    const snapshot = action.startsWith('finance') ? { amount: '0.10', productId: '9007199254740993' } : { amount: 20, chain: 'TRON', ...(action === 'withdraw' ? { toAddress: 'qa-address' } : {}) };
+    const submit = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue('9007199254740999');
+    const lookup = vi.fn().mockResolvedValue(null);
+    await expect(submitKeyedFinancialOperation('u', action, snapshot, { submit, lookup })).rejects.toThrow('timeout');
+    const key = submit.mock.calls[0][1];
+    expect(key.length).toBeLessThanOrEqual(64);
+    await expect(submitKeyedFinancialOperation('u', action, { ...snapshot, amount: 999 }, { submit, lookup })).rejects.toThrow('尚未取得');
+    expect(await submitKeyedFinancialOperation('u', action, undefined, { submit, lookup }, true)).toBe('9007199254740999');
+    expect(submit.mock.calls[1]).toEqual([snapshot, key]);
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(key);
+    expect(financialSubmissionIssue('u', action)).toBe('');
+    expect(financialSubmissionIssue('other', action)).toBe('');
+  });
+  it('回查非空只返回原单，精度归一、参数不一致和损坏数据都不得重发', async () => {
+    storage();
+    const submit = vi.fn().mockRejectedValue(new Error('timeout'));
+    const lookup = vi.fn();
+    await expect(submitKeyedFinancialOperation('u', 'recharge', { amount: '0.10', chain: 'TRON' }, { submit, lookup })).rejects.toThrow();
+    for (const result of [undefined, {}, { id: 'r', amount: '0.2', chain: 'TRON' }, { id: 'r', amount: '0.1', chain: 'ETH' }]) {
+      lookup.mockResolvedValueOnce(result);
+      await expect(submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow();
+    }
+    lookup.mockRejectedValueOnce(new Error('offline'));
+    await expect(submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow('offline');
+    lookup.mockResolvedValueOnce({ id: 'r', amount: '0.100', chain: 'TRON' });
+    expect(await submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).toBe('r');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+  it('旧无键记录不补键，回查途中切换账号不得提交', async () => {
+    const values = storage();
+    values.set('cpc:financial-pending:u:withdraw', JSON.stringify({ attemptId: 'old', snapshot: { amount: 20, chain: 'TRON', toAddress: 'qa' } }));
+    const submit = vi.fn(), lookup = vi.fn();
+    await expect(submitKeyedFinancialOperation('u', 'withdraw', undefined, { submit, lookup }, true)).rejects.toThrow('没有幂等键');
+    expect(lookup).not.toHaveBeenCalled();
+    submit.mockRejectedValueOnce(new Error('timeout'));
+    await expect(submitKeyedFinancialOperation('u', 'recharge', { amount: 1, chain: 'TRON' }, { submit, lookup })).rejects.toThrow();
+    lookup.mockImplementation(async () => { setAccessToken('different-test-session'); return null; });
+    await expect(submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow('账号已切换');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+  it('-311 保留原键且不自动重试；原记录不允许混用另一个账号', async () => {
+    const values = storage();
+    const submit = vi.fn().mockRejectedValue(new RequestError('同键不同参数', { code: '-311', status: 400 }));
+    const lookup = vi.fn();
+    await expect(submitKeyedFinancialOperation('u', 'recharge', { amount: 1, chain: 'TRON' }, { submit, lookup })).rejects.toThrow('同键');
+    expect(financialSubmissionIssue('u', 'recharge')).not.toBe('');
+    values.set('cpc:financial-pending:other:recharge', values.get('cpc:financial-pending:u:recharge')!);
+    await expect(submitKeyedFinancialOperation('other', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow('不完整');
+    expect(lookup).not.toHaveBeenCalled();
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('实时会话隔离与全局未读', () => {
@@ -164,6 +225,53 @@ describe('资金操作结果待确认', () => {
     });
     return values;
   }
+
+  it('退款响应丢失保持原键与快照，null 回查才允许同参重试', async () => {
+    setupStorage();
+    const params = { orderId: '9007199254740993', reason: 'QA', evidenceImages: ['qa.png'] };
+    const submit = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce('r1');
+    const lookup = vi.fn().mockResolvedValue(null);
+    await expect(submitRefundIntent('u1', params, { lookup, submit })).rejects.toThrow('timeout');
+    const original = readRefundIntent('u1', params.orderId)!;
+    expect(original.params.idempotencyKey?.length).toBe(36);
+    await expect(submitRefundIntent('u1', params, { lookup, submit })).rejects.toThrow('待核对');
+    expect(await submitRefundIntent('u1', { ...params, reason: 'changed' }, { lookup, submit }, true)).toBe('r1');
+    expect(submit.mock.calls[1][0]).toEqual(original.params);
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(original.params.idempotencyKey);
+    expect(readRefundIntent('u1', params.orderId)?.receipt).toBe('r1');
+    expect(readRefundIntent('u2', params.orderId)).toBeUndefined();
+  });
+
+  it('退款回查失败、损坏、归属不符及旧无键记录不重发', async () => {
+    const storage = setupStorage();
+    const params = { orderId: 'o1', reason: 'QA', evidenceImages: [] };
+    const submit = vi.fn().mockRejectedValue(new Error('timeout'));
+    const lookup = vi.fn();
+    await expect(submitRefundIntent('u1', params, { lookup, submit })).rejects.toThrow();
+    for (const result of [undefined, { refundId: 'r1', buyerId: 'u2', orderId: 'o1', reason: 'QA' }]) {
+      lookup.mockResolvedValueOnce(result);
+      await expect(submitRefundIntent('u1', params, { lookup, submit }, true)).rejects.toThrow('不一致');
+    }
+    lookup.mockRejectedValueOnce(new Error('offline'));
+    await expect(submitRefundIntent('u1', params, { lookup, submit }, true)).rejects.toThrow('offline');
+    expect(submit).toHaveBeenCalledTimes(1);
+    const [key, raw] = [...storage.entries()].find(([key]) => key.startsWith('cpc:refund-intent:'))!;
+    const old = JSON.parse(raw); delete old.params.idempotencyKey;
+    storage.set(key, JSON.stringify(old));
+    await expect(submitRefundIntent('u1', params, { lookup, submit }, true)).rejects.toThrow('没有幂等键');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('退款回查原单成功不再次创建，-311/-312 不属于登录失效', async () => {
+    setupStorage();
+    const params = { orderId: 'o1', reason: 'QA', evidenceImages: [] };
+    const submit = vi.fn().mockRejectedValue(new Error('timeout'));
+    const lookup = vi.fn().mockResolvedValue({ refundId: 'r1', buyerId: 'u1', orderId: 'o1', reason: 'QA', evidenceImages: [] });
+    await expect(submitRefundIntent('u1', params, { lookup, submit })).rejects.toThrow();
+    expect(await submitRefundIntent('u1', params, { lookup, submit }, true)).toBe('r1');
+    expect(submit).toHaveBeenCalledTimes(1);
+    for (const code of ['-311', '-312']) expect(isAuthenticationFailure(new RequestError('conflict', { code }))).toBe(false);
+  });
 
   it('赎回响应丢失后按原锁仓核实，仍持仓不重提，确认已赎回才解除', async () => {
     setupStorage();
@@ -412,13 +520,13 @@ describe('登录失效跳转边界', () => {
     expect(Message.error).toHaveBeenCalledWith('读取超时，请重新加载');
   });
 
-  it('查询网络失败可重载，IM 首屏已读副作用不能当作纯读取', async () => {
+  it('查询网络失败可重载，IM 分页显式 false 后属于纯读取', async () => {
     setupSession();
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('offline'));
     vi.stubGlobal('fetch', fetchMock);
     await expect(realUserRequest.postQuery('/qa-page', {})).rejects.toMatchObject({ message: '网络连接异常，请检查网络后重新加载' });
     await expect(notifyApi.fetchConversationMessages({ conversationId: 'qa', pageNo: 1, pageSize: 50 }))
-      .rejects.toMatchObject({ message: '网络连接异常，未取得操作结果，请先核对当前状态' });
+      .rejects.toMatchObject({ message: '网络连接异常，请检查网络后重新加载' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

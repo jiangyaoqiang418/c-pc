@@ -8,7 +8,7 @@ import * as realOrderApi from '@/service/api/order';
 import * as realWalletApi from '@/service/api/wallet';
 import * as productApi from '@/service/api/product';
 import { readCheckoutIntent, clearCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout,
-  readPendingCheckout, pendingCheckoutStorageKey as pendingStorageKey, type PendingCheckout } from '@/utils/checkout';
+  readPendingCheckout, pendingCheckoutStorageKey as pendingStorageKey, sumPaymentAmounts, validateGroupPayResult, isGroupPaymentComplete, type PendingCheckout } from '@/utils/checkout';
 import { withSubmissionLock } from '@/utils/financial-submission';
 import { RequestError } from '@/service/request';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
@@ -59,7 +59,9 @@ const pendingCheckout = ref<PendingCheckout>();
 const pendingOrders = ref<Api.RealOrder.Record[]>([]);
 const hasCreatedOrders = computed(() => !!pendingCheckout.value?.orderIds?.length);
 const unpaidOrders = computed(() => pendingOrders.value.filter(order => getOrderCapabilities(order, userStore.currentUser?.id).pay));
-const pendingTotal = computed(() => unpaidOrders.value.reduce((sum, order) => sum + Number(order.totalAmount), 0));
+const pendingTotal = computed(() => {
+  try { return sumPaymentAmounts(unpaidOrders.value.map(order => order.totalAmount)); } catch { return ''; }
+});
 
 const checkoutItems = computed(() => route.query.contextId !== undefined
   ? contextItems.value.map(item => cart.enrich({ productId: item.productId, qty: item.quantity, selected: true, addedAt: '' }))
@@ -112,7 +114,7 @@ async function finishPaidCheckout(pending: PendingCheckout, orderId: string | nu
   if (version !== writeVersion || String(userStore.currentUser?.id) !== String(userId)) return;
   Message.success('支付成功');
   if (!clean) Message.warning('支付已成功，但本地结算记录清理失败，请以订单状态为准，勿重复购买');
-  void router.push({ name: 'checkout-success', params: { orderId: String(orderId) } }).catch(() => {
+  void router.push({ name: 'checkout-success', params: { orderId: String(orderId) }, query: pending.orderGroupNo ? { orderGroupNo: pending.orderGroupNo } : undefined }).catch(() => {
     Message.warning('支付已成功，请前往我的订单查看结果');
   });
 }
@@ -161,7 +163,7 @@ async function payPendingOrders() {
   const userId = userStore.currentUser?.id;
   if (!pending?.orderIds?.length || userId === undefined || submitting.value || loading.value || loadError.value) return;
   const orderIds = [...pending.orderIds];
-  if (!agreed.value || !unpaidOrders.value.length || !Number.isFinite(pendingTotal.value)) {
+  if (!agreed.value || !unpaidOrders.value.length || !pendingTotal.value) {
     Message.warning('请先确认已有订单的实际状态及待付金额');
     return;
   }
@@ -185,9 +187,9 @@ async function payPendingOrders() {
       }
       const payable = payment.payable;
       if (payment.orderGroupNo) {
-        await realOrderApi.payOrderGroup(payment.orderGroupNo, { showError: false });
+        await payGroup(pending, payable, isCurrent);
       } else {
-        const results = await Promise.allSettled(payable.map(order => realOrderApi.payOrder(order.id, { showError: false })));
+        const results = await Promise.allSettled(payable.map(order => realOrderApi.payOrder(order.id, String(order.totalAmount), { showError: false })));
         if (!isCurrent()) return;
         if (results.some(result => result.status === 'rejected')) throw new Error('部分订单付款未确认，请核对最新状态后重试');
       }
@@ -199,9 +201,43 @@ async function payPendingOrders() {
   } catch (error) {
     if (!isCurrent()) return;
     Message.error(error instanceof Error ? error.message : '支付结果未确认，请重新读取订单状态');
+    agreed.value = false;
     await load();
   } finally {
     if (isCurrent()) submitting.value = false;
+  }
+}
+
+async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[], isCurrent: () => boolean) {
+  const group = pending.orderGroupNo!;
+  const ids = pending.orderIds!;
+  const before = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(group), group, ids);
+  if (!isCurrent()) return;
+  const remaining = before.items.filter(item => item.status === 'CREATED');
+  const amount = sumPaymentAmounts(payable.map(order => order.totalAmount));
+  if (before.items.length !== ids.length || remaining.length !== payable.length
+    || remaining.some(item => !payable.some(order => String(order.id) === String(item.orderId)
+      && sumPaymentAmounts([order.totalAmount, 0]) === sumPaymentAmounts([item.amount, 0])))) {
+    throw new Error('订单组状态或金额已变化，请重新读取并确认剩余订单');
+  }
+  let result: Api.RealOrder.OrderGroupPayResult;
+  try {
+    result = validateGroupPayResult(await realOrderApi.payOrderGroup(group, amount, { showError: false }), group, ids);
+  } catch (error) {
+    if (!isCurrent()) return;
+    // 回查仅用于恢复当前状态，金额变化不得自动重付。
+    result = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(group), group, ids);
+    if (!isCurrent()) return;
+    pending.paymentResult = result;
+    savePendingCheckout(pending);
+    if (error instanceof RequestError && error.code === '-312') throw new Error('确认金额已失效，请重新读取并确认金额后再付款');
+    if (!isGroupPaymentComplete(result, payable.map(order => order.id))) throw error;
+  }
+  if (!isCurrent()) return;
+  pending.paymentResult = result;
+  savePendingCheckout(pending);
+  if (!isGroupPaymentComplete(result, payable.map(order => order.id))) {
+    throw new Error(`本次已付 ${result.paidCount} 笔，未成功 ${result.failedCount} 笔；请核对逐单结果后重试剩余订单`);
   }
 }
 
@@ -253,6 +289,13 @@ async function load() {
       }
       if (orders.some(order => !getOrderCapabilities(order, userId).isCustomer)) throw new Error('已有订单不属于当前顾客');
       pendingOrders.value = orders;
+      const pending = pendingCheckout.value;
+      if (pending.orderGroupNo) {
+        const result = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(pending.orderGroupNo, { signal: isCurrent.signal }), pending.orderGroupNo, pending.orderIds!);
+        if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+        pending.paymentResult = result;
+        savePendingCheckout(pending);
+      }
       return;
     }
     contextItems.value = [];
@@ -435,18 +478,25 @@ async function doSubmit() {
           pending.orderIds = orderGroup.orderIds;
           pending.firstOrderId = orderGroup.orderIds[0];
           savePendingCheckout(pending);
-          if (orderGroup.totalAmount === undefined || Number(orderGroup.totalAmount) !== Number(grandTotal.value)) {
+          if (orderGroup.totalAmount === undefined || sumPaymentAmounts([orderGroup.totalAmount]) !== sumPaymentAmounts([grandTotal.value])) {
             throw new Error('订单实际金额已变化，请在订单详情确认金额后付款');
           }
         }
+        const createdOrders = await Promise.all(pending.orderIds.map(id => realOrderApi.fetchOrderDetail(id)));
+        if (!isCurrentWrite()) return;
+        if (createdOrders.some((order, index) => String(order.id) !== String(pending.orderIds![index]))) throw new Error('订单回读对象不一致，请重新核对');
+        const payment = prepareCheckoutPayment(createdOrders, createdOrders, requestedUserId, pending.orderGroupNo);
+        if (sumPaymentAmounts(payment.payable.map(order => order.totalAmount)) !== sumPaymentAmounts([grandTotal.value])) {
+          throw new Error('订单实际金额已变化，请重新确认已有订单后付款');
+        }
         if (pending.orderGroupNo) {
-          await realOrderApi.payOrderGroup(pending.orderGroupNo, { showError: false });
+          await payGroup(pending, payment.payable, isCurrentWrite);
           if (!isCurrentWrite()) return;
         } else {
           const paymentResults = await Promise.allSettled(
-            pending.orderIds.map(id => realOrderApi.payOrder(id, { showError: false }))
+            payment.payable.map(order => realOrderApi.payOrder(order.id, String(order.totalAmount), { showError: false }))
           );
-          const failedOrderIds = pending.orderIds.filter((_, index) => paymentResults[index].status === 'rejected');
+          const failedOrderIds = payment.payable.filter((_, index) => paymentResults[index].status === 'rejected');
           if (!isCurrentWrite()) return;
           if (failedOrderIds.length) {
             savePendingCheckout(pending);
@@ -475,6 +525,7 @@ async function doSubmit() {
   } catch (error) {
     if (isCurrentWrite()) {
       Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
+      agreed.value = false;
       if (hasCreatedOrders.value) await load();
     }
   } finally {
@@ -497,11 +548,17 @@ async function doSubmit() {
           <div v-for="order in pendingOrders" :key="String(order.id)" class="step-card">
             <a-link @click="router.push({ name: 'order-detail', params: { id: String(order.id) } })">订单 {{ order.code }}</a-link>
             <OrderStatusTag :status="order.status" />
-            <p>{{ order.productTitle }} · 数量 {{ order.quantity ?? '待核对' }} · U {{ formatAmount(order.totalAmount) }}</p>
+            <p>{{ order.productTitle }} · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p>
             <p>收货地址：{{ order.shippingAddress }}</p>
           </div>
         </a-spin>
-        <p>本次待付款：{{ unpaidOrders.length }} 笔 · U {{ formatAmount(pendingTotal) }}</p>
+        <p>本次待付款：{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</p>
+        <a-alert v-if="pendingCheckout?.paymentResult" type="info">
+          上次核对回执（当前状态以上方订单为准）：
+          <div v-for="item in pendingCheckout.paymentResult.items" :key="String(item.orderId)">
+            {{ item.orderNo || item.orderId }} · U {{ item.amount }} · {{ item.status }} {{ item.message || '' }}
+          </div>
+        </a-alert>
         <a-checkbox v-if="unpaidOrders.length" v-model="agreed">已核对上述订单及待付金额</a-checkbox>
         <a-space>
           <a-button v-if="unpaidOrders.length" type="primary" :disabled="!agreed || loading || !!loadError" :loading="submitting" @click="payPendingOrders">支付上述待付款订单</a-button>
@@ -598,7 +655,6 @@ async function doSubmit() {
           {{ walletError }}；商品、收货地址及协议选择保持不变。
           <template #action><a-button size="mini" :loading="walletLoading" :disabled="loading || submitting || confirmationPending" @click="loadWallet">重新读取余额</a-button></template>
         </a-alert>
-        <p class="pay-meta">当前 Swagger 仅提供钱包余额支付，OKX 支付入口将在后端提供真实支付契约后开放。</p>
         <a-alert
           v-if="selfSoldItems.length"
           type="error"

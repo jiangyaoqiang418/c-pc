@@ -336,7 +336,7 @@ async function changePrice() {
         <EmptyState
           v-else
           :title="loadError || '该状态下没有订单'"
-          :description="loadError ? '不会把请求失败误显示为没有订单。' : '去求购大厅接单或等待顾客通过商品下单'"
+          :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'"
           :action-text="loadError ? '重新加载' : undefined"
           @action="load"
         />

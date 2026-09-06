@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { fetchCarriers } from '@/service/api/order';
+import { createLatestRequestGuard } from '@/utils/latest-request';
 import { Message } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 
@@ -25,18 +27,37 @@ const form = reactive<{
   purchaseVouchers: string[];
   shipVouchers: string[];
   remark: string;
-}>({ carrier: 'SF', carrierName: '', trackingNumber: '', eta: '', purchaseNo: '', purchaseVouchers: [], shipVouchers: [], remark: '' });
+}>({ carrier: '', carrierName: '', trackingNumber: '', eta: '', purchaseNo: '', purchaseVouchers: [], shipVouchers: [], remark: '' });
 
-const CARRIER_OPTIONS: Api.RealOrder.Carrier[] = [
-  'SF', 'JD', 'EMS', 'YTO', 'ZTO', 'STO', 'YUNDA', 'JITU',
-  'DHL', 'UPS', 'FEDEX', 'USPS', 'YAMATO', 'SAGAWA', 'JAPAN_POST', 'OTHER'
-];
+const carriers = ref<Api.RealOrder.CarrierDTO[]>([]);
+const carrierLoading = ref(false);
+const carrierError = ref('');
+const carrierGuard = createLatestRequestGuard();
+const selectedCarrier = computed(() => carriers.value.find(item => item.code === form.carrier));
+async function loadCarriers() {
+  const isCurrent = carrierGuard.begin();
+  carrierLoading.value = true;
+  carrierError.value = '';
+  try {
+    const result = await fetchCarriers({ signal: isCurrent.signal });
+    if (!isCurrent() || !props.visible) return;
+    carriers.value = result;
+    if (!form.carrier) form.carrier = result.find(item => item.defaultCarrier)?.code || '';
+    if (!result.length) carrierError.value = '暂无启用的承运商，暂不可发货';
+  } catch {
+    if (isCurrent()) { carriers.value = []; carrierError.value = '承运商读取失败，请重新加载'; }
+  } finally { if (isCurrent()) carrierLoading.value = false; }
+}
+onBeforeUnmount(carrierGuard.invalidate);
+watch(() => form.carrier, () => { form.carrierName = ''; });
 
 watch(
-  () => props.visible,
-  v => {
+  [() => props.visible, () => props.order?.id],
+  ([v]) => {
+    carrierGuard.invalidate();
+    carriers.value = [];
     if (v) {
-      form.carrier = 'SF';
+      form.carrier = '';
       form.carrierName = '';
       form.trackingNumber = '';
       form.eta = '';
@@ -44,24 +65,29 @@ watch(
       form.purchaseVouchers = [];
       form.shipVouchers = [];
       form.remark = '';
+      void loadCarriers();
     }
-  }
+  }, { immediate: true }
 );
 
 function submit() {
   if (!props.order || props.submitting || uploading.value) return false;
+  if (carrierLoading.value || carrierError.value || !selectedCarrier.value) {
+    Message.warning('请先读取并选择启用的承运商');
+    return false;
+  }
   if (form.trackingNumber.trim().length < 6) {
     Message.warning('请输入有效的运单号（至少 6 位）');
     return false;
   }
-  if (form.carrier === 'OTHER' && !form.carrierName.trim()) {
+  if (selectedCarrier.value.customNameRequired && !form.carrierName.trim()) {
     Message.warning('请选择其他承运商时请填写承运商名称');
     return false;
   }
   emit('confirm', {
     id: props.order.id,
     carrier: form.carrier,
-    carrierName: form.carrierName.trim() || undefined,
+    carrierName: selectedCarrier.value.customNameRequired ? form.carrierName.trim() : undefined,
     trackingNo: form.trackingNumber.trim(),
     eta: form.eta || undefined,
     purchaseNo: form.purchaseNo.trim() || undefined,
@@ -79,7 +105,7 @@ function submit() {
     :visible="visible"
     title="上传发货信息"
     :ok-loading="props.submitting"
-    :ok-button-props="{ disabled: uploading }"
+    :ok-button-props="{ disabled: uploading || carrierLoading || !!carrierError || !selectedCarrier }"
     ok-text="确认发货"
     @update:visible="(v) => $emit('update:visible', v)"
     :on-before-ok="submit"
@@ -90,17 +116,18 @@ function submit() {
         填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹
       </a-alert>
       <a-form :model="form" layout="vertical" :disabled="submitting">
+        <a-alert v-if="carrierError" type="warning">{{ carrierError }}<template #action><a-button :loading="carrierLoading" @click="loadCarriers">重新加载</a-button></template></a-alert>
         <a-form-item label="物流公司" required>
-          <a-radio-group v-model="form.carrier">
-            <a-radio v-for="c in CARRIER_OPTIONS" :key="c" :value="c">
-              {{ c }}
+          <a-radio-group v-model="form.carrier" :disabled="carrierLoading">
+            <a-radio v-for="c in carriers" :key="c.code" :value="c.code">
+              {{ c.name }}
             </a-radio>
           </a-radio-group>
         </a-form-item>
         <a-form-item label="运单号" required>
           <a-input v-model="form.trackingNumber" placeholder="请输入运单号" />
         </a-form-item>
-        <a-form-item v-if="form.carrier === 'OTHER'" label="承运商名称" required><a-input v-model="form.carrierName" placeholder="请输入承运商名称" /></a-form-item>
+        <a-form-item v-if="selectedCarrier?.customNameRequired" label="承运商名称" required><a-input v-model="form.carrierName" placeholder="请输入承运商名称" /></a-form-item>
         <a-form-item label="预计送达时间"><a-date-picker v-model="form.eta" show-time value-format="x" style="width: 100%" /></a-form-item>
         <a-form-item label="采购单号"><a-input v-model="form.purchaseNo" placeholder="可选，用于采购核对" /></a-form-item>
         <a-form-item label="采购凭证"><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></a-form-item>

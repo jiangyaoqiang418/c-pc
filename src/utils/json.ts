@@ -3,7 +3,7 @@
  * 字符串下发，但 Swagger 仍标为 int64；REST 与 WebSocket 统一通过该
  * 方法兜底，避免会话、消息和订单 ID 发生精度丢失。
  */
-export function parseJsonPreservingLong<T>(text: string): T {
+export function parseJsonPreservingLong<T>(text: string, preserveDecimals = false): T {
   let inString = false;
   let escaped = false;
   let normalized = '';
@@ -23,9 +23,10 @@ export function parseJsonPreservingLong<T>(text: string): T {
       continue;
     }
 
-    const match = text.slice(index).match(/^-?\d{16,}(?=\s*[,}\]])/);
+    const match = text.slice(index).match(/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?(?=\s*[,}\]])/);
     if (match) {
-      normalized += `"${match[0]}"`;
+      const keepRaw = /^-?\d{16,}$/.test(match[0]) || (preserveDecimals && /[.eE]/.test(match[0]));
+      normalized += keepRaw ? `"${match[0]}"` : match[0];
       index += match[0].length - 1;
       continue;
     }

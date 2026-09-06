@@ -3,9 +3,9 @@ import { fetchMergeSourcePages, resolvePageSize, toPageTotal } from './page';
 import { realOrderRequest, realUserRequest, realNotifyRequest } from '@/service/request';
 import { sendConversationMessage } from './notify';
 import { findReviewableOrderIds, submitReview, replyReview, createReviewAppeal } from './review';
-import { fetchMyOrders } from './order';
+import { fetchMyOrders, payOrder, payOrderGroup, fetchCarriers } from './order';
 import { fetchRechargePage, fetchWalletLedger, fetchWithdrawPage, fetchWalletOverview, prepareWithdrawal } from './wallet';
-import { fetchHall } from './purchase';
+import { fetchHall, fetchMyPurchases } from './purchase';
 import { fetchMyPointLogs, fetchPointRules } from './point';
 import { fetchCurrentUser, updateProfile, prepareRegistration } from './auth';
 import { prepareAddress } from './address';
@@ -15,10 +15,77 @@ import { RequestError, isDefinitiveRejection } from '@/service/request/type';
 import { financeRedemptionIssue, financeSubscriptionIssue } from './finance';
 import { createRecharge } from './wallet';
 import { submitBuyerApplication } from './buyer';
+import { fetchKycSchema, kycSubmissionIssue } from './kyc';
+import { fetchRechargeByKey, fetchWithdrawByKey } from './wallet';
+import { fetchFinanceOrderByKey } from './finance';
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('本轮交互边界', () => {
+  it('钱包桶和日期关键词透传服务端，返回总数和记录不再二次筛选', async () => {
+    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1 }] });
+    const result = await fetchWalletLedger({ current: 2, size: 10, bucket: 'lockedFinance', keyword: ' QA ', fromAt: '2026-09-05', toAt: '2026-09-05' });
+    expect(post.mock.calls[0][1]).toMatchObject({ pageNo: 2, balanceType: 'FINANCE_LOCKED', keyword: 'QA', startAt: new Date('2026-09-05T00:00:00').getTime(), endAt: new Date('2026-09-05T23:59:59.999').getTime() });
+    expect(result.total).toBe(21);
+    expect(result.records[0].id).toBe('9007199254740993');
+  });
+  it('积分多行为、扣分 false 和零时间戳不丢失，登录人由后端限定', async () => {
+    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 0, records: [] });
+    await fetchMyPointLogs({ userId: 'u', behaviors: ['CONSUME', 'RECHARGE'], earned: false, fromAt: '0', toAt: '0' });
+    expect(post.mock.calls[0][1]).toMatchObject({ behaviorCodes: ['CONSUME', 'RECHARGE'], earned: false, startAt: 0, endAt: 0 });
+    expect(post.mock.calls[0][1]).not.toHaveProperty('userId');
+  });
+  it('KYC 按配置校验护照背面、国籍、手持及驳回重提，不回退固定规则', async () => {
+    const schema: Api.RealKyc.Schema = { version: 1, allowedIdTypes: ['PASSPORT'], nationalityRequired: false, idCardBackRequired: false, holdingPhotoRequired: false, resubmitAfterRejectAllowed: true };
+    const form: Api.RealKyc.SubmitParams = { idType: 'PASSPORT', realName: 'QA', idNo: 'QA', idCardFrontFileId: '9007199254740993' };
+    expect(kycSubmissionIssue(schema, form, 'none')).toBe('');
+    expect(kycSubmissionIssue({ ...schema, idCardBackRequired: true }, form)).toContain('背面');
+    expect(kycSubmissionIssue({ ...schema, holdingPhotoRequired: true }, form)).toContain('手持');
+    expect(kycSubmissionIssue({ ...schema, nationalityRequired: true }, form)).toContain('国籍');
+    expect(kycSubmissionIssue({ ...schema, resubmitAfterRejectAllowed: false }, form, 'rejected')).toContain('不允许');
+    expect(kycSubmissionIssue({ ...schema, allowedIdTypes: ['ID_CARD'] }, form)).toContain('证件类型');
+    expect(kycSubmissionIssue(undefined, form)).toContain('配置');
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue(schema);
+    expect(await fetchKycSchema()).toBe(schema);
+    get.mockResolvedValueOnce({ ...schema, holdingPhotoRequired: undefined });
+    await expect(fetchKycSchema()).rejects.toThrow('不完整');
+  });
+  it('三类原单回查仅明确 null 表示未落地，缺失或失败不转为空', async () => {
+    const get = vi.spyOn(realUserRequest, 'get');
+    for (const lookup of [fetchRechargeByKey, fetchWithdrawByKey, fetchFinanceOrderByKey]) {
+      get.mockResolvedValueOnce(null);
+      expect(await lookup('qa-key')).toBeNull();
+      get.mockResolvedValueOnce(undefined);
+      await expect(lookup('qa-key')).rejects.toThrow('不完整');
+      get.mockRejectedValueOnce(new Error('offline'));
+      await expect(lookup('qa-key')).rejects.toThrow('offline');
+    }
+  });
+  it('付款传确认金额且保留组付款的部分结果对象', async () => {
+    const result = { orderGroupNo: 'g', totalCount: 2, paidCount: 1, failedCount: 1, paidAmount: '0.1', unpaidAmount: '0.2', items: [] };
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(result);
+    expect(await payOrderGroup('g', '0.3')).toBe(result);
+    expect(post.mock.calls[0].slice(0, 2)).toEqual(['/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3' }]);
+    post.mockResolvedValueOnce('9007199254740993');
+    await payOrder('9007199254740993', '0.12345678');
+    expect(post.mock.calls[1].slice(0, 2)).toEqual(['/orders/pay', { id: '9007199254740993', confirmedAmount: '0.12345678' }]);
+  });
+  it('求购筛选透传零预算及交付上限，状态作用于后端总数', async () => {
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue({ pageNo: 1, pageSize: 20, total: 0, records: [] });
+    await fetchHall({ minBudget: 0, maxBudget: 10, maxDeliveryDays: 7 });
+    expect(post.mock.calls[0][1]).toMatchObject({ minBudget: 0, maxBudget: 10, maxDeliveryDays: 7 });
+    expect(post.mock.calls[0][1]).not.toHaveProperty('statuses');
+    await fetchMyPurchases('u', ['cancelled']);
+    expect(post.mock.calls[1][1]).toMatchObject({ statuses: ['VOID', 'CANCELED'] });
+  });
+  it('动态字典支持新编码，排序并剔除停用项，不使用固定回退', async () => {
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue([
+      { code: 'NEW', enabled: true, sortNo: 20 }, { code: 'OFF', enabled: false, sortNo: 0 }, { code: 'DEFAULT', enabled: true, sortNo: 1 }
+    ]);
+    expect((await fetchCarriers()).map(item => item.code)).toEqual(['DEFAULT', 'NEW']);
+    get.mockRejectedValueOnce(new Error('offline'));
+    await expect(fetchCarriers()).rejects.toThrow('offline');
+  });
   it('IM发送允许页面依据实时确认处理错误，保留原请求标识与失败原因', async () => {
     const error = new RequestError('timeout', { code: 'REQUEST_TIMEOUT' });
     const send = vi.spyOn(realNotifyRequest, 'post').mockRejectedValue(error);
@@ -255,7 +322,8 @@ describe('积分原始行为边界', () => {
       { id: '2', userId: '1', behaviorCode: 'CONSUME', score: 2, balanceAfter: 3 }
     ] });
     const result = await fetchMyPointLogs({ userId: '1', behaviors: ['CONSUME', 'RECHARGE'] });
-    expect(result.records.map(record => record.id)).toEqual(['2']);
+    expect(result.records.map(record => record.id)).toEqual(['1', '2']);
+    expect(result.records[0].behavior).toBe('QA_NEW_BEHAVIOR');
     vi.spyOn(realUserRequest, 'get').mockResolvedValue([
       { behaviorCode: 'QA_NEW_BEHAVIOR', name: '测试新规则', score: 3 },
       { behaviorCode: 'CONSUME', name: '消费规则', score: 1 }
@@ -353,32 +421,31 @@ describe('多条件分页实际页大小', () => {
   });
 });
 
-describe('评价资格深分页', () => {
-  it('按实际页大小继续查询，找到当前订单后停止', async () => {
+describe('评价资格批量查询', () => {
+  it('按订单 ID 映射，不依赖返回顺序，保留 Long ID', async () => {
     const request = vi.spyOn(realOrderRequest, 'post')
-      .mockResolvedValueOnce({ records: [{ orderId: '9007199254740991' }], total: 3, pageSize: 1 })
-      .mockResolvedValueOnce({ records: [{ orderId: '9007199254740993' }], total: 3, pageSize: 1 });
-    expect(await findReviewableOrderIds(['9007199254740993'])).toEqual(new Set(['9007199254740993']));
+      .mockResolvedValueOnce([{ orderId: '2', reviewable: false, reason: 'ALREADY_REVIEWED', reviewId: 'deleted' }, { orderId: '9007199254740993', reviewable: true }]);
+    expect(await findReviewableOrderIds(['9007199254740993', '2'])).toEqual(new Set(['9007199254740993']));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.slice(0, 2)).toEqual(['/reviews/eligibility', { orderIds: ['9007199254740993', '2'] }]);
+  });
+
+  it('响应漏项不能当作无资格', async () => {
+    vi.spyOn(realOrderRequest, 'post').mockResolvedValue([]);
+    await expect(findReviewableOrderIds(['3'])).rejects.toThrow('漏项');
+  });
+
+  it('超过 200 个自动分批，异常资格不默认为 false', async () => {
+    const request = vi.spyOn(realOrderRequest, 'post').mockImplementation(async (_url, params) =>
+      (params as { orderIds: string[] }).orderIds.map(orderId => ({ orderId, reviewable: true })) as never);
+    expect((await findReviewableOrderIds(Array.from({ length: 201 }, (_, i) => String(i)))).size).toBe(201);
     expect(request).toHaveBeenCalledTimes(2);
-    expect(request.mock.calls[1]?.[1]).toEqual({ pageNo: 2, pageSize: 1 });
+    request.mockResolvedValueOnce([{ orderId: '3' }]);
+    await expect(findReviewableOrderIds(['3'])).rejects.toThrow('不完整');
   });
 
-  it('没有当前目标时查询至末页，不把缺页当作无资格', async () => {
-    vi.spyOn(realOrderRequest, 'post')
-      .mockResolvedValueOnce({ records: [{ orderId: '1' }], total: 2, pageSize: 1 })
-      .mockResolvedValueOnce({ records: [], total: 2, pageSize: 1 });
-    await expect(findReviewableOrderIds(['3'])).rejects.toThrow('分页不完整');
-  });
-
-  it('分页期间总数变化时要求重新核对，不返回错误资格', async () => {
-    vi.spyOn(realOrderRequest, 'post')
-      .mockResolvedValueOnce({ records: [{ orderId: '1' }], total: 2, pageSize: 1 })
-      .mockResolvedValueOnce({ records: [{ orderId: '3' }], total: 3, pageSize: 1 });
-    await expect(findReviewableOrderIds(['3'])).rejects.toThrow('列表已变化');
-  });
-
-  it('真实空列表返回无资格；取消读取后不继续查询', async () => {
-    const request = vi.spyOn(realOrderRequest, 'post').mockResolvedValue({ records: [], total: 0, pageSize: 50 });
+  it('明确拒绝返回无资格；取消读取后不继续查询', async () => {
+    const request = vi.spyOn(realOrderRequest, 'post').mockResolvedValue([{ orderId: '1', reviewable: false, reason: 'WINDOW_EXPIRED' }]);
     expect(await findReviewableOrderIds(['1'])).toEqual(new Set());
     const controller = new AbortController();
     controller.abort();
