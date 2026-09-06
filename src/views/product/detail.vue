@@ -786,7 +786,7 @@ async function favorite() {
   padding: 16px 24px 0;
   border-bottom: 1px solid var(--yb-hairline);
   position: sticky;
-  top: 64px;
+  top: 0;
   background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(12px);
   z-index: 5;
