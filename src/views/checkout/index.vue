@@ -162,7 +162,6 @@ async function payPendingOrders() {
   const pending = pendingCheckout.value;
   const userId = userStore.currentUser?.id;
   if (!pending?.orderIds?.length || userId === undefined || submitting.value || loading.value || loadError.value) return;
-  const orderIds = [...pending.orderIds];
   if (!agreed.value || !unpaidOrders.value.length || !pendingTotal.value) {
     Message.warning('请先确认已有订单的实际状态及待付金额');
     return;
@@ -176,24 +175,18 @@ async function payPendingOrders() {
       if (!isCurrent()) return;
       const stored = readPendingCheckout(userId);
       if (!stored || stored.idempotencyKey !== pending.idempotencyKey) throw new Error('结算记录已在其他页面变化，请重新读取已有订单');
-      const latest = await Promise.all(orderIds.map(id => realOrderApi.fetchOrderDetail(id)));
-      if (!isCurrent()) return;
-      const payment = prepareCheckoutPayment(confirmedOrders, latest, userId, pending.orderGroupNo);
-      pendingOrders.value = latest;
-      if (payment.changed) {
-        agreed.value = false;
-        Message.warning('已有订单状态或金额已更新，请重新确认');
-        return;
-      }
-      const payable = payment.payable;
-      if (payment.orderGroupNo) {
-        await payGroup(pending, payable, isCurrent);
-      } else {
-        const results = await Promise.allSettled(payable.map(order => realOrderApi.payOrder(order.id, String(order.totalAmount), { showError: false })));
-        if (!isCurrent()) return;
-        if (results.some(result => result.status === 'rejected')) throw new Error('部分订单付款未确认，请核对最新状态后重试');
-      }
-      if (!isCurrent()) return;
+      const paid = await payCheckoutOrders(pending, userId, isCurrent, latest => {
+        const payment = prepareCheckoutPayment(confirmedOrders, latest, userId, pending.orderGroupNo);
+        pendingOrders.value = latest;
+        if (payment.changed) {
+          agreed.value = false;
+          Message.warning('已有订单状态或金额已更新，请重新确认');
+          return;
+        }
+        return payment.payable;
+      }, () => '部分订单付款未确认，请核对最新状态后重试');
+      if (!paid || !isCurrent()) return;
+      const { latest, payable } = paid;
       const purchasedProducts = new Set(latest.filter(order => !['CANCELLED', 'REFUNDED'].includes(order.status)).map(order => String(order.productId)));
       await finishPaidCheckout(pending, payable[0].id,
         pending.cartSnapshot?.filter(item => purchasedProducts.has(String(item.productId))));
@@ -208,7 +201,37 @@ async function payPendingOrders() {
   }
 }
 
-async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[], isCurrent: () => boolean) {
+async function payCheckoutOrders(pending: PendingCheckout, userId: string | number, isCurrent: () => boolean,
+  prepare: (latest: Api.RealOrder.Record[]) => Api.RealOrder.Record[] | undefined, failureMessage: (count: number) => string) {
+  const ids = [...(pending.orderIds || [])];
+  return realOrderApi.withOrderPayment(userId, ids, pending.orderGroupNo, async payment => {
+    if (!isCurrent()) return;
+    const stored = readPendingCheckout(userId);
+    if (!stored || stored.idempotencyKey !== pending.idempotencyKey || stored.orderGroupNo !== pending.orderGroupNo
+      || stored.orderIds?.length !== ids.length || stored.orderIds.some((id, index) => String(id) !== String(ids[index]))) {
+      throw new Error('原结算订单已变化，请重新读取');
+    }
+    const latest = await Promise.all(ids.map(id => realOrderApi.fetchOrderDetail(id)));
+    if (!isCurrent()) return;
+    if (latest.some((order, index) => String(order.id) !== String(ids[index]))) throw new Error('订单回读对象不一致，请重新核对');
+    const payable = prepare(latest);
+    if (!payable || !isCurrent()) return;
+    if (pending.orderGroupNo) {
+      await payGroup(pending, payable, isCurrent, payment);
+    } else {
+      const results = await Promise.allSettled(payable.map(order => payment.payOrder(order.id, String(order.totalAmount), { showError: false })));
+      if (!isCurrent()) return;
+      const failedCount = results.filter(result => result.status === 'rejected').length;
+      if (failedCount) {
+        savePendingCheckout(pending);
+        throw new Error(failureMessage(failedCount));
+      }
+    }
+    if (isCurrent()) return { latest, payable };
+  });
+}
+
+async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[], isCurrent: () => boolean, payment: realOrderApi.OrderPaymentActions) {
   const group = pending.orderGroupNo!;
   const ids = pending.orderIds!;
   const before = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(group), group, ids);
@@ -222,7 +245,7 @@ async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[
   }
   let result: Api.RealOrder.OrderGroupPayResult;
   try {
-    result = validateGroupPayResult(await realOrderApi.payOrderGroup(group, amount, { showError: false }), group, ids);
+    result = validateGroupPayResult(await payment.payOrderGroup(amount, { showError: false }), group, ids);
   } catch (error) {
     if (!isCurrent()) return;
     // 回查仅用于恢复当前状态，金额变化不得自动重付。
@@ -482,27 +505,14 @@ async function doSubmit() {
             throw new Error('订单实际金额已变化，请在订单详情确认金额后付款');
           }
         }
-        const createdOrders = await Promise.all(pending.orderIds.map(id => realOrderApi.fetchOrderDetail(id)));
-        if (!isCurrentWrite()) return;
-        if (createdOrders.some((order, index) => String(order.id) !== String(pending.orderIds![index]))) throw new Error('订单回读对象不一致，请重新核对');
-        const payment = prepareCheckoutPayment(createdOrders, createdOrders, requestedUserId, pending.orderGroupNo);
-        if (sumPaymentAmounts(payment.payable.map(order => order.totalAmount)) !== sumPaymentAmounts([grandTotal.value])) {
-          throw new Error('订单实际金额已变化，请重新确认已有订单后付款');
-        }
-        if (pending.orderGroupNo) {
-          await payGroup(pending, payment.payable, isCurrentWrite);
-          if (!isCurrentWrite()) return;
-        } else {
-          const paymentResults = await Promise.allSettled(
-            payment.payable.map(order => realOrderApi.payOrder(order.id, String(order.totalAmount), { showError: false }))
-          );
-          const failedOrderIds = payment.payable.filter((_, index) => paymentResults[index].status === 'rejected');
-          if (!isCurrentWrite()) return;
-          if (failedOrderIds.length) {
-            savePendingCheckout(pending);
-            throw new Error(`已创建订单，其中 ${failedOrderIds.length} 笔待付款。请检查余额后重试，系统不会重复下单。`);
+        const paid = await payCheckoutOrders(pending, requestedUserId, isCurrentWrite, createdOrders => {
+          const payment = prepareCheckoutPayment(createdOrders, createdOrders, requestedUserId, pending.orderGroupNo);
+          if (sumPaymentAmounts(payment.payable.map(order => order.totalAmount)) !== sumPaymentAmounts([grandTotal.value])) {
+            throw new Error('订单实际金额已变化，请重新确认已有订单后付款');
           }
-        }
+          return payment.payable;
+        }, count => `已创建订单，其中 ${count} 笔待付款。请检查余额后重试，系统不会重复下单。`);
+        if (!paid) return;
         const firstOrderId = pending.firstOrderId;
         if (!isCurrentWrite()) return;
         await finishPaidCheckout(pending, firstOrderId ?? pending.orderIds[0], pending.cartSnapshot);

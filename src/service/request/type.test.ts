@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Message, Modal } from '@arco-design/web-vue';
 import { isAuthenticationFailure, isDefinitiveRejection, RequestError } from './type';
-import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, pendingDepositOperation, submitDepositOperation, withSubmissionLock, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, pendingDepositOperation, submitDepositOperation, withSubmissionLock, withOrderSubmissionLocks, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
 import { getAccessToken, realOrderRequest, realUserRequest, setAccessToken, shouldRedirectAfterAuthenticationFailure } from '.';
 import { createPinia, setActivePinia } from 'pinia';
 import * as authApi from '@/service/api/auth';
@@ -15,7 +15,7 @@ import * as notifyApi from '@/service/api/notify';
 import { redeemFinanceWithReadback } from '@/service/api/finance';
 import { useReviewStore } from '@/stores/review';
 import * as reviewApi from '@/service/api/review';
-import { confirmReceipt as confirmOrderReceipt } from '@/service/api/order';
+import { confirmReceipt as confirmOrderReceipt, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
 
 beforeEach(() => {
   vi.spyOn(authApi, 'fetchUserAccountInfo').mockResolvedValue({ points: undefined, vipLevel: undefined, accountInfoUnavailable: true });
@@ -251,6 +251,160 @@ describe('资金操作结果待确认', () => {
     });
     return values;
   }
+
+  it('独立付款与同订单退款在途互斥，不发出付款请求', async () => {
+    setupStorage();
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('o');
+    let release!: () => void;
+    const running = withSubmissionLock('cpc:refund-intent:u:o', () => new Promise<void>(resolve => { release = resolve; }));
+    await Promise.resolve();
+    try {
+      await expect(payOrder('o', '1', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      expect(post).not.toHaveBeenCalled();
+    } finally { release(); await running; }
+  });
+
+  it('订单组锁固定排序、保留Long原值，重叠组被拒而无关订单及账号可执行', async () => {
+    setupStorage();
+    const originalIds = ['9007199254740999', '9007199254740993'];
+    let release!: () => void;
+    const running = withOrderSubmissionLocks('u', originalIds, () => new Promise<void>(resolve => { release = resolve; }));
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    expect(vi.mocked(navigator.locks.request).mock.calls.slice(0, 2).map(call => call[0])).toEqual([
+      'cpc:submission:cpc:refund-intent:u:9007199254740993', 'cpc:submission:cpc:refund-intent:u:9007199254740999'
+    ]);
+    expect(originalIds).toEqual(['9007199254740999', '9007199254740993']);
+    const blocked = vi.fn();
+    try {
+      await expect(withOrderSubmissionLocks('u', [...originalIds].reverse(), blocked)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(withOrderSubmissionLocks('u', ['unrelated'], async () => 'ok')).resolves.toBe('ok');
+      await expect(withOrderSubmissionLocks('other', originalIds, async () => 'ok')).resolves.toBe('ok');
+      expect(blocked).not.toHaveBeenCalled();
+    } finally { release(); await running; }
+    expect(blocked).not.toHaveBeenCalled();
+  });
+
+  it('获取后续订单锁失败即释放先取得锁，不等待或重放付款', async () => {
+    setupStorage();
+    let release!: () => void;
+    const running = withSubmissionLock('cpc:refund-intent:u:b', () => new Promise<void>(resolve => { release = resolve; }));
+    await Promise.resolve();
+    const submit = vi.fn();
+    try {
+      await expect(withOrderSubmissionLocks('u', ['b', 'a'], submit)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(withOrderSubmissionLocks('u', ['a'], async () => 'released')).resolves.toBe('released');
+    } finally { release(); await running; }
+    await Promise.resolve();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('逐个获取订单锁时会话变化保持零付款回调并释放原锁', async () => {
+    setupStorage();
+    setAccessToken('qa-lock-a');
+    const request = vi.mocked(navigator.locks.request);
+    const original = request.getMockImplementation()!;
+    let calls = 0;
+    request.mockImplementation(((key: string, options: unknown, callback: (lock: unknown) => unknown) => {
+      if (++calls === 2) setAccessToken('qa-lock-b');
+      return (original as any)(key, options, callback);
+    }) as any);
+    const submit = vi.fn();
+    await expect(withOrderSubmissionLocks('u', ['a', 'b'], submit)).rejects.toMatchObject({ code: 'SESSION_CHANGED' });
+    expect(submit).not.toHaveBeenCalled();
+    request.mockImplementation(original);
+    await expect(withOrderSubmissionLocks('u', ['a', 'b'], async () => 'released')).resolves.toBe('released');
+  });
+
+  it('空坏重复订单及不安全数字不取锁不付款', async () => {
+    setupStorage();
+    const submit = vi.fn();
+    for (const ids of [[], [''], ['  '], [NaN], [Number.MAX_SAFE_INTEGER + 1], ['a', 'a'], [1, '1']]) {
+      await expect(withOrderSubmissionLocks('u', ids, submit)).rejects.toThrow();
+    }
+    await expect(withOrderSubmissionLocks('', ['a'], submit)).rejects.toThrow();
+    expect(navigator.locks.request).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('独立付款在途阻挡同单退款收货及结算组，失败释放且不自动重付', async () => {
+    setupStorage();
+    let fail!: (error: Error) => void;
+    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
+    const running = payOrder('o', '1', 'u').catch(error => error);
+    await vi.waitFor(() => expect(fail).toBeTypeOf('function'));
+    const refundSubmit = vi.fn(), callback = vi.fn();
+    try {
+      await expect(submitRefundIntent('u', { orderId: 'o', reason: 'QA', evidenceImages: [] }, { lookup: async () => null, submit: refundSubmit })).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(confirmOrderReceipt('o', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(withOrderPayment('u', ['o', 'p'], 'g', callback)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      expect(refundSubmit).not.toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
+    } finally { fail(new Error('unknown')); await running; }
+    expect(post).toHaveBeenCalledTimes(1);
+    await expect(withOrderSubmissionLocks('u', ['o'], async () => 'released')).resolves.toBe('released');
+  });
+
+  it('持锁付款仅限原订单原组和有效会话，结束后保存的函数不能再提交', async () => {
+    setupStorage();
+    setAccessToken('qa-pay-a');
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('a');
+    let expired!: OrderPaymentActions;
+    await withOrderPayment('u', ['a'], undefined, async payment => {
+      expired = payment;
+      await expect(payment.payOrder('other', '1')).rejects.toThrow('不属于原结算');
+      await expect(payment.payOrderGroup('1')).rejects.toThrow('原订单组缺失');
+      setAccessToken('qa-pay-b');
+      await expect(payment.payOrder('a', '1')).rejects.toThrow('会话已切换');
+    });
+    await expect(expired.payOrder('a', '1')).rejects.toThrow('已结束');
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('历史逐单付款不重入锁，部分失败保留逐单结果且所有结果返回前不释放', async () => {
+    setupStorage();
+    let finish!: () => void;
+    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async (_path, body: any) => {
+      if (body.id === 'b') throw new Error('rejected');
+      await new Promise<void>(resolve => { finish = resolve; });
+      return body.id;
+    });
+    const running = withOrderPayment('u', ['b', 'a'], undefined, payment => Promise.allSettled([
+      payment.payOrder('a', '0.1', { showError: false }), payment.payOrder('b', '0.2', { showError: false })
+    ]));
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+    try {
+      await expect(withOrderSubmissionLocks('u', ['b'], async () => 'blocked')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      expect(post).toHaveBeenCalledTimes(2);
+    } finally { finish(); }
+    expect((await running).map(result => result.status)).toEqual(['fulfilled', 'rejected']);
+    await expect(withOrderSubmissionLocks('u', ['a', 'b'], async () => 'released')).resolves.toBe('released');
+    expect(post.mock.calls[0][1]).toEqual({ id: 'a', confirmedAmount: '0.1' });
+  });
+
+  it('付款前读取和结果回查均持有原组订单锁，读取失败不付款并释放', async () => {
+    const values = setupStorage();
+    const refundParams = { orderId: 'a', reason: 'QA', evidenceImages: [] };
+    values.set('cpc:refund-intent:u:a', JSON.stringify({ userId: 'u', params: { ...refundParams, idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' } }));
+    const refundSubmit = vi.fn(), lookup = vi.fn().mockResolvedValue(null);
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue({ orderGroupNo: 'g', paidCount: 1, failedCount: 1 });
+    const blocked = async () => {
+      await expect(payOrder('a', '1', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(confirmOrderReceipt('b', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(submitRefundIntent('u', refundParams, { submit: refundSubmit, lookup }, true)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+    };
+    const result = await withOrderPayment('u', ['a', 'b'], 'g', async payment => {
+      await blocked();
+      const result = await payment.payOrderGroup('0.3', { showError: false });
+      await blocked();
+      return result;
+    });
+    expect(result).toEqual({ orderGroupNo: 'g', paidCount: 1, failedCount: 1 });
+    await expect(withOrderPayment('u', ['a', 'b'], 'g', async () => { throw new Error('read failed'); })).rejects.toThrow('read failed');
+    await expect(withOrderSubmissionLocks('u', ['a', 'b'], async () => 'released')).resolves.toBe('released');
+    expect(post).toHaveBeenCalledExactlyOnceWith('/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3' }, { showError: false, preserveDecimals: true });
+    expect(refundSubmit).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+  });
 
   it('同订单退款在途或未决阻挡收货，无关订单不受影响', async () => {
     setupStorage();

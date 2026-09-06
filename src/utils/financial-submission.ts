@@ -18,6 +18,22 @@ export async function withSubmissionLock<T>(key: string, submit: () => Promise<T
 }
 
 type FinancialAction = 'withdraw' | 'recharge' | `finance-subscribe:${string}` | `finance-redeem:${string}` | `order-confirm:${string}`;
+
+/** 结算锁之后按固定顺序取得原订单锁；失败立即释放，不排队，也不转换业务 ID。 */
+export async function withOrderSubmissionLocks<T>(userId: string | number, orderIds: readonly (string | number)[], submit: () => Promise<T>): Promise<T> {
+  if (!validReceipt(userId) || !Array.isArray(orderIds) || !orderIds.length || !orderIds.every(validReceipt)) {
+    throw new Error('付款订单或账号无效，请重新核对');
+  }
+  const ids = [...new Set(orderIds.map(String))].sort();
+  if (ids.length !== orderIds.length) throw new Error('付款订单存在重复，请重新核对');
+  const session = getAccessToken();
+  const acquire = (index: number): Promise<T> => {
+    if (getAccessToken() !== session) throw new RequestError('登录会话已切换，本次尚未提交，请重新确认', { code: 'SESSION_CHANGED' });
+    return index === ids.length ? submit() : withSubmissionLock(refundIntentKey(userId, ids[index]), () => acquire(index + 1));
+  };
+  return acquire(0);
+}
+
 export interface PendingDeposit {
   kind: 'pay' | 'refund';
   amount: number;

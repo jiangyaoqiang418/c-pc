@@ -192,7 +192,7 @@ async function pay() {
     && sameBusinessId(order.value?.id, requestedOrderId);
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(requestedOrderId, String(order.value.totalAmount), { showError: false });
+    const r = await orderApi.payOrder(requestedOrderId, String(order.value.totalAmount), requestedUserId, { showError: false });
     if (!isCurrentAction()) return;
     if (r.ok) { Message.success('支付成功'); await load(); }
     else Message.error(r.message || '支付失败');

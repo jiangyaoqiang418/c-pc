@@ -60,7 +60,7 @@ async function pay() {
   const operation = ++actionVersion;
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(requestedOrderId, String(props.order.totalAmount), { showError: false });
+    const r = await orderApi.payOrder(requestedOrderId, String(props.order.totalAmount), requestedUserId, { showError: false });
     if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
     if (r.ok) {
       Message.success('支付成功');

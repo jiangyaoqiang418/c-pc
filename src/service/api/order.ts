@@ -1,7 +1,8 @@
 import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
-import { submitOrderConfirmation } from '@/utils/financial-submission';
+import { submitOrderConfirmation, withOrderSubmissionLocks } from '@/utils/financial-submission';
+import { getAccessToken } from '@/service/request/token';
 
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
@@ -105,18 +106,54 @@ export function createOrders(
   );
 }
 
-export async function payOrder(id: string | number, confirmedAmount: string, options: { showError?: boolean } = {}) {
+async function submitOrderPayment(id: string | number, confirmedAmount: string, options: { showError?: boolean } = {}) {
   const receipt = await realOrderRequest.post<string | number, Api.RealOrder.OrderPayParams>('/orders/pay', { id, confirmedAmount }, options);
   if (!((typeof receipt === 'string' && receipt.trim()) || (typeof receipt === 'number' && Number.isSafeInteger(receipt)))) throw new Error('付款回执缺失，请核对原订单状态');
   return { ok: true, message: '' };
 }
 
-export function payOrderGroup(orderGroupNo: string, confirmedAmount: string, options: { showError?: boolean } = {}) {
+function submitOrderGroupPayment(orderGroupNo: string, confirmedAmount: string, options: { showError?: boolean } = {}) {
   return realOrderRequest.post<Api.RealOrder.OrderGroupPayResult, Api.RealOrder.OrderGroupPayParams>(
     '/orders/group/pay',
     { orderGroupNo, confirmedAmount },
     { ...options, preserveDecimals: true }
   );
+}
+
+export interface OrderPaymentActions {
+  payOrder: typeof submitOrderPayment;
+  payOrderGroup: (confirmedAmount: string, options?: { showError?: boolean }) => Promise<Api.RealOrder.OrderGroupPayResult>;
+}
+
+/** 原始付款请求仅在持有原订单锁的回调内可用，结算逐单付款不再次嵌套取得同锁。 */
+export function withOrderPayment<T>(userId: string | number, orderIds: readonly (string | number)[], orderGroupNo: string | undefined,
+  action: (payment: OrderPaymentActions) => Promise<T>): Promise<T> {
+  const ids = new Set(orderIds.map(String));
+  return withOrderSubmissionLocks(userId, orderIds, async () => {
+    const session = getAccessToken();
+    let active = true;
+    const assertActive = () => {
+      if (!active || getAccessToken() !== session) throw new Error('原付款操作已结束或会话已切换，请重新核对');
+    };
+    try {
+      return await action({
+        payOrder: async (id, amount, options) => {
+          assertActive();
+          if (!ids.has(String(id))) throw new Error('付款订单不属于原结算，请重新核对');
+          return submitOrderPayment(id, amount, options);
+        },
+        payOrderGroup: async (amount, options) => {
+          assertActive();
+          if (!orderGroupNo?.trim()) throw new Error('原订单组缺失，请重新核对');
+          return submitOrderGroupPayment(orderGroupNo, amount, options);
+        }
+      });
+    } finally { active = false; }
+  });
+}
+
+export function payOrder(id: string | number, confirmedAmount: string, userId: string | number, options: { showError?: boolean } = {}) {
+  return withOrderPayment(userId, [id], undefined, payment => payment.payOrder(id, confirmedAmount, options));
 }
 
 export function fetchOrderGroupPayResult(orderGroupNo: string, options: { signal?: AbortSignal } = {}) {

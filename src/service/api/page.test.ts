@@ -3,7 +3,7 @@ import { fetchMergeSourcePages, resolvePageSize, toPageTotal } from './page';
 import { realOrderRequest, realUserRequest, realNotifyRequest } from '@/service/request';
 import { sendConversationMessage } from './notify';
 import { findReviewableOrderIds, submitReview, replyReview, createReviewAppeal } from './review';
-import { fetchMyOrders, payOrder, payOrderGroup, fetchCarriers } from './order';
+import { fetchMyOrders, payOrder, withOrderPayment, fetchCarriers } from './order';
 import { fetchRechargePage, fetchWalletLedger, fetchWithdrawPage, fetchWalletOverview, prepareWithdrawal } from './wallet';
 import { fetchHall, fetchMyPurchases } from './purchase';
 import { fetchMyPointLogs, fetchPointRules } from './point';
@@ -19,7 +19,7 @@ import { fetchKycSchema, kycSubmissionIssue } from './kyc';
 import { fetchRechargeByKey, fetchWithdrawByKey } from './wallet';
 import { fetchFinanceOrderByKey } from './finance';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('本轮交互边界', () => {
   it('钱包桶和日期关键词透传服务端，返回总数和记录不再二次筛选', async () => {
@@ -62,12 +62,14 @@ describe('本轮交互边界', () => {
     }
   });
   it('付款传确认金额且保留组付款的部分结果对象', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal('navigator', { locks: { request: (_key: string, _options: unknown, callback: (lock: unknown) => unknown) => callback({}) } });
     const result = { orderGroupNo: 'g', totalCount: 2, paidCount: 1, failedCount: 1, paidAmount: '0.1', unpaidAmount: '0.2', items: [] };
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(result);
-    expect(await payOrderGroup('g', '0.3')).toBe(result);
+    expect(await withOrderPayment('u', ['a', 'b'], 'g', payment => payment.payOrderGroup('0.3'))).toBe(result);
     expect(post.mock.calls[0].slice(0, 2)).toEqual(['/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3' }]);
     post.mockResolvedValueOnce('9007199254740993');
-    await payOrder('9007199254740993', '0.12345678');
+    await payOrder('9007199254740993', '0.12345678', 'u');
     expect(post.mock.calls[1].slice(0, 2)).toEqual(['/orders/pay', { id: '9007199254740993', confirmedAmount: '0.12345678' }]);
   });
   it('求购筛选透传零预算及交付上限，状态作用于后端总数', async () => {
