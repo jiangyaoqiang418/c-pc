@@ -22,7 +22,7 @@
 | 4 KYC schema/材料/私有资源 | user/schema 实际 version=4，证件类型和四个布尔配置已核对 | 已接配置及共享规则，旧 access 保护保留 | 配置驱动字段/上传/提交入口；提交前检查新版本，规则拒绝保留草稿 | 旧两账号 detail 文件缺失；新建独立 QA 账号表单可编辑、缺材料阻止提交并保留草稿。用户桌面 PNG 上传受浏览器 `Not allowed` 限制，文件未送出，未申请认证；签名刷新/配置切换仍未验 |
 | 5 IM 已读/撤回 | notify messages/page.markRead 默认 false；read 独立写接口 | 显式 false；撤回终态清媒体/正文，支持 null | 两种会话页仅可见到底后上报，失败不预清未读 | Chrome 双账号文本真实发送；非当前会话未读 1，打开可见后总未读 60→59、发送端已读 1；本批文本已撤回，双端刷新不恢复。隐藏预取/媒体/独立群和故障重连仍未完整验收 |
 | 6 求购筛选 | my/page statuses 与预算/天数；hall 恒待接单，已核对 | 透传筛选，移除当前页过滤 | 后端 total 分页/状态计数，URL 保留；同步清除仅当前页的旧文案 | Chrome 全部 6→待审核 0 条、状态总数和刷新条件保持；参数测试通过，非空深分页未验 |
-| 6 钱包/积分筛选及导出 | 账户桶/关键词、多行为/earned、含边界毫秒日期均已核对 | 服务端筛选，保留 false/0；不再当前页补过滤 | 同条件 records/total，URL 保留；CSV 当前页及后端原始业务名称 | Chrome 钱包 39→2→0 条、积分 1→多行为 0 条，条件刷新保留，空结果禁导出；深分页和本轮实际下载未验 |
+| 6 钱包/积分筛选及导出 | 账户桶/关键词、多行为/earned、含边界毫秒日期均已核对 | 服务端筛选，保留 false/0；不再当前页补过滤 | 同条件 records/total，URL 保留；CSV 当前页及后端原始业务名称 | 9月5日钱包39→2→0、积分1→多行为0、刷新及空结果禁导出已验；9月6日单选小金库存入40→1、URL/刷新/抽屉关闭/重置已验，321字节单行CSV实际下载，Long/类型/金额/余额/时间一致并清理；深分页及失败/在途导出未验 |
 | 7 评价资格 | 详情 reviewEligibility、批量 eligibility（最多200）递归字段已核对 | 已接入，不扫描待评价列表判资格 | 详情/列表/写评价已用；失败/漏项不当无资格，不强跳已删除 reviewId | 乱序/漏项/分批测试通过；身份/期限/删除实测待验 |
 | 8 求购处理进度 | my/progress.timeline 节点及推送汇总已核对 | 已封装，ID 校验、时间正序 | 本人详情已接入，非本人不查询 | Chrome 从本人列表进入已有隔离求购，真实显示提交→取消两个节点、推送 0 批/触达 0；审核/接单/非零推送及非本人边界仍未验 |
 | 8 我的经营统计 | stats/mine，时间为含边界毫秒；比率已为百分数 | BusinessStatsDTO 已适配 | 工作台已接入，保留 >100% 的合法口径与独立错误区域 | Chrome 实际评价率 12.50%、客诉率 33.33%、平均发货 0.87 小时，完成 8/评价 1/售后 4；范围边界、>100% 及错误分支尚未真实验收 |
@@ -50,7 +50,7 @@
 | 仅退款 | order：`/orders/refunds/create`、`/orders/refunds/bought/page`、`/orders/refunds/detail`、`/orders/refunds/cancel`及by-key | 真实REFUNDED不映射归档；旧简单退款/Mock不回退 | 买家创建/详情/撤销和买手售后列表调用 | 历史申请/撤销/驳回/同意与余额冻结解冻/库存回补已验；新幂等场景见上表。不冒充全部五类售后工单 |
 | 钱包/充值/提现 | user：`/wallet/overview`、`/wallet/ledger/page`、`/recharge/chains`、`/recharge/address`、充值/提现create/detail/page及by-key | 账户桶、原bizGroup/bizType、缺金额保持未知、真实业务ID | 钱包/流水、买手钱包、充值/提现页已调用 | 非空资金和测试到账、提现申请/审核/驳回历史已验；地址配置、取消申报、真实链上出款及新幂等未完成 |
 | 买手押金 | user：`/buyer/deposit/page`、`/buyer/deposit/pay`、`/buyer/deposit/refund`及wallet overview | 原方向/金额/幂等键、真实流水ID；不支持独立划转则不伪造 | 押金页、工作台及买手钱包 | 历史1 U缴纳→余额/流水→退还恢复已验；故障同键恢复/跨标签仍待验 |
-| 理财 | user：GET产品list/detail、订单overview/detail；POST订单subscribe/page/redeem及by-key | 产品在售/费用校验，缺金额不补零；赎回只核实同ID | 产品/详情/锁仓列表/详情及提前赎回调用 | 历史订阅/赎回证据不覆盖新幂等；9月6日产品读取失败，非空产品/费用/恢复待验 |
+| 理财 | user：GET产品list/detail、订单overview/detail；POST订单subscribe/page/redeem及by-key | 产品在售/费用校验，缺金额不补零；赎回只核实同ID | 产品/详情/锁仓列表/详情及提前赎回调用 | 历史订阅/赎回不覆盖新幂等；9月6日纠正错误详情地址后，正式/finance自然显示暂无可申购产品、锁仓/待结算收益0.00，Network三个子请求各HTTP200；随后同文档QA身份独立API读取三个code=1，产品数组0项、收益4个金额字段为合法零字符串且holdingCount为数值0、钱包distribution内FINANCE_LOCKED.amount为合法零字符串；不是同一页面响应体捕获。非空产品/费用/恢复及受控异常待验 |
 | 评价 | order：`/reviews/create`、`mine/page`、`received/page`、`detail`、`delete`、`reply`、`appeals/create`；storefront评分/评价 | 按订单幂等；批量/详情资格；原快照恢复、不提交无契约标签 | 商品、我的评价、写评价/回复申诉调用 | 历史顾客提交、买手回复/申诉、后台裁定回读已验；新资格和真实丢响应恢复仍未完整验 |
 | 通知 | notify：page/unread/count/read/read-all/delete/clear | bizType/bizId/templateCode安全路由、账号隔离 | 通知中心/角标/关联业务详情调用 | 既有通知跳同单、筛选/角标已验；历史缺字段及跨页批量动作待验 |
 | IM/实时 | notify：conversations/page/by-order/delete；messages/page/send/read/recall/incr；files/upload；WebSocket | mediaFileId、clientMsgId、Long水位、撤回终态；READY心跳协商，token仅经子协议 | 主消息/独立订单群、媒体与实时Store调用 | 历史文本/图片/WS双端、迟到发送成功已验；新版可见阅读文本已验，语音/媒体撤回/隐藏预取/深补偿未完整验 |
@@ -59,7 +59,8 @@
 ## 页面展示补验与交付边界
 
 - 2026-09-06 Chrome本地定向验证：工作台Hero→KPI→经营统计；钱包行、抽屉及类型选项中文；积分行为标签；求购计数；个人中心空公告卡移除；AI/公告/帮助安全返回；协议演示声明/关闭/query不改变同意。
-- 钱包筛选提交出现额外选中项且URL/结果未变化：**本次未验**，不采用9月5日成功结果冒充本次通过，也不直接认定稳定业务故障。
-- KYC本次保持认证通过但资料读取失败；理财本次产品读取失败，不能沿用9月5日空列表结论；充值本批未复验。
+- 钱包筛选提交已补验：40→小金库存入1条，types=FINANCE_LOCK、刷新/详情关闭保持、重置40；额外误选未复现。CSV经原生Chrome按钮实际下载并核对11列、1行、Long/金额/类型/余额及时间，测试文件已清理；插件勾选/下载无效不等于页面缺陷。
+- KYC本次保持认证通过但资料读取失败；理财此前错误访问/finance/products命中finance-detail(id=products)，不能认定列表失败；正式/finance自然空态与三个HTTP200已复验。充值本批未复验。
 - 全51路由做了源码定向检索，不是全51路由真实验收。无新订单、资金、上传、审核或配置写入；未修改真实金额、Long ID、业务状态、协议正文/同意、权限、三级分类和提交保护。
+- 理财源码收口：products/list、orders/overview、wallet/overview失败名称分别提示；收益概览失败清旧值，pendingInterest缺失不补0。live FinanceOverviewVO未约定省略即零，H5同字段亦作校验。类型与184项既有测试通过；正确入口自然页面和独立API空数组/合法零已验，受控异常未验。用户切到H5后停止原生点击，后台控制无局部网络拦截能力，已关闭自建标签释放浏览器；补证仅用本机明确测试记录在临时进程登录并只读，没有浏览器凭据读取、仓库调试脚本或业务数据写入。
 - 界面移除原因及恢复标准集中在计划PC问题表；其余原有并发/上传/资金/IM未验分支集中在“交互保护与剩余定向验收”，不再复制历史流水账。

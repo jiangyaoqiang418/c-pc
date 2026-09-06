@@ -46,9 +46,14 @@ async function loadAll() {
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
     if (productsResult.status === 'fulfilled') products.value = productsResult.value;
     productLoadError.value = productsResult.status === 'rejected';
-    if (overviewResult.status === 'fulfilled') overview.value = overviewResult.value;
-    if ([productsResult, overviewResult, walletResult].some(result => result.status === 'rejected')) {
-      loadError.value = '部分小金库数据加载失败，请检查网络后重试。';
+    overview.value = overviewResult.status === 'fulfilled' ? overviewResult.value : undefined;
+    const failedSections = [
+      productsResult.status === 'rejected' ? '产品列表' : '',
+      overviewResult.status === 'rejected' ? '收益概览' : '',
+      walletResult.status === 'rejected' ? '钱包余额' : ''
+    ].filter(Boolean);
+    if (failedSections.length) {
+      loadError.value = `${failedSections.join('、')}加载失败，请稍后重试。${productLoadError.value && products.value.length ? '当前产品为上次读取结果。' : ''}`;
     }
   } finally {
     if (isCurrent()) loading.value = false;
@@ -76,8 +81,9 @@ const bestApy = computed(() => {
 });
 
 const totalAccruedInterest = computed(() => {
-  if (!overview.value) return undefined;
-  const value = Number(overview.value.pendingInterest || 0);
+  const pendingInterest = overview.value?.pendingInterest;
+  if (pendingInterest === undefined || pendingInterest === null || String(pendingInterest).trim() === '') return undefined;
+  const value = Number(pendingInterest);
   return Number.isFinite(value) ? value.toFixed(2) : '—';
 });
 
