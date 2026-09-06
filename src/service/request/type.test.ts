@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Message, Modal } from '@arco-design/web-vue';
 import { isAuthenticationFailure, isDefinitiveRejection, RequestError } from './type';
 import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, pendingDepositOperation, submitDepositOperation, withSubmissionLock, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
-import { getAccessToken, realUserRequest, setAccessToken, shouldRedirectAfterAuthenticationFailure } from '.';
+import { getAccessToken, realOrderRequest, realUserRequest, setAccessToken, shouldRedirectAfterAuthenticationFailure } from '.';
 import { createPinia, setActivePinia } from 'pinia';
 import * as authApi from '@/service/api/auth';
 import { useUserStore } from '@/stores/user';
@@ -15,6 +15,7 @@ import * as notifyApi from '@/service/api/notify';
 import { redeemFinanceWithReadback } from '@/service/api/finance';
 import { useReviewStore } from '@/stores/review';
 import * as reviewApi from '@/service/api/review';
+import { confirmReceipt as confirmOrderReceipt } from '@/service/api/order';
 
 beforeEach(() => {
   vi.spyOn(authApi, 'fetchUserAccountInfo').mockResolvedValue({ points: undefined, vipLevel: undefined, accountInfoUnavailable: true });
@@ -54,6 +55,12 @@ describe('三类资金幂等恢复', () => {
     expect(lookup).toHaveBeenCalledExactlyOnceWith(key);
     expect(financialSubmissionIssue('u', action)).toBe('');
     expect(financialSubmissionIssue('other', action)).toBe('');
+    expect(await submitKeyedFinancialOperation('u', action, undefined, { submit, lookup }, true)).toBe('9007199254740999');
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(await submitKeyedFinancialOperation('u', action, snapshot, { submit, lookup })).toBe('9007199254740999');
+    expect(submit.mock.calls[2][0]).toEqual(snapshot);
+    expect(submit.mock.calls[2][1]).not.toBe(key);
   });
   it('回查非空只返回原单，精度归一、参数不一致和损坏数据都不得重发', async () => {
     storage();
@@ -92,6 +99,25 @@ describe('三类资金幂等恢复', () => {
     await expect(submitKeyedFinancialOperation('other', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow('不完整');
     expect(lookup).not.toHaveBeenCalled();
     expect(submit).toHaveBeenCalledTimes(1);
+  });
+  it.each(['withdraw', 'recharge', 'finance-subscribe:9007199254740993'] as const)('%s 存在但损坏的原记录不当作无操作，不覆盖或换键提交', async action => {
+    const values = storage();
+    const key = `cpc:financial-pending:u:${action}`;
+    const snapshot = action.startsWith('finance') ? { amount: '0.10', productId: '9007199254740993' }
+      : { amount: 20, chain: 'TRON', ...(action === 'withdraw' ? { toAddress: 'qa-address' } : {}) };
+    const submit = vi.fn().mockResolvedValue('9007199254740999'), lookup = vi.fn();
+    for (const raw of ['', 'null', 'false', '0', '{}', '[]', '{broken',
+      JSON.stringify({ receipt: 'old-receipt' }),
+      JSON.stringify({ userId: 'u', action, receipt: 'old-receipt' }),
+      JSON.stringify({ userId: 'other', action, snapshot, receipt: 'old-receipt', idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' })]) {
+      values.set(key, raw);
+      expect(financialSubmissionIssue('u', action)).not.toBe('');
+      await expect(submitKeyedFinancialOperation('u', action, snapshot, { submit, lookup })).rejects.toThrow();
+      await expect(submitKeyedFinancialOperation('u', action, undefined, { submit, lookup }, true)).rejects.toThrow();
+      expect(values.get(key)).toBe(raw);
+    }
+    expect(submit).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
   });
 });
 
@@ -226,6 +252,111 @@ describe('资金操作结果待确认', () => {
     return values;
   }
 
+  it('同订单退款在途或未决阻挡收货，无关订单不受影响', async () => {
+    setupStorage();
+    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async (_path, body: any) => body.id);
+    let fail!: (error: Error) => void;
+    const refund = submitRefundIntent('u', { orderId: 'o', reason: 'QA', evidenceImages: [] }, {
+      lookup: async () => null, submit: () => new Promise<string>((_, reject) => { fail = reject; })
+    }).catch(error => error);
+    await Promise.resolve();
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+    await expect(confirmOrderReceipt('other', 'u')).resolves.toMatchObject({ ok: true });
+    fail(new Error('timeout'));
+    await refund;
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('退款');
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(readRefundIntent('u', 'o')?.receipt).toBeUndefined();
+  });
+  it('收货在途及未知结果阻挡同单退款首次和null恢复，只读完成后解除', async () => {
+    const values = setupStorage();
+    let fail!: (error: Error) => void;
+    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue({ orderId: 'o', customerId: 'u', status: 'SHIPPED' });
+    const first = confirmOrderReceipt('o', 'u').catch(error => error);
+    await Promise.resolve();
+    const params = { orderId: 'o', reason: 'QA', evidenceImages: [] };
+    const submit = vi.fn().mockResolvedValue('r'), lookup = vi.fn().mockResolvedValue(null);
+    await expect(submitRefundIntent('u', params, { submit, lookup })).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+    fail(new Error('timeout'));
+    expect(await first).toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
+    await expect(submitRefundIntent('u', params, { submit, lookup })).rejects.toThrow('收货结果');
+    values.set('cpc:refund-intent:u:o', JSON.stringify({ userId: 'u', params: { ...params, idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' } }));
+    await expect(submitRefundIntent('u', params, { submit, lookup }, true)).rejects.toThrow('收货结果');
+    expect(submit).not.toHaveBeenCalled();
+    get.mockResolvedValue({ orderId: 'o', customerId: 'u', status: 'COMPLETED' });
+    await expect(confirmOrderReceipt('o', 'u', true)).resolves.toMatchObject({ ok: true });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
+    await expect(confirmOrderReceipt('o', 'u', true)).rejects.toThrow('记录已变化');
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+  it('收货未知回查拒绝空值错单错账号和未完成，原键记录保留且不重发', async () => {
+    const values = setupStorage();
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('wrong-id');
+    const get = vi.spyOn(realOrderRequest, 'get');
+    for (const result of [null, {}, { orderId: 'other', customerId: 'u', status: 'COMPLETED' },
+      { orderId: 'o', customerId: 'other', status: 'COMPLETED' }, { orderId: 'o', customerId: 'u', status: 'SHIPPED' },
+      { orderId: 'o', customerId: 'u', status: 'REFUNDED' }]) {
+      get.mockResolvedValueOnce(result);
+      await expect(confirmOrderReceipt('o', 'u')).rejects.toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
+      expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(true);
+    }
+    get.mockRejectedValueOnce(new Error('offline'));
+    await expect(confirmOrderReceipt('o', 'u', true)).rejects.toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+  it('收货存储失败不提交，明确拒绝释放；成功不因清理失败变成失败', async () => {
+    const values = setupStorage();
+    const post = vi.spyOn(realOrderRequest, 'post').mockRejectedValueOnce(new RequestError('状态拒绝', { status: 422 })).mockResolvedValue('o');
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue({ orderId: 'o', customerId: 'u', status: 'COMPLETED' });
+    vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => { throw new Error('storage denied'); });
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('storage denied');
+    expect(post).not.toHaveBeenCalled();
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('状态拒绝');
+    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
+    vi.spyOn(localStorage, 'removeItem').mockImplementationOnce(() => { throw new Error('storage denied'); });
+    await expect(confirmOrderReceipt('o', 'u')).resolves.toMatchObject({ ok: true });
+    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(true);
+    await expect(confirmOrderReceipt('o', 'u', true)).resolves.toMatchObject({ ok: true });
+    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+  it('收货迟到失败和回查中切账号都保留原记录，不跨会话核实或清理', async () => {
+    const values = setupStorage();
+    setAccessToken('qa-confirm-a');
+    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async () => { setAccessToken('qa-confirm-b'); throw new Error('late'); });
+    const get = vi.spyOn(realOrderRequest, 'get');
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('账号已切换');
+    expect(get).not.toHaveBeenCalled();
+    const marker = values.get('cpc:financial-pending:u:order-confirm:o');
+    setAccessToken('qa-confirm-a');
+    get.mockImplementationOnce(async () => { setAccessToken('qa-confirm-b'); return { orderId: 'o', customerId: 'u', status: 'COMPLETED' }; });
+    await expect(confirmOrderReceipt('o', 'u', true)).rejects.toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
+    expect(values.get('cpc:financial-pending:u:order-confirm:o')).toBe(marker);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+  it('损坏收货或退款记录阻止相反动作，另一账号不读取原账号标记', async () => {
+    const values = setupStorage();
+    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async (_path, body: any) => body.id);
+    const get = vi.spyOn(realOrderRequest, 'get');
+    const submit = vi.fn(), lookup = vi.fn();
+    for (const raw of ['', 'null', '{}', '{broken']) {
+      values.set('cpc:financial-pending:u:order-confirm:o', raw);
+      await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('原收货记录');
+      await expect(submitRefundIntent('u', { orderId: 'o', reason: 'QA', evidenceImages: [] }, { submit, lookup })).rejects.toThrow('原收货记录');
+    }
+    expect(post).not.toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    await expect(confirmOrderReceipt('o', 'other')).resolves.toMatchObject({ ok: true });
+    values.delete('cpc:financial-pending:u:order-confirm:o');
+    values.set('cpc:refund-intent:u:o', '{broken');
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow();
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
   it('退款响应丢失保持原键与快照，null 回查才允许同参重试', async () => {
     setupStorage();
     const params = { orderId: '9007199254740993', reason: 'QA', evidenceImages: ['qa.png'] };
@@ -259,6 +390,13 @@ describe('资金操作结果待确认', () => {
     const old = JSON.parse(raw); delete old.params.idempotencyKey;
     storage.set(key, JSON.stringify(old));
     await expect(submitRefundIntent('u1', params, { lookup, submit }, true)).rejects.toThrow('没有幂等键');
+    for (const receipt of [{}, true, Number.MAX_SAFE_INTEGER + 1]) {
+      const damaged = JSON.stringify({ ...JSON.parse(raw), receipt });
+      storage.set(key, damaged);
+      await expect(submitRefundIntent('u1', params, { lookup, submit }, true)).rejects.toThrow();
+      await expect(submitRefundIntent('u1', params, { lookup, submit })).rejects.toThrow();
+      expect(storage.get(key)).toBe(damaged);
+    }
     expect(submit).toHaveBeenCalledTimes(1);
   });
 
@@ -442,8 +580,20 @@ describe('资金操作结果待确认', () => {
     const submit = vi.fn(async () => '1');
     vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => { throw new Error('storage denied'); });
     await expect(submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toThrow();
-    values.set('cpc:deposit-pending:qa-a', '{broken');
-    await expect(submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toThrow();
+    for (const raw of ['', 'null', 'false', '0', '{}', '{broken']) {
+      values.set('cpc:deposit-pending:qa-a', raw);
+      await expect(submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toThrow();
+      expect(values.get('cpc:deposit-pending:qa-a')).toBe(raw);
+    }
+    expect(submit).not.toHaveBeenCalled();
+  });
+  it('赎回等旧资金保护记录为空仍阻止新提交，不能覆盖原记录', async () => {
+    const values = setupStorage();
+    const key = 'cpc:financial-pending:qa-a:finance-redeem:1';
+    values.set(key, '');
+    const submit = vi.fn().mockResolvedValue('1');
+    await expect(submitFinancialOperation('qa-a', 'finance-redeem:1', submit, id => id)).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
+    expect(values.get(key)).toBe('');
     expect(submit).not.toHaveBeenCalled();
   });
 

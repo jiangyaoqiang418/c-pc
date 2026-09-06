@@ -1,6 +1,7 @@
 import { realOrderRequest } from '@/service/request';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
+import { submitOrderConfirmation } from '@/utils/financial-submission';
 
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
@@ -154,7 +155,11 @@ export async function changeOrderPrice(p: Api.RealOrder.OrderPriceChangeParams) 
   return { ok: true };
 }
 
-export async function confirmReceipt(id: string | number) {
-  await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/confirm', { id });
+export async function confirmReceipt(id: string | number, userId: string | number, restoring = false) {
+  await submitOrderConfirmation(userId, id, {
+    submit: () => realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/confirm', { id }, { showError: false }),
+    lookup: () => realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id }, showError: false })
+      .then(dto => ({ id: dto.orderId, customerId: dto.customerId, status: dto.status || '' }))
+  }, restoring);
   return { ok: true, message: '' };
 }

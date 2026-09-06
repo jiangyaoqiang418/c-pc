@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
@@ -10,6 +10,7 @@ import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { formatDateValue } from '@/utils/date-range';
 import { getOrderCapabilities } from '@/utils/order';
+import { financialSubmissionIssue } from '@/utils/financial-submission';
 
 interface Props {
   order: Api.RealOrder.DisplayRecord;
@@ -23,6 +24,19 @@ const userStore = useUserStore();
 const permissions = computed(() => getOrderCapabilities(props.order, userStore.currentUser?.id));
 const cover = computed(() => props.order.productCover || PRODUCT_IMAGE_PLACEHOLDER);
 const acting = ref(false);
+const confirmationPending = ref(false);
+function refreshConfirmationPending() {
+  confirmationPending.value = !!financialSubmissionIssue(userStore.currentUser?.id, `order-confirm:${props.order.id}`);
+}
+watch([() => props.order, () => userStore.currentUser?.id, acting], refreshConfirmationPending, { immediate: true });
+onMounted(() => {
+  window.addEventListener('storage', refreshConfirmationPending);
+  window.addEventListener('focus', refreshConfirmationPending);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', refreshConfirmationPending);
+  window.removeEventListener('focus', refreshConfirmationPending);
+});
 const confirmationOpen = ref(false);
 let actionVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
@@ -106,34 +120,36 @@ function cancel() {
 }
 
 async function confirm() {
-  if (!permissions.value.confirm) return;
+  refreshConfirmationPending();
+  if (!permissions.value.isCustomer || (!permissions.value.confirm && !confirmationPending.value)) return;
   if (acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const requestedOrderId = props.order.id;
   const operation = ++actionVersion;
+  const pending = !!financialSubmissionIssue(requestedUserId, `order-confirm:${requestedOrderId}`);
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
-    title: '确认收货？',
-    content: '请确认您已收到商品并验货无误',
+    title: pending ? '核对收货结果' : '确认收货？',
+    content: pending ? '上次收货结果尚未确认，本次只读取原订单状态，不会再次提交收货。' : '请确认您已收到商品并验货无误',
     onCancel() {
       if (operation === actionVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      if (!isCurrentAction(operation, requestedUserId, requestedOrderId) || !permissions.value.confirm) {
+      if (!isCurrentAction(operation, requestedUserId, requestedOrderId) || !permissions.value.isCustomer || (!pending && !permissions.value.confirm)) {
         if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
       try {
-        const r = await orderApi.confirmReceipt(requestedOrderId);
+        const r = await orderApi.confirmReceipt(requestedOrderId, requestedUserId, pending);
         if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
         if (r.ok) {
           Message.success('已确认收货');
           emit('changed');
         }
-      } catch {
-        if (isCurrentAction(operation, requestedUserId, requestedOrderId)) Message.error('确认收货请求失败，请稍后重试');
+      } catch (error) {
+        if (isCurrentAction(operation, requestedUserId, requestedOrderId)) Message.error(error instanceof Error ? error.message : '收货结果未确认，请核对原订单');
       } finally {
         if (operation === actionVersion) {
           acting.value = false;
@@ -209,7 +225,7 @@ function viewLogistics() {
         <div class="amount-usdt">≈ {{ formatCny(order.totalAmount) }}</div>
       </div>
       <div class="op" @click.stop>
-        <OrderActions :order="order" :reviewable="reviewable" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" />
+        <OrderActions :order="order" :reviewable="reviewable" :confirmation-pending="confirmationPending" @pay="pay" @cancel="cancel" @confirm="confirm" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" />
       </div>
     </div>
   </a-card>

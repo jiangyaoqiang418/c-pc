@@ -360,7 +360,7 @@ watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; }
         { label: '状态', value: createdWithdrawal.statusText || createdWithdrawal.status || 'REVIEWING' },
         { label: '转出金额', value: formatMoney(createdWithdrawal.amount) },
         { label: '手续费', value: formatMoney(createdWithdrawal.fee) },
-        { label: '实际到账', value: formatMoney(createdWithdrawal.actualAmount) },
+        { label: '扣费后金额', value: formatMoney(createdWithdrawal.actualAmount) },
         { label: '创建时间', value: formatTime(createdWithdrawal.createdAt) }
       ]" />
     </a-card>
@@ -380,7 +380,7 @@ watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; }
           <a-table-column title="申请编号" data-index="id" :width="220" />
           <a-table-column title="链" data-index="chain" :width="120" />
           <a-table-column title="转出金额" :width="130"><template #cell="{ record }">{{ formatMoney(record.amount) }}</template></a-table-column>
-          <a-table-column title="实际到账" :width="130"><template #cell="{ record }">{{ formatMoney(record.actualAmount) }}</template></a-table-column>
+          <a-table-column title="扣费后金额" :width="130"><template #cell="{ record }">{{ formatMoney(record.actualAmount) }}</template></a-table-column>
           <a-table-column title="状态" :width="140"><template #cell="{ record }"><a-tag :color="record.status === 'SUCCESS' ? 'green' : record.status === 'REJECTED' ? 'red' : 'orange'">{{ record.statusText || record.status || 'REVIEWING' }}</a-tag></template></a-table-column>
           <a-table-column title="创建时间"><template #cell="{ record }">{{ formatTime(record.createdAt) }}</template></a-table-column>
           <a-table-column title="操作" :width="90"><template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button></template></a-table-column>
@@ -415,7 +415,7 @@ watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; }
           { label: '目标地址', value: detail.toAddress },
           { label: '转出金额', value: formatMoney(detail.amount) },
           { label: '手续费', value: formatMoney(detail.fee) },
-          { label: '实际到账', value: formatMoney(detail.actualAmount) },
+          { label: '扣费后金额', value: formatMoney(detail.actualAmount) },
           { label: '状态', value: detail.statusText || detail.status || 'REVIEWING' },
           { label: '审核意见', value: detail.reviewComment || '—' },
           { label: '失败原因', value: detail.failReason || '—' },

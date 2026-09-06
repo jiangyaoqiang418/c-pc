@@ -305,6 +305,7 @@ describe('已创建订单付款恢复', () => {
   it('回执漏项、取消和部分付款不能冒充整组成功', () => {
     const result: Api.RealOrder.OrderGroupPayResult = { orderGroupNo: 'g', totalCount: 1, paidCount: 1, failedCount: 0, paidAmount: '1', unpaidAmount: '0', items: [{ orderId: '1', amount: '1', success: true, status: 'PAID' }] };
     expect(isGroupPaymentComplete(validateGroupPayResult(result, 'g', ['1']), ['1'])).toBe(true);
+    expect(isGroupPaymentComplete(validateGroupPayResult({ ...result, unpaidAmount: '0E-8' }, 'g', ['1']), ['1'])).toBe(true);
     expect(() => validateGroupPayResult({ ...result, totalCount: 2 }, 'g', ['1'])).toThrow('不完整');
     expect(isGroupPaymentComplete({ ...result, unpaidAmount: '1' }, ['1'])).toBe(false);
     expect(isGroupPaymentComplete({ ...result, items: [{ ...result.items[0], status: 'CANCELED' }] }, ['1'])).toBe(false);

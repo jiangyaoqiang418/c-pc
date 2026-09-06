@@ -15,6 +15,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
+import { financialSubmissionIssue } from '@/utils/financial-submission';
 
 const route = useRoute();
 const router = useRouter();
@@ -36,6 +37,19 @@ const reviewableGuard = createLatestRequestGuard();
 const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
+const confirmationPending = ref(false);
+function refreshConfirmationPending() {
+  confirmationPending.value = order.value !== undefined && !!financialSubmissionIssue(userStore.currentUser?.id, `order-confirm:${order.value.id}`);
+}
+watch([order, () => userStore.currentUser?.id, acting], refreshConfirmationPending, { immediate: true });
+onMounted(() => {
+  window.addEventListener('storage', refreshConfirmationPending);
+  window.addEventListener('focus', refreshConfirmationPending);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', refreshConfirmationPending);
+  window.removeEventListener('focus', refreshConfirmationPending);
+});
 const confirmationOpen = ref(false);
 const requestGuard = createLatestRequestGuard();
 let actionVersion = 0;
@@ -232,16 +246,18 @@ function cancel() {
 }
 
 function confirm() {
-  if (!permissions.value.confirm) return;
+  refreshConfirmationPending();
+  if (!permissions.value.isCustomer || (!permissions.value.confirm && !confirmationPending.value)) return;
   if (!order.value || acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
   const operation = ++actionVersion;
+  const pending = !!financialSubmissionIssue(requestedUserId, `order-confirm:${requestedOrderId}`);
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
-    title: '确认收货？',
-    content: '请确认您已收到商品并验货无误',
+    title: pending ? '核对收货结果' : '确认收货？',
+    content: pending ? '上次收货结果尚未确认，本次只读取原订单状态，不会再次提交收货。' : '请确认您已收到商品并验货无误',
     onCancel() {
       if (operation === actionVersion) confirmationOpen.value = false;
     },
@@ -249,17 +265,17 @@ function confirm() {
       const isCurrentAction = () => operation === actionVersion
         && String(userStore.currentUser?.id) === String(requestedUserId)
         && sameBusinessId(order.value?.id, requestedOrderId);
-      if (!isCurrentAction() || !permissions.value.confirm) {
+      if (!isCurrentAction() || !permissions.value.isCustomer || (!pending && !permissions.value.confirm)) {
         if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
       try {
-        const r = await orderApi.confirmReceipt(requestedOrderId);
+        const r = await orderApi.confirmReceipt(requestedOrderId, requestedUserId, pending);
         if (!isCurrentAction()) return;
         if (r.ok) { Message.success('已确认收货'); await load(); }
         else Message.error(r.message || '确认收货失败');
-      } catch { if (isCurrentAction()) Message.error('确认收货请求失败，请稍后重试'); }
+      } catch (error) { if (isCurrentAction()) Message.error(error instanceof Error ? error.message : '收货结果未确认，请核对原订单'); }
       finally {
         if (operation === actionVersion) {
           acting.value = false;
@@ -309,7 +325,7 @@ function contactShopper() {
               <div class="hero-code">订单号：{{ order.code }}</div>
               <div class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</div>
             </div>
-            <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" />
+            <OrderActions :order="order" :reviewable="reviewable" :confirmation-pending="confirmationPending" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" />
           </div>
         </a-card>
 

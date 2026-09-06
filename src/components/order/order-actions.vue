@@ -7,6 +7,7 @@ interface Props {
   order: Api.RealOrder.DisplayRecord;
   variant?: 'card' | 'detail';
   reviewable?: boolean;
+  confirmationPending?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), { variant: 'card', reviewable: false });
 const userStore = useUserStore();
@@ -38,12 +39,15 @@ const actions = computed(() => {
   if (permissions.logistics) {
     a.push({ type: 'logistics', label: '查看物流', emit: () => emit('logistics') });
   }
+  if (permissions.isCustomer && props.confirmationPending) {
+    a.push({ type: 'confirm', label: '核对收货结果', primary: true, emit: () => emit('confirm') });
+  }
   if (permissions.confirm && s === 'IN_TRANSIT') {
-    a.push({ type: 'confirm', label: '确认收货', primary: true, emit: () => emit('confirm') });
+    if (!props.confirmationPending) a.push({ type: 'confirm', label: '确认收货', primary: true, emit: () => emit('confirm') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
   if (permissions.confirm && s === 'AFTERSALE_CONFIRM') {
-    a.push({ type: 'confirm', label: '签字确认', primary: true, emit: () => emit('confirm') });
+    if (!props.confirmationPending) a.push({ type: 'confirm', label: '签字确认', primary: true, emit: () => emit('confirm') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
   if (permissions.review && props.reviewable) {

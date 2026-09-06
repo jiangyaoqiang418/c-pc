@@ -17,7 +17,7 @@ export async function withSubmissionLock<T>(key: string, submit: () => Promise<T
   });
 }
 
-type FinancialAction = 'withdraw' | 'recharge' | `finance-subscribe:${string}` | `finance-redeem:${string}`;
+type FinancialAction = 'withdraw' | 'recharge' | `finance-subscribe:${string}` | `finance-redeem:${string}` | `order-confirm:${string}`;
 export interface PendingDeposit {
   kind: 'pay' | 'refund';
   amount: number;
@@ -32,7 +32,7 @@ function depositStorageKey(userId: string | number) {
 export function pendingDepositOperation(userId: string | number | undefined): PendingDeposit | undefined {
   if (userId === undefined) return;
   const raw = localStorage.getItem(depositStorageKey(userId));
-  if (!raw) return;
+  if (raw === null) return;
   const value = JSON.parse(raw) as PendingDeposit;
   if (!value || !['pay', 'refund'].includes(value.kind) || !Number.isFinite(value.amount) || value.amount <= 0
     || typeof value.idempotencyKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.idempotencyKey)) {
@@ -110,6 +110,7 @@ export function readRefundIntent(userId: string | number, orderId: string | numb
   if (!value || String(value.userId) !== String(userId) || String(value.params?.orderId) !== String(orderId)
     || typeof value.params.reason !== 'string' || !Array.isArray(value.params.evidenceImages)
     || value.params.evidenceImages.some(item => typeof item !== 'string')
+    || (value.receipt !== undefined && !validReceipt(value.receipt))
     || (value.params.idempotencyKey !== undefined && !/^[0-9a-f-]{36}$/i.test(value.params.idempotencyKey))) {
     throw new Error('原退款申请记录无法读取，请先到我的售后核实');
   }
@@ -145,6 +146,9 @@ export async function submitRefundIntent(userId: string | number, params: Api.Re
         return result.refundId;
       }
     }
+    if (readOrderConfirmation(userId, params.orderId) !== undefined) {
+      throw new Error('收货结果尚未核实，暂不可提交退款，请先核对原订单');
+    }
     localStorage.setItem(key, JSON.stringify(intent));
     const id = await api.submit({ ...intent.params, evidenceImages: [...(intent.params.evidenceImages || [])] });
     if (!((typeof id === 'string' && id.trim()) || (typeof id === 'number' && Number.isSafeInteger(id)))) throw new Error('退款申请回执无效，请恢复原申请核对');
@@ -155,6 +159,67 @@ export async function submitRefundIntent(userId: string | number, params: Api.Re
 
 function storageKey(userId: string | number, action: FinancialAction) {
   return `cpc:financial-pending:${encodeURIComponent(String(userId))}:${action}`;
+}
+
+function readOrderConfirmation(userId: string | number, orderId: string | number) {
+  const raw = localStorage.getItem(storageKey(userId, `order-confirm:${orderId}`));
+  if (raw === null) return;
+  let value;
+  try { value = JSON.parse(raw); } catch { /* 保留损坏记录，不能按新操作重发。 */ }
+  if (!value || String(value.userId) !== String(userId) || String(value.orderId) !== String(orderId)
+    || value.action !== 'confirm' || typeof value.attemptId !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.attemptId)) {
+    throw new Error('原收货记录无法读取，请联系平台核实，暂不可重复操作');
+  }
+  return raw;
+}
+
+/** 与同订单退款共用锁；未知结果只读原订单终态，不重新确认收货。 */
+export async function submitOrderConfirmation(userId: string | number, orderId: string | number, api: {
+  submit: () => Promise<unknown>;
+  lookup: () => Promise<{ id: string | number; customerId?: string | number; status: string }>;
+}, restoring = false) {
+  return withSubmissionLock(refundIntentKey(userId, orderId), async () => {
+    const key = storageKey(userId, `order-confirm:${orderId}`);
+    const previous = readOrderConfirmation(userId, orderId);
+    if (restoring && previous === undefined) throw new Error('原收货记录已变化，请重新读取订单状态');
+    const session = getAccessToken();
+    const clearOwn = (marker: string) => {
+      try { if (localStorage.getItem(key) === marker) localStorage.removeItem(key); } catch { /* 已知结果不被清理失败改写。 */ }
+    };
+    const reconcile = async (marker: string) => {
+      const unchanged = () => getAccessToken() === session;
+      if (!unchanged()) throw new Error('账号已切换，原收货操作保留待核实');
+      try {
+        const result = await api.lookup();
+        if (!unchanged()) throw new Error('账号已切换，原收货操作保留待核实');
+        if (result && String(result.id) === String(orderId) && String(result.customerId) === String(userId)
+          && result.status === 'COMPLETED') {
+          clearOwn(marker);
+          return orderId;
+        }
+      } catch { /* 读取失败或其他状态均不能证明原确认结果。 */ }
+      throw new RequestError('收货结果尚未确认，请稍后核对原订单；再次操作只核对结果，不会重复提交', { code: 'ORDER_CONFIRM_PENDING' });
+    };
+    if (previous !== undefined) return reconcile(previous);
+    const refund = readRefundIntent(userId, orderId);
+    if (refund && !validReceipt(refund.receipt)) throw new Error('退款申请结果尚未核实，暂不能确认收货');
+    const marker = JSON.stringify({ userId, orderId, action: 'confirm', attemptId: crypto.randomUUID() });
+    localStorage.setItem(key, marker);
+    try {
+      const receipt = await api.submit();
+      if (!validReceipt(receipt) || String(receipt) !== String(orderId)) {
+        throw new RequestError('收货回执无法核对', { code: 'UNKNOWN_OPERATION_RESULT' });
+      }
+      clearOwn(marker);
+      return orderId;
+    } catch (error) {
+      if (isDefinitiveRejection(error)) {
+        clearOwn(marker);
+        throw error;
+      }
+      return reconcile(marker);
+    }
+  });
 }
 
 /** 只有原锁仓的最终赎回状态可解除未知结果，不用金额、时间或仍在持仓推断失败。 */
@@ -169,9 +234,13 @@ export function financialSubmissionIssue(userId: string | number | undefined, ac
   if (userId === undefined) return '';
   try {
     const raw = localStorage.getItem(storageKey(userId, action));
-    if (!raw) return '';
+    if (raw === null) return '';
     const record = JSON.parse(raw);
-    return validReceipt(record?.receipt) && String(record.userId) === String(userId) && record.action === action ? '' : pendingMessage;
+    if (!validReceipt(record?.receipt) || String(record.userId) !== String(userId) || record.action !== action) return pendingMessage;
+    if (action === 'withdraw' || action === 'recharge' || action.startsWith('finance-subscribe:')) {
+      validateKeyedFinancialIntent(record, userId, action);
+    }
+    return '';
   } catch {
     return '无法读取本地资金操作记录，请恢复浏览器存储后重试';
   }
@@ -189,6 +258,17 @@ interface KeyedFinancialIntent {
   receipt?: string | number;
 }
 
+function validateKeyedFinancialIntent(intent: KeyedFinancialIntent, userId: string | number, action: FinancialAction) {
+  if (!intent.idempotencyKey) throw new Error('旧操作没有幂等键，请仅查看记录或联系平台核实，不会重发');
+  if (String(intent.userId) !== String(userId) || intent.action !== action || !/^[0-9a-f-]{36}$/i.test(intent.idempotencyKey)
+    || !intent.snapshot || !Number.isFinite(Number(intent.snapshot.amount)) || Number(intent.snapshot.amount) <= 0
+    || (action === 'withdraw' && (!['ETH', 'TRON', 'BSC'].includes(intent.snapshot.chain || '') || !intent.snapshot.toAddress))
+    || (action === 'recharge' && !intent.snapshot.chain)
+    || (action.startsWith('finance-subscribe:') && `finance-subscribe:${intent.snapshot.productId}` !== action)) {
+    throw new Error('原资金操作记录不完整，请核实后再操作');
+  }
+}
+
 /** by-key 强制当前登录人范围；旧无键记录只读核实，不补键伪装成原请求。 */
 export async function submitKeyedFinancialOperation(
   userId: string | number,
@@ -204,19 +284,16 @@ export async function submitKeyedFinancialOperation(
   const confirmed = snapshot && { ...snapshot };
   return withSubmissionLock(key, async () => {
     const raw = localStorage.getItem(key);
-    const previous: KeyedFinancialIntent | undefined = raw ? JSON.parse(raw) : undefined;
-    if (restoring && !previous) throw new Error('原操作记录已变化，请重新读取');
-    if (previous && !validReceipt(previous.receipt) && !restoring) throw new Error(pendingMessage);
-    const intent: KeyedFinancialIntent = restoring && previous ? previous
-      : { userId, action, idempotencyKey: crypto.randomUUID(), snapshot: confirmed! };
-    if (!intent.idempotencyKey) throw new Error('旧操作没有幂等键，请仅查看记录或联系平台核实，不会重发');
-    if (String(intent.userId) !== String(userId) || intent.action !== action || !/^[0-9a-f-]{36}$/i.test(intent.idempotencyKey)
-      || !intent.snapshot || !Number.isFinite(Number(intent.snapshot.amount)) || Number(intent.snapshot.amount) <= 0
-      || (action === 'withdraw' && (!['ETH', 'TRON', 'BSC'].includes(intent.snapshot.chain || '') || !intent.snapshot.toAddress))
-      || (action === 'recharge' && !intent.snapshot.chain)
-      || (action.startsWith('finance-subscribe:') && `finance-subscribe:${intent.snapshot.productId}` !== action)) {
+    const previous: KeyedFinancialIntent | undefined = raw === null ? undefined : JSON.parse(raw);
+    if (raw !== null && (!previous || typeof previous !== 'object' || Array.isArray(previous))) {
       throw new Error('原资金操作记录不完整，请核实后再操作');
     }
+    if (restoring && !previous) throw new Error('原操作记录已变化，请重新读取');
+    if (previous && !validReceipt(previous.receipt) && !restoring) throw new Error(pendingMessage);
+    if (previous && validReceipt(previous.receipt)) validateKeyedFinancialIntent(previous, userId, action);
+    const intent: KeyedFinancialIntent = restoring && previous ? previous
+      : { userId, action, idempotencyKey: crypto.randomUUID(), snapshot: confirmed! };
+    validateKeyedFinancialIntent(intent, userId, action);
     if (restoring && validReceipt(intent.receipt)) return intent.receipt;
     const session = getAccessToken();
     const saveReceipt = (id: string | number) => {
