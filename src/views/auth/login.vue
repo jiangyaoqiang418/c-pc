@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
-import { MOCK_USERS } from '@shared';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -40,22 +39,6 @@ async function submit() {
     submitting.value = false;
   }
 }
-
-async function oneClick(userId: number) {
-  if (submitting.value) return;
-  submitting.value = true;
-  try {
-    await userStore.login(userId);
-    if (disposed) return;
-    Message.success('已进入本地演示模式，真实业务仍需平台账号登录');
-    router.push('/');
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '演示账号初始化失败，请稍后重试';
-    if (!disposed) Message.error(message);
-  } finally {
-    submitting.value = false;
-  }
-}
 </script>
 
 <template>
@@ -65,21 +48,13 @@ async function oneClick(userId: number) {
 
     <a-form :model="form" layout="vertical" @submit-success="submit">
       <a-form-item label="邮箱">
-        <a-input v-model="form.email" placeholder="如 wangxiaomei@bw-shop.com" size="large" />
+        <a-input v-model="form.email" placeholder="请输入注册邮箱" size="large" />
       </a-form-item>
       <a-form-item label="密码">
         <a-input-password v-model="form.password" placeholder="请输入登录密码" size="large" />
       </a-form-item>
       <a-button type="primary" long :loading="submitting" size="large" @click="submit">登 录</a-button>
     </a-form>
-
-    <a-divider v-if="userStore.demoEnabled">本地演示（不登录真实业务）</a-divider>
-    <div v-if="userStore.demoEnabled" class="quick-list">
-      <a-button v-for="u in MOCK_USERS" :key="u.userId" long size="small" @click="oneClick(u.userId)">
-        <span class="quick-label">{{ u.label }}</span>
-        <span class="quick-desc">{{ u.desc }}</span>
-      </a-button>
-    </div>
 
     <div class="bottom">
       还没有账号？
@@ -101,22 +76,6 @@ async function oneClick(userId: number) {
   color: #86909c;
   font-size: 12px;
   margin-bottom: 20px;
-}
-.quick-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.quick-list :deep(.arco-btn) {
-  justify-content: space-between;
-  padding: 0 12px;
-}
-.quick-label {
-  font-weight: 500;
-}
-.quick-desc {
-  color: #86909c;
-  font-size: 12px;
 }
 .bottom {
   margin-top: 24px;

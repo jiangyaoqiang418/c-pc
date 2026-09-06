@@ -34,7 +34,7 @@
 
 | 能力 | 服务及契约 | API/类型 | 页面调用 | 有效验证及保留边界 |
 |---|---|---|---|---|
-| 注册/登录/身份 | user：POST `/auth/register`、`/auth/login`；GET `/auth/me` | 已封装；成功码1，统一解包/错误；临时凭证确认后切换 | 登录/注册、Store及守卫已调用；演示仅DEV独立身份 | 测试登录、注册QA账号、身份切换及受控401/503恢复已验；并发/迟到/真实撤权未完整验 |
+| 注册/登录/身份 | user：POST `/auth/register`、`/auth/login`；GET `/auth/me` | 已封装；成功码1，统一解包/错误；临时凭证确认后切换 | 登录页Mock账号及快捷入口已移除，正常登录/注册和回跳不变；未扩全仓Mock清理 | Chrome本地登录页只读确认入口清理，类型/203测试通过；历史真实登录、QA注册、身份切换及401/503证据保留，本次未重新登录；并发/迟到/真实撤权未完整验 |
 | 积分/VIP | user：GET `/points/account`、`/points/rules`、`/points/vip-configs` | 已封装C端公开规则，不再借admin权限 | 积分/VIP/个人中心调用，公开与登录状态分开 | 真实规则、VIP及KYC积分非空已验；未知类型/配置变化等边界待验 |
 | 积分申诉 | user：POST `/points/appeals/submit`、`/points/appeals/page` | ledgerId/reason及分页已封装 | 流水申诉、记录页、版本保护弹窗已调用 | 列表/筛选空态已验；非空提交及慢写入重开待验 |
 | 首页/分类 | order：GET `/categories/tree`、`/banners/list`、`/storefront/recommend`、`/storefront/flash-sale`；POST榜单分页 | 已封装分类Long、时间/金额/必需数组校验 | 导航、首页、分类和表单选择器已调用 | 非空商品榜单、分类及分项失败已验；非空活动/秒杀及>24分类商品待验 |
