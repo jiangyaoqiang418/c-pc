@@ -35,9 +35,9 @@ const editForm = reactive<Api.RealAuth.ProfileUpdateParams>({
 const user = computed(() => userStore.currentUser);
 const kycMeta = computed(() => (user.value ? enums.KYC_STATUS_META[user.value.kycStatus] : undefined));
 const registeredDate = computed(() => {
-  if (!user.value?.registeredAt) return '—';
+  if (!user.value?.registeredAt) return '';
   const date = new Date(user.value.registeredAt);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString();
 });
 
 async function loadProfile() {
@@ -218,19 +218,22 @@ const orderTabsMeta = computed(() => [
                 <span>{{ user.email }}</span>
                 <span class="dot">·</span>
                 <span>积分 {{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
-                <span class="dot">·</span>
-                <span>注册于 {{ registeredDate }}</span>
+                <template v-if="registeredDate">
+                  <span class="dot">·</span>
+                  <span>注册于 {{ registeredDate }}</span>
+                </template>
               </div>
               <a-button type="text" size="mini" class="edit-profile" @click="openEditProfile">编辑资料</a-button>
               <a-alert v-if="user.accountInfoUnavailable" type="warning">积分或等级资料未更新，已有值仅供参考。<template #action><a-button size="mini" :loading="refreshingProfile" @click="refreshSavedProfile(false)">重试会员资料</a-button></template></a-alert>
               <a-alert v-if="profileRefreshError" type="warning">资料已保存，当前显示的资料尚未刷新。<template #action><a-button size="mini" :loading="refreshingProfile" @click="refreshSavedProfile()">重新读取</a-button></template></a-alert>
               <div v-if="vipStatus?.nextThreshold" class="vip-progress">
-                距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分
+                <div class="vip-progress-label">距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分</div>
                 <a-progress
-                  :percent="Math.min(100, (vipStatus.points / vipStatus.nextThreshold) * 100)"
-                  size="mini"
+                  :percent="Math.max(0, Math.min(1, vipStatus.points / vipStatus.nextThreshold))"
+                  type="line"
+                  size="small"
+                  :show-text="false"
                   color="#722ed1"
-                  style="width: 220px"
                 />
               </div>
             </div>
@@ -244,7 +247,7 @@ const orderTabsMeta = computed(() => [
           </div>
           <div class="order-stats">
             <div v-for="o in orderTabsMeta" :key="o.label" class="stat" role="button" tabindex="0" @click="router.push({ path: '/order', query: { tab: o.tab } })" @keydown.enter="router.push({ path: '/order', query: { tab: o.tab } })" @keydown.space.prevent="router.push({ path: '/order', query: { tab: o.tab } })">
-              <div class="stat-num">{{ o.count ?? (loading ? '读取中' : '—') }}</div>
+              <div class="stat-num">{{ o.count ?? (loading ? 0 : '—') }}</div>
               <div class="stat-label">{{ o.label }}</div>
             </div>
           </div>
@@ -343,6 +346,7 @@ const orderTabsMeta = computed(() => [
 }
 .info {
   flex: 1;
+  min-width: 0;
 }
 .name-row {
   display: flex;
@@ -369,11 +373,22 @@ const orderTabsMeta = computed(() => [
 }
 .vip-progress {
   margin-top: 10px;
+  width: min(100%, 360px);
   color: #4e5969;
   font-size: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.vip-progress-label {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.vip-progress-label strong {
+  color: #722ed1;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  margin: 0 3px;
 }
 .order-stat-card,
 .quick-card,

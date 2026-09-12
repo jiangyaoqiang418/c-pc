@@ -22,6 +22,7 @@ import {
   isNearMessageBottom,
   syncMessageGap,
   mergeMessages,
+  recalledMessage,
   markUnconfirmedMessageFailed,
   sameBusinessId
 } from '@/utils/im';
@@ -115,6 +116,13 @@ const csSessions = computed(() => conversations.value.filter(conversation => {
 const presaleSessions = computed(() => conversations.value.filter(conversation => hasBizType(conversation, 'PRESALE')));
 const selectedConversation = computed(() => conversations.value.find(conversation => sameBusinessId(conversation.id, selectedConversationId.value)));
 const imageUrls = computed(() => conversationImageUrls(messages.value));
+watch(imageUrls, (urls, previous) => {
+  if (!imagePreviewVisible.value) return;
+  const selected = previous[imagePreviewCurrent.value];
+  const index = selected ? urls.indexOf(selected) : -1;
+  if (index < 0) imagePreviewVisible.value = false;
+  else imagePreviewCurrent.value = index;
+}, { flush: 'sync' });
 
 function currentCandidates() {
   return activeTab.value === 'group' ? groups.value : activeTab.value === 'cs' ? csSessions.value : presaleSessions.value;
@@ -518,7 +526,7 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
       || !isCurrentUser(requestedUserId)
       || !sameBusinessId(selectedConversationId.value, conversationId)
     ) return;
-    messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? { ...item, recalled: true, content: undefined, mediaUrl: undefined } : item);
+    messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? recalledMessage(item) : item);
     await loadConversations(false);
   } catch {
     // 请求层展示后端的撤回窗口或权限错误。
@@ -670,7 +678,7 @@ notifyStore.subscribe(async event => {
     const messageId = recalled?.id ?? event.payload.messageId ?? event.payload.id;
     if (messageId !== undefined) {
       messages.value = messages.value.map(message => sameBusinessId(message.id, messageId)
-        ? { ...message, ...recalled, recalled: true, content: undefined, mediaUrl: undefined }
+        ? recalledMessage({ ...message, ...recalled })
         : message);
     }
     try {

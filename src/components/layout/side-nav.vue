@@ -73,7 +73,7 @@ function goCategory(id: string | number) {
 
       <!-- hover 弹二级 mega -->
       <div v-if="hoveredCatId === cat.id && cat.children?.length" class="mega-menu">
-        <div class="mega-inner">
+        <div class="mega-inner" :class="{ 'single-group': cat.children.length === 1 }">
           <div v-for="sub in cat.children" :key="sub.id" class="mega-sub">
             <div
               class="mega-sub-title"
@@ -188,7 +188,9 @@ function goCategory(id: string | number) {
   position: absolute;
   left: calc(100% + 4px);
   top: -8px;
-  width: 720px;
+  width: max-content;
+  min-width: 160px;
+  max-width: min(720px, calc(100vw - 268px));
   min-height: 320px;
   max-height: 520px;
   overflow-y: auto;
@@ -202,8 +204,15 @@ function goCategory(id: string | number) {
 }
 .mega-inner {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px 32px;
+}
+.mega-inner.single-group {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mega-sub {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .mega-sub-title {
   font-size: 13px;

@@ -90,6 +90,15 @@ const statusView = computed(() => {
 });
 
 const previewUrls = ref<Record<string, string>>({});
+const previewKeys = computed(() => {
+  const detail = kycDetail.value;
+  if (!detail) return [];
+  return [
+    'front',
+    ...(detail.idCardBack || detail.idCardBackFileId || schema.value?.idCardBackRequired ? ['back'] : []),
+    ...(detail.holdingPhoto || detail.holdingPhotoFileId || schema.value?.holdingPhotoRequired ? ['holding'] : [])
+  ];
+});
 let writeVersion = 0;
 
 async function refreshPrivatePreviews(detail: Api.RealKyc.KycVO | null, signal?: AbortSignal, isCurrent?: () => boolean) {
@@ -277,10 +286,11 @@ async function submit() {
             { label: '证件预览有效期', value: formatTime(kycDetail?.photoUrlExpireAt) }
           ]"
         />
-        <div v-if="Object.keys(previewUrls).length" class="private-previews">
-          <div v-for="([key, url]) in Object.entries(previewUrls)" :key="key" class="private-preview">
+        <div v-if="kycDetail" class="private-previews">
+          <div v-for="key in previewKeys" :key="key" class="private-preview">
             <span>{{ key === 'front' ? '证件人像面' : key === 'back' ? '证件国徽面' : '手持证件照' }}</span>
-            <a-image :src="url" width="120" height="80" fit="cover" />
+            <a-image v-if="previewUrls[key]" :src="previewUrls[key]" width="120" height="80" fit="cover" />
+            <span v-else>暂无可用预览</span>
           </div>
         </div>
 

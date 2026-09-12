@@ -2,7 +2,7 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
-import { fetchCategoryTree } from '@/service/api/category';
+import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
 
@@ -30,13 +30,7 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
 
-interface CategoryNode {
-  id: string | number;
-  name: string;
-  children?: CategoryNode[];
-}
-
-const cascaderOptions = ref<any[]>([]);
+const cascaderOptions = ref<CategoryOption[]>([]);
 const categoryLoadError = ref('');
 const uploading = ref(false);
 const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
@@ -56,15 +50,7 @@ const form = reactive<FormState>({
   images: []
 });
 const { markInteracted, markSaved } = useUnsavedForm(() => form, () => undefined);
-defineExpose({ markSaved });
-
-function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
-  return nodes.map(n => ({
-    value: n.id,
-    label: n.name,
-    children: n.children?.length ? mapToCascader(n.children) : undefined
-  }));
-}
+defineExpose({ markSaved, reloadCategories });
 
 onMounted(async () => {
   await reloadCategories();
@@ -74,8 +60,8 @@ async function reloadCategories() {
   const isCurrent = categoryGuard.begin();
   categoryLoadError.value = '';
   try {
-    const tree = (await fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
-    if (isCurrent()) cascaderOptions.value = mapToCascader(tree);
+    const options = await fetchCreateCategoryOptions({ signal: isCurrent.signal });
+    if (isCurrent()) cascaderOptions.value = options;
   } catch {
     if (!isCurrent()) return;
     cascaderOptions.value = [];
@@ -91,7 +77,7 @@ function submit() {
     Message.warning('请输入商品标题');
     return;
   }
-  if (form.categoryId === undefined || form.categoryId === '') {
+  if (!isSelectableCategory(cascaderOptions.value, form.categoryId)) {
     Message.warning('请选择商品分类');
     return;
   }
@@ -142,7 +128,6 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
         :options="cascaderOptions"
         placeholder="选择分类"
         expand-trigger="hover"
-        check-strictly
         allow-clear
       />
       <div v-if="categoryLoadError" class="hint">{{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories" @keydown.enter="reloadCategories" @keydown.space.prevent="reloadCategories">重新加载</a-link></div>

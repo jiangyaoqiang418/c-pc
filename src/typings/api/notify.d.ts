@@ -71,7 +71,7 @@ declare namespace Api.RealNotify {
     duration?: number | null;
     mediaFileId?: string | number | null;
     eventType?: string;
-    params?: Record<string, unknown>;
+    params?: Record<string, unknown> | null;
     clientMsgId?: string;
     recalled?: boolean;
     createdAt?: string | number;

@@ -1,6 +1,6 @@
 import { Message, Modal } from '@arco-design/web-vue';
 import { clearAccessToken, getAccessToken, getAcceptedAccessToken } from './token';
-import { RequestError, type RealResponse, type RequestConfig, type RequestOptions } from './type';
+import { RequestError, responseTraceId, type RealResponse, type RequestConfig, type RequestOptions } from './type';
 import { parseJsonPreservingLong } from '@/utils/json';
 
 function splitCodes(value: string | undefined, fallback: string[]) {
@@ -98,6 +98,7 @@ class RealRequest {
     const url = appendParams(joinURL(this.config.baseURL, options.url), options.params);
     let response: Response;
     let responseText: string;
+    let traceId: string | undefined;
     const deadline = new AbortController();
     const timer = setTimeout(() => deadline.abort(), isFormData ? 120_000 : 30_000);
     const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
@@ -108,6 +109,7 @@ class RealRequest {
         body: options.data === undefined ? undefined : isFormData ? (options.data as BodyInit) : JSON.stringify(options.data),
         signal
       });
+      traceId = responseTraceId(response.headers);
       responseText = await response.text();
     } catch (error) {
       // 页面切换主动取消读取不是业务失败；旧账号的网络异常也不能干扰新会话。
@@ -115,12 +117,12 @@ class RealRequest {
       if (deadline.signal.aborted) {
         const message = reading ? '读取超时，请重新加载' : '请求超时，操作结果待核实，请先查看当前状态，勿重复提交';
         if (options.showError !== false && getAccessToken() === token) Message.error(message);
-        throw new RequestError(message, { code: 'REQUEST_TIMEOUT' });
+        throw new RequestError(message, { code: 'REQUEST_TIMEOUT', traceId });
       }
       if (error instanceof Error && error.name === 'AbortError') throw error;
       const message = reading ? '网络连接异常，请检查网络后重新加载' : '网络连接异常，未取得操作结果，请先核对当前状态';
       if (options.showError !== false && getAccessToken() === token) Message.error(message);
-      throw new RequestError(message, { code: 'NETWORK_ERROR' });
+      throw new RequestError(message, { code: 'NETWORK_ERROR', traceId });
     } finally {
       clearTimeout(timer);
     }
@@ -141,7 +143,7 @@ class RealRequest {
       } else if (options.showError !== false && getAccessToken() === token) {
         Message.error(message);
       }
-      throw new RequestError(message, { status: response.status, response: body || undefined });
+      throw new RequestError(message, { code: body?.code === undefined ? undefined : String(body.code), status: response.status, response: body || undefined, traceId });
     }
 
     const code = String(body?.code ?? '');
@@ -156,7 +158,7 @@ class RealRequest {
         Message.error(message);
       }
 
-      throw new RequestError(message, { code, response: body || undefined });
+      throw new RequestError(message, { code, response: body || undefined, traceId });
     }
 
     return body?.data as T;

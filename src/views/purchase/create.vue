@@ -7,7 +7,7 @@ import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import AddressSelector from '@/components/common/address-selector.vue';
-import { fetchCategoryTree } from '@/service/api/category';
+import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -15,12 +15,6 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
-
-interface CategoryNode {
-  id: string | number;
-  name: string;
-  children?: CategoryNode[];
-}
 
 const form = reactive<{
   productTitle: string;
@@ -63,34 +57,15 @@ const categoryGuard = createLatestRequestGuard();
 let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
-function mapToCascader(nodes: CategoryNode[]): { value: string | number; label: string; children?: any[] }[] {
-  return nodes.map(n => ({
-    value: n.id,
-    label: n.name,
-    children: n.children?.length ? mapToCascader(n.children) : undefined
-  }));
-}
-
-const cascaderOptions = ref<any[]>([]);
-onMounted(async () => {
-  const isCurrent = categoryGuard.begin();
-  categoryLoadError.value = '';
-  try {
-    const tree = (await fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
-    if (isCurrent()) cascaderOptions.value = mapToCascader(tree);
-  } catch {
-    if (!isCurrent()) return;
-    cascaderOptions.value = [];
-    categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
-  }
-});
+const cascaderOptions = ref<CategoryOption[]>([]);
+onMounted(reloadCategories);
 
 async function reloadCategories() {
   const isCurrent = categoryGuard.begin();
   categoryLoadError.value = '';
   try {
-    const tree = (await fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
-    if (isCurrent()) cascaderOptions.value = mapToCascader(tree);
+    const options = await fetchCreateCategoryOptions({ signal: isCurrent.signal });
+    if (isCurrent()) cascaderOptions.value = options;
   } catch {
     if (!isCurrent()) return;
     cascaderOptions.value = [];
@@ -145,7 +120,7 @@ async function submit() {
     return;
   }
   const categoryId = form.categoryId;
-  if (categoryId === undefined || categoryId === '') {
+  if (categoryId === undefined || !isSelectableCategory(cascaderOptions.value, categoryId)) {
     Message.warning('请选择商品分类');
     return;
   }
@@ -169,6 +144,18 @@ async function submit() {
   if (!userStore.currentUser) return;
 
   const requestedUserId = userStore.currentUser.id;
+  const params = {
+    productTitle: form.productTitle.trim(),
+    productDescription: form.productDescription.trim() || form.appeal.trim(),
+    categoryId,
+    addressId,
+    budgetAmount: String(form.budgetAmount),
+    expectedDays: form.expectedDays,
+    overseasCustoms: form.overseasCustoms,
+    aftersaleType: form.aftersaleType,
+    appeal: form.appeal.trim(),
+    evidenceUrls: [...form.evidenceUrls]
+  };
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion
     && String(userStore.currentUser?.id) === String(requestedUserId);
@@ -192,18 +179,18 @@ async function submit() {
       submitting.value = true;
       try {
         try {
-          const r = await purchaseApi.createPurchase({
-            productTitle: form.productTitle.trim(),
-            productDescription: form.productDescription.trim() || form.appeal.trim(),
-            categoryId,
-            addressId,
-            budgetAmount: String(form.budgetAmount),
-            expectedDays: form.expectedDays,
-            overseasCustoms: form.overseasCustoms,
-            aftersaleType: form.aftersaleType,
-            appeal: form.appeal.trim(),
-            evidenceUrls: [...form.evidenceUrls]
-          });
+          const categories = await fetchCreateCategoryOptions();
+          if (!isCurrentWrite()) return;
+          if (!addressValid.value || String(form.addressId) !== String(addressId)) {
+            Message.warning('收货地址已变化，请重新确认');
+            return;
+          }
+          cascaderOptions.value = categories;
+          if (!isSelectableCategory(categories, categoryId)) {
+            Message.warning('商品分类已不可用，请重新选择');
+            return;
+          }
+          const r = await purchaseApi.createPurchase(params);
           if (r && isCurrentWrite()) {
             markSaved();
             Message.success('求购已发起');
@@ -264,7 +251,6 @@ async function submit() {
             placeholder="选择三级分类"
             expand-trigger="hover"
             allow-clear
-            check-strictly
           />
           <div v-if="categoryLoadError" class="form-error">
             {{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories" @keydown.enter="reloadCategories" @keydown.space.prevent="reloadCategories">重新加载</a-link>
@@ -284,24 +270,28 @@ async function submit() {
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="预算 (USDT)" required>
-              <a-input-number v-model="form.budgetAmount" :min="10" :precision="2" size="large">
-                <template #suffix>U</template>
-              </a-input-number>
-              <div class="cny-hint">
-                <Icon icon="lucide:calculator" width="11" />
-                <span class="yb-mono">≈ ¥{{ budgetCny }}</span>
-                <span class="rate">· 1 USDT = ¥{{ CNY_RATE.toFixed(2) }}</span>
+              <div class="price-time-field">
+                <a-input-number v-model="form.budgetAmount" :min="10" :precision="2" size="large">
+                  <template #suffix>U</template>
+                </a-input-number>
+                <div class="cny-hint">
+                  <Icon icon="lucide:calculator" width="11" />
+                  <span class="yb-mono">≈ ¥{{ budgetCny }}</span>
+                  <span class="rate">· 1 USDT = ¥{{ CNY_RATE.toFixed(2) }}</span>
+                </div>
               </div>
             </a-form-item>
           </a-col>
           <a-col :span="12">
             <a-form-item label="期望发货天数" required>
-              <a-input-number v-model="form.expectedDays" :min="1" :max="60" size="large">
-                <template #suffix>天</template>
-              </a-input-number>
-              <div class="tip-line">
-                <Icon icon="lucide:info" width="11" />
-                建议 7-30 天，超期不接单会自动作废
+              <div class="price-time-field">
+                <a-input-number v-model="form.expectedDays" :min="1" :max="60" size="large">
+                  <template #suffix>天</template>
+                </a-input-number>
+                <div class="tip-line">
+                  <Icon icon="lucide:info" width="11" />
+                  <span>建议 7-30 天，超期不接单会自动作废</span>
+                </div>
               </div>
             </a-form-item>
           </a-col>
@@ -455,23 +445,39 @@ async function submit() {
   color: var(--yb-ink);
 }
 
+.price-time-field {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.price-time-field :deep(.arco-input-number) {
+  width: 100%;
+}
+.price-time-field svg {
+  flex-shrink: 0;
+}
 .cny-hint {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   font-size: 11px;
   color: var(--yb-muted);
-  margin-top: 4px;
+  line-height: 1.6;
 }
+.cny-hint .yb-mono,
+.cny-hint .rate { white-space: nowrap; }
 .cny-hint .rate { color: var(--yb-faint); }
 
 .tip-line {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
   font-size: 11px;
   color: var(--yb-faint);
-  margin-top: 4px;
+  line-height: 1.6;
 }
 
 .switch-hint {

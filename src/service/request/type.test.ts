@@ -809,6 +809,20 @@ describe('登录失效判定', () => {
 });
 
 describe('登录失效跳转边界', () => {
+  it('HTTP 与业务错误保留冲突码和去重追踪号，不自动重试', async () => {
+    setupSession();
+    const request = vi.fn();
+    vi.stubGlobal('fetch', request);
+    for (const status of [200, 400]) {
+      request.mockResolvedValueOnce(new Response(JSON.stringify({ code: -311, message: '参数冲突', data: null }), {
+        status, headers: { 'x-trace-id': 'qa-trace, qa-trace' }
+      }));
+      await expect(realOrderRequest.post('/qa-create', {}, { showError: false })).rejects.toMatchObject({ code: '-311', traceId: 'qa-trace' });
+    }
+    request.mockResolvedValueOnce(new Response(JSON.stringify({ code: -1, data: null })));
+    await expect(realOrderRequest.get('/qa-read', { showError: false })).rejects.toMatchObject({ traceId: undefined });
+    expect(request).toHaveBeenCalledTimes(3);
+  });
   it('纯 POST 查询超时提示重新加载，保留原 HTTP 方法和参数且不自动重试', async () => {
     setupSession();
     vi.useFakeTimers();
@@ -841,7 +855,7 @@ describe('登录失效跳转边界', () => {
       vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
         const pending = () => new Promise((_, reject) => options.signal!.addEventListener('abort',
           () => reject(new DOMException('Aborted', 'AbortError')), { once: true }));
-        return bodyPending ? Promise.resolve({ ok: true, text: pending }) : pending();
+        return bodyPending ? Promise.resolve({ ok: true, headers: new Headers(), text: pending }) : pending();
       }));
       const result = realUserRequest.get('/qa-read', { showError: false }).catch(error => error);
       await vi.advanceTimersByTimeAsync(30_000);
@@ -1067,7 +1081,7 @@ describe('登录失效跳转边界', () => {
   it('响应体读取被主动取消时不显示业务失败', async () => {
     setupSession();
     const controller = new AbortController();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, text: async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, headers: new Headers(), text: async () => {
       controller.abort();
       throw new DOMException('Aborted', 'AbortError');
     } }));

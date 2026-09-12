@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import BuyerProductForm from '@/components/buyer/buyer-product-form.vue';
 import * as productApi from '@/service/api/product';
+import { fetchCreateCategoryOptions, isSelectableCategory } from '@/service/api/category';
 import { useUserStore } from '@/stores';
 
 const router = useRouter();
@@ -50,6 +51,13 @@ async function onSubmit(form: {
       submitting.value = true;
       try {
         try {
+          const categories = await fetchCreateCategoryOptions();
+          if (!isCurrentWrite()) return;
+          if (!isSelectableCategory(categories, categoryId)) {
+            Message.warning('商品分类已不可用，请重新选择');
+            void formRef.value?.reloadCategories();
+            return;
+          }
           const productId = await productApi.createProduct({
             title: form.title.trim(),
             summary: form.summary.trim() || form.title.trim(),

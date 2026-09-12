@@ -16,9 +16,9 @@ declare namespace Api.RealKyc {
     realName?: string;
     idType?: 'ID_CARD' | 'PASSPORT' | string;
     idNo?: string;
-    idCardFront?: string;
-    idCardBack?: string;
-    holdingPhoto?: string;
+    idCardFront?: string | null;
+    idCardBack?: string | null;
+    holdingPhoto?: string | null;
     idCardFrontFileId?: string | number;
     idCardBackFileId?: string | number;
     holdingPhotoFileId?: string | number;

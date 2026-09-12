@@ -177,7 +177,6 @@ async function onClaim(req: Api.RealPurchase.Record) {
   }
 }
 
-const CNY_RATE = 7.18;
 function finiteBudget(value: string | number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
@@ -197,11 +196,6 @@ const avgBudget = computed<string | undefined>(() => {
   if (totalBudget.value === undefined) return undefined;
   const total = Number(totalBudget.value);
   return Number.isFinite(total) ? (total / list.value.length).toFixed(2) : undefined;
-});
-const totalBudgetCny = computed<string | undefined>(() => {
-  if (totalBudget.value === undefined) return undefined;
-  const total = Number(totalBudget.value);
-  return Number.isFinite(total) ? formatAmount((total * CNY_RATE).toFixed(2)) : undefined;
 });
 
 function reset() {
@@ -247,7 +241,6 @@ function changePage(page: number) {
               <span class="unit">U</span>
               <span class="num">{{ formatAmount(totalBudget) }}</span>
             </div>
-            <div class="stat-hint">≈ ¥{{ totalBudgetCny }}</div>
           </div>
           <div class="stat-divider" />
           <div class="stat">
@@ -407,7 +400,7 @@ function changePage(page: number) {
 
 .hero-stats {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 24px;
 }
 .stat {
@@ -416,6 +409,7 @@ function changePage(page: number) {
   gap: 4px;
 }
 .stat-label {
+  line-height: 18px;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -427,6 +421,8 @@ function changePage(page: number) {
   align-items: baseline;
   gap: 3px;
   color: var(--yb-ink);
+  line-height: 40px;
+  white-space: nowrap;
 }
 .stat-value .unit {
   font-family: var(--yb-font-mono);
@@ -441,15 +437,11 @@ function changePage(page: number) {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
-.stat-hint {
-  font-family: var(--yb-font-mono);
-  font-size: 11px;
-  color: var(--yb-faint);
-  margin-top: 2px;
-}
 .stat-divider {
   width: 1px;
   height: 40px;
+  flex-shrink: 0;
+  margin-top: 18px;
   background: var(--yb-hairline);
 }
 .hero-side {

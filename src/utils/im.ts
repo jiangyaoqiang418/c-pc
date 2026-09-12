@@ -73,11 +73,15 @@ export function applyReadEvent(
   return { ...watermarks, [String(readerId)]: event.lastReadMessageId };
 }
 
+export function recalledMessage(message: Api.RealNotify.ImMessageVO): Api.RealNotify.ImMessageVO {
+  return { ...message, recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, duration: undefined, params: undefined };
+}
+
 export function mergeMessages(
   current: Api.RealNotify.ImMessageVO[],
   incoming: Api.RealNotify.ImMessageVO | Api.RealNotify.ImMessageVO[]
 ) {
-  const result = [...current];
+  const result = current.map(message => message.recalled ? recalledMessage(message) : message);
   const additions = Array.isArray(incoming) ? incoming : [incoming];
 
   additions.forEach(message => {
@@ -88,7 +92,7 @@ export function mergeMessages(
     const merged = index >= 0 ? { ...result[index], ...message, pending: false, failed: false } : { ...message };
     // 撤回为终态；迟到分页或发送回执不能让旧内容/媒体复活，null 不回退旧值。
     if (message.recalled || (index >= 0 && result[index].recalled)) {
-      Object.assign(merged, { recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, duration: undefined });
+      Object.assign(merged, recalledMessage(merged));
     }
     if (index >= 0) result[index] = merged;
     else result.push(merged);

@@ -18,10 +18,31 @@ import { submitBuyerApplication } from './buyer';
 import { fetchKycSchema, kycSubmissionIssue } from './kyc';
 import { fetchRechargeByKey, fetchWithdrawByKey } from './wallet';
 import { fetchFinanceOrderByKey } from './finance';
+import { createCategoryOptions, fetchCreateCategoryOptions, isSelectableCategory } from './category';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('本轮交互边界', () => {
+  it('创建分类仅允许完整启用三级，拒绝低级叶子、停用祖先和过期选择', async () => {
+    const leaf: Api.RealCategory.CategoryNodeDTO = { id: '9007199254740993', parentId: 'second', level: 3, name: '三级', enabled: true };
+    const root: Api.RealCategory.CategoryNodeDTO = { id: 'root', level: 1, name: '一级', enabled: true, children: [
+      { id: 'second', parentId: 'root', level: 2, name: '二级', enabled: true, children: [leaf] }
+    ] };
+    const options = createCategoryOptions([root]);
+    expect(isSelectableCategory(options, leaf.id)).toBe(true);
+    expect(isSelectableCategory(options, root.id)).toBe(false);
+    expect(isSelectableCategory(options, 'second')).toBe(false);
+    expect(isSelectableCategory(createCategoryOptions([{ ...root, children: [{ ...root.children![0], parentId: undefined,
+      children: [{ ...leaf, parentId: undefined }] }] }]), leaf.id)).toBe(true);
+    for (const node of [{ ...root, enabled: false }, { ...root, enabled: undefined }, { ...root, children: [] }, { ...root, children: [{ ...root.children![0], children: [] }] }, { ...root, children: [{ ...root.children![0], enabled: false }] }, { ...root, children: [{ ...root.children![0], children: [{ ...leaf, parentId: 'wrong' }] }] }]) {
+      expect(createCategoryOptions([node])).toEqual([]);
+    }
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValueOnce([root]).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('offline'));
+    expect(isSelectableCategory(await fetchCreateCategoryOptions(), leaf.id)).toBe(true);
+    expect(get).toHaveBeenLastCalledWith('/categories/tree', { params: { onlyEnabled: true } });
+    expect(isSelectableCategory(await fetchCreateCategoryOptions(), leaf.id)).toBe(false);
+    await expect(fetchCreateCategoryOptions()).rejects.toThrow('offline');
+  });
   it('钱包桶和日期关键词透传服务端，返回总数和记录不再二次筛选', async () => {
     const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1 }] });
     const result = await fetchWalletLedger({ current: 2, size: 10, bucket: 'lockedFinance', keyword: ' QA ', fromAt: '2026-09-05', toAt: '2026-09-05' });

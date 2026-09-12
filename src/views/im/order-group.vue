@@ -23,6 +23,7 @@ import {
   isNearMessageBottom,
   syncMessageGap,
   mergeMessages,
+  recalledMessage,
   markUnconfirmedMessageFailed,
   sameBusinessId
 } from '@/utils/im';
@@ -57,6 +58,13 @@ const readerWatermarks = ref<Record<string, string | number>>({});
 const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
 const imageUrls = computed(() => conversationImageUrls(messages.value));
+watch(imageUrls, (urls, previous) => {
+  if (!imagePreviewVisible.value) return;
+  const selected = previous[imagePreviewCurrent.value];
+  const index = selected ? urls.indexOf(selected) : -1;
+  if (index < 0) imagePreviewVisible.value = false;
+  else imagePreviewCurrent.value = index;
+}, { flush: 'sync' });
 const requestGuard = createLatestRequestGuard();
 const olderMessagesGuard = createLatestRequestGuard();
 const incrementalMessagesGuard = createLatestRequestGuard();
@@ -373,7 +381,7 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
   try {
     await notifyApi.recallConversationMessage({ id: message.id });
     if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
-    messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? { ...item, recalled: true, content: undefined, mediaUrl: undefined } : item);
+    messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? recalledMessage(item) : item);
   } catch {
     // 请求层展示错误。
   } finally {
@@ -410,7 +418,7 @@ notifyStore.subscribe(async event => {
   } else if (event.type === 'IM_RECALL') {
     const recalled = event.payload.message;
     const messageId = recalled?.id ?? event.payload.messageId ?? event.payload.id;
-    if (messageId !== undefined) messages.value = messages.value.map(message => sameBusinessId(message.id, messageId) ? { ...message, ...recalled, recalled: true, content: undefined, mediaUrl: undefined } : message);
+    if (messageId !== undefined) messages.value = messages.value.map(message => sameBusinessId(message.id, messageId) ? recalledMessage({ ...message, ...recalled }) : message);
   } else if (event.type === 'IM_READ') {
     readerWatermarks.value = applyReadEvent(readerWatermarks.value, conversation.value?.id, event.payload);
   }

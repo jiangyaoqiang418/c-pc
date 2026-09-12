@@ -255,6 +255,10 @@ describe('购物车读取和数量边界', () => {
 
 describe('独立结算上下文', () => {
   it('首次明确拒绝可解除记录，但未知结果的重试拒绝不能解除原记录', () => {
+    for (const status of [undefined, 200, 400]) {
+      expect(canDiscardRejectedCheckout(new RequestError('参数冲突', { code: '-311', status }), false)).toBe(false);
+      expect(canDiscardRejectedCheckout(new RequestError('参数冲突', { code: '-311', status }), true)).toBe(false);
+    }
     for (const error of [new RequestError('参数拒绝', { status: 422 }), new RequestError('请求未发出', { code: 'SESSION_CHANGED' }), new RequestError('不能购买自己发布的商品')]) {
       expect(canDiscardRejectedCheckout(error, false)).toBe(true);
       expect(canDiscardRejectedCheckout(error, true)).toBe(false);

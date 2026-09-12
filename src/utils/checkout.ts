@@ -94,6 +94,7 @@ export function readPendingCheckout(userId: string | number): PendingCheckout | 
 
 /** 只有首次请求的明确拒绝能解除下单保护；重试拒绝不能推翻原请求的未知结果。 */
 export function canDiscardRejectedCheckout(error: unknown, hadPendingAttempt: boolean) {
+  if (error instanceof RequestError && error.code === '-311') return false;
   return !hadPendingAttempt && (isDefinitiveRejection(error)
     || (error instanceof RequestError && /不能购买自己(?:的|发布的)?商品/.test(error.message)));
 }

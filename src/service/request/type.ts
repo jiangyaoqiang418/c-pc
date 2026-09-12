@@ -34,14 +34,20 @@ export class RequestError extends Error {
   code?: string;
   status?: number;
   response?: RealResponse;
+  traceId?: string;
 
-  constructor(message: string, options: { code?: string; status?: number; response?: RealResponse } = {}) {
+  constructor(message: string, options: { code?: string; status?: number; response?: RealResponse; traceId?: string } = {}) {
     super(message);
     this.name = 'RequestError';
     this.code = options.code;
     this.status = options.status;
     this.response = options.response;
+    this.traceId = options.traceId;
   }
+}
+
+export function responseTraceId(headers: Headers): string | undefined {
+  return [...new Set((headers.get('X-Trace-Id') || '').split(',').map(value => value.trim()).filter(Boolean))].join(', ') || undefined;
 }
 
 /** 只有服务端明确拒绝身份时才应清理本地 token；网络波动不能视为登出。 */

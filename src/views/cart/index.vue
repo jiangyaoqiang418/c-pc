@@ -321,6 +321,7 @@ onMounted(() => {
 }
 .summary-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 8px;
@@ -332,10 +333,11 @@ onMounted(() => {
 }
 .summary-val {
   min-width: 0;
+  max-width: 100%;
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .v-cny {
   color: var(--yb-ink);
@@ -355,11 +357,15 @@ onMounted(() => {
   margin-top: 6px;
 }
 .total-amount-block {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 100%;
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
 }
 .total-cny {
+  overflow-wrap: anywhere;
   font-family: var(--yb-font-mono);
   font-size: 22px;
   font-weight: 700;
@@ -372,7 +378,8 @@ onMounted(() => {
   color: var(--yb-muted);
   font-family: var(--yb-font-mono);
   margin-top: 2px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .lbl {
   color: #86909c;

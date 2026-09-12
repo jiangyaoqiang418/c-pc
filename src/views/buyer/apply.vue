@@ -142,7 +142,7 @@ watch(() => userStore.currentUser?.id, () => {
       <template #action><a-button :loading="loading" @click="loadApplication">核对申请状态</a-button></template>
     </a-alert>
 
-    <a-spin :loading="loading">
+    <a-spin :loading="loading" class="application-content">
       <a-alert v-if="loadError" type="error" class="reject-alert" :title="loadError">
         <template #action><a-button size="mini" @click="loadApplication">重新加载</a-button></template>
       </a-alert>
@@ -184,16 +184,23 @@ watch(() => userStore.currentUser?.id, () => {
 
 <style scoped>
 .buyer-apply-page {
-  max-width: 820px;
+  width: 100%;
+  max-width: 528px;
   margin: 0 auto;
   padding-top: 16px;
 }
+.application-content {
+  display: block;
+  width: 100%;
+}
 .page-title {
+  text-align: center;
   font-size: 20px;
   font-weight: 600;
   margin: 0;
 }
 .hint {
+  text-align: center;
   margin: 0 0 16px;
   color: #86909c;
   font-size: 13px;
