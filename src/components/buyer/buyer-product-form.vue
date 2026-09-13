@@ -26,6 +26,7 @@ interface SubmitForm extends Omit<FormState, 'images'> {
 
 interface Props {
   submitting?: boolean;
+  initialProduct?: Api.RealProduct.Record;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
@@ -49,6 +50,17 @@ const form = reactive<FormState>({
   description: '',
   images: []
 });
+if (props.initialProduct) {
+  const p = props.initialProduct;
+  Object.assign(form, {
+    title: p.title, categoryId: p.categoryId, price: Number(p.price),
+    shippingFee: Number(p.shippingFee), tax: Number(p.tax), stock: p.stock,
+    aftersaleType: p.aftersaleType === 'unknown' ? undefined : p.aftersaleType,
+    overseasCustoms: p.overseasCustoms, summary: p.summary, description: p.description,
+    images: (p.imageFiles || []).map(item => item.url)
+  });
+  (p.imageFiles || []).forEach(item => uploadedImageMap.set(item.url, { bucket: item.bucket, filePath: item.filePath }));
+}
 const { markInteracted, markSaved } = useUnsavedForm(() => form, () => undefined);
 defineExpose({ markSaved, reloadCategories });
 
@@ -77,6 +89,7 @@ function submit() {
     Message.warning('请输入商品标题');
     return;
   }
+  if (!form.aftersaleType) return Message.warning('请选择售后类型');
   if (!isSelectableCategory(cascaderOptions.value, form.categoryId)) {
     Message.warning('请选择商品分类');
     return;
@@ -93,7 +106,7 @@ function submit() {
     Message.warning('请输入正确的税费');
     return;
   }
-  if (!Number.isFinite(form.stock) || form.stock < 0) {
+  if (!Number.isInteger(form.stock) || form.stock < 0) {
     Message.warning('请输入正确的库存');
     return;
   }
@@ -119,7 +132,7 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
 <template>
   <a-form :model="form" layout="vertical" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
     <a-form-item label="商品标题" required>
-      <a-input v-model="form.title" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" size="large" />
+      <a-input v-model="form.title" :max-length="128" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" size="large" />
     </a-form-item>
 
     <a-form-item label="商品分类" required>
@@ -136,17 +149,17 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     <a-row :gutter="12">
       <a-col :span="8">
         <a-form-item label="售价 (USDT)" required>
-          <a-input-number v-model="form.price" :min="0.01" :precision="2" size="large" />
+          <a-input-number v-model="form.price" :min="0.00000001" :precision="initialProduct ? 8 : 2" size="large" />
         </a-form-item>
       </a-col>
       <a-col :span="8">
         <a-form-item label="运费 (USDT)">
-          <a-input-number v-model="form.shippingFee" :min="0" :precision="2" size="large" />
+          <a-input-number v-model="form.shippingFee" :min="0" :precision="initialProduct ? 8 : 2" size="large" />
         </a-form-item>
       </a-col>
       <a-col :span="8">
         <a-form-item label="税费 (USDT)">
-          <a-input-number v-model="form.tax" :min="0" :precision="2" size="large" />
+          <a-input-number v-model="form.tax" :min="0" :precision="initialProduct ? 8 : 2" size="large" />
         </a-form-item>
       </a-col>
     </a-row>
@@ -176,7 +189,7 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     </a-row>
 
     <a-form-item label="简介">
-      <a-input v-model="form.summary" placeholder="一行简介，30 字以内" :max-length="50" />
+      <a-input v-model="form.summary" placeholder="一行简介，30 字以内" :max-length="30" />
     </a-form-item>
 
     <a-form-item label="详细描述">

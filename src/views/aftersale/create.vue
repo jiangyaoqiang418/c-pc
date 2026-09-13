@@ -135,7 +135,7 @@ function submit(restoring = false) {
 
 <template>
   <div class="aftersale-create-page shop-container" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-    <a-spin :loading="loading">
+    <a-spin class="aftersale-create-content" :loading="loading">
       <template v-if="order">
         <a-alert v-if="recoveryError" type="warning">{{ recoveryError }}</a-alert>
         <a-alert v-else-if="pendingIntent && !pendingIntent.receipt" type="warning">
@@ -160,7 +160,8 @@ function submit(restoring = false) {
 .order-row { display:grid; grid-template-columns:80px 1fr auto; gap:16px; align-items:center; }
 .cover { width:80px; height:80px; object-fit:cover; border-radius:4px; background:#f7f8fa; }
 .meta { color:#86909c; font-size:12px; margin-top:6px; }.step-title { font-weight:600; margin-bottom:14px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }
-.actions-card { display:flex; justify-content:flex-end; gap:12px; }
+.aftersale-create-content { display:block; width:100%; max-width:560px; margin:0 auto; }
+.actions-card { display:flex; justify-content:center; gap:16px; }
 @media (max-width: 640px) {
   .aftersale-create-page { padding-top: 10px; }
   .order-row { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }

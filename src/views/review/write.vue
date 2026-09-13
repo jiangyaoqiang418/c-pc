@@ -157,7 +157,7 @@ function handleEmptyAction() {
 
 <template>
   <div class="review-write-page shop-container">
-    <a-spin :loading="loading">
+    <a-spin :loading="loading" class="review-content">
       <template v-if="order">
         <a-breadcrumb class="bread">
           <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">我的订单</a-breadcrumb-item>
@@ -209,6 +209,12 @@ function handleEmptyAction() {
 .review-write-page {
   padding-top: 16px;
   max-width: 860px;
+  margin: 0 auto;
+}
+.review-content {
+  display: block;
+  width: 100%;
+  max-width: 560px;
   margin: 0 auto;
 }
 .bread {

@@ -43,6 +43,10 @@ const size = ref(12);
 const total = ref(0);
 const shelvingId = ref<string | number>();
 const deletingId = ref<string | number>();
+const priceProduct = ref<Api.RealProduct.Record>();
+const priceVisible = ref(false);
+const newPrice = ref('');
+const priceSaving = ref(false);
 const requestGuard = createLatestRequestGuard();
 const categoryGuard = createLatestRequestGuard();
 let writeVersion = 0;
@@ -177,6 +181,9 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   requestGuard.invalidate();
   shelvingId.value = undefined;
   deletingId.value = undefined;
+  priceVisible.value = false;
+  priceProduct.value = undefined;
+  priceSaving.value = false;
   products.value = [];
   total.value = 0;
   current.value = 1;
@@ -185,7 +192,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 
 async function toggleShelf(p: Api.RealProduct.Record) {
-  if (shelvingId.value !== undefined || deletingId.value !== undefined) return;
+  if (priceSaving.value || shelvingId.value !== undefined || deletingId.value !== undefined) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const productId = p.id;
@@ -206,7 +213,7 @@ async function toggleShelf(p: Api.RealProduct.Record) {
 }
 
 async function deleteProduct(p: Api.RealProduct.Record) {
-  if (deletingId.value !== undefined || shelvingId.value !== undefined) return;
+  if (priceSaving.value || deletingId.value !== undefined || shelvingId.value !== undefined) return;
   if (p.shelfStatus === 'on-shelf') {
     Message.warning('请先下架商品后再删除');
     return;
@@ -226,6 +233,39 @@ async function deleteProduct(p: Api.RealProduct.Record) {
     // 请求层已展示后端业务提示。
   } finally {
     if (operation === writeVersion) deletingId.value = undefined;
+  }
+}
+
+function openPrice(p: Api.RealProduct.Record) {
+  if (priceSaving.value || shelvingId.value !== undefined || deletingId.value !== undefined) return;
+  if (p.rawStatus !== 'ON_SALE' && p.rawStatus !== 'OFF_SHELF') return;
+  priceProduct.value = p;
+  newPrice.value = String(p.price);
+  priceVisible.value = true;
+}
+
+async function savePrice() {
+  const p = priceProduct.value;
+  const userId = userStore.currentUser?.id;
+  if (!p || userId === undefined || priceSaving.value) return;
+  const value = newPrice.value.trim();
+  if (!/^\d+(\.\d{1,8})?$/.test(value) || !/[1-9]/.test(value)) {
+    Message.warning('请输入大于 0 的价格，最多 8 位小数');
+    return;
+  }
+  const operation = ++writeVersion;
+  const isCurrent = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId);
+  priceSaving.value = true;
+  try {
+    await productApi.changeProductPrice(p.id, value);
+    if (!isCurrent()) return;
+    priceVisible.value = false;
+    Message.success('价格已更新');
+    await load();
+  } catch {
+    // 请求层展示后端错误，保留输入供用户修正。
+  } finally {
+    if (isCurrent()) priceSaving.value = false;
   }
 }
 
@@ -272,6 +312,9 @@ async function deleteProduct(p: Api.RealProduct.Record) {
           :product="p"
           :shelving="shelvingId === p.id"
           :deleting="deletingId === p.id"
+          :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined"
+          @edit="router.push({ name: 'buyer-product-edit', params: { id: String(p.id) } })"
+          @price="openPrice(p)"
           @toggle-shelf="toggleShelf"
           @delete="deleteProduct"
         />
@@ -285,6 +328,17 @@ async function deleteProduct(p: Api.RealProduct.Record) {
       />
     </a-spin>
 
+    <a-modal v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving">
+      <p>{{ priceProduct?.title }}</p>
+      <a-form layout="vertical" :model="{ price: newPrice }">
+        <a-form-item label="售价（USDT）" required><a-input v-model="newPrice" :disabled="priceSaving" @press-enter="savePrice" /></a-form-item>
+      </a-form>
+      <p>改价立即生效，已下单订单的价格不受影响。</p>
+      <div style="display:flex;justify-content:flex-end;gap:12px">
+        <a-button :disabled="priceSaving" @click="priceVisible = false">取消</a-button>
+        <a-button type="primary" :loading="priceSaving" @click="savePrice">确认改价</a-button>
+      </div>
+    </a-modal>
     <div v-if="total > size" class="pagination">
       <a-pagination
         :total="total"

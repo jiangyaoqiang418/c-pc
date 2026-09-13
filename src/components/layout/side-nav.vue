@@ -19,6 +19,26 @@ const hoveredCatId = ref<string | number | null>(null);
 const loading = ref(false);
 const loadError = ref('');
 const categoryGuard = createLatestRequestGuard();
+let closeTimer: number | undefined;
+
+function cancelClose() {
+  if (closeTimer === undefined) return;
+  window.clearTimeout(closeTimer);
+  closeTimer = undefined;
+}
+
+function openCategory(id: string | number) {
+  cancelClose();
+  hoveredCatId.value = id;
+}
+
+function scheduleClose() {
+  cancelClose();
+  closeTimer = window.setTimeout(() => {
+    hoveredCatId.value = null;
+    closeTimer = undefined;
+  }, 300);
+}
 
 async function loadCategories() {
   if (loading.value) return;
@@ -38,9 +58,13 @@ async function loadCategories() {
 }
 
 onMounted(loadCategories);
-onBeforeUnmount(categoryGuard.invalidate);
+onBeforeUnmount(() => {
+  categoryGuard.invalidate();
+  cancelClose();
+});
 
 function goCategory(id: string | number) {
+  cancelClose();
   router.push({ name: 'product-list', query: { categoryId: String(id) } });
   hoveredCatId.value = null;
 }
@@ -60,10 +84,10 @@ function goCategory(id: string | number) {
       role="link"
       tabindex="0"
       :aria-expanded="hoveredCatId === cat.id && !!cat.children?.length"
-      @mouseenter="hoveredCatId = cat.id"
-      @mouseleave="hoveredCatId = null"
+      @mouseenter="openCategory(cat.id)"
+      @mouseleave="scheduleClose"
       @click="goCategory(cat.id)"
-      @focus="hoveredCatId = cat.id"
+      @focus="openCategory(cat.id)"
       @keydown.enter="goCategory(cat.id)"
       @keydown.space.prevent="goCategory(cat.id)"
     >
@@ -72,7 +96,12 @@ function goCategory(id: string | number) {
       <Icon icon="lucide:chevron-right" class="cat-arrow" width="14" />
 
       <!-- hover 弹二级 mega -->
-      <div v-if="hoveredCatId === cat.id && cat.children?.length" class="mega-menu">
+      <div
+        v-if="hoveredCatId === cat.id && cat.children?.length"
+        class="mega-menu"
+        @mouseenter="cancelClose"
+        @mouseleave="scheduleClose"
+      >
         <div class="mega-inner" :class="{ 'single-group': cat.children.length === 1 }">
           <div v-for="sub in cat.children" :key="sub.id" class="mega-sub">
             <div
@@ -186,7 +215,7 @@ function goCategory(id: string | number) {
 /* Mega menu 二级弹出 */
 .mega-menu {
   position: absolute;
-  left: calc(100% + 4px);
+  left: 100%;
   top: -8px;
   width: max-content;
   min-width: 160px;

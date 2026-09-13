@@ -17,9 +17,8 @@ const HOT_WORDS = ['平板电脑', '爆款耳机', 'iPhone 16', 'MacBook', '女�
 
 function submit(q?: string) {
   const query = (q || kw.value).trim();
-  if (!query) return;
   kw.value = query;
-  router.push({ name: 'product-list', query: { keyword: query } });
+  router.push({ name: 'product-list', query: { keyword: query || undefined } });
 }
 
 function onSearchKeydown(event: KeyboardEvent) {

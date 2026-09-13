@@ -504,7 +504,12 @@ watch(() => route.query.id, id => {
             <template #cell="{ record }">{{ formatTime(record.createdAt) }}</template>
           </a-table-column>
           <a-table-column title="操作" :width="150">
-            <template #cell="{ record }"><a-button type="text" @click="showDetail(record)">详情</a-button><a-button v-if="record.status === 'PENDING'" type="text" status="danger" :loading="cancelingRechargeId === record.id" @click="cancelRecharge(record)">取消申报</a-button></template>
+            <template #cell="{ record }">
+              <div class="record-actions">
+                <a-button type="text" @click="showDetail(record)">详情</a-button>
+                <a-button v-if="record.status === 'PENDING'" type="text" status="danger" :loading="cancelingRechargeId === record.id" @click="cancelRecharge(record)">取消申报</a-button>
+              </div>
+            </template>
           </a-table-column>
         </template>
         <template #empty><EmptyState :title="recordError || '暂无链上充值记录'" :action-text="recordError ? '重新加载' : undefined" @action="recordError && loadRecords()" /></template>
@@ -520,7 +525,15 @@ watch(() => route.query.id, id => {
       </div>
     </a-card>
 
-    <a-drawer v-model:visible="detailOpen" title="充值订单详情" width="520" :footer="false">
+    <a-drawer
+      v-model:visible="detailOpen"
+      title="充值订单详情"
+      placement="right"
+      :width="520"
+      :mask="true"
+      :mask-closable="true"
+      :footer="false"
+    >
       <a-spin :loading="detailLoading" style="width: 100%">
         <a-descriptions v-if="detail" :column="1" bordered :data="[
           { label: '订单编号', value: String(detail.id) },
@@ -559,6 +572,7 @@ watch(() => route.query.id, id => {
 .address-value { color: #1d2129; font-family: var(--yb-font-mono); overflow-wrap: anywhere; margin-bottom: 12px; }
 .section-title { font-size: 14px; font-weight: 600; color: #1d2129; margin-bottom: 14px; padding-left: 8px; border-left: 3px solid var(--bw-brand-primary); }
 .records-head { display: flex; justify-content: space-between; align-items: flex-start; }
+.record-actions { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
 .load-alert { margin-bottom: 16px; }
 @media (max-width: 640px) {

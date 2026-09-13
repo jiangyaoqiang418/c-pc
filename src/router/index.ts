@@ -208,6 +208,8 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '买手仪表盘', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/products/create', name: 'buyer-product-create', component: () => import('@/views/buyer/product-create.vue'),
     meta: { layout: 'default', title: '创建商品', requiresAuth: true, requiresBuyer: true } },
+  { path: '/buyer/products/:id/edit', name: 'buyer-product-edit', component: () => import('@/views/buyer/product-create.vue'),
+    meta: { layout: 'default', title: '编辑商品', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/categories/apply', name: 'buyer-category-applications', component: () => import('@/views/buyer/category-applications.vue'),
     meta: { layout: 'default', title: '分类申请', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/flash-sales', name: 'buyer-flash-sales', component: () => import('@/views/buyer/flash-sales.vue'),

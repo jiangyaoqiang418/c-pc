@@ -60,6 +60,8 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     description: dto.description || '',
     aftersaleType: toAfterSaleType(dto.afterSaleType),
     rawAfterSaleType: dto.afterSaleType,
+    rawStatus: dto.status,
+    imageFiles: dto.imageFiles,
     overseasCustoms: !!dto.overseasClearance,
     status,
     shelfStatus: toShelfStatus(dto.status),
@@ -269,6 +271,14 @@ export async function fetchMyFavorites(q: { current?: number; size?: number; sig
 export async function fetchSellerProductDetail(id: string | number) {
   const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/products/detail', { params: { id } });
   return toProductRecord(dto);
+}
+
+export function updateProduct(params: Api.RealProduct.ProductUpdateParams) {
+  return realOrderRequest.put<string, Api.RealProduct.ProductUpdateParams>('/products/update', params);
+}
+
+export function changeProductPrice(id: Api.RealProduct.Id, price: string) {
+  return realOrderRequest.put<string, { id: Api.RealProduct.Id; price: string }>('/products/price', { id, price });
 }
 
 export async function fetchMyProducts(q: {

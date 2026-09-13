@@ -38,12 +38,20 @@ const sortOptions = [
 ];
 
 const aftersaleOptions = [
-  { value: undefined, label: '不限' },
+  { value: 'all', label: '不限' },
   { value: '7day-no-reason', label: '7 天无理由' },
   { value: 'shop-warranty', label: '店铺保修' },
   { value: 'national-warranty', label: '全国联保' },
   { value: 'none', label: '无售后' }
 ];
+const aftersaleSelection = computed({
+  get: () => filter.aftersaleType || 'all',
+  set: (value: string) => { filter.aftersaleType = value === 'all' ? undefined : value as Api.Product.AftersaleType; }
+});
+const overseasSelection = computed({
+  get: () => filter.overseasCustoms ? 'overseas' : 'all',
+  set: (value: string) => { filter.overseasCustoms = value === 'overseas' ? true : undefined; }
+});
 
 function optionalQueryNumber(value: unknown) {
   const parsed = Number(value);
@@ -55,7 +63,7 @@ function syncFromQuery() {
   filter.categoryId = (route.query.categoryId as string) || undefined;
   const rawAftersaleType = Array.isArray(route.query.aftersaleType) ? route.query.aftersaleType[0] : route.query.aftersaleType;
   const validAftersaleType = typeof rawAftersaleType === 'string'
-    && aftersaleOptions.some(option => option.value === rawAftersaleType);
+    && aftersaleOptions.some(option => option.value !== 'all' && option.value === rawAftersaleType);
   filter.aftersaleType = validAftersaleType ? rawAftersaleType as Api.Product.AftersaleType : undefined;
   const rawOverseas = route.query.overseas;
   const validOverseas = rawOverseas === undefined || rawOverseas === '1';
@@ -192,15 +200,15 @@ function onPageChange(p: number) {
     <div class="filter-bar">
       <div class="filter-row">
         <span class="filter-label">售后类型</span>
-        <a-radio-group v-model="filter.aftersaleType" type="button" size="small" @change="applyToUrl">
+        <a-radio-group v-model="aftersaleSelection" type="button" size="small" @change="applyToUrl">
           <a-radio v-for="o in aftersaleOptions" :key="o.label" :value="o.value">{{ o.label }}</a-radio>
         </a-radio-group>
       </div>
       <div class="filter-row">
         <span class="filter-label">海外过关</span>
-        <a-radio-group v-model="filter.overseasCustoms" type="button" size="small" @change="applyToUrl">
-          <a-radio :value="undefined">不限</a-radio>
-          <a-radio :value="true">仅海外直邮</a-radio>
+        <a-radio-group v-model="overseasSelection" type="button" size="small" @change="applyToUrl">
+          <a-radio value="all">不限</a-radio>
+          <a-radio value="overseas">仅海外直邮</a-radio>
         </a-radio-group>
       </div>
       <div class="filter-row">

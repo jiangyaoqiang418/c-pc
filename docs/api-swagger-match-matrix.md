@@ -11,6 +11,8 @@
 
 ## 最新变更四层核对
 
+- 2026-09-13 商品编辑/快捷改价：live order 已提供 PUT /products/update、PUT /products/price 及 ProductDTO.imageFiles。API/类型与页面已接入：OFF_SHELF/REJECTED 复用创建表单、详情全量回显、原图存储字段回传、提交重新审核；ON_SALE/OFF_SHELF 弹窗回显价格、字符串提交并刷新列表。代码检查与现有测试通过；本轮未执行浏览器与真实写入验收，未提交推送。
+
 依据工作区 `20260905_C-PC_后端变更执行清单.md`，当前为**部分完成**。表中浏览器结果为9月5日契约适配后证据；9月6日显示层补验另列，不能相互替代。
 
 9月8日依据三端执行计划补齐：商品/求购分类使用当前启用树的完整三级路径，提交前刷新复核；CategoryNodeDTO.parentId没有required声明，允许随嵌套路径省略，但拒绝明确错父级、错误层级和未明确启用的节点。create/create-batch同键异参-311仅后端回复明确，Swagger仍描述旧单返回；请求HTTP错误保留业务code，checkout即使首次HTTP400/-311也保留原键原参数，不自动重建。错误增加可选去重traceId，不记录敏感请求或改变成功响应。均为代码适配，不是新订单真实冲突验收。

@@ -60,6 +60,9 @@ function onClick(i: number) {
 .star-slot.filled :deep(svg) {
   fill: currentColor;
 }
+.star-slot.filled :deep(svg path) {
+  fill: currentColor;
+}
 .score {
   margin-left: 8px;
   font-family: var(--yb-font-mono);

@@ -8,6 +8,8 @@ declare namespace Api.RealProduct {
     categoryId: Id;
     aftersaleType: DisplayAfterSaleType;
     rawAfterSaleType?: string;
+    rawStatus?: ProductStatus;
+    imageFiles?: ProductImageDTO[];
   };
 
   type DisplayRecord = Api.Product.ProductRecord | Record;
@@ -39,6 +41,7 @@ declare namespace Api.RealProduct {
     viewCount?: string | number;
     favoriteCount?: string | number;
     images?: string[];
+    imageFiles?: ProductImageDTO[];
     createdAt?: string | number;
     updatedAt?: string | number;
   }
@@ -74,6 +77,17 @@ declare namespace Api.RealProduct {
   interface ProductImageParam {
     bucket: string;
     filePath: string;
+  }
+
+  interface ProductImageDTO extends ProductImageParam {
+    url: string;
+  }
+
+  interface ProductUpdateParams extends Omit<ProductCreateParams, 'price' | 'shippingFee' | 'taxFee'> {
+    id: Id;
+    price: string;
+    shippingFee: string;
+    taxFee: string;
   }
 
   interface ProductCreateParams {

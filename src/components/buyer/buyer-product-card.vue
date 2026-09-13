@@ -10,11 +10,14 @@ interface Props {
   product: Api.RealProduct.DisplayRecord;
   shelving?: boolean;
   deleting?: boolean;
+  busy?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), { shelving: false, deleting: false });
 const emit = defineEmits<{
   (e: 'toggle-shelf', product: Api.RealProduct.DisplayRecord): void;
   (e: 'delete', product: Api.RealProduct.DisplayRecord): void;
+  (e: 'edit', product: Api.RealProduct.DisplayRecord): void;
+  (e: 'price', product: Api.RealProduct.DisplayRecord): void;
 }>();
 
 const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
@@ -35,6 +38,20 @@ const SHELF_LABEL: Record<Api.Product.ShelfStatus, { label: string; color: strin
   'off-shelf': { label: '已下架', color: 'gray' }
 };
 const shelfMeta = computed(() => SHELF_LABEL[props.product.shelfStatus]);
+const rawStatus = computed(() => 'rawStatus' in props.product ? props.product.rawStatus : undefined);
+const busyReason = computed(() => props.busy || props.shelving || props.deleting ? '商品操作处理中，请稍后重试' : '');
+const editDisabledReason = computed(() => {
+  if (busyReason.value) return busyReason.value;
+  if (rawStatus.value === 'OFF_SHELF' || rawStatus.value === 'REJECTED') return '';
+  if (rawStatus.value === 'ON_SALE') return '请先下架商品再编辑';
+  return '仅已下架或审核驳回的商品可编辑';
+});
+const priceDisabledReason = computed(() => {
+  if (busyReason.value) return busyReason.value;
+  if (rawStatus.value === 'ON_SALE' || rawStatus.value === 'OFF_SHELF') return '';
+  if (rawStatus.value === 'REJECTED') return '审核驳回的商品请通过编辑修改价格并重新提交审核';
+  return '仅在售或已下架的商品可快捷改价';
+});
 
 function toggleShelf() {
   if (props.shelving || props.deleting) return;
@@ -75,12 +92,18 @@ function toggleShelf() {
         <span>收藏 {{ product.favoriteCount || 0 }}</span>
       </div>
       <div class="actions">
+        <a-tooltip :content="editDisabledReason" :disabled="!editDisabledReason">
+          <span class="action-trigger"><a-button size="small" :disabled="!!editDisabledReason" @click="emit('edit', product)">编辑</a-button></span>
+        </a-tooltip>
+        <a-tooltip :content="priceDisabledReason" :disabled="!priceDisabledReason">
+          <span class="action-trigger"><a-button size="small" :disabled="!!priceDisabledReason" @click="emit('price', product)">改价</a-button></span>
+        </a-tooltip>
         <a-button
           v-if="product.status === 'NORMAL'"
           size="small"
           :type="product.shelfStatus === 'on-shelf' ? 'outline' : 'primary'"
           :loading="shelving"
-          :disabled="deleting"
+          :disabled="deleting || busy"
           @click="toggleShelf"
         >
           {{ product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}
@@ -91,15 +114,21 @@ function toggleShelf() {
           type="warning"
           @ok="emit('delete', product)"
         >
-          <a-button size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving">删除</a-button>
+          <a-button size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving || busy">删除</a-button>
         </a-popconfirm>
-        <a-button v-else size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving" @click="emit('delete', product)">删除</a-button>
+        <a-button v-else size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving || busy" @click="emit('delete', product)">删除</a-button>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.action-trigger {
+  display: inline-flex;
+}
+.action-trigger :deep(button:disabled) {
+  pointer-events: none;
+}
 .bp-card {
   background: #fff;
   border-radius: var(--bw-card-radius);

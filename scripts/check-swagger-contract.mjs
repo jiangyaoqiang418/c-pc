@@ -165,6 +165,9 @@ const orderGroup = resolveSchema(order, createBatchResponse?.properties?.data);
 expectProperties(orderGroup, ['orderGroupNo', 'orderIds'], '合并下单响应');
 
 const productDto = order.components?.schemas?.ProductDTO;
+expectProperties(productDto, ['imageFiles'], '商品编辑原图');
+operation(order, '/products/update', 'put');
+expectRequired(requestSchema(order, operation(order, '/products/price', 'put')), ['id', 'price'], '快捷改价');
 expectProperties(productDto, ['sellerName', 'categoryName', 'reviewerId', 'reviewedAt'], '商品详情审核信息');
 
 const groupPay = requestSchema(order, operation(order, '/orders/group/pay', 'post'));
