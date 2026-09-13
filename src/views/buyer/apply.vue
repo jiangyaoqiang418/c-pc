@@ -4,7 +4,7 @@ import { Message } from '@arco-design/web-vue';
 import * as buyerApi from '@/service/api/buyer';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { isDefinitiveRejection } from '@/service/request/type';
+import { isDefinitiveRejection, RequestError } from '@/service/request/type';
 
 const userStore = useUserStore();
 const loading = ref(false);
@@ -103,7 +103,10 @@ async function submit() {
       await loadApplication();
     } catch (error) {
       if (!isCurrentWrite()) return;
-      if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '申请被拒绝，请核对填写内容');
+      const isBusinessRejection = error instanceof RequestError && error.response?.success === false;
+      if (isDefinitiveRejection(error) || isBusinessRejection) {
+        Message.error(error instanceof Error ? error.message : '申请被拒绝，请核对填写内容');
+      }
       else {
         submissionUnknown.value = true;
         Message.warning('买手申请结果待核实，请重新读取申请状态；未确认前请勿再次提交');

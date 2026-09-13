@@ -85,7 +85,15 @@ function toggleShelf() {
         >
           {{ product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}
         </a-button>
-        <a-button size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving" @click="emit('delete', product)">删除</a-button>
+        <a-popconfirm
+          v-if="product.status === 'IN_AUDIT'"
+          content="审核中的商品删除后无法恢复，确认删除吗？"
+          type="warning"
+          @ok="emit('delete', product)"
+        >
+          <a-button size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving">删除</a-button>
+        </a-popconfirm>
+        <a-button v-else size="small" status="danger" type="outline" :loading="deleting" :disabled="shelving" @click="emit('delete', product)">删除</a-button>
       </div>
     </div>
   </div>

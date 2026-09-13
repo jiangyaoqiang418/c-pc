@@ -53,7 +53,7 @@ async function submit() {
       <a-form-item label="密码">
         <a-input-password v-model="form.password" placeholder="请输入登录密码" size="large" />
       </a-form-item>
-      <a-button type="primary" long :loading="submitting" size="large" @click="submit">登 录</a-button>
+      <a-button type="primary" html-type="submit" long :loading="submitting" size="large">登 录</a-button>
     </a-form>
 
     <div class="bottom">

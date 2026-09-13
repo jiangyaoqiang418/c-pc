@@ -34,7 +34,9 @@ function logout() {
         <div class="trigger">
           <div class="avatar">{{ avatarInitial }}</div>
           <div class="meta">
-            <div class="name">{{ userStore.displayName }}</div>
+            <a-tooltip :content="userStore.displayName" position="bottom">
+              <div class="name">{{ userStore.displayName }}</div>
+            </a-tooltip>
             <VipBadge v-if="userStore.currentUser" :level="userStore.currentUser.vipLevel" size="sm" />
             <span v-if="userStore.currentUser?.accountInfoUnavailable">会员资料未更新</span>
           </div>
@@ -64,6 +66,7 @@ function logout() {
 .user-avatar-btn {
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 .trigger {
   display: flex;
@@ -73,6 +76,7 @@ function logout() {
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.15s;
+  min-width: 0;
 }
 .trigger:hover {
   background: var(--yb-bg);
@@ -94,8 +98,13 @@ function logout() {
   flex-direction: column;
   gap: 2px;
   line-height: 1.2;
+  min-width: 0;
 }
 .name {
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 13px;
   font-weight: 600;
   color: var(--yb-ink);
