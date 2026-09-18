@@ -134,6 +134,7 @@ declare namespace Api.RealOrder {
   }
   interface OrderPayParams extends OrderIdParams {
     confirmedAmount: string;
+    payPassword: string;
   }
 
   interface OrderCreateItemParams {
@@ -158,6 +159,7 @@ declare namespace Api.RealOrder {
   interface OrderGroupPayParams {
     orderGroupNo: string;
     confirmedAmount: string;
+    payPassword: string;
   }
 
   interface OrderShipParams {

@@ -106,23 +106,23 @@ export function createOrders(
   );
 }
 
-async function submitOrderPayment(id: string | number, confirmedAmount: string, options: { showError?: boolean } = {}) {
-  const receipt = await realOrderRequest.post<string | number, Api.RealOrder.OrderPayParams>('/orders/pay', { id, confirmedAmount }, options);
+async function submitOrderPayment(id: string | number, confirmedAmount: string, payPassword: string, options: { showError?: boolean } = {}) {
+  const receipt = await realOrderRequest.post<string | number, Api.RealOrder.OrderPayParams>('/orders/pay', { id, confirmedAmount, payPassword }, options);
   if (!((typeof receipt === 'string' && receipt.trim()) || (typeof receipt === 'number' && Number.isSafeInteger(receipt)))) throw new Error('付款回执缺失，请核对原订单状态');
   return { ok: true, message: '' };
 }
 
-function submitOrderGroupPayment(orderGroupNo: string, confirmedAmount: string, options: { showError?: boolean } = {}) {
+function submitOrderGroupPayment(orderGroupNo: string, confirmedAmount: string, payPassword: string, options: { showError?: boolean } = {}) {
   return realOrderRequest.post<Api.RealOrder.OrderGroupPayResult, Api.RealOrder.OrderGroupPayParams>(
     '/orders/group/pay',
-    { orderGroupNo, confirmedAmount },
+    { orderGroupNo, confirmedAmount, payPassword },
     { ...options, preserveDecimals: true }
   );
 }
 
 export interface OrderPaymentActions {
   payOrder: typeof submitOrderPayment;
-  payOrderGroup: (confirmedAmount: string, options?: { showError?: boolean }) => Promise<Api.RealOrder.OrderGroupPayResult>;
+  payOrderGroup: (confirmedAmount: string, payPassword: string, options?: { showError?: boolean }) => Promise<Api.RealOrder.OrderGroupPayResult>;
 }
 
 /** 原始付款请求仅在持有原订单锁的回调内可用，结算逐单付款不再次嵌套取得同锁。 */
@@ -142,18 +142,18 @@ export function withOrderPayment<T>(userId: string | number, orderIds: readonly 
           if (!ids.has(String(id))) throw new Error('付款订单不属于原结算，请重新核对');
           return submitOrderPayment(id, amount, options);
         },
-        payOrderGroup: async (amount, options) => {
+        payOrderGroup: async (amount, payPassword, options) => {
           assertActive();
           if (!orderGroupNo?.trim()) throw new Error('原订单组缺失，请重新核对');
-          return submitOrderGroupPayment(orderGroupNo, amount, options);
+          return submitOrderGroupPayment(orderGroupNo, amount, payPassword, options);
         }
       });
     } finally { active = false; }
   });
 }
 
-export function payOrder(id: string | number, confirmedAmount: string, userId: string | number, options: { showError?: boolean } = {}) {
-  return withOrderPayment(userId, [id], undefined, payment => payment.payOrder(id, confirmedAmount, options));
+export function payOrder(id: string | number, confirmedAmount: string, payPassword: string, userId: string | number, options: { showError?: boolean } = {}) {
+  return withOrderPayment(userId, [id], undefined, payment => payment.payOrder(id, confirmedAmount, payPassword, options));
 }
 
 export function fetchOrderGroupPayResult(orderGroupNo: string, options: { signal?: AbortSignal } = {}) {

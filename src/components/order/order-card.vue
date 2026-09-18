@@ -6,6 +6,7 @@ import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';
 import * as orderApi from '@/service/api/order';
+import { requestPayPassword } from '@/utils/pay-password';
 import { useUserStore } from '@/stores';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { formatDateValue } from '@/utils/date-range';
@@ -60,7 +61,9 @@ async function pay() {
   const operation = ++actionVersion;
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(requestedOrderId, String(props.order.totalAmount), requestedUserId, { showError: false });
+    const payPassword = await requestPayPassword();
+    if (!payPassword || !isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
+    const r = await orderApi.payOrder(requestedOrderId, String(props.order.totalAmount), payPassword, requestedUserId, { showError: false });
     if (!isCurrentAction(operation, requestedUserId, requestedOrderId)) return;
     if (r.ok) {
       Message.success('支付成功');

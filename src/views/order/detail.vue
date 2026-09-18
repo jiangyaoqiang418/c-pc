@@ -11,6 +11,7 @@ import OrderActions from '@/components/order/order-actions.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
+import { requestPayPassword } from '@/utils/pay-password';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
@@ -192,7 +193,9 @@ async function pay() {
     && sameBusinessId(order.value?.id, requestedOrderId);
   acting.value = true;
   try {
-    const r = await orderApi.payOrder(requestedOrderId, String(order.value.totalAmount), requestedUserId, { showError: false });
+    const payPassword = await requestPayPassword(route.fullPath);
+    if (!payPassword || !isCurrentAction()) return;
+    const r = await orderApi.payOrder(requestedOrderId, String(order.value.totalAmount), payPassword, requestedUserId, { showError: false });
     if (!isCurrentAction()) return;
     if (r.ok) { Message.success('支付成功'); await load(); }
     else Message.error(r.message || '支付失败');

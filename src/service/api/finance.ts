@@ -43,11 +43,11 @@ export function redeemFinance(params: Api.RealFinance.FinanceRedeemParams) {
   return realUserRequest.post<string | number, Api.RealFinance.FinanceRedeemParams>('/finance/orders/redeem', params, { showError: false });
 }
 
-export async function redeemFinanceWithReadback(userId: string | number, id: string | number) {
+export async function redeemFinanceWithReadback(userId: string | number, id: string | number, payPassword: string) {
   const action = `finance-redeem:${id}` as const;
   if (!financialSubmissionIssue(userId, action)) {
     try {
-      return await submitFinancialOperation(userId, action, () => redeemFinance({ id }), result => String(result) === String(id) ? result : undefined);
+      return await submitFinancialOperation(userId, action, () => redeemFinance({ id, payPassword }), result => String(result) === String(id) ? result : undefined);
     } catch (error) {
       if (isDefinitiveRejection(error) || (error instanceof RequestError
         && ['LOCAL_STORAGE_UNAVAILABLE', 'SUBMISSION_LOCK_UNAVAILABLE', 'SUBMISSION_IN_PROGRESS'].includes(error.code || ''))) throw error;

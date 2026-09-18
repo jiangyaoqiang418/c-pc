@@ -20,6 +20,7 @@ import type { CartItem } from '@/stores/cart';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { getOrderCapabilities } from '@/utils/order';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
+import { requestPayPassword } from '@/utils/pay-password';
 
 const router = useRouter();
 const route = useRoute();
@@ -216,10 +217,12 @@ async function payCheckoutOrders(pending: PendingCheckout, userId: string | numb
     if (latest.some((order, index) => String(order.id) !== String(ids[index]))) throw new Error('订单回读对象不一致，请重新核对');
     const payable = prepare(latest);
     if (!payable || !isCurrent()) return;
+    const payPassword = await requestPayPassword(route.fullPath);
+    if (!payPassword || !isCurrent()) return;
     if (pending.orderGroupNo) {
-      await payGroup(pending, payable, isCurrent, payment);
+      await payGroup(pending, payable, payPassword, isCurrent, payment);
     } else {
-      const results = await Promise.allSettled(payable.map(order => payment.payOrder(order.id, String(order.totalAmount), { showError: false })));
+      const results = await Promise.allSettled(payable.map(order => payment.payOrder(order.id, String(order.totalAmount), payPassword, { showError: false })));
       if (!isCurrent()) return;
       const failedCount = results.filter(result => result.status === 'rejected').length;
       if (failedCount) {
@@ -231,7 +234,7 @@ async function payCheckoutOrders(pending: PendingCheckout, userId: string | numb
   });
 }
 
-async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[], isCurrent: () => boolean, payment: realOrderApi.OrderPaymentActions) {
+async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[], payPassword: string, isCurrent: () => boolean, payment: realOrderApi.OrderPaymentActions) {
   const group = pending.orderGroupNo!;
   const ids = pending.orderIds!;
   const before = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(group), group, ids);
@@ -245,7 +248,7 @@ async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[
   }
   let result: Api.RealOrder.OrderGroupPayResult;
   try {
-    result = validateGroupPayResult(await payment.payOrderGroup(amount, { showError: false }), group, ids);
+    result = validateGroupPayResult(await payment.payOrderGroup(amount, payPassword, { showError: false }), group, ids);
   } catch (error) {
     if (!isCurrent()) return;
     // 回查仅用于恢复当前状态，金额变化不得自动重付。

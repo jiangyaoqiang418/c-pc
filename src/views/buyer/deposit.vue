@@ -13,6 +13,7 @@ import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { pendingDepositOperation, submitDepositOperation, type PendingDeposit } from '@/utils/financial-submission';
 import { resolvePageSize } from '@/service/api/page';
+import { requestPayPassword } from '@/utils/pay-password';
 
 const userStore = useUserStore();
 const walletStore = useWalletStore();
@@ -218,8 +219,10 @@ async function submitDepositTransfer() {
   transferring.value = true;
   try {
     try {
+      const payPassword = kind === 'pay' ? await requestPayPassword(route.fullPath) : undefined;
+      if ((kind === 'pay' && !payPassword) || !isCurrentWrite()) return;
       await submitDepositOperation(requestedUserId, kind, amount, operation => {
-        const params = { amount: operation.amount, idempotencyKey: operation.idempotencyKey };
+        const params = { amount: operation.amount, idempotencyKey: operation.idempotencyKey, ...(operation.kind === 'pay' ? { payPassword } : {}) };
         return operation.kind === 'pay'
           ? realBuyerApi.payBuyerDeposit(params, { showError: false })
           : realBuyerApi.refundBuyerDeposit(params, { showError: false });

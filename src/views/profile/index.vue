@@ -162,6 +162,7 @@ const quickEntries = computed<QuickEntry[]>(() => [
   { key: 'kyc', label: 'KYC 认证', emoji: '🪪', go: () => router.push('/kyc') },
   { key: 'vip', label: 'VIP 特权', emoji: '👑', go: () => router.push('/vip') },
   { key: 'address', label: '地址管理', emoji: '📍', go: () => router.push('/address') },
+  { key: 'pay-password', label: '支付密码', emoji: '🔐', go: () => router.push('/profile/pay-password') },
   { key: 'purchase', label: '我的求购', emoji: '🔍', go: () => router.push('/purchase') },
   { key: 'aftersale', label: '我的售后', emoji: '🔧', go: () => router.push('/aftersale') },
   { key: 'review', label: '我的评价', emoji: '⭐', go: () => router.push('/review') },

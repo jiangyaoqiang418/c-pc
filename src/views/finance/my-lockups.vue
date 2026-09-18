@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import * as financeApi from '@/service/api/finance';
+import { requestPayPassword } from '@/utils/pay-password';
 import LockupCard from '@/components/finance/lockup-card.vue';
 import EarlyUnlockModal from '@/components/finance/early-unlock-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -187,7 +188,9 @@ async function confirmUnlock(order: Api.RealFinance.FinanceOrderVO) {
   unlocking.value = true;
   try {
     try {
-      await financeApi.redeemFinanceWithReadback(requestedUserId, order.id);
+      const payPassword = await requestPayPassword();
+      if (!payPassword || !isCurrentWrite()) return;
+      await financeApi.redeemFinanceWithReadback(requestedUserId, order.id, payPassword);
     } catch (error) {
       if (isCurrentWrite()) {
         redemptionPending.value = !!financialSubmissionIssue(requestedUserId, `finance-redeem:${order.id}`);

@@ -52,6 +52,7 @@ declare namespace Api.RealBuyer {
   interface DepositOperationParams {
     amount: number;
     idempotencyKey: string;
+    payPassword?: string;
   }
 
   interface DepositPageResult {

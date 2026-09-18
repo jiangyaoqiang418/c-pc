@@ -114,6 +114,7 @@ declare namespace Api.RealWallet {
     idempotencyKey?: string;
     chain: 'ETH' | 'TRON' | 'BSC';
     toAddress: string;
+    payPassword: string;
     amount: number;
   }
 

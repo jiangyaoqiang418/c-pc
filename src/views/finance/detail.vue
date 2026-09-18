@@ -9,6 +9,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { financialSubmissionIssue, financialSubmissionSnapshot, submitKeyedFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
+import { requestPayPassword } from '@/utils/pay-password';
 
 const route = useRoute();
 const router = useRouter();
@@ -112,6 +113,9 @@ async function onSubscribe(amount: string) {
     && String(product.value?.id) === String(requestedProductId);
   subscribing.value = true;
   try {
+    const payPassword = await requestPayPassword(route.fullPath);
+    if (!payPassword || !isCurrentWrite()) return;
+    activePayPassword = payPassword;
     let orderId: string | number;
     try {
       orderId = await submitKeyedFinancialOperation(requestedUserId, `finance-subscribe:${requestedProductId}`,
@@ -137,13 +141,15 @@ async function onSubscribe(amount: string) {
       }
     }
   } finally {
+    activePayPassword = '';
     if (operation === writeVersion) subscribing.value = false;
   }
 }
 
+let activePayPassword = '';
 const subscriptionIntentApi = {
   lookup: financeApi.fetchFinanceOrderByKey,
-  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => financeApi.subscribeFinance({ productId: snapshot.productId!, amount: snapshot.amount, idempotencyKey }, { showError: false })
+  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => financeApi.subscribeFinance({ productId: snapshot.productId!, amount: snapshot.amount, idempotencyKey, payPassword: activePayPassword }, { showError: false })
 };
 
 async function restoreSubscription() {
@@ -153,6 +159,9 @@ async function restoreSubscription() {
   const operation = ++writeVersion;
   subscribing.value = true;
   try {
+    const payPassword = await requestPayPassword(route.fullPath);
+    if (!payPassword) return;
+    activePayPassword = payPassword;
     const orderId = await submitKeyedFinancialOperation(userId, `finance-subscribe:${productId}`, undefined, subscriptionIntentApi, true);
     if (operation !== writeVersion || id.value !== productId || String(userStore.currentUser?.id) !== String(userId)) return;
     refreshSubmissionIssue();
@@ -160,6 +169,7 @@ async function restoreSubscription() {
   } catch (error) {
     if (operation === writeVersion) Message.warning(error instanceof Error ? error.message : '原申购核对失败');
   } finally {
+    activePayPassword = '';
     if (operation === writeVersion) { subscribing.value = false; refreshSubmissionIssue(); }
   }
 }

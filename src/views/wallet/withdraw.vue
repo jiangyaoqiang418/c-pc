@@ -9,15 +9,17 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { financialSubmissionIssue, financialSubmissionSnapshot, submitKeyedFinancialOperation, type FinancialSnapshot } from '@/utils/financial-submission';
+import { requestPayPassword } from '@/utils/pay-password';
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
-const form = reactive<Api.RealWallet.WithdrawCreateParams>({ chain: 'TRON', toAddress: '', amount: 0 });
+type WithdrawForm = Omit<Api.RealWallet.WithdrawCreateParams, 'payPassword'>;
+const form = reactive<WithdrawForm>({ chain: 'TRON', toAddress: '', amount: 0 });
 const submitting = ref(false);
 const modalOpen = ref(false);
-const confirmedParams = ref<Api.RealWallet.WithdrawCreateParams>();
+const confirmedParams = ref<WithdrawForm>();
 const submissionIssue = ref('');
 const pendingSnapshot = ref<FinancialSnapshot>();
 function refreshSubmissionIssue() {
@@ -83,10 +85,11 @@ function formatMoney(value?: string | number) {
   return value === undefined || value === null ? '—' : `U ${formatAmount(value)}`;
 }
 
+let activePayPassword = '';
 const withdrawalIntentApi = {
   lookup: realWalletApi.fetchWithdrawByKey,
   submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => realWalletApi.createWithdraw({
-    chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: Number(snapshot.amount), idempotencyKey
+    chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: Number(snapshot.amount), idempotencyKey, payPassword: activePayPassword
   }, { showError: false })
 };
 
@@ -196,6 +199,9 @@ async function confirm() {
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
+    const payPassword = await requestPayPassword(route.fullPath);
+    if (!payPassword || !isCurrentWrite()) return;
+    activePayPassword = payPassword;
     const id = await submitKeyedFinancialOperation(requestedUserId, 'withdraw', prepared.params, withdrawalIntentApi);
     if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
@@ -230,6 +236,7 @@ async function confirm() {
       }
     }
   } finally {
+    activePayPassword = '';
     if (operation === writeVersion) submitting.value = false;
   }
 }

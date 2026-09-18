@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import * as realAddressApi from '@/service/api/address';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { RequestError } from '@/service/request';
+import AddressForm from '@/components/profile/address-form.vue';
 
 interface Props {
   modelValue?: string | number;
@@ -30,17 +31,6 @@ const selectionValid = computed(() => !loading.value && !loadError.value
   && loadedUserId.value === String(props.userId)
   && list.value.some(address => isSelected(address)));
 watch(selectionValid, valid => emit('validity', valid), { immediate: true, flush: 'sync' });
-
-const form = reactive({
-  receiverName: '',
-  receiverPhone: '',
-  country: '中国',
-  province: '',
-  city: '',
-  district: '',
-  detail: '',
-  isDefault: false
-});
 
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -86,7 +76,6 @@ watch(() => props.userId, (next, previous) => {
   writeVersion += 1;
   submitting.value = false;
   modalOpen.value = false;
-  resetForm();
   loadedUserId.value = '';
   pendingCreatedId.value = undefined;
   list.value = [];
@@ -110,39 +99,20 @@ function isSelected(addr: Api.RealAddress.AddressRecord) {
   return props.modelValue !== undefined && props.modelValue !== null && String(props.modelValue) === String(addr.id);
 }
 
-function resetForm() {
-  form.receiverName = '';
-  form.receiverPhone = '';
-  form.country = '中国';
-  form.province = '';
-  form.city = '';
-  form.district = '';
-  form.detail = '';
-  form.isDefault = false;
-}
-
 function openAdd() {
   if (submitting.value) return;
-  resetForm();
   modalOpen.value = true;
 }
 
-async function submit() {
+async function submit(params: Api.RealAddress.AddressSaveParams) {
   if (submitting.value) return false;
-  const prepared = realAddressApi.prepareAddress({ receiverName: form.receiverName, receiverPhone: form.receiverPhone,
-    country: form.country, province: form.province, city: form.city, district: form.district,
-    detailAddress: form.detail, defaultFlag: form.isDefault });
-  if (prepared.error) {
-    Message.warning(prepared.error);
-    return false;
-  }
   const userId = String(props.userId);
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(props.userId) === userId;
   submitting.value = true;
   try {
     try {
-      const createdId = await realAddressApi.createAddress(prepared.params);
+      const createdId = await realAddressApi.createAddress(params);
       if (!isCurrentWrite()) return false;
       pendingCreatedId.value = createdId;
       emit('update:modelValue', createdId);
@@ -151,6 +121,7 @@ async function submit() {
       await load();
       if (!isCurrentWrite()) return false;
       if (loadError.value) Message.warning('地址已添加，但列表读取未完成，请重新加载核对');
+      modalOpen.value = false;
       return true;
     } catch (error) {
       if (error instanceof RequestError && error.code === 'UNKNOWN_OPERATION_RESULT') Message.warning(error.message);
@@ -200,47 +171,8 @@ async function submit() {
       </div>
     </a-spin>
 
-    <a-modal v-model:visible="modalOpen" title="新增收货地址" :ok-loading="submitting" :on-before-ok="submit">
-      <a-form :model="form" layout="vertical">
-        <a-row :gutter="12">
-          <a-col :span="12">
-            <a-form-item label="收货人" required>
-              <a-input v-model="form.receiverName" placeholder="姓名" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="手机号" required>
-              <a-input v-model="form.receiverPhone" placeholder="收件人电话，可含国家/地区区号" :max-length="32" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-form-item label="国家/地区" required>
-          <a-input v-model="form.country" placeholder="如 中国" />
-        </a-form-item>
-        <a-row :gutter="12">
-          <a-col :span="8">
-            <a-form-item label="省" required>
-              <a-input v-model="form.province" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="市">
-              <a-input v-model="form.city" />
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item label="区/县">
-              <a-input v-model="form.district" />
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-form-item label="详细地址" required>
-          <a-textarea v-model="form.detail" :rows="2" placeholder="街道、门牌号" />
-        </a-form-item>
-        <a-form-item>
-          <a-checkbox v-model="form.isDefault">设为默认地址</a-checkbox>
-        </a-form-item>
-      </a-form>
+    <a-modal v-model:visible="modalOpen" title="新增收货地址" :footer="false">
+      <AddressForm :submitting="submitting" @submit="submit" />
     </a-modal>
   </div>
 </template>

@@ -148,7 +148,7 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
   });
 }
 
-async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'createdAt' | 'updatedAt'>) {
+async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
   if (!userStore.currentUser || submitting.value) return;
   const requestedUserId = userStore.currentUser.id;
   const operation = ++submitWriteVersion;
@@ -157,20 +157,7 @@ async function onSubmit(form: Omit<Api.RealAddress.AddressRecord, 'id' | 'create
   const submittedModalVersion = modalVersion;
   submitting.value = true;
   try {
-    const params: Api.RealAddress.AddressSaveParams = {
-      id: editing.value?.id,
-      receiverName: form.receiverName,
-      receiverPhone: form.receiverPhone,
-      country: form.country,
-      province: form.province,
-      city: form.city,
-      district: form.district,
-      detailAddress: form.detail,
-      postalCode: editing.value?.postalCode,
-      idCardNo: editing.value?.idCardNo,
-      defaultFlag: form.isDefault,
-      tag: editing.value?.tag
-    };
+    const params: Api.RealAddress.AddressSaveParams = { ...form, id: editing.value?.id };
     try {
       if (editingId) await realAddressApi.updateAddress(params);
       else await realAddressApi.createAddress(params);

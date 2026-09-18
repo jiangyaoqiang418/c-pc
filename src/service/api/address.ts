@@ -1,16 +1,16 @@
 import { realUserRequest, RequestError } from '@/service/request';
 import { requireArray } from './page';
 
-/** 两个地址入口共用校验；保留现有省份必填要求，不把国际电话限制为 11 位。 */
+/** 两个地址入口共用校验；编码均作为不透明字符串保留。 */
 export function prepareAddress(params: Api.RealAddress.AddressSaveParams) {
   const normalized = { ...params };
-  const limits = { receiverName: 64, receiverPhone: 32, country: 64, province: 64, city: 64,
+  const limits = { receiverName: 64, receiverPhone: 32, countryCode: 16, provinceCode: 32, cityCode: 32, districtCode: 32, province: 64, city: 64,
     district: 64, detailAddress: 255, postalCode: 16, idCardNo: 64, tag: 32 } as const;
   for (const key of Object.keys(limits) as Array<keyof typeof limits>) {
     const value = params[key];
     if (typeof value === 'string') normalized[key] = value.trim();
   }
-  if (![normalized.receiverName, normalized.receiverPhone, normalized.country, normalized.province, normalized.detailAddress].every(Boolean)) {
+  if (![normalized.receiverName, normalized.receiverPhone, normalized.countryCode, normalized.detailAddress].every(Boolean)) {
     return { params: normalized, error: '请完善地址必填信息，不能只填写空格' };
   }
   if ((Object.keys(limits) as Array<keyof typeof limits>).some(key => (normalized[key]?.length || 0) > limits[key])) {
@@ -25,9 +25,13 @@ function toAddressRecord(dto: Api.RealAddress.UserAddressVO): Api.RealAddress.Ad
     receiverName: dto.receiverName,
     receiverPhone: dto.receiverPhone,
     country: dto.country,
+    countryCode: dto.countryCode || '',
     province: dto.province || '',
+    provinceCode: dto.provinceCode,
     city: dto.city || '',
+    cityCode: dto.cityCode,
     district: dto.district || '',
+    districtCode: dto.districtCode,
     detail: dto.detailAddress,
     postalCode: dto.postalCode,
     idCardNo: dto.idCardNo,
@@ -36,6 +40,18 @@ function toAddressRecord(dto: Api.RealAddress.UserAddressVO): Api.RealAddress.Ad
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt
   };
+}
+
+export async function fetchCountries(options: { signal?: AbortSignal } = {}) {
+  const list = await realUserRequest.get<Api.RealAddress.CountryVO[]>('/regions/countries', options);
+  return requireArray<Api.RealAddress.CountryVO>(list, '国家地区字典');
+}
+
+export async function fetchRegionChildren(countryCode: string, parentCode?: string, options: { signal?: AbortSignal } = {}) {
+  const list = await realUserRequest.get<Api.RealAddress.RegionVO[]>('/regions/children', {
+    params: { countryCode, parentCode: parentCode || undefined }, signal: options.signal
+  });
+  return requireArray<Api.RealAddress.RegionVO>(list, '行政区划字典');
 }
 
 export async function fetchMyAddresses(options: { signal?: AbortSignal } = {}) {
