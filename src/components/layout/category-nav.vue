@@ -56,6 +56,13 @@ function goCategory(id: string | number) {
   megaOpen.value = false;
 }
 
+function descendantOptions(nodes: CategoryNode[], parents: string[] = []): CategoryNode[] {
+  return nodes.flatMap(node => {
+    const path = [...parents, node.name];
+    return [{ ...node, name: path.join(' / ') }, ...descendantOptions(node.children || [], path)];
+  });
+}
+
 function toggleMega() {
   if (megaOpen.value) {
     megaOpen.value = false;
@@ -153,7 +160,7 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
               >{{ sub.name }}</div>
               <div class="mega-brand-list">
                 <span
-                  v-for="brand in (sub.children || []).slice(0, 10)"
+                  v-for="brand in descendantOptions(sub.children || [])"
                   :key="brand.id"
                   class="mega-brand"
                   role="menuitem"

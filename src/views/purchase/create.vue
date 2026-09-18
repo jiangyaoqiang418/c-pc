@@ -248,8 +248,9 @@ async function submit() {
           <a-cascader
             v-model="form.categoryId"
             :options="cascaderOptions"
-            placeholder="选择三级分类"
+            placeholder="选择分类（支持一至五级）"
             expand-trigger="hover"
+            check-strictly
             allow-clear
           />
           <div v-if="categoryLoadError" class="form-error">

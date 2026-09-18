@@ -40,7 +40,7 @@ let modalVersion = 0;
 watch(modalOpen, () => { modalVersion += 1; }, { flush: 'sync' });
 
 function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): CategoryOption[] {
-  return nodes.filter(node => node.level < 3).map(node => ({
+  return nodes.filter(node => node.enabled === true && node.level < 5).map(node => ({
     value: node.id,
     label: node.name,
     children: node.children?.length ? mapCategoryOptions(node.children) : undefined

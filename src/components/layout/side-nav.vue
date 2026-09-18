@@ -68,6 +68,13 @@ function goCategory(id: string | number) {
   router.push({ name: 'product-list', query: { categoryId: String(id) } });
   hoveredCatId.value = null;
 }
+
+function descendantOptions(nodes: CategoryNode[], parents: string[] = []): CategoryNode[] {
+  return nodes.flatMap(node => {
+    const path = [...parents, node.name];
+    return [{ ...node, name: path.join(' / ') }, ...descendantOptions(node.children || [], path)];
+  });
+}
 </script>
 
 <template>
@@ -116,7 +123,7 @@ function goCategory(id: string | number) {
             </div>
             <div class="mega-brands">
               <span
-                v-for="brand in (sub.children || []).slice(0, 10)"
+                v-for="brand in descendantOptions(sub.children || [])"
                 :key="brand.id"
                 class="mega-brand"
                 role="link"

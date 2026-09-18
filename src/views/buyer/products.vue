@@ -6,7 +6,7 @@ import { Message } from '@arco-design/web-vue';
 import BuyerProductCard from '@/components/buyer/buyer-product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
-import { fetchCategoryTree } from '@/service/api/category';
+import { fetchRealCategoryTree } from '@/service/api/category';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
@@ -78,7 +78,7 @@ function syncQuery(replace = false) {
   });
 }
 
-function mapCategoryOptions(nodes: Api.RealCategory.DisplayCategoryNode[]): Array<{ value: string | number; label: string; children?: any[] }> {
+function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): Array<{ value: string | number; label: string; children?: any[] }> {
   return nodes.map(node => ({
     value: node.id,
     label: node.name,
@@ -132,7 +132,7 @@ async function load() {
 async function loadCategories() {
   const isCurrent = categoryGuard.begin();
   try {
-    const next = await fetchCategoryTree({ signal: isCurrent.signal });
+    const next = await fetchRealCategoryTree({ signal: isCurrent.signal, onlyWithProduct: false });
     if (isCurrent()) categoryOptions.value = mapCategoryOptions(next);
   } catch {
     if (!isCurrent()) return;

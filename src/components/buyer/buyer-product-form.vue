@@ -141,6 +141,7 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
         :options="cascaderOptions"
         placeholder="选择分类"
         expand-trigger="hover"
+        check-strictly
         allow-clear
       />
       <div v-if="categoryLoadError" class="hint">{{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories" @keydown.enter="reloadCategories" @keydown.space.prevent="reloadCategories">重新加载</a-link></div>

@@ -20,12 +20,16 @@ function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.RealCategor
 }
 
 export async function fetchCategoryTree(options: { signal?: AbortSignal } = {}) {
-  const list = await fetchRealCategoryTree(options);
+  const list = await fetchRealCategoryTree({ ...options, onlyWithProduct: true });
   return requireArray<Api.RealCategory.CategoryNodeDTO>(list, '分类树').map(toCategoryNode);
 }
 
-export async function fetchRealCategoryTree(options: { signal?: AbortSignal } = {}) {
-  const list = await realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree', { ...options, params: { onlyEnabled: true } });
+export async function fetchRealCategoryTree(options: { signal?: AbortSignal; onlyWithProduct?: boolean } = {}) {
+  const { onlyWithProduct = false, ...requestOptions } = options;
+  const list = await realOrderRequest.get<Api.RealCategory.CategoryNodeDTO[]>('/categories/tree', {
+    ...requestOptions,
+    params: { onlyEnabled: true, onlyWithProduct }
+  });
   return requireArray<Api.RealCategory.CategoryNodeDTO>(list, '分类树');
 }
 
@@ -35,21 +39,20 @@ export interface CategoryOption {
   children?: CategoryOption[];
 }
 
-/** 创建只接受路径完整且每级明确启用的三级分类，一级/二级叶子不作为可选项。 */
+/** 发布和求购允许选择任一启用层级，最多五级，并保留完整父子关系。 */
 export function createCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[], level = 1, parentId?: string): CategoryOption[] {
   return nodes.flatMap(node => {
     if (node.enabled !== true || node.level !== level || !String(node.id ?? '').trim()
       || (node.parentId !== undefined && node.parentId !== null
         && String(node.parentId) !== String(parentId ?? '0'))) return [];
-    if (level === 3) return [{ value: node.id, label: node.name }];
     const children = createCategoryOptions(node.children || [], level + 1, node.id);
-    return children.length ? [{ value: node.id, label: node.name, children }] : [];
+    return [{ value: node.id, label: node.name, children: children.length ? children : undefined }];
   });
 }
 
 export function isSelectableCategory(options: CategoryOption[], id: string | number | undefined): boolean {
-  return id !== undefined && options.some(option => option.children
-    ? isSelectableCategory(option.children, id) : String(option.value) === String(id));
+  return id !== undefined && options.some(option => String(option.value) === String(id)
+    || !!option.children && isSelectableCategory(option.children, id));
 }
 
 export async function fetchCreateCategoryOptions(options: { signal?: AbortSignal } = {}) {

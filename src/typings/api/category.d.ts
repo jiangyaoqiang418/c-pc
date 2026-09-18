@@ -2,7 +2,7 @@ declare namespace Api.RealCategory {
   interface CategoryNodeDTO {
     id: string;
     parentId?: string | null;
-    level: 1 | 2 | 3;
+    level: 1 | 2 | 3 | 4 | 5;
     name: string;
     sortOrder?: number;
     enabled?: boolean;
@@ -15,7 +15,7 @@ declare namespace Api.RealCategory {
     id: string;
     code: string;
     name: string;
-    level: 1 | 2 | 3;
+    level: 1 | 2 | 3 | 4 | 5;
     parentId: string | null;
     parentPath: string;
     sort: number;

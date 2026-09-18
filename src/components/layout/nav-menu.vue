@@ -8,7 +8,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 interface CategoryNode {
   id: string | number;
   name: string;
-  level: 1 | 2 | 3;
+  level: 1 | 2 | 3 | 4 | 5;
   children?: CategoryNode[];
 }
 
@@ -67,6 +67,13 @@ function gotoCategory(rootId?: string | number, subId?: string | number, brandId
   router.push({ name: 'product-list', query: { categoryId: id ? String(id) : undefined } });
   subMenuOpen.value = false;
 }
+
+function descendantOptions(nodes: CategoryNode[], parents: string[] = []): CategoryNode[] {
+  return nodes.flatMap(node => {
+    const path = [...parents, node.name];
+    return [{ ...node, name: path.join(' / ') }, ...descendantOptions(node.children || [], path)];
+  });
+}
 </script>
 
 <template>
@@ -121,7 +128,7 @@ function gotoCategory(rootId?: string | number, subId?: string | number, brandId
               >{{ sub.name }}</div>
               <div class="brand-list">
                 <a
-                  v-for="brand in (sub.children || []).slice(0, 12)"
+                  v-for="brand in descendantOptions(sub.children || [])"
                   :key="brand.id"
                   class="brand-link"
                   role="menuitem"
