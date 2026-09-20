@@ -74,7 +74,7 @@ export function applyReadEvent(
 }
 
 export function recalledMessage(message: Api.RealNotify.ImMessageVO): Api.RealNotify.ImMessageVO {
-  return { ...message, recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, duration: undefined, params: undefined };
+  return { ...message, recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, coverUrl: undefined, coverFileId: undefined, duration: undefined, params: undefined };
 }
 
 export function mergeMessages(
@@ -168,6 +168,7 @@ export function createOptimisticMessage(
     msgType: params.msgType,
     content: params.content,
     mediaFileId: params.mediaFileId,
+    coverFileId: params.coverFileId,
     clientMsgId: params.clientMsgId,
     createdAt: String(Date.now()),
     pending: true

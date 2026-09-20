@@ -8,6 +8,7 @@ import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import { sameBusinessId } from '@/utils/im';
 import { notificationRoute } from '@/utils/notification';
+import { fetchPurchaseProgress } from '@/service/api/purchase';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { resolvePageSize } from '@/service/api/page';
 
@@ -107,6 +108,8 @@ function formatTime(value?: string | number) {
 
 function iconFor(notification: Api.RealNotify.NotificationVO) {
   const code = String(notification.templateCode || '').toLowerCase();
+  if (code.startsWith('product_')) return 'lucide:package-check';
+  if (code.startsWith('demand_')) return 'lucide:clipboard-list';
   if (code.includes('paid') || code.includes('settled')) return 'lucide:circle-dollar-sign';
   if (code.includes('ship')) return 'lucide:truck';
   if (code.includes('refund')) return 'lucide:rotate-ccw';
@@ -115,6 +118,8 @@ function iconFor(notification: Api.RealNotify.NotificationVO) {
 
 function categoryFor(notification: Api.RealNotify.NotificationVO) {
   const code = String(notification.templateCode || '').toLowerCase();
+  if (code.startsWith('product_')) return { label: '商品审核', color: 'purple' as const };
+  if (code.startsWith('demand_')) return { label: '求购通知', color: 'orange' as const };
   if (code.includes('refund')) return { label: '退款售后', color: 'orangered' as const };
   if (code.includes('ship')) return { label: '物流履约', color: 'arcoblue' as const };
   if (code.includes('paid') || code.includes('settled')) return { label: '资金订单', color: 'green' as const };
@@ -122,7 +127,7 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
   return { label: '平台通知', color: 'gray' as const };
 }
 
-function openNotification(notification: Api.RealNotify.NotificationVO) {
+async function openNotification(notification: Api.RealNotify.NotificationVO) {
   if (disposed) return;
   const requestedUserId = userStore.currentUser?.id;
   if (!notification.readFlag) {
@@ -134,8 +139,19 @@ function openNotification(notification: Api.RealNotify.NotificationVO) {
       if (unreadOnly.value) void load();
     });
   }
-  const target = notificationRoute(notification);
-  if (target) router.push(target);
+  let target = notificationRoute(notification);
+  if (notification.templateCode === 'demand_taken' && notification.bizId != null) {
+    try {
+      const demand = await fetchPurchaseProgress(notification.bizId);
+      if (disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+      target = demand.orderId
+        ? { name: 'order-detail' as const, params: { id: String(demand.orderId) } }
+        : target;
+    } catch {
+      // 成交结果暂时无法读取时仍进入求购详情，绝不把求购 ID 当订单 ID。
+    }
+  }
+  if (target) void router.push(target);
   else Message.info('该通知暂无详情');
 }
 

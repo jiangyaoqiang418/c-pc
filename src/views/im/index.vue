@@ -434,7 +434,7 @@ function readText(message: Api.RealNotify.ImMessageVO) {
   return count ? `已读 ${count}` : '未读';
 }
 
-async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: string; mediaFileId?: string | number }) {
+async function onSend(payload: { type: 'text' | 'image' | 'audio' | 'video'; content?: string; mediaFileId?: string | number; coverFileId?: string | number; coverUrl?: string; duration?: number }) {
   const conversation = selectedConversation.value;
   if (!conversation || messageSending.value) return;
   const requestedUserId = userStore.currentUser?.id;
@@ -445,9 +445,10 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio'; content?: str
   const clientMsgId = createClientMessageId();
   const params: Api.RealNotify.ImSendMessageParams = {
     conversationId,
-    msgType: payload.type === 'image' ? 'IMAGE' : payload.type === 'audio' ? 'VOICE' : 'TEXT',
+    msgType: payload.type === 'image' ? 'IMAGE' : payload.type === 'audio' ? 'VOICE' : payload.type === 'video' ? 'VIDEO' : 'TEXT',
     content: payload.content,
     mediaFileId: payload.mediaFileId,
+    coverFileId: payload.coverFileId,
     clientMsgId
   };
   messages.value = mergeMessages(messages.value, createOptimisticMessage(params, {
@@ -489,6 +490,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     msgType: String(message.msgType || 'TEXT').toUpperCase() as Api.RealNotify.SendMessageType,
     content: message.content ?? undefined,
     mediaFileId: message.mediaFileId ?? undefined,
+    coverFileId: message.coverFileId ?? undefined,
     clientMsgId
   };
   messages.value = messages.value.map(item => sameBusinessId(item.id, message.id)

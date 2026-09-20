@@ -98,7 +98,7 @@ export function sendConversationMessage(params: Api.RealNotify.ImSendMessagePara
   );
 }
 
-export function uploadImFile(file: File, scene: 'IM_IMAGE' | 'IM_VOICE', duration?: number, conversationId?: string | number) {
+export function uploadImFile(file: File, scene: 'IM_IMAGE' | 'IM_VOICE' | 'IM_VIDEO', duration?: number, conversationId?: string | number) {
   const form = new FormData();
   form.append('file', file);
   return realNotifyRequest.post<Api.RealNotify.ImFileUploadResult, FormData>('/im/files/upload', form, {

@@ -259,6 +259,9 @@ function cancel() {
                 <span v-if="request.assignedBy" class="order-link">· 后台指派</span>
                 <span v-if="request.relatedOrderCode" class="order-link">· 订单 {{ request.relatedOrderCode }}</span>
               </p>
+              <a-button v-if="isMyRequest && request.relatedOrderId" type="primary" @click="router.push({ name: 'order-detail', params: { id: String(request.relatedOrderId) } })">
+                去付款
+              </a-button>
             </template>
           </a-card>
         </div>

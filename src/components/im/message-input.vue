@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message, Modal } from '@arco-design/web-vue';
 import { uploadImFile } from '@/service/api/notify';
 import { shouldSendOnEnter } from '@/utils/im';
 
@@ -18,9 +18,12 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 type OutgoingMessage = {
-  type: 'text' | 'image' | 'audio';
+  type: 'text' | 'image' | 'audio' | 'video';
   content?: string;
   mediaFileId?: string | number;
+  coverFileId?: string | number;
+  coverUrl?: string;
+  duration?: number;
 };
 
 const emit = defineEmits<{
@@ -32,6 +35,7 @@ const text = ref('');
 const sending = ref(false);
 const uploading = ref(false);
 const fileInputRef = ref<HTMLInputElement>();
+const videoInputRef = ref<HTMLInputElement>();
 const recording = ref(false);
 const startingRecording = ref(false);
 const mediaBusy = computed(() => uploading.value || recording.value || startingRecording.value);
@@ -47,6 +51,74 @@ const canRecord = computed(() => typeof MediaRecorder !== 'undefined' && !!navig
 function clearRecordingTimer() {
   if (recordingTimer) clearInterval(recordingTimer);
   recordingTimer = undefined;
+}
+
+function chooseVideo() {
+  if (props.disabled || props.submitting || mediaBusy.value) return;
+  videoInputRef.value?.click();
+}
+
+async function readVideo(file: File) {
+  return new Promise<{ duration: number; cover?: Blob }>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    const cleanup = () => URL.revokeObjectURL(url);
+    video.onerror = () => { cleanup(); reject(new Error('无法读取视频信息')); };
+    video.onloadedmetadata = () => {
+      const duration = Math.ceil(video.duration);
+      video.currentTime = Math.min(0.1, Math.max(0, video.duration / 10));
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ratio = Math.min(1, 640 / Math.max(video.videoWidth, 1));
+          canvas.width = Math.max(1, Math.round(video.videoWidth * ratio));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * ratio));
+          canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(cover => { cleanup(); resolve({ duration, cover: cover || undefined }); }, 'image/jpeg', 0.82);
+        } catch { cleanup(); resolve({ duration }); }
+      };
+    };
+    video.src = url;
+  });
+}
+
+async function onVideoSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || props.disabled || props.submitting || mediaBusy.value) return;
+  if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)) return void Message.warning('请选择 MP4、WebM 或 MOV 视频');
+  if (file.size > 50 * 1024 * 1024) return void Message.warning('视频不能超过 50MB');
+  let metadata: { duration: number; cover?: Blob };
+  try { metadata = await readVideo(file); } catch (error) { return void Message.error(error instanceof Error ? error.message : '视频读取失败'); }
+  if (!Number.isFinite(metadata.duration) || metadata.duration <= 0 || metadata.duration > 60) return void Message.warning('视频时长须在 60 秒以内');
+  Modal.confirm({
+    title: '发送视频？',
+    content: `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)}MB · ${metadata.duration}秒`,
+    async onOk() {
+      const operation = ++uploadVersion;
+      uploading.value = true;
+      try {
+        const videoFile = await uploadImFile(file, 'IM_VIDEO', metadata.duration);
+        let coverFileId: string | number | undefined;
+        let coverUrl: string | undefined;
+        if (metadata.cover) {
+          try {
+            const cover = await uploadImFile(new File([metadata.cover], `video-cover-${Date.now()}.jpg`, { type: 'image/jpeg' }), 'IM_IMAGE');
+            coverFileId = cover.id;
+            coverUrl = cover.url;
+          } catch { /* 封面失败不阻断视频发送。 */ }
+        }
+        if (operation === uploadVersion && !props.disabled) emit('send', { type: 'video', mediaFileId: videoFile.id, coverFileId, coverUrl, duration: metadata.duration });
+      } catch (error) {
+        if (operation === uploadVersion) Message.error(error instanceof Error ? error.message : '视频上传失败');
+      } finally {
+        if (operation === uploadVersion) uploading.value = false;
+      }
+    }
+  });
 }
 
 async function send() {
@@ -183,9 +255,11 @@ onBeforeUnmount(() => {
   <div class="input-area">
     <div class="toolbar">
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
+      <input ref="videoInputRef" class="file-input" type="file" accept="video/mp4,video/webm,video/quicktime" @change="onVideoSelected" />
       <button class="tool-btn" type="button" title="上传聊天图片" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage">
         {{ uploading ? '图片上传中…' : '🖼 图片' }}
       </button>
+      <button class="tool-btn" type="button" title="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo">🎬 视频</button>
       <button
         class="tool-btn voice-btn"
         type="button"

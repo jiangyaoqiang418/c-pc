@@ -1,8 +1,8 @@
 declare namespace Api.RealNotify {
   type ConversationBizType = 'ORDER' | 'PRESALE' | 'CUSTOMER_SERVICE' | string;
   type ConversationRole = 'CUSTOMER' | 'SELLER' | 'ADMIN' | string;
-  type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'ORDER_CARD' | 'SYSTEM' | string;
-  type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE';
+  type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'ORDER_CARD' | 'SYSTEM' | string;
+  type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO';
   type SocketEventType = 'READY' | 'IM_MESSAGE' | 'IM_READ' | 'IM_RECALL' | 'NOTIFICATION' | 'PONG' | string;
 
   interface PageQuery {
@@ -70,6 +70,8 @@ declare namespace Api.RealNotify {
     mediaUrl?: string | null;
     duration?: number | null;
     mediaFileId?: string | number | null;
+    coverFileId?: string | number | null;
+    coverUrl?: string | null;
     eventType?: string;
     params?: Record<string, unknown> | null;
     clientMsgId?: string;
@@ -89,6 +91,7 @@ declare namespace Api.RealNotify {
     msgType: SendMessageType;
     content?: string;
     mediaFileId?: string | number;
+    coverFileId?: string | number;
     clientMsgId?: string;
   }
 

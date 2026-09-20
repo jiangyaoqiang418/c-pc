@@ -11,13 +11,14 @@ export function notificationOrderId(notification: Pick<Api.RealNotify.Notificati
 const TEMPLATE_CODES: Record<string, Set<string>> = {
   ORDER: new Set(['order_created', 'order_price_changed', 'order_paid', 'order_shipped', 'order_completed', 'order_settled', 'order_canceled', 'order_refund_applied', 'order_refund_agreed', 'order_refund_rejected', 'order_refund_canceled']),
   PRODUCT_REVIEW: new Set(['review_published']),
+  PRODUCT: new Set(['product_approved', 'product_rejected']),
   RECHARGE: new Set(['recharge_confirmed']),
   WITHDRAW: new Set(['withdraw_submitted', 'withdraw_approved', 'withdraw_success', 'withdraw_rejected']),
   FINANCE: new Set(['finance_subscribed', 'finance_settled', 'finance_redeemed']),
   KYC: new Set(['kyc_approved', 'kyc_rejected']),
   BUYER_APPLICATION: new Set(['buyer_application_approved', 'buyer_application_rejected']),
   BUYER_DEPOSIT: new Set(['buyer_deposit_alert']),
-  PURCHASE_DEMAND: new Set(['demand_pushed']),
+  PURCHASE_DEMAND: new Set(['demand_approved', 'demand_rejected', 'demand_taken', 'demand_pushed']),
   ACCOUNT: new Set(['welcome']),
   SYSTEM: new Set(['system_notice'])
 };
@@ -38,6 +39,8 @@ export function notificationRoute(notification: Pick<Api.RealNotify.Notification
   if (type === 'BUYER_DEPOSIT') return { path: '/buyer/deposit' as const };
   if (type === 'FINANCE' && bizId) return { name: 'finance-lockup-detail' as const, params: { id: bizId } };
   if (type === 'PRODUCT_REVIEW') return { name: 'review-list' as const, query: { id: bizId } };
+  if (type === 'PRODUCT' && template === 'product_rejected') return { name: 'buyer-product-edit' as const, params: { id: bizId } };
+  if (type === 'PRODUCT') return { name: 'buyer-products' as const, query: { productId: bizId } };
   if (type === 'PURCHASE_DEMAND') return { name: 'purchase-detail' as const, params: { id: bizId } };
   if (type === 'ACCOUNT') return { name: 'profile' as const, query: { id: bizId } };
   return undefined;
