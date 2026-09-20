@@ -1,9 +1,10 @@
 declare namespace Api.RealNotify {
-  type ConversationBizType = 'ORDER' | 'PRESALE' | 'CUSTOMER_SERVICE' | string;
+  type ConversationType = 'ORDER_GROUP' | 'SUPPORT' | string;
+  type InterveneStatus = 'NONE' | 'REQUESTED' | 'HANDLING';
   type ConversationRole = 'CUSTOMER' | 'SELLER' | 'ADMIN' | string;
   type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'ORDER_CARD' | 'SYSTEM' | string;
   type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO';
-  type SocketEventType = 'READY' | 'IM_MESSAGE' | 'IM_READ' | 'IM_RECALL' | 'NOTIFICATION' | 'PONG' | string;
+  type SocketEventType = 'READY' | 'IM_MESSAGE' | 'IM_READ' | 'IM_RECALL' | 'IM_INTERVENE' | 'NOTIFICATION' | 'PONG' | string;
 
   interface PageQuery {
     pageNo?: number;
@@ -41,8 +42,9 @@ declare namespace Api.RealNotify {
   interface ImConversationVO {
     id: string | number;
     title?: string;
-    bizType?: ConversationBizType;
-    bizId?: string | number;
+    type?: ConversationType;
+    customerId?: string | number;
+    sellerId?: string | number;
     myRole?: ConversationRole;
     lastMessageAt?: string | number;
     lastMessagePreview?: string;
@@ -50,13 +52,23 @@ declare namespace Api.RealNotify {
     unreadCount?: number;
     peerName?: string;
     peerAvatar?: string;
+    interveneStatus?: InterveneStatus;
+    interveneReason?: string;
+    interveneBy?: string | number;
+    interveneAt?: string | number;
+    interveneOrderId?: string | number;
+    orderId?: string | number;
     orderNo?: string;
     orderStatus?: string;
     orderStatusText?: string;
     productTitle?: string;
     productImage?: string;
     amount?: string | number;
+    activeOrderCount?: number;
   }
+  interface ImConversationOrder { orderId: string | number; orderNo?: string; orderStatus?: string; orderStatusText?: string; active?: boolean; productTitle?: string; productImage?: string; amount?: string | number; lastEventAt?: string | number; }
+  interface ImInterveneParams { conversationId: string | number; orderId?: string | number; reason?: string; }
+  interface ImInterveneEvent { action: 'INTERVENE_REQUESTED' | 'INTERVENE_CLOSED'; conversationId: string | number; interveneStatus?: InterveneStatus; interveneBy?: string | number; reason?: string; orderId?: string | number; at?: string | number; }
 
   interface ImMessageVO {
     id: string | number;

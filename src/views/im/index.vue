@@ -33,13 +33,18 @@ const route = useRoute();
 const userStore = useUserStore();
 const notifyStore = useNotifyStore();
 
-type ConvKind = 'group' | 'cs' | 'presale';
+type ConvKind = 'group' | 'cs';
 const activeTab = ref<ConvKind>('group');
 const pendingConversationTarget = ref<string>();
 const targetMessage = ref('');
 let selectingTargetTab = false;
 const conversations = ref<Api.RealNotify.ImConversationVO[]>([]);
 const selectedConversationId = ref<string | number>();
+const conversationOrders = ref<Api.RealNotify.ImConversationOrder[]>([]);
+const includeHistoryOrders = ref(false);
+const ordersLoading = ref(false);
+const interventionLoading = ref(false);
+const supportLoading = ref(false);
 const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
 const loading = ref(false);
 const conversationLoading = ref(false);
@@ -104,16 +109,12 @@ function isCurrentMessageWrite(operation: number, userId: string | number, conve
     && sameBusinessId(selectedConversationId.value, conversationId);
 }
 
-function hasBizType(conversation: Api.RealNotify.ImConversationVO, type: string) {
-  return String(conversation.bizType || '').toUpperCase() === type;
+function hasConversationType(conversation: Api.RealNotify.ImConversationVO, type: string) {
+  return String(conversation.type || '').toUpperCase() === type;
 }
 
-const groups = computed(() => conversations.value.filter(conversation => hasBizType(conversation, 'ORDER')));
-const csSessions = computed(() => conversations.value.filter(conversation => {
-  const type = String(conversation.bizType || '').toUpperCase();
-  return type === 'CUSTOMER_SERVICE' || type === 'CS';
-}));
-const presaleSessions = computed(() => conversations.value.filter(conversation => hasBizType(conversation, 'PRESALE')));
+const groups = computed(() => conversations.value.filter(conversation => hasConversationType(conversation, 'ORDER_GROUP')));
+const csSessions = computed(() => conversations.value.filter(conversation => hasConversationType(conversation, 'SUPPORT')));
 const selectedConversation = computed(() => conversations.value.find(conversation => sameBusinessId(conversation.id, selectedConversationId.value)));
 const imageUrls = computed(() => conversationImageUrls(messages.value));
 watch(imageUrls, (urls, previous) => {
@@ -124,9 +125,7 @@ watch(imageUrls, (urls, previous) => {
   else imagePreviewCurrent.value = index;
 }, { flush: 'sync' });
 
-function currentCandidates() {
-  return activeTab.value === 'group' ? groups.value : activeTab.value === 'cs' ? csSessions.value : presaleSessions.value;
-}
+function currentCandidates() { return activeTab.value === 'group' ? groups.value : csSessions.value; }
 
 async function loadConversations(selectFirst = true, append = false) {
   if (disposed) return;
@@ -210,9 +209,8 @@ async function selectFirstConversation() {
         : '当前会话列表中未找到目标，可能已删除或无权访问；不会打开其他会话';
       return;
     }
-    const kind = hasBizType(requested, 'ORDER') ? 'group'
-      : hasBizType(requested, 'CUSTOMER_SERVICE') || hasBizType(requested, 'CS') ? 'cs'
-        : hasBizType(requested, 'PRESALE') ? 'presale' : undefined;
+    const kind = hasConversationType(requested, 'ORDER_GROUP') ? 'group'
+      : hasConversationType(requested, 'SUPPORT') ? 'cs' : undefined;
     if (!kind) { targetMessage.value = '目标会话类型暂不支持'; return; }
     selectingTargetTab = true;
     activeTab.value = kind;
@@ -242,6 +240,8 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO)
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
   selectedConversationId.value = conversationId;
+  conversationOrders.value = [];
+  includeHistoryOrders.value = false;
   if (route.query.conversationId !== String(conversationId)) {
     void router.replace({ query: { ...route.query, conversationId: String(conversationId) } });
   }
@@ -256,6 +256,7 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO)
   loading.value = true;
   messageLoadError.value = '';
   pageNo.value = 1;
+  if (conversation.type === 'ORDER_GROUP') void loadConversationOrders();
   try {
     const response = await notifyApi.fetchConversationMessages(
       { conversationId, pageNo: 1, pageSize: 50 },
@@ -277,6 +278,43 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO)
   } finally {
     if (isCurrent() && sameBusinessId(selectedConversationId.value, conversationId)) loading.value = false;
   }
+}
+
+async function loadConversationOrders() {
+  const conversation = selectedConversation.value;
+  if (!conversation || conversation.type !== 'ORDER_GROUP') return;
+  const id = conversation.id;
+  ordersLoading.value = true;
+  try {
+    const rows = await notifyApi.fetchConversationOrders(id, includeHistoryOrders.value);
+    if (sameBusinessId(selectedConversationId.value, id)) conversationOrders.value = rows;
+  } finally {
+    if (sameBusinessId(selectedConversationId.value, id)) ordersLoading.value = false;
+  }
+}
+async function toggleHistoryOrders() {
+  includeHistoryOrders.value = !includeHistoryOrders.value;
+  await loadConversationOrders();
+}
+async function openSupportConversation() {
+  if (supportLoading.value) return;
+  supportLoading.value = true;
+  try {
+    const conversation = await notifyApi.fetchSupportConversation();
+    const index = conversations.value.findIndex(item => sameBusinessId(item.id, conversation.id));
+    if (index >= 0) conversations.value.splice(index, 1, conversation); else conversations.value.unshift(conversation);
+    activeTab.value = 'cs';
+    await selectConversation(conversation);
+  } finally { supportLoading.value = false; }
+}
+async function requestIntervention() {
+  const conversation = selectedConversation.value;
+  if (!conversation || conversation.type !== 'ORDER_GROUP' || conversation.interveneStatus !== 'NONE' || interventionLoading.value) return;
+  interventionLoading.value = true;
+  try {
+    Object.assign(conversation, await notifyApi.requestConversationIntervention({ conversationId: conversation.id }));
+    Message.success('已申请平台介入');
+  } finally { interventionLoading.value = false; }
 }
 
 async function loadOlderMessages() {
@@ -619,7 +657,7 @@ function previewTime(conversation: Api.RealNotify.ImConversationVO) {
 }
 
 function openOrderGroup() {
-  if (selectedConversation.value?.bizId) router.push({ name: 'im-order-group', params: { orderCode: selectedConversation.value.bizId } });
+  if (selectedConversation.value?.orderId) router.push({ name: 'im-order-group', params: { orderCode: selectedConversation.value.orderId } });
 }
 
 function openOrder(orderId: string | number) {
@@ -692,6 +730,12 @@ notifyStore.subscribe(async event => {
   }
   if (event.type === 'IM_READ') {
     readerWatermarks.value = applyReadEvent(readerWatermarks.value, selectedConversationId.value, event.payload);
+    return;
+  }
+  if (event.type === 'IM_INTERVENE') {
+    const conversation = conversations.value.find(item => sameBusinessId(item.id, event.payload.conversationId));
+    if (conversation) conversation.interveneStatus = event.payload.action === 'INTERVENE_CLOSED' ? 'NONE' : (event.payload.interveneStatus || 'REQUESTED');
+    if (sameBusinessId(selectedConversationId.value, event.payload.conversationId)) await loadConversations(false);
   }
 });
 
@@ -805,7 +849,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
           </a-alert>
           <div class="sync-bar">
             <span>{{ lastSyncText() }}</span>
-            <a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">刷新会话</a-button>
+            <a-space><a-button type="text" size="mini" :loading="supportLoading" @click="openSupportConversation">联系客服</a-button><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">刷新会话</a-button></a-space>
           </div>
           <a-tabs v-model:active-key="activeTab" class="sidebar-tabs">
             <a-tab-pane key="group" :title="`三方群 (${groups.length})`">
@@ -816,11 +860,11 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
                   <div v-else class="avatar group">{{ (conversation.peerName || conversation.title || '订').slice(0, 1) }}</div>
                   <div class="info">
                     <div class="conv-title-row">
-                      <div class="conv-name">{{ conversation.peerName || conversation.title || `订单会话 ${conversation.bizId || ''}` }}</div>
+                      <div class="conv-name">{{ conversation.peerName || conversation.title || '订单会话' }}</div>
                       <span v-if="conversation.unreadCount" class="unread-badge">{{ conversation.unreadCount > 99 ? '99+' : conversation.unreadCount }}</span>
                     </div>
                     <div class="conv-meta"><span class="preview">{{ lastPreview(conversation) }}</span></div>
-                    <div class="conv-time">{{ conversation.orderNo ? `订单 ${conversation.orderNo}` : `业务 ${conversation.bizId || '—'}` }} · {{ previewTime(conversation) }}</div>
+                    <div class="conv-time">{{ conversation.orderNo ? `最近订单 ${conversation.orderNo}` : '暂无活跃订单' }} · {{ previewTime(conversation) }}</div>
                   </div>
                 </div>
               </div>
@@ -835,15 +879,6 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
               </div>
               <EmptyState v-else title="暂无客服会话" />
             </a-tab-pane>
-            <a-tab-pane key="presale" :title="`售前 (${presaleSessions.length})`">
-              <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
-              <div v-else-if="presaleSessions.length" class="conv-list chat-scroll">
-                <div v-for="conversation in presaleSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" role="button" tabindex="0" :aria-current="sameBusinessId(selectedConversationId, conversation.id) ? 'page' : undefined" @click="selectConversation(conversation)" @keydown.enter="selectConversation(conversation)" @keydown.space.prevent="selectConversation(conversation)">
-                  <div class="avatar presale">售</div><div class="info"><div class="conv-name">{{ conversation.title || '售前会话' }}</div><div class="conv-meta">{{ lastPreview(conversation) }}</div></div>
-                </div>
-              </div>
-              <EmptyState v-else title="暂无售前会话" />
-            </a-tab-pane>
           </a-tabs>
           <div class="sidebar-loading">
             <span>已加载 {{ conversations.length }} / {{ conversationTotal }} 个会话</span>
@@ -857,9 +892,12 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
               <div class="conversation-header">
                 <div class="header-product">
                   <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" />
-                  <div><div class="cs-title">{{ selectedConversation.productTitle || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.orderNo ? `订单 ${selectedConversation.orderNo}` : `业务 ID ${selectedConversation.bizId || '—'}` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
+                  <div><div class="cs-title">{{ selectedConversation.peerName || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.type === 'SUPPORT' ? '平台客服' : `进行中订单 ${selectedConversation.activeOrderCount || 0} 笔` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
                 </div>
-                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.bizId" role="link" tabindex="0" @click="openOrderGroup" @keydown.enter="openOrderGroup" @keydown.space.prevent="openOrderGroup">独立窗口打开</a-link><a-link role="button" tabindex="0" status="danger" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation" @keydown.enter="deleteSelectedConversation" @keydown.space.prevent="deleteSelectedConversation">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</a-link></div>
+                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button v-if="selectedConversation.type === 'ORDER_GROUP'" size="mini" :loading="interventionLoading" :disabled="selectedConversation.interveneStatus !== 'NONE'" @click="requestIntervention">{{ selectedConversation.interveneStatus === 'REQUESTED' ? '等待客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '客服处理中' : '申请平台介入' }}</a-button><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.orderId" role="link" tabindex="0" @click="openOrderGroup" @keydown.enter="openOrderGroup" @keydown.space.prevent="openOrderGroup">独立窗口打开</a-link><a-link role="button" tabindex="0" status="danger" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation" @keydown.enter="deleteSelectedConversation" @keydown.space.prevent="deleteSelectedConversation">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</a-link></div>
+            </div>
+            <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="order-strip">
+              <a-spin :loading="ordersLoading"><a-space wrap><a-tag v-for="item in conversationOrders" :key="item.orderId" checkable @check="openOrder(item.orderId)">{{ item.orderNo || item.orderId }} · {{ item.orderStatusText || item.orderStatus }}</a-tag><a-button type="text" size="mini" @click="toggleHistoryOrders">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</a-button></a-space></a-spin>
             </div>
             <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
               实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
@@ -911,7 +949,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 .chat-pane { display: flex; flex-direction: column; background: #f7f8fa; min-width: 0; min-height: 0; }.chat-spin { flex: 1; min-height: 0; }.chat-spin :deep(.arco-spin) { height: 100%; min-height: 0; }
 .conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }.conversation-header { background: #fff; padding: 12px 20px; border-bottom: 1px solid #f2f3f5; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .header-product { display: flex; align-items: center; gap: 10px; min-width: 0; }.header-product img { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; }.cs-title { font-weight: 600; font-size: 14px; }.cs-sub { margin-top: 3px; font-size: 12px; color: #86909c; }.header-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
-.realtime-alert { width: calc(100% - 40px); margin: 10px auto 0; box-sizing: border-box; flex: 0 0 auto; }.messages { flex: 1 1 auto; min-height: 0; padding: 16px 20px; overflow-y: auto; overscroll-behavior: contain; }.conversation :deep(.input-area) { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; }.load-older { text-align: center; margin-bottom: 14px; }.empty-msg { text-align: center; color: #86909c; padding: 40px 0; font-size: 13px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }
+.order-strip { padding: 8px 20px; background: #fff; border-bottom: 1px solid #f2f3f5; }.realtime-alert { width: calc(100% - 40px); margin: 10px auto 0; box-sizing: border-box; flex: 0 0 auto; }.messages { flex: 1 1 auto; min-height: 0; padding: 16px 20px; overflow-y: auto; overscroll-behavior: contain; }.conversation :deep(.input-area) { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; }.load-older { text-align: center; margin-bottom: 14px; }.empty-msg { text-align: center; color: #86909c; padding: 40px 0; font-size: 13px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }
 @media (max-width: 960px) { .layout { grid-template-columns: 260px minmax(0, 1fr); } .conversation-header { padding: 12px 16px; } .messages { padding: 14px 16px; } .realtime-alert { width: calc(100% - 32px); } }
 @media (max-width: 720px) { .layout { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 160px); min-height: 560px; } .sidebar { max-height: 220px; border-right: 0; border-bottom: 1px solid #f2f3f5; } .header-actions { gap: 10px; } .conversation-header { align-items: flex-start; } .messages { padding: 12px; } .realtime-alert { width: calc(100% - 24px); margin-top: 8px; } }
 </style>

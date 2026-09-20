@@ -53,6 +53,20 @@ export function fetchOrderConversation(orderId: string | number, options: { sign
   });
 }
 
+export function fetchSupportConversation() {
+  return realNotifyRequest.post<Api.RealNotify.ImConversationVO>('/im/conversations/support', undefined, notifyRequestOptions);
+}
+
+export function fetchConversationOrders(conversationId: string | number, includeHistory = false) {
+  return realNotifyRequest.get<Api.RealNotify.ImConversationOrder[]>('/im/conversations/orders', {
+    params: { conversationId, includeHistory }, ...notifyRequestOptions
+  });
+}
+
+export function requestConversationIntervention(params: Api.RealNotify.ImInterveneParams) {
+  return realNotifyRequest.post<Api.RealNotify.ImConversationVO, Api.RealNotify.ImInterveneParams>('/im/conversations/intervene', params, notifyRequestOptions);
+}
+
 export async function fetchConversationMessages(params: Api.RealNotify.ImMessagePageQuery, options: { signal?: AbortSignal } = {}) {
   const page = await realNotifyRequest.postQuery<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>, Api.RealNotify.ImMessagePageQuery & { markRead: false }>(
     '/im/messages/page',

@@ -466,7 +466,7 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
       <a-card v-if="conversation" class="chat-card" :body-style="{ padding: 0 }" :bordered="false">
         <div class="conversation-header">
           <img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" class="product-image" />
-          <div class="conversation-info"><div class="conversation-title">{{ conversation.productTitle || conversation.title || '订单会话' }}</div><div class="conversation-sub">订单 {{ conversation.orderNo || conversation.bizId || orderCode }} · {{ conversation.orderStatusText || conversation.myRole || '—' }}</div></div>
+          <div class="conversation-info"><div class="conversation-title">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</div><div class="conversation-sub">订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || conversation.myRole || '—' }}</div></div>
           <RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" />
           <a-button class="close-button" type="text" shape="circle" aria-label="关闭独立会话并返回消息中心" @click="closeToConversationList"><template #icon><IconClose /></template></a-button>
         </div>
