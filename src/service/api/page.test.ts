@@ -23,23 +23,27 @@ import { createCategoryOptions, fetchCreateCategoryOptions, isSelectableCategory
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('本轮交互边界', () => {
-  it('创建分类仅允许完整启用三级，拒绝低级叶子、停用祖先和过期选择', async () => {
+  it('创建分类允许启用的一至五级，拒绝停用节点和错误父子关系', async () => {
     const leaf: Api.RealCategory.CategoryNodeDTO = { id: '9007199254740993', parentId: 'second', level: 3, name: '三级', enabled: true };
     const root: Api.RealCategory.CategoryNodeDTO = { id: 'root', level: 1, name: '一级', enabled: true, children: [
       { id: 'second', parentId: 'root', level: 2, name: '二级', enabled: true, children: [leaf] }
     ] };
     const options = createCategoryOptions([root]);
     expect(isSelectableCategory(options, leaf.id)).toBe(true);
-    expect(isSelectableCategory(options, root.id)).toBe(false);
-    expect(isSelectableCategory(options, 'second')).toBe(false);
+    expect(isSelectableCategory(options, root.id)).toBe(true);
+    expect(isSelectableCategory(options, 'second')).toBe(true);
     expect(isSelectableCategory(createCategoryOptions([{ ...root, children: [{ ...root.children![0], parentId: undefined,
       children: [{ ...leaf, parentId: undefined }] }] }]), leaf.id)).toBe(true);
-    for (const node of [{ ...root, enabled: false }, { ...root, enabled: undefined }, { ...root, children: [] }, { ...root, children: [{ ...root.children![0], children: [] }] }, { ...root, children: [{ ...root.children![0], enabled: false }] }, { ...root, children: [{ ...root.children![0], children: [{ ...leaf, parentId: 'wrong' }] }] }]) {
+    for (const node of [{ ...root, enabled: false }, { ...root, enabled: undefined }, { ...root, level: 2 as const }, { ...root, id: '' }]) {
       expect(createCategoryOptions([node])).toEqual([]);
     }
+    const malformed = createCategoryOptions([{ ...root, children: [{ ...root.children![0], children: [{ ...leaf, parentId: 'wrong' }] }] }]);
+    expect(isSelectableCategory(malformed, root.id)).toBe(true);
+    expect(isSelectableCategory(malformed, 'second')).toBe(true);
+    expect(isSelectableCategory(malformed, leaf.id)).toBe(false);
     const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValueOnce([root]).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('offline'));
     expect(isSelectableCategory(await fetchCreateCategoryOptions(), leaf.id)).toBe(true);
-    expect(get).toHaveBeenLastCalledWith('/categories/tree', { params: { onlyEnabled: true } });
+    expect(get).toHaveBeenLastCalledWith('/categories/tree', { params: { onlyEnabled: true, onlyWithProduct: false } });
     expect(isSelectableCategory(await fetchCreateCategoryOptions(), leaf.id)).toBe(false);
     await expect(fetchCreateCategoryOptions()).rejects.toThrow('offline');
   });
@@ -87,11 +91,11 @@ describe('本轮交互边界', () => {
     vi.stubGlobal('navigator', { locks: { request: (_key: string, _options: unknown, callback: (lock: unknown) => unknown) => callback({}) } });
     const result = { orderGroupNo: 'g', totalCount: 2, paidCount: 1, failedCount: 1, paidAmount: '0.1', unpaidAmount: '0.2', items: [] };
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(result);
-    expect(await withOrderPayment('u', ['a', 'b'], 'g', payment => payment.payOrderGroup('0.3'))).toBe(result);
-    expect(post.mock.calls[0].slice(0, 2)).toEqual(['/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3' }]);
+    expect(await withOrderPayment('u', ['a', 'b'], 'g', payment => payment.payOrderGroup('0.3', '123456'))).toBe(result);
+    expect(post.mock.calls[0].slice(0, 2)).toEqual(['/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3', payPassword: '123456' }]);
     post.mockResolvedValueOnce('9007199254740993');
-    await payOrder('9007199254740993', '0.12345678', 'u');
-    expect(post.mock.calls[1].slice(0, 2)).toEqual(['/orders/pay', { id: '9007199254740993', confirmedAmount: '0.12345678' }]);
+    await payOrder('9007199254740993', '0.12345678', '123456', 'u');
+    expect(post.mock.calls[1].slice(0, 2)).toEqual(['/orders/pay', { id: '9007199254740993', confirmedAmount: '0.12345678', payPassword: '123456' }]);
   });
   it('求购筛选透传零预算及交付上限，状态作用于后端总数', async () => {
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue({ pageNo: 1, pageSize: 20, total: 0, records: [] });
@@ -148,7 +152,7 @@ describe('本轮交互边界', () => {
 
   it('地址统一去空白、保留国际电话及 Long ID，拒绝空白与超长字段', () => {
     const form = { id: '9007199254740993', receiverName: ' QA ', receiverPhone: ' +44 123456789012 ',
-      country: ' QA ', province: ' QA ', detailAddress: ' QA ' };
+      countryCode: ' GB ', province: ' QA ', detailAddress: ' QA ' };
     const result = prepareAddress(form);
     expect(result.error).toBe('');
     expect(result.params).toMatchObject({ id: form.id, receiverName: 'QA', receiverPhone: '+44 123456789012' });
@@ -230,7 +234,7 @@ describe('钱包部分金额未知', () => {
   });
 
   it('提现明确区分未知余额和真实零余额', () => {
-    const params: Api.RealWallet.WithdrawCreateParams = { chain: 'TRON', toAddress: 'T'.repeat(34), amount: 20 };
+    const params = { chain: 'TRON' as const, toAddress: 'T'.repeat(34), amount: 20 };
     for (const balance of [undefined, '', ' ', 'invalid']) {
       expect(prepareWithdrawal(params, balance).error).toBe('请先成功读取钱包余额');
     }
@@ -250,7 +254,7 @@ describe('保存结果与后续读取分离', () => {
 
   it('地址新增和修改保留成功 ID，不因详情服务不可用否定写入', async () => {
     const id = '9007199254740993';
-    const params = { receiverName: 'QA', receiverPhone: '10000000000', country: '中国', province: 'QA', detailAddress: 'QA' };
+    const params = { receiverName: 'QA', receiverPhone: '10000000000', countryCode: 'CN', province: 'QA', detailAddress: 'QA' };
     vi.spyOn(realUserRequest, 'post').mockResolvedValue(id);
     vi.spyOn(realUserRequest, 'put').mockResolvedValue(id);
     const get = vi.spyOn(realUserRequest, 'get').mockRejectedValue(new Error('read unavailable'));
@@ -260,7 +264,7 @@ describe('保存结果与后续读取分离', () => {
   });
 
   it('写入明确失败保持失败，缺失地址编号不伪造成功', async () => {
-    const params = { receiverName: 'QA', receiverPhone: '10000000000', country: '中国', province: 'QA', detailAddress: 'QA' };
+    const params = { receiverName: 'QA', receiverPhone: '10000000000', countryCode: 'CN', province: 'QA', detailAddress: 'QA' };
     const post = vi.spyOn(realUserRequest, 'post').mockRejectedValueOnce(new Error('rejected'));
     await expect(createAddress(params)).rejects.toThrow('rejected');
     for (const id of [undefined, '', Number.MAX_SAFE_INTEGER + 1]) {

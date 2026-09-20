@@ -338,7 +338,7 @@ export function cancelRecharge(id: string | number) {
 }
 
 /** 打开确认框与最终提交使用同一份规范化参数和校验，不改变现有最低金额规则。 */
-export function prepareWithdrawal(params: Api.RealWallet.WithdrawCreateParams, available?: string | number) {
+export function prepareWithdrawal(params: Omit<Api.RealWallet.WithdrawCreateParams, 'payPassword'>, available?: string | number) {
   const normalized = { ...params, toAddress: params.toAddress.trim() };
   const balance = optionalAmount(available) === undefined ? NaN : Number(available);
   let error = '';

@@ -137,10 +137,10 @@ export function withOrderPayment<T>(userId: string | number, orderIds: readonly 
     };
     try {
       return await action({
-        payOrder: async (id, amount, options) => {
+        payOrder: async (id, amount, payPassword, options) => {
           assertActive();
           if (!ids.has(String(id))) throw new Error('付款订单不属于原结算，请重新核对');
-          return submitOrderPayment(id, amount, options);
+          return submitOrderPayment(id, amount, payPassword, options);
         },
         payOrderGroup: async (amount, payPassword, options) => {
           assertActive();

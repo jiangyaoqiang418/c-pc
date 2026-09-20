@@ -259,7 +259,7 @@ describe('资金操作结果待确认', () => {
     const running = withSubmissionLock('cpc:refund-intent:u:o', () => new Promise<void>(resolve => { release = resolve; }));
     await Promise.resolve();
     try {
-      await expect(payOrder('o', '1', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(payOrder('o', '1', '123456', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
       expect(post).not.toHaveBeenCalled();
     } finally { release(); await running; }
   });
@@ -330,7 +330,7 @@ describe('资金操作结果待确认', () => {
     setupStorage();
     let fail!: (error: Error) => void;
     const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
-    const running = payOrder('o', '1', 'u').catch(error => error);
+    const running = payOrder('o', '1', '123456', 'u').catch(error => error);
     await vi.waitFor(() => expect(fail).toBeTypeOf('function'));
     const refundSubmit = vi.fn(), callback = vi.fn();
     try {
@@ -351,12 +351,12 @@ describe('资金操作结果待确认', () => {
     let expired!: OrderPaymentActions;
     await withOrderPayment('u', ['a'], undefined, async payment => {
       expired = payment;
-      await expect(payment.payOrder('other', '1')).rejects.toThrow('不属于原结算');
-      await expect(payment.payOrderGroup('1')).rejects.toThrow('原订单组缺失');
+      await expect(payment.payOrder('other', '1', '123456')).rejects.toThrow('不属于原结算');
+      await expect(payment.payOrderGroup('1', '123456')).rejects.toThrow('原订单组缺失');
       setAccessToken('qa-pay-b');
-      await expect(payment.payOrder('a', '1')).rejects.toThrow('会话已切换');
+      await expect(payment.payOrder('a', '1', '123456')).rejects.toThrow('会话已切换');
     });
-    await expect(expired.payOrder('a', '1')).rejects.toThrow('已结束');
+    await expect(expired.payOrder('a', '1', '123456')).rejects.toThrow('已结束');
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -369,7 +369,7 @@ describe('资金操作结果待确认', () => {
       return body.id;
     });
     const running = withOrderPayment('u', ['b', 'a'], undefined, payment => Promise.allSettled([
-      payment.payOrder('a', '0.1', { showError: false }), payment.payOrder('b', '0.2', { showError: false })
+      payment.payOrder('a', '0.1', '123456', { showError: false }), payment.payOrder('b', '0.2', '123456', { showError: false })
     ]));
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
     try {
@@ -378,7 +378,7 @@ describe('资金操作结果待确认', () => {
     } finally { finish(); }
     expect((await running).map(result => result.status)).toEqual(['fulfilled', 'rejected']);
     await expect(withOrderSubmissionLocks('u', ['a', 'b'], async () => 'released')).resolves.toBe('released');
-    expect(post.mock.calls[0][1]).toEqual({ id: 'a', confirmedAmount: '0.1' });
+    expect(post.mock.calls[0][1]).toEqual({ id: 'a', confirmedAmount: '0.1', payPassword: '123456' });
   });
 
   it('付款前读取和结果回查均持有原组订单锁，读取失败不付款并释放', async () => {
@@ -388,20 +388,20 @@ describe('资金操作结果待确认', () => {
     const refundSubmit = vi.fn(), lookup = vi.fn().mockResolvedValue(null);
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue({ orderGroupNo: 'g', paidCount: 1, failedCount: 1 });
     const blocked = async () => {
-      await expect(payOrder('a', '1', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
+      await expect(payOrder('a', '1', '123456', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
       await expect(confirmOrderReceipt('b', 'u')).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
       await expect(submitRefundIntent('u', refundParams, { submit: refundSubmit, lookup }, true)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
     };
     const result = await withOrderPayment('u', ['a', 'b'], 'g', async payment => {
       await blocked();
-      const result = await payment.payOrderGroup('0.3', { showError: false });
+      const result = await payment.payOrderGroup('0.3', '123456', { showError: false });
       await blocked();
       return result;
     });
     expect(result).toEqual({ orderGroupNo: 'g', paidCount: 1, failedCount: 1 });
     await expect(withOrderPayment('u', ['a', 'b'], 'g', async () => { throw new Error('read failed'); })).rejects.toThrow('read failed');
     await expect(withOrderSubmissionLocks('u', ['a', 'b'], async () => 'released')).resolves.toBe('released');
-    expect(post).toHaveBeenCalledExactlyOnceWith('/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3' }, { showError: false, preserveDecimals: true });
+    expect(post).toHaveBeenCalledExactlyOnceWith('/orders/group/pay', { orderGroupNo: 'g', confirmedAmount: '0.3', payPassword: '123456' }, { showError: false, preserveDecimals: true });
     expect(refundSubmit).not.toHaveBeenCalled();
     expect(lookup).not.toHaveBeenCalled();
   });
@@ -570,9 +570,9 @@ describe('资金操作结果待确认', () => {
     const post = vi.spyOn(realUserRequest, 'post').mockRejectedValue(new TypeError('offline'));
     const get = vi.spyOn(realUserRequest, 'get').mockResolvedValueOnce({ id: '9007199254740993', status: 'HOLDING' })
       .mockResolvedValueOnce({ id: '9007199254740993', status: 'REDEEMED' });
-    await expect(redeemFinanceWithReadback('qa-a', '9007199254740993')).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
+    await expect(redeemFinanceWithReadback('qa-a', '9007199254740993', '123456')).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
     expect(financialSubmissionIssue('qa-a', 'finance-redeem:9007199254740993')).not.toBe('');
-    expect(await redeemFinanceWithReadback('qa-a', '9007199254740993')).toBe('9007199254740993');
+    expect(await redeemFinanceWithReadback('qa-a', '9007199254740993', '123456')).toBe('9007199254740993');
     expect(post).toHaveBeenCalledTimes(1);
     expect(get).toHaveBeenCalledTimes(2);
     expect(get).toHaveBeenLastCalledWith('/finance/orders/detail', { params: { id: '9007199254740993' }, showError: false });
@@ -585,7 +585,7 @@ describe('资金操作结果待确认', () => {
     const get = vi.spyOn(realUserRequest, 'get').mockResolvedValueOnce({ id: 'other', status: 'REDEEMED' })
       .mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce({ id: '1', status: 'SETTLED' });
     for (let attempt = 0; attempt < 3; attempt++) {
-      await expect(redeemFinanceWithReadback('qa-a', '1')).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
+      await expect(redeemFinanceWithReadback('qa-a', '1', '123456')).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
     }
     expect(post).toHaveBeenCalledTimes(1);
     expect(get).toHaveBeenCalledTimes(3);
@@ -598,9 +598,9 @@ describe('资金操作结果待确认', () => {
     const post = vi.spyOn(realUserRequest, 'post').mockRejectedValueOnce(new RequestError('不可赎回', { status: 422 }))
       .mockResolvedValueOnce('1');
     const get = vi.spyOn(realUserRequest, 'get');
-    await expect(redeemFinanceWithReadback('qa-a', '1')).rejects.toThrow('不可赎回');
+    await expect(redeemFinanceWithReadback('qa-a', '1', '123456')).rejects.toThrow('不可赎回');
     expect(financialSubmissionIssue('qa-a', 'finance-redeem:1')).toBe('');
-    expect(await redeemFinanceWithReadback('qa-a', '1')).toBe('1');
+    expect(await redeemFinanceWithReadback('qa-a', '1', '123456')).toBe('1');
     expect(post).toHaveBeenCalledTimes(2);
     expect(get).not.toHaveBeenCalled();
   });

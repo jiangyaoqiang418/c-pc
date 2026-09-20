@@ -97,16 +97,21 @@ async function restoreWithdrawal() {
   const userId = userStore.currentUser?.id;
   if (userId === undefined || submitting.value) return;
   const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId);
   submitting.value = true;
   try {
+    const payPassword = await requestPayPassword(route.fullPath);
+    if (!payPassword || !isCurrentWrite()) return;
+    activePayPassword = payPassword;
     const id = await submitKeyedFinancialOperation(userId, 'withdraw', undefined, withdrawalIntentApi, true);
-    if (operation !== writeVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+    if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
     await openDetail(id);
     if (operation === writeVersion) await loadAll();
   } catch (error) {
     if (operation === writeVersion) Message.warning(error instanceof Error ? error.message : '原申请核对失败');
   } finally {
+    activePayPassword = '';
     if (operation === writeVersion) { submitting.value = false; refreshSubmissionIssue(); }
   }
 }
