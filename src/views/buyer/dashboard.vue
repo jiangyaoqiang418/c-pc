@@ -11,7 +11,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
 import * as realPurchaseApi from '@/service/api/purchase';
-import { fetchBusinessStats } from '@/service/api/buyer';
+import { fetchBusinessStats, fetchBuyerDepositSummary } from '@/service/api/buyer';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
@@ -24,8 +24,9 @@ const orderCounts = ref<Record<string, number>>({});
 const claimableTotal = ref<number>();
 const countsLoaded = ref(false);
 const businessStats = ref<Api.RealBuyer.BusinessStats>();
-const loadErrors = reactive({ wallet: '', orders: '', counts: '', claimable: '', stats: '' });
-const loadStates = reactive({ wallet: false, orders: false, counts: false, claimable: false, stats: false });
+const depositSummary = ref<Api.RealBuyer.DepositSummary>();
+const loadErrors = reactive({ wallet: '', deposit: '', orders: '', counts: '', claimable: '', stats: '' });
+const loadStates = reactive({ wallet: false, deposit: false, orders: false, counts: false, claimable: false, stats: false });
 const loading = computed(() => Object.values(loadStates).some(Boolean));
 const requestGuard = createLatestRequestGuard();
 
@@ -42,6 +43,7 @@ function finiteNonNegative(value: unknown) {
 
 async function loadAll() {
   businessStats.value = undefined;
+  depositSummary.value = undefined;
   const currentUser = user.value;
   if (!currentUser) {
     requestGuard.invalidate();
@@ -77,6 +79,7 @@ async function loadAll() {
       businessStats.value = value;
     }, '经营数据读取失败或无权限'),
     section('wallet', walletStore.fetchWallet(userId), () => undefined, '钱包数据加载失败'),
+    section('deposit', fetchBuyerDepositSummary({ signal: isCurrent.signal, showError: false }), value => { depositSummary.value = value; }, '保证金数据加载失败'),
     section('orders', realOrderApi.fetchMyOrders({
         shopperId: userId,
         current: 1,
@@ -111,19 +114,10 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 
 const depositPct = computed(() => {
-  const available = finiteNonNegative(account.value?.depositAvailable);
-  const guaranteed = finiteNonNegative(account.value?.depositGuaranteed);
-  if (available === undefined || guaranteed === undefined) return undefined;
-  const total = available + guaranteed;
-  return total > 0 ? (guaranteed / total) * 100 : 0;
+  return finiteNonNegative(depositSummary.value?.usageRate);
 });
 const depositTotal = computed(() => {
-  if (!account.value) return '—';
-  const available = finiteNonNegative(account.value.depositAvailable);
-  const guaranteed = finiteNonNegative(account.value.depositGuaranteed);
-  return available === undefined || guaranteed === undefined
-    ? '—'
-    : formatAmount(available + guaranteed);
+  return depositSummary.value?.depositBalance === undefined ? '—' : formatAmount(depositSummary.value.depositBalance);
 });
 const depositPctLabel = computed(() => depositPct.value === undefined ? '—' : `${depositPct.value.toFixed(1)}%`);
 
@@ -191,8 +185,8 @@ const kpis = computed(() => [
             <div class="stat-val"><span class="num yb-mono">{{ account?.available === undefined ? '—' : formatAmount(account.available) }}</span><span class="unit">U</span></div>
           </div>
           <div class="stat">
-            <div class="stat-label">已担保</div>
-            <div class="stat-val"><span class="num yb-mono">{{ account?.depositGuaranteed === undefined ? '—' : formatAmount(account.depositGuaranteed) }}</span><span class="unit">U</span></div>
+            <div class="stat-label">订单占用</div>
+            <div class="stat-val"><span class="num yb-mono">{{ depositSummary?.depositFrozen === undefined ? '—' : formatAmount(depositSummary.depositFrozen) }}</span><span class="unit">U</span></div>
           </div>
         </div>
       </section>
@@ -287,16 +281,16 @@ const kpis = computed(() => [
           </div>
           <div class="deposit-detail">
             <div class="dd-row">
-              <div class="dd-key"><span class="dd-dot avail"></span> 可用押金</div>
-              <div class="dd-val yb-mono">U {{ account?.depositAvailable === undefined ? '—' : formatAmount(account.depositAvailable) }}</div>
+              <div class="dd-key"><span class="dd-dot avail"></span> 可退保证金</div>
+              <div class="dd-val yb-mono">U {{ depositSummary?.depositAvailable === undefined ? '—' : formatAmount(depositSummary.depositAvailable) }}</div>
             </div>
             <div class="dd-row">
-              <div class="dd-key"><span class="dd-dot lock"></span> 已担保</div>
-              <div class="dd-val yb-mono">U {{ account?.depositGuaranteed === undefined ? '—' : formatAmount(account.depositGuaranteed) }}</div>
+              <div class="dd-key"><span class="dd-dot lock"></span> 订单占用</div>
+              <div class="dd-val yb-mono">U {{ depositSummary?.depositFrozen === undefined ? '—' : formatAmount(depositSummary.depositFrozen) }}</div>
             </div>
             <div class="dd-row">
-              <div class="dd-key">担保占比</div>
-              <div class="dd-val yb-mono">{{ account ? depositPctLabel : '—' }}</div>
+              <div class="dd-key">占用率</div>
+              <div class="dd-val yb-mono">{{ depositSummary ? depositPctLabel : '—' }}</div>
             </div>
             <div class="deposit-actions">
               <button class="btn primary sm" @click="router.push('/buyer/deposit')">

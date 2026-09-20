@@ -46,6 +46,8 @@ export const TXN_TYPE_META: Record<Api.Wallet.TxnType, TxnTypeMeta> = {
   FINANCE_UNLOCK: { label: '小金库取出', color: 'magenta', group: 'finance', icon: 'mdi:lock-open-variant' },
   INTEREST_ACCRUE: { label: '利息发放', color: 'gold', group: 'finance', icon: 'mdi:cash-plus' },
   DEPOSIT_PLEDGE: { label: '押金担保', color: 'cyan', group: 'deposit', icon: 'mdi:safe' },
+  DEPOSIT_FREEZE: { label: '订单占用', color: 'orange', group: 'deposit', icon: 'mdi:lock' },
+  DEPOSIT_UNFREEZE: { label: '订单释放', color: 'green', group: 'deposit', icon: 'mdi:lock-open' },
   DEPOSIT_RELEASE: { label: '押金释放', color: 'green', group: 'deposit', icon: 'mdi:lock-open' },
   DEPOSIT_FORFEIT: { label: '押金扣罚', color: 'red', group: 'deposit', icon: 'mdi:cash-remove' },
   ORDER_FREEZE: { label: '订单冻结', color: 'orange', group: 'order', icon: 'mdi:cart-arrow-down' },

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@arco-design/web-vue';
 import BuyerProductForm from '@/components/buyer/buyer-product-form.vue';
 import * as productApi from '@/service/api/product';
+import { fetchBuyerDepositSummary } from '@/service/api/buyer';
 import { fetchCreateCategoryOptions, isSelectableCategory } from '@/service/api/category';
 import { useUserStore } from '@/stores';
 
@@ -92,6 +93,13 @@ async function onSubmit(form: {
           if (!isSelectableCategory(categories, categoryId)) {
             Message.warning('商品分类已不可用，请重新选择');
             void formRef.value?.reloadCategories();
+            return;
+          }
+          const depositSummary = await fetchBuyerDepositSummary({ showError: false });
+          if (!isCurrentWrite()) return;
+          if (!depositSummary.listable) {
+            Message.warning('当前保证金不足，暂不能提交商品，请先处理保证金');
+            void router.push('/buyer/deposit');
             return;
           }
           const productId = editProduct ? await productApi.updateProduct({

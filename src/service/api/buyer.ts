@@ -10,24 +10,30 @@ export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
   return realUserRequest.get<Api.RealBuyer.BuyerApplicationVO | null>('/buyer/application', options);
 }
 
+export function fetchBuyerDepositSummary(options: { signal?: AbortSignal; showError?: boolean } = {}) {
+  return realUserRequest.get<Api.RealBuyer.DepositSummary>('/buyer/deposit/summary', options);
+}
+
 export function submitBuyerApplication(params: Api.RealBuyer.BuyerApplyParams, options: { showError?: boolean } = {}) {
   return realUserRequest.post<void, Api.RealBuyer.BuyerApplyParams>('/buyer/apply', params, options);
 }
 
 function toDepositTxn(dto: Api.RealBuyer.DepositLedgerDTO): Api.RealBuyer.DepositLedger {
-  const isRelease = dto.bizType === 'REFUND' || dto.bizType === 'UNFREEZE';
+  const isRelease = dto.bizType === 'REFUND';
+  const isFreeze = dto.bizType === 'FREEZE';
+  const isUnfreeze = dto.bizType === 'UNFREEZE';
   const isDeduct = dto.bizType === 'DEDUCT';
 
   return {
     id: dto.id,
     userId: dto.userId,
     userName: '',
-    type: isRelease ? 'DEPOSIT_RELEASE' : isDeduct ? 'DEPOSIT_FORFEIT' : 'DEPOSIT_PLEDGE',
-    direction: isRelease ? 'in' : 'out',
+    type: isFreeze ? 'DEPOSIT_FREEZE' : isUnfreeze ? 'DEPOSIT_UNFREEZE' : isRelease ? 'DEPOSIT_RELEASE' : isDeduct ? 'DEPOSIT_FORFEIT' : 'DEPOSIT_PLEDGE',
+    direction: isRelease || isUnfreeze ? 'in' : 'out',
     amount: String(dto.amount ?? 0),
     balanceAfter: String(dto.balanceAfter ?? 0),
-    bucketFrom: isRelease ? 'depositAvailable' : 'available',
-    bucketTo: isRelease ? 'available' : 'depositAvailable',
+    bucketFrom: isFreeze ? 'depositAvailable' : isUnfreeze ? 'depositGuaranteed' : isRelease ? 'depositAvailable' : 'available',
+    bucketTo: isFreeze ? 'depositGuaranteed' : isUnfreeze ? 'depositAvailable' : isRelease ? 'available' : 'depositAvailable',
     remark: dto.remark || dto.bizNo || dto.bizType,
     createdAt: toIsoDate(dto.createdAt)
   };

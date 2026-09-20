@@ -6,6 +6,7 @@ import { Message } from '@arco-design/web-vue';
 import BuyerProductCard from '@/components/buyer/buyer-product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
+import * as realBuyerApi from '@/service/api/buyer';
 import { fetchRealCategoryTree } from '@/service/api/category';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -201,12 +202,21 @@ async function toggleShelf(p: Api.RealProduct.Record) {
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
   shelvingId.value = productId;
   try {
+    if (nextOnShelf) {
+      const depositSummary = await realBuyerApi.fetchBuyerDepositSummary({ showError: false });
+      if (!isCurrentWrite()) return;
+      if (!depositSummary.listable) {
+        Message.warning('当前保证金不足，暂不能上架，请先处理保证金');
+        void router.push('/buyer/deposit');
+        return;
+      }
+    }
     await productApi.toggleProductShelf(productId, nextOnShelf);
     if (!isCurrentWrite()) return;
     Message.success(nextOnShelf ? '已上架' : '已下架');
     await load();
-  } catch {
-    if (isCurrentWrite()) Message.error(nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
+  } catch (error) {
+    if (isCurrentWrite()) Message.error(error instanceof Error ? error.message : nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
   } finally {
     if (operation === writeVersion) shelvingId.value = undefined;
   }

@@ -55,6 +55,15 @@ declare namespace Api.RealBuyer {
     payPassword?: string;
   }
 
+  interface DepositSummary {
+    depositBalance?: string;
+    depositFrozen?: string;
+    depositAvailable?: string;
+    usageRate?: string;
+    depositExempt: boolean;
+    listable: boolean;
+  }
+
   interface DepositPageResult {
     pageNo?: number;
     pageSize?: number;

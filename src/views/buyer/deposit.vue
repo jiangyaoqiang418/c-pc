@@ -46,6 +46,7 @@ const loadError = ref('');
 const drawerOpen = ref(false);
 const drawerTxn = ref<Api.RealBuyer.DepositLedger>();
 const account = computed(() => walletStore.account);
+const summary = ref<Api.RealBuyer.DepositSummary>();
 const transferOpen = ref(false);
 const transferKind = ref<'pay' | 'refund'>('pay');
 const transferAmount = ref<number>();
@@ -65,7 +66,7 @@ function refreshPendingTransfer() {
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 const maxTransferAmount = computed(() => {
-  const value = transferKind.value === 'pay' ? account.value?.available : account.value?.depositAvailable;
+  const value = transferKind.value === 'pay' ? account.value?.available : summary.value?.depositAvailable;
   const parsed = Number(value);
   return value !== undefined && Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 });
@@ -75,6 +76,7 @@ async function loadAll() {
   if (!currentUser) {
     requestGuard.invalidate();
     txns.value = [];
+    summary.value = undefined;
     total.value = 0;
     orderCounts.value = {};
     orderCountsLoaded.value = false;
@@ -88,12 +90,14 @@ async function loadAll() {
   orderCountsLoaded.value = false;
   loadError.value = '';
   try {
-    const [walletResult, txnResult, countsResult] = await Promise.allSettled([
+    const [walletResult, summaryResult, txnResult, countsResult] = await Promise.allSettled([
       walletStore.fetchWallet(userId),
+      realBuyerApi.fetchBuyerDepositSummary({ signal: isCurrent.signal, showError: false }),
       realBuyerApi.fetchBuyerDepositLedger({ pageNo: current.value, pageSize: pageSize.value }, { signal: isCurrent.signal }),
       realOrderApi.countMySoldOrdersByStatus({ showError: false, signal: isCurrent.signal })
     ]);
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+    summary.value = summaryResult.status === 'fulfilled' ? summaryResult.value : undefined;
     txns.value = txnResult.status === 'fulfilled' ? txnResult.value.records : [];
     total.value = txnResult.status === 'fulfilled' ? txnResult.value.total : 0;
     if (txnResult.status === 'fulfilled') {
@@ -107,7 +111,7 @@ async function loadAll() {
     }
     orderCountsLoaded.value = countsResult.status === 'fulfilled';
     orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
-    if (walletResult.status === 'rejected' || walletStore.account === undefined) {
+    if (walletResult.status === 'rejected' || walletStore.account === undefined || summaryResult.status === 'rejected') {
       loadError.value = '押金账户加载失败，请检查网络后重试。';
     } else if (txnResult.status === 'rejected' || countsResult.status === 'rejected') {
       loadError.value = '押金流水或订单统计加载失败，请检查网络后重试。';
@@ -153,6 +157,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
   drawerTxn.value = undefined;
   refreshPendingTransfer();
   txns.value = [];
+  summary.value = undefined;
   total.value = 0;
   current.value = 1;
   orderCounts.value = {};
@@ -167,13 +172,8 @@ const guaranteedOrderCount = computed(() => {
   if (values.some(value => !Number.isFinite(value) || value < 0)) return undefined;
   return values.reduce((sum, value) => sum + Math.floor(value), 0);
 });
-const depositUtilization = computed(() => {
-  const available = Number(account.value?.depositAvailable);
-  const guaranteed = Number(account.value?.depositGuaranteed);
-  if (!Number.isFinite(available) || available < 0 || !Number.isFinite(guaranteed) || guaranteed < 0) return undefined;
-  const total = available + guaranteed;
-  return total > 0 ? `${((guaranteed / total) * 100).toFixed(1)}%` : '0.0%';
-});
+const depositUtilization = computed(() => summary.value?.usageRate === undefined || summary.value.usageRate === null
+  ? undefined : `${summary.value.usageRate}%`);
 
 function openDepositTransfer(kind: 'pay' | 'refund') {
   if (transferring.value) return;
@@ -266,18 +266,18 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
     </a-alert>
 
     <a-spin :loading="loading" style="width: 100%">
-      <a-alert v-if="account && (account.available === undefined || account.depositAvailable === undefined || account.depositGuaranteed === undefined)" type="warning" :closable="false" class="load-alert">
+      <a-alert v-if="account && (account.available === undefined || summary?.depositBalance === undefined || summary?.depositFrozen === undefined || summary?.depositAvailable === undefined)" type="warning" :closable="false" class="load-alert">
         部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。
         <template #action><a-button size="mini" :loading="loading" :disabled="transferring" @click="loadAll">重新读取余额</a-button></template>
       </a-alert>
       <a-card v-if="account" class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
-        <DepositMeter :available="account.depositAvailable" :guaranteed="account.depositGuaranteed" size="lg" />
+        <DepositMeter :balance="summary?.depositBalance" :frozen="summary?.depositFrozen" :available="summary?.depositAvailable" :usage-rate="summary?.usageRate" size="lg" />
         <a-divider />
         <a-alert type="info" class="alert">保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</a-alert>
         <div class="actions">
           <a-button type="primary" :disabled="transferring || !!pendingTransfer || !!pendingError || loading" @click="openDepositTransfer('pay')">充值押金</a-button>
           <a-button :disabled="transferring || !!pendingTransfer || !!pendingError || loading" @click="openDepositTransfer('refund')">转出至钱包</a-button>
-          <a-tooltip content="规则：在架商品需缴纳的最低押金 = 最贵商品单价。担保中订单完成后押金自动释放。">
+          <a-tooltip content="上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。">
             <a-button type="text">📖 规则说明</a-button>
           </a-tooltip>
         </div>
@@ -291,8 +291,8 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
             <div class="stat-val">{{ guaranteedOrderCount ?? '—' }} 笔</div>
           </div>
           <div class="stat">
-            <div class="stat-label">已担保押金</div>
-            <div class="stat-val">U {{ formatAmount(account.depositGuaranteed) }}</div>
+            <div class="stat-label">订单占用</div>
+            <div class="stat-val">U {{ formatAmount(summary?.depositFrozen) }}</div>
           </div>
           <div class="stat">
             <div class="stat-label">担保利用率</div>

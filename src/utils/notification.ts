@@ -16,6 +16,7 @@ const TEMPLATE_CODES: Record<string, Set<string>> = {
   FINANCE: new Set(['finance_subscribed', 'finance_settled', 'finance_redeemed']),
   KYC: new Set(['kyc_approved', 'kyc_rejected']),
   BUYER_APPLICATION: new Set(['buyer_application_approved', 'buyer_application_rejected']),
+  BUYER_DEPOSIT: new Set(['buyer_deposit_alert']),
   PURCHASE_DEMAND: new Set(['demand_pushed']),
   ACCOUNT: new Set(['welcome']),
   SYSTEM: new Set(['system_notice'])
@@ -34,6 +35,7 @@ export function notificationRoute(notification: Pick<Api.RealNotify.Notification
   if (type === 'WITHDRAW') return { name: 'wallet-withdraw' as const, query: { id: bizId } };
   if (type === 'KYC') return { name: 'kyc' as const, query: { id: bizId } };
   if (type === 'BUYER_APPLICATION') return { name: 'buyer-apply' as const, query: { id: bizId } };
+  if (type === 'BUYER_DEPOSIT') return { path: '/buyer/deposit' as const };
   if (type === 'FINANCE' && bizId) return { name: 'finance-lockup-detail' as const, params: { id: bizId } };
   if (type === 'PRODUCT_REVIEW') return { name: 'review-list' as const, query: { id: bizId } };
   if (type === 'PURCHASE_DEMAND') return { name: 'purchase-detail' as const, params: { id: bizId } };

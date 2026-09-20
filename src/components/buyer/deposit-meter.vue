@@ -3,8 +3,10 @@ import { computed } from 'vue';
 import { formatAmount } from '@shared';
 
 interface Props {
+  balance?: string;
+  frozen?: string;
   available?: string;
-  guaranteed?: string;
+  usageRate?: string;
   size?: 'sm' | 'lg';
 }
 const props = withDefaults(defineProps<Props>(), { size: 'lg' });
@@ -16,9 +18,8 @@ function finiteAmount(value: string | number | undefined) {
 }
 
 const availableAmount = computed(() => finiteAmount(props.available));
-const guaranteedAmount = computed(() => finiteAmount(props.guaranteed));
-const total = computed(() => availableAmount.value === undefined || guaranteedAmount.value === undefined
-  ? undefined : availableAmount.value + guaranteedAmount.value);
+const guaranteedAmount = computed(() => finiteAmount(props.frozen));
+const total = computed(() => finiteAmount(props.balance));
 const guaranteedPct = computed(() => total.value === undefined || guaranteedAmount.value === undefined
   ? undefined : total.value > 0 ? guaranteedAmount.value / total.value : 0);
 const ringSize = computed(() => (props.size === 'lg' ? 200 : 120));
@@ -51,17 +52,17 @@ const holeStyle = computed(() => ({
     <div class="legend">
       <div class="legend-row available">
         <span class="dot" />
-        <span class="lbl">可担保押金</span>
+        <span class="lbl">可退保证金</span>
         <span class="val">U {{ formatAmount(available) }}</span>
       </div>
       <div class="legend-row guaranteed">
         <span class="dot" />
-        <span class="lbl">已担保押金</span>
-        <span class="val">U {{ formatAmount(guaranteed) }}</span>
+        <span class="lbl">订单占用</span>
+        <span class="val">U {{ formatAmount(frozen) }}</span>
       </div>
       <div class="legend-row sum">
-        <span class="lbl">担保占用率</span>
-        <span class="val">{{ guaranteedPct === undefined ? '—' : `${(guaranteedPct * 100).toFixed(1)}%` }}</span>
+        <span class="lbl">占用率</span>
+        <span class="val">{{ usageRate === undefined || usageRate === null ? '—' : `${usageRate}%` }}</span>
       </div>
     </div>
   </div>

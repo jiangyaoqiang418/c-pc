@@ -20,6 +20,8 @@ declare namespace Api.Wallet {
     | 'FINANCE_LOCK'
     | 'FINANCE_UNLOCK'
     | 'DEPOSIT_PLEDGE'
+    | 'DEPOSIT_FREEZE'
+    | 'DEPOSIT_UNFREEZE'
     | 'DEPOSIT_RELEASE'
     | 'DEPOSIT_FORFEIT'
     | 'ORDER_FREEZE'

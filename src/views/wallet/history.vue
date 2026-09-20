@@ -30,7 +30,7 @@ const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
   { label: '链上', types: ['DEPOSIT_IN', 'WITHDRAW_OUT'] },
   { label: '内部', types: ['INTERNAL_PAY', 'INTERNAL_RECEIVE', 'INTERNAL_REFUND'] },
   { label: '小金库', types: ['FINANCE_LOCK', 'FINANCE_UNLOCK', 'INTEREST_ACCRUE'] },
-  { label: '押金', types: ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT'] },
+  { label: '押金', types: ['DEPOSIT_PLEDGE', 'DEPOSIT_FREEZE', 'DEPOSIT_UNFREEZE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT'] },
   { label: '订单', types: ['ORDER_FREEZE', 'ORDER_SETTLE'] },
   { label: '风控', types: ['RISK_FREEZE', 'RISK_UNFREEZE'] },
   { label: '调整', types: ['ADJUST_PLUS', 'ADJUST_MINUS', 'FEE_DEDUCT'] }
