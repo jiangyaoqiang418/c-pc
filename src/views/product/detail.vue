@@ -9,6 +9,7 @@ import ProductImageGallery from '@/components/product/product-image-gallery.vue'
 import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
+import RichTextContent from '@/components/common/rich-text-content.vue';
 import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
 import { useCartStore, useUserStore } from '@/stores';
@@ -366,7 +367,7 @@ async function favorite() {
           >{{ t.label }}</button>
         </div>
         <div class="tab-body" role="tabpanel" :aria-labelledby="`product-tab-${activeTab}`">
-          <div v-if="activeTab === 'desc'" class="desc-block" v-html="product.description || '<p>暂无详情</p>'" />
+          <RichTextContent v-if="activeTab === 'desc'" class="desc-block" :content="product.description" />
           <div v-else-if="activeTab === 'spec'" class="spec-list">
             <div class="spec-row"><span class="k">商品编号</span><span class="v yb-mono">{{ product.code }}</span></div>
             <div class="spec-row"><span class="k">所属分类</span><span class="v">{{ product.categoryPath }}</span></div>

@@ -2,9 +2,11 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Message } from '@arco-design/web-vue';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import RichTextEditor from '@/components/common/rich-text-editor.vue';
 import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
+import { richTextError, sanitizeRichText } from '@/utils/rich-text';
 
 interface FormState {
   title: string;
@@ -114,12 +116,14 @@ function submit() {
     Message.warning('至少上传 1 张商品图');
     return;
   }
+  const descriptionError = richTextError(form.description);
+  if (descriptionError) return Message.warning(descriptionError);
   const images = form.images.map(url => uploadedImageMap.get(url)).filter(Boolean) as Api.RealProduct.ProductImageParam[];
   if (images.length !== form.images.length) {
     Message.warning('请重新上传商品图片');
     return;
   }
-  emit('submit', { ...form, images });
+  emit('submit', { ...form, description: sanitizeRichText(form.description) || form.summary.trim(), images });
 }
 
 function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
@@ -194,7 +198,7 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     </a-form-item>
 
     <a-form-item label="详细描述">
-      <a-textarea v-model="form.description" :rows="4" :max-length="500" show-word-limit />
+      <RichTextEditor v-model="form.description" :disabled="submitting" @uploading="uploading = $event" />
     </a-form-item>
 
     <a-form-item label="商品图片（至少 1 张，最多 6 张）" required>
