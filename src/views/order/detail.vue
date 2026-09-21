@@ -165,13 +165,15 @@ interface TrackEvent {
   time: string;
   location: string;
   description: string;
+  sourceText: string;
 }
 
 const trackEvents = computed<TrackEvent[]>(() => {
   return (logistics.value?.tracks || []).map(track => ({
     time: formatTime(track.occurredAt),
-    location: track.location || '—',
-    description: track.description || track.statusText || track.status
+    location: track.location || '',
+    description: track.description || track.statusText || track.status,
+    sourceText: track.sourceText || (track.source === 'CARRIER_SYNC' ? '承运商同步' : '')
   }));
 });
 
@@ -350,8 +352,8 @@ function contactShopper() {
           </div>
           <a-timeline v-if="trackEvents.length">
             <a-timeline-item v-for="ev in trackEvents" :key="ev.time">
-              <div class="track-desc">{{ ev.description }}</div>
-              <div class="track-loc">{{ ev.location }}</div>
+              <div class="track-desc">{{ ev.description }} <a-tag v-if="ev.sourceText" size="small" color="arcoblue">{{ ev.sourceText }}</a-tag></div>
+              <div v-if="ev.location" class="track-loc">{{ ev.location }}</div>
               <div class="track-time">{{ ev.time }}</div>
             </a-timeline-item>
           </a-timeline>
