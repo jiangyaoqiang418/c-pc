@@ -76,7 +76,7 @@ async function renderGoogle(clientId: string) {
       locale: 'zh_CN',
       width: Math.max(168, Math.floor(googleButton.value.clientWidth))
     });
-    googleReady.value = true;
+    googleReady.value = googleButton.value.childElementCount > 0;
   } catch {
     googleReady.value = false;
   }
@@ -149,9 +149,9 @@ onBeforeUnmount(() => {
 .oauth-divider::before, .oauth-divider::after { content: ''; height: 1px; flex: 1; background: #e5e6eb; }
 .oauth-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .oauth-options--single { grid-template-columns: 1fr; }
+.oauth-options--single .oauth-option { justify-self: center; }
 .oauth-option { position: relative; min-width: 0; min-height: 40px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 6px; }
 .oauth-provider { width: 100%; min-height: 40px; display: flex; align-items: center; justify-content: center; }
-.oauth-option--telegram { background: #eef8fd; }
 .oauth-option--disabled { opacity: .55; pointer-events: none; }
 .oauth-option--loading .oauth-provider { visibility: hidden; }
 .oauth-placeholder, .oauth-busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #dadce0; border-radius: 6px; background: #fff; color: #4e5969; font-size: 13px; }
