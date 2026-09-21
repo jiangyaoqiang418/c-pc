@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { useUserStore } from '@/stores';
+import OAuthLoginOptions from '@/components/auth/oauth-login-options.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -10,6 +11,7 @@ const userStore = useUserStore();
 
 const form = reactive({ email: '', password: '' });
 const submitting = ref(false);
+const oauthProvider = ref<Api.RealAuth.OAuthProvider>();
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
 const redirect = computed(() => {
@@ -39,6 +41,24 @@ async function submit() {
     submitting.value = false;
   }
 }
+
+async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
+  if (submitting.value) return;
+  submitting.value = true;
+  oauthProvider.value = params.provider;
+  try {
+    const result = await userStore.loginWithOAuth(params);
+    if (disposed) return;
+    Message.success(`欢迎回来，${userStore.displayName}`);
+    if (result.newUser || !result.payPasswordSet) Message.info('账号已登录，请在进行资金操作前完善安全设置');
+    router.push(redirect.value);
+  } catch (error) {
+    if (!disposed) Message.error(error instanceof Error ? error.message : '第三方登录失败，请稍后重试');
+  } finally {
+    submitting.value = false;
+    oauthProvider.value = undefined;
+  }
+}
 </script>
 
 <template>
@@ -55,6 +75,8 @@ async function submit() {
       </a-form-item>
       <a-button type="primary" html-type="submit" long :loading="submitting" size="large">登 录</a-button>
     </a-form>
+
+    <OAuthLoginOptions :disabled="submitting" :busy-provider="oauthProvider" @login="submitOAuth" />
 
     <div class="bottom">
       还没有账号？

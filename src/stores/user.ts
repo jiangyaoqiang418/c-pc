@@ -125,11 +125,11 @@ export const useUserStore = defineStore('bw-user', () => {
     localStorage.setItem(STORAGE_KEY.currentAudience, 'customer');
   }
 
-  async function loginWithPassword(params: Api.RealAuth.LoginParams) {
+  async function commitRealLogin(request: () => ReturnType<typeof realAuthApi.login>) {
     const operation = ++loginVersion;
     const startVersion = identityVersion;
     const previousToken = getAccessToken();
-    const result = await realAuthApi.login(params);
+    const result = await request();
     if (operation !== loginVersion || startVersion !== identityVersion || getAccessToken() !== previousToken) {
       throw new Error('登录请求已失效，请重新登录');
     }
@@ -148,6 +148,15 @@ export const useUserStore = defineStore('bw-user', () => {
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.setItem(STORAGE_KEY.currentAudience, currentAudience.value);
     void refreshAccountInfo();
+    return { newUser: result.newUser, payPasswordSet: result.payPasswordSet };
+  }
+
+  async function loginWithPassword(params: Api.RealAuth.LoginParams) {
+    return commitRealLogin(() => realAuthApi.login(params));
+  }
+
+  async function loginWithOAuth(params: Api.RealAuth.OAuthLoginParams) {
+    return commitRealLogin(() => realAuthApi.oauthLogin(params));
   }
 
   async function register(params: Api.RealAuth.RegisterParams) {
@@ -247,6 +256,7 @@ export const useUserStore = defineStore('bw-user', () => {
     init,
     login,
     loginWithPassword,
+    loginWithOAuth,
     register,
     refreshCurrentUser,
     syncExternalSession,

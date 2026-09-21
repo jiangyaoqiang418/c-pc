@@ -2,6 +2,13 @@ import { clearAccessToken, realUserRequest } from '@/service/request';
 import type { RequestOptions } from '@/service/request';
 import { toOptionalFiniteNumber } from './number';
 
+export interface LoginSession {
+  token: string;
+  user: Api.RealSession.UserRecord;
+  newUser?: boolean;
+  payPasswordSet?: boolean;
+}
+
 function normalizeKycStatus(status?: string): Api.User.KycStatus {
   const value = status?.toLowerCase();
   if (value === 'approved' || value === 'passed') return 'approved';
@@ -48,8 +55,7 @@ function toUserRecord(
   };
 }
 
-export async function login(params: Api.RealAuth.LoginParams) {
-  const loginResult = await realUserRequest.post<Api.RealAuth.LoginVO>('/auth/login', params, { skipAuthRedirect: true, showError: false });
+async function completeLogin(loginResult: Api.RealAuth.LoginVO): Promise<LoginSession> {
   if (!loginResult.token) throw new Error('登录未返回有效凭证');
   const profile = await fetchCurrentUser(loginResult, {
     skipAuthRedirect: true,
@@ -57,7 +63,33 @@ export async function login(params: Api.RealAuth.LoginParams) {
     deferAccount: true,
     headers: { 'X-Access-Token': loginResult.token }
   });
-  return { token: loginResult.token, user: profile };
+  return {
+    token: loginResult.token,
+    user: profile,
+    newUser: Boolean(loginResult.newUser),
+    payPasswordSet: loginResult.payPasswordSet !== false
+  };
+}
+
+export async function login(params: Api.RealAuth.LoginParams) {
+  const loginResult = await realUserRequest.post<Api.RealAuth.LoginVO>('/auth/login', params, { skipAuthRedirect: true, showError: false });
+  return completeLogin(loginResult);
+}
+
+export function fetchOAuthConfig() {
+  return realUserRequest.get<Api.RealAuth.OAuthConfigVO>('/auth/oauth/config', {
+    skipAuthRedirect: true,
+    showError: false
+  });
+}
+
+export async function oauthLogin(params: Api.RealAuth.OAuthLoginParams) {
+  const loginResult = await realUserRequest.post<Api.RealAuth.LoginVO, Api.RealAuth.OAuthLoginParams>(
+    '/auth/oauth/login',
+    params,
+    { skipAuthRedirect: true, showError: false }
+  );
+  return completeLogin(loginResult);
 }
 
 export async function register(params: Api.RealAuth.RegisterParams) {

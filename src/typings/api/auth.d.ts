@@ -20,6 +20,24 @@ declare namespace Api.RealAuth {
     token: string;
     nickname: string;
     avatar?: string;
+    newUser?: boolean;
+    payPasswordSet?: boolean;
+  }
+
+  interface OAuthConfigVO {
+    googleEnabled: boolean;
+    googleClientId?: string | null;
+    googleOneTapEnabled?: boolean;
+    telegramEnabled: boolean;
+    telegramBotUsername?: string | null;
+  }
+
+  type OAuthProvider = 'GOOGLE' | 'TELEGRAM';
+
+  interface OAuthLoginParams {
+    provider: OAuthProvider;
+    credential?: string;
+    telegramPayload?: Record<string, string>;
   }
 
   interface UserProfileVO {
