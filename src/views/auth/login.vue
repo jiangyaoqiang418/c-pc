@@ -54,7 +54,8 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
     const result = await userStore.loginWithOAuth(params);
     if (disposed) return;
     Message.success(`欢迎回来，${userStore.displayName}`);
-    if (result.newUser || !result.payPasswordSet) Message.info('账号已登录，请在进行资金操作前完善安全设置');
+    if (result.loginPasswordSet === false) Message.info('账号已登录，可前往个人中心设置登录密码');
+    else if (result.newUser || !result.payPasswordSet) Message.info('账号已登录，请在进行资金操作前完善安全设置');
     router.push(redirect.value);
   } catch (error) {
     if (!disposed && error instanceof RequestError && error.code === '-317') {

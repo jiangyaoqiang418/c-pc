@@ -76,6 +76,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '支付密码', requiresAuth: true }
   },
   {
+    path: '/profile/login-password',
+    name: 'login-password',
+    component: () => import('@/views/profile/login-password.vue'),
+    meta: { layout: 'default', title: '设置登录密码', requiresAuth: true }
+  },
+  {
     path: '/checkout',
     name: 'checkout',
     component: () => import('@/views/checkout/index.vue'),

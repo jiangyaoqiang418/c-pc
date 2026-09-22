@@ -58,4 +58,10 @@ declare namespace Api.RealAuth {
     avatar?: string;
     phone?: string;
   }
+
+  interface SetLoginPasswordParams {
+    password: string;
+    confirmPassword: string;
+    email?: string;
+  }
 }

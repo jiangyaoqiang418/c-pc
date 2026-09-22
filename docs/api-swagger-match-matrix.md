@@ -38,7 +38,7 @@
 
 | 能力 | 服务及契约 | API/类型 | 页面调用 | 有效验证及保留边界 |
 |---|---|---|---|---|
-| 注册/登录/身份 | user：POST `/auth/register`、`/auth/login`、`/auth/oauth/login`；GET `/auth/me`；登录与个人信息新增 `loginPasswordSet`，`email` 可为 null；OAuth 冲突返回 `-317` 且不下发 token | 已封装；`loginPasswordSet` 从登录回包或 `/auth/me` 映射到真实会话，保留 email null 与状态未知；只有完整登录成功后才切换凭证 | 登录页识别 `-317`并聚焦邮箱表单；个人中心可区分未绑定邮箱，设置登录密码入口随 E3 页面同步开放，不先生成无落点入口 | 类型检查及生产构建通过；`loginPasswordSet`/null 邮箱和 `-317` 尚未使用真实账号联调，不标记为已验收 |
+| 注册/登录/身份 | user：POST `/auth/register`、`/auth/login`、`/auth/oauth/login`、`/auth/password/set`；GET `/auth/me`；登录与个人信息新增 `loginPasswordSet`，`email` 可为 null；OAuth 冲突返回 `-317` | 已封装；保留 `loginPasswordSet`/email null/未知状态；设密码时有邮箱账号不发 email，无邮箱账号同次提交 email | 登录页处理 `-317`；个人中心仅在明确未设密码时展示入口；设置页强制状态预读、6–64位与确认校验，成功后保留会话并回读，回读失败防重复提交 | 类型检查及生产构建通过；新设置页、null 邮箱、重复设置和 `-317` 尚未使用真实账号联调，不标记为已验收 |
 | 积分/VIP | user：GET `/points/account`、`/points/rules`、`/points/vip-configs` | 已封装C端公开规则，不再借admin权限 | 积分/VIP/个人中心调用，公开与登录状态分开 | 真实规则、VIP及KYC积分非空已验；未知类型/配置变化等边界待验 |
 | 积分申诉 | user：POST `/points/appeals/submit`、`/points/appeals/page` | ledgerId/reason及分页已封装 | 流水申诉、记录页、版本保护弹窗已调用 | 列表/筛选空态已验；非空提交及慢写入重开待验 |
 | 首页/分类 | order：GET `/categories/tree`、`/banners/list`、`/storefront/recommend`、`/storefront/flash-sale`；POST榜单分页 | 已封装分类Long、时间/金额/必需数组校验 | 导航、首页、分类和表单选择器已调用 | 非空商品榜单、分类及分项失败已验；非空活动/秒杀及>24分类商品待验 |

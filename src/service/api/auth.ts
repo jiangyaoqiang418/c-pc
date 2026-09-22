@@ -99,6 +99,12 @@ export async function register(params: Api.RealAuth.RegisterParams) {
   return realUserRequest.post<string>('/auth/register', params, { skipAuthRedirect: true });
 }
 
+export function setLoginPassword(params: Api.RealAuth.SetLoginPasswordParams) {
+  return realUserRequest.post<void, Api.RealAuth.SetLoginPasswordParams>('/auth/password/set', params, {
+    showError: false
+  });
+}
+
 export function prepareRegistration(form: { email: string; nickname: string; password: string; confirm: string }) {
   const params = { email: form.email.trim(), nickname: form.nickname.trim(), password: form.password, roles: ['CUSTOMER'] };
   let error = '';

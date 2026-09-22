@@ -163,6 +163,9 @@ const quickEntries = computed<QuickEntry[]>(() => [
   { key: 'vip', label: 'VIP 特权', emoji: '👑', go: () => router.push('/vip') },
   { key: 'address', label: '地址管理', emoji: '📍', go: () => router.push('/address') },
   { key: 'pay-password', label: '支付密码', emoji: '🔐', go: () => router.push('/profile/pay-password') },
+  ...(userStore.needsLoginPassword
+    ? [{ key: 'login-password', label: '设置登录密码', emoji: '🔑', go: () => router.push('/profile/login-password') }]
+    : []),
   { key: 'purchase', label: '我的求购', emoji: '🔍', go: () => router.push('/purchase') },
   { key: 'aftersale', label: '我的售后', emoji: '🔧', go: () => router.push('/aftersale') },
   { key: 'review', label: '我的评价', emoji: '⭐', go: () => router.push('/review') },
