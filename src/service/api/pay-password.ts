@@ -13,7 +13,7 @@ export function fetchPayPasswordStatus() {
 }
 
 export function setPayPassword(params: { loginPassword: string; payPassword: string; confirmPayPassword: string }) {
-  return realUserRequest.post<void, typeof params>('/auth/pay-password/set', params);
+  return realUserRequest.post<void, typeof params>('/auth/pay-password/set', params, { showError: false });
 }
 
 export function updatePayPassword(params: { oldPayPassword: string; payPassword: string; confirmPayPassword: string }) {
@@ -21,5 +21,5 @@ export function updatePayPassword(params: { oldPayPassword: string; payPassword:
 }
 
 export function resetPayPassword(params: { loginPassword: string; payPassword: string; confirmPayPassword: string }) {
-  return realUserRequest.put<void, typeof params>('/auth/pay-password/reset', params);
+  return realUserRequest.put<void, typeof params>('/auth/pay-password/reset', params, { showError: false });
 }
