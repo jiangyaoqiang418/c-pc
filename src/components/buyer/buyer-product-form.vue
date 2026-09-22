@@ -154,17 +154,17 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     <a-row :gutter="12">
       <a-col :span="8">
         <a-form-item label="售价 (USDT)" required>
-          <a-input-number v-model="form.price" :min="0.00000001" :precision="initialProduct ? 8 : 2" size="large" />
+          <a-input-number v-model="form.price" :min="0.00000001" :precision="initialProduct ? 8 : 2" placeholder="请输入商品售价" size="large" />
         </a-form-item>
       </a-col>
       <a-col :span="8">
         <a-form-item label="运费 (USDT)">
-          <a-input-number v-model="form.shippingFee" :min="0" :precision="initialProduct ? 8 : 2" size="large" />
+          <a-input-number v-model="form.shippingFee" :min="0" :precision="initialProduct ? 8 : 2" placeholder="请输入运费，免运费填 0" size="large" />
         </a-form-item>
       </a-col>
       <a-col :span="8">
         <a-form-item label="税费 (USDT)">
-          <a-input-number v-model="form.tax" :min="0" :precision="initialProduct ? 8 : 2" size="large" />
+          <a-input-number v-model="form.tax" :min="0" :precision="initialProduct ? 8 : 2" placeholder="请输入税费，无税费填 0" size="large" />
         </a-form-item>
       </a-col>
     </a-row>
@@ -172,12 +172,12 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     <a-row :gutter="12">
       <a-col :span="8">
         <a-form-item label="库存" required>
-          <a-input-number v-model="form.stock" :min="0" size="large" />
+          <a-input-number v-model="form.stock" :min="0" placeholder="请输入库存数量" size="large" />
         </a-form-item>
       </a-col>
       <a-col :span="8">
         <a-form-item label="售后类型" required>
-          <a-select v-model="form.aftersaleType" size="large">
+          <a-select v-model="form.aftersaleType" placeholder="请选择售后类型" size="large">
             <a-option value="none">无售后</a-option>
             <a-option value="7day-no-reason">7 天无理由</a-option>
             <a-option value="shop-warranty">店铺保修</a-option>

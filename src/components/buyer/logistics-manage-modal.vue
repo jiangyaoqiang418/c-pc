@@ -93,19 +93,19 @@ function submit() {
         <a-tab-pane key="track" title="登记轨迹" :disabled="submitting">
           <a-form :model="track" layout="vertical" :disabled="submitting">
             <a-form-item label="物流状态" required>
-              <a-select v-model="track.status">
+              <a-select v-model="track.status" placeholder="请选择物流状态">
                 <a-option v-for="item in TRACK_STATUSES" :key="item.value" :value="item.value">{{ item.label }}</a-option>
               </a-select>
             </a-form-item>
-            <a-form-item label="轨迹说明" required><a-textarea v-model="track.description" :max-length="200" show-word-limit /></a-form-item>
+            <a-form-item label="轨迹说明" required><a-textarea v-model="track.description" :max-length="200" show-word-limit placeholder="请输入物流轨迹说明" /></a-form-item>
             <a-form-item label="地点"><a-input v-model="track.location" placeholder="可选" /></a-form-item>
-            <a-form-item label="发生时间"><a-date-picker v-model="track.occurredAt" show-time value-format="x" style="width: 100%" /></a-form-item>
+            <a-form-item label="发生时间"><a-date-picker v-model="track.occurredAt" show-time value-format="x" placeholder="请选择发生时间" style="width: 100%" /></a-form-item>
           </a-form>
         </a-tab-pane>
         <a-tab-pane key="exception" title="标记异常" :disabled="submitting">
           <a-alert type="warning" class="alert" title="标记异常后，后续非异常轨迹会自动清空异常摘要。" />
           <a-form :model="exception" layout="vertical" :disabled="submitting">
-            <a-form-item label="异常说明" required><a-textarea v-model="exception.description" :max-length="200" show-word-limit /></a-form-item>
+            <a-form-item label="异常说明" required><a-textarea v-model="exception.description" :max-length="200" show-word-limit placeholder="请说明物流异常情况" /></a-form-item>
             <a-form-item label="地点"><a-input v-model="exception.location" placeholder="可选" /></a-form-item>
           </a-form>
         </a-tab-pane>

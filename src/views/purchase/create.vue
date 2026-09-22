@@ -272,7 +272,7 @@ async function submit() {
           <a-col :span="12">
             <a-form-item label="预算 (USDT)" required>
               <div class="price-time-field">
-                <a-input-number v-model="form.budgetAmount" :min="10" :precision="2" size="large">
+                <a-input-number v-model="form.budgetAmount" :min="10" :precision="2" placeholder="请输入预算金额" size="large">
                   <template #suffix>U</template>
                 </a-input-number>
                 <div class="cny-hint">
@@ -286,7 +286,7 @@ async function submit() {
           <a-col :span="12">
             <a-form-item label="期望发货天数" required>
               <div class="price-time-field">
-                <a-input-number v-model="form.expectedDays" :min="1" :max="60" size="large">
+                <a-input-number v-model="form.expectedDays" :min="1" :max="60" placeholder="请输入预计交付天数" size="large">
                   <template #suffix>天</template>
                 </a-input-number>
                 <div class="tip-line">
@@ -314,7 +314,7 @@ async function submit() {
           </a-col>
           <a-col :span="12">
             <a-form-item label="售后类型" required>
-              <a-select v-model="form.aftersaleType" size="large">
+              <a-select v-model="form.aftersaleType" placeholder="请选择售后类型" size="large">
                 <a-option value="none">无售后</a-option>
                 <a-option value="7day-no-reason">7 天无理由</a-option>
                 <a-option value="shop-warranty">店铺保修</a-option>

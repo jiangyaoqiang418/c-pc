@@ -153,16 +153,16 @@ async function submit() {
           <a-alert v-if="formError" type="error" :closable="false" class="alert">{{ formError }}</a-alert>
           <a-form :model="form" layout="vertical" @submit-success="submit">
             <a-form-item v-if="mode !== 'update'" label="平台登录密码" required>
-              <a-input-password v-model="form.loginPassword" autocomplete="current-password" />
+              <a-input-password v-model="form.loginPassword" autocomplete="current-password" placeholder="请输入平台登录密码" />
             </a-form-item>
             <a-form-item v-else label="原支付密码" required>
-              <a-input-password v-model="form.oldPayPassword" :max-length="6" />
+              <a-input-password v-model="form.oldPayPassword" :max-length="6" placeholder="请输入原支付密码" />
             </a-form-item>
             <a-form-item label="新支付密码" required>
               <a-input-password v-model="form.payPassword" :max-length="6" placeholder="6位数字，支持0开头" />
             </a-form-item>
             <a-form-item label="确认支付密码" required>
-              <a-input-password v-model="form.confirmPayPassword" :max-length="6" />
+              <a-input-password v-model="form.confirmPayPassword" :max-length="6" placeholder="请再次输入新支付密码" />
             </a-form-item>
             <a-button type="primary" html-type="submit" :disabled="!valid" :loading="submitting">保存</a-button>
           </a-form>

@@ -84,7 +84,7 @@ watch(
     <div class="card-title">利息预估</div>
     <div class="input-row">
       <span class="lbl">投链上充值额</span>
-      <a-input-number v-model="amount" :min="0" :precision="2" :disabled="submitting" size="large" class="amount-input" />
+      <a-input-number v-model="amount" :min="0" :precision="2" :disabled="submitting" placeholder="请输入申购金额" size="large" class="amount-input" />
       <span class="suffix">U</span>
     </div>
     <div v-if="errMsg" class="err">{{ errMsg }}</div>

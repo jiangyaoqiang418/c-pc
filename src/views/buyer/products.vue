@@ -341,7 +341,7 @@ async function savePrice() {
     <a-modal v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving">
       <p>{{ priceProduct?.title }}</p>
       <a-form layout="vertical" :model="{ price: newPrice }">
-        <a-form-item label="售价（USDT）" required><a-input v-model="newPrice" :disabled="priceSaving" @press-enter="savePrice" /></a-form-item>
+        <a-form-item label="售价（USDT）" required><a-input v-model="newPrice" :disabled="priceSaving" placeholder="请输入新的商品售价" @press-enter="savePrice" /></a-form-item>
       </a-form>
       <p>改价立即生效，已下单订单的价格不受影响。</p>
       <div style="display:flex;justify-content:flex-end;gap:12px">

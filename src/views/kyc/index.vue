@@ -305,7 +305,7 @@ async function submit() {
               <a-col :span="12"><a-form-item label="国籍" :required="schema?.nationalityRequired"><a-input v-model="form.nationality" placeholder="如：中国" :max-length="64" /></a-form-item></a-col>
             </a-row>
             <a-row :gutter="16">
-              <a-col :span="12"><a-form-item label="证件类型" required><a-select v-model="form.idType"><a-option v-for="type in schema?.allowedIdTypes || []" :key="type" :value="type">{{ type === 'ID_CARD' ? '身份证' : '护照' }}</a-option></a-select></a-form-item></a-col>
+              <a-col :span="12"><a-form-item label="证件类型" required><a-select v-model="form.idType" placeholder="请选择证件类型"><a-option v-for="type in schema?.allowedIdTypes || []" :key="type" :value="type">{{ type === 'ID_CARD' ? '身份证' : '护照' }}</a-option></a-select></a-form-item></a-col>
               <a-col :span="12"><a-form-item label="证件号码" required><a-input v-model="form.idNo" placeholder="请输入证件号码" :max-length="64" /></a-form-item></a-col>
             </a-row>
             <a-form-item label="证件图片" required :extra="`资料页必填；背面${schema?.idCardBackRequired ? '必填' : '选填'}；手持照${schema?.holdingPhotoRequired ? '必填' : '选填'}。请勿上传与本人无关的证件。`">

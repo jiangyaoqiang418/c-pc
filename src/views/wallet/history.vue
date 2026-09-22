@@ -244,7 +244,7 @@ function handleEmptyAction() {
           </a-col>
           <a-col :xs="24" :sm="12" :lg="6">
             <a-form-item label="日期">
-              <a-range-picker v-model="filter.dateRange" />
+              <a-range-picker v-model="filter.dateRange" :placeholder="['开始日期', '结束日期']" />
             </a-form-item>
           </a-col>
           <a-col :xs="24" :sm="12" :lg="4">

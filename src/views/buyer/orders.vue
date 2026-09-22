@@ -359,7 +359,7 @@ async function changePrice() {
           <a-input :model-value="priceOrder?.code" disabled />
         </a-form-item>
         <a-form-item label="订单金额 (USDT)" required>
-          <a-input-number v-model="priceAmount" :min="0.01" :precision="2" style="width: 100%" />
+          <a-input-number v-model="priceAmount" :min="0.01" :precision="2" placeholder="请输入调整后的金额" style="width: 100%" />
         </a-form-item>
       </a-form>
     </a-modal>

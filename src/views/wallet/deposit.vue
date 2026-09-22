@@ -429,7 +429,7 @@ watch(() => route.query.id, id => {
               </a-col>
               <a-col :xs="24" :sm="12">
                 <a-form-item label="申报金额 (USDT)">
-                  <a-input-number v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" size="large" />
+                  <a-input-number v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" placeholder="请输入充值金额" size="large" />
                 </a-form-item>
               </a-col>
             </a-row>

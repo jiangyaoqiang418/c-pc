@@ -263,7 +263,7 @@ watch(() => userStore.currentUser?.id, () => {
           <a-input v-model="form.newName" :max-length="50" placeholder="请输入分类名称" />
         </a-form-item>
         <a-form-item label="申请理由" required>
-          <a-textarea v-model="form.reason" :max-length="500" :rows="4" show-word-limit />
+          <a-textarea v-model="form.reason" :max-length="500" :rows="4" show-word-limit placeholder="请说明分类申请理由" />
         </a-form-item>
       </a-form>
     </a-modal>

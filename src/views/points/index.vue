@@ -397,7 +397,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
             </a-select>
           </a-form-item>
           <a-form-item label="日期范围">
-            <a-range-picker v-model="filter.dateRange" />
+            <a-range-picker v-model="filter.dateRange" :placeholder="['开始日期', '结束日期']" />
           </a-form-item>
           <a-button type="primary" @click="(() => { current = 1; syncQuery(); })()">查询</a-button>
           <a-button @click="reset">重置</a-button>

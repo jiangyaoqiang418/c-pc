@@ -128,11 +128,11 @@ function submit() {
           <a-input v-model="form.trackingNumber" placeholder="请输入运单号" />
         </a-form-item>
         <a-form-item v-if="selectedCarrier?.customNameRequired" label="承运商名称" required><a-input v-model="form.carrierName" placeholder="请输入承运商名称" /></a-form-item>
-        <a-form-item label="预计送达时间"><a-date-picker v-model="form.eta" show-time value-format="x" style="width: 100%" /></a-form-item>
+        <a-form-item label="预计送达时间"><a-date-picker v-model="form.eta" show-time value-format="x" placeholder="请选择预计送达时间" style="width: 100%" /></a-form-item>
         <a-form-item label="采购单号"><a-input v-model="form.purchaseNo" placeholder="可选，用于采购核对" /></a-form-item>
         <a-form-item label="采购凭证"><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></a-form-item>
         <a-form-item label="发货凭证"><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.shipping = $event" /></a-form-item>
-        <a-form-item label="发货备注"><a-textarea v-model="form.remark" :max-length="500" show-word-limit /></a-form-item>
+        <a-form-item label="发货备注"><a-textarea v-model="form.remark" :max-length="500" show-word-limit placeholder="选填，请填写发货备注" /></a-form-item>
       </a-form>
     </template>
   </a-modal>

@@ -356,8 +356,8 @@ watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; }
       <a-divider />
       <a-form :model="form" layout="vertical">
         <a-row :gutter="16">
-          <a-col :xs="24" :sm="12"><a-form-item label="选择链 / 币种"><a-select v-model="form.chain" size="large"><a-option v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option></a-select></a-form-item></a-col>
-          <a-col :xs="24" :sm="12"><a-form-item label="转出金额 (USDT)"><a-input-number v-model="form.amount" :min="20" :max="available" :precision="2" size="large"><template #suffix>U</template><template #append><a-button size="mini" type="text" @click="fillAll">全部</a-button></template></a-input-number></a-form-item></a-col>
+          <a-col :xs="24" :sm="12"><a-form-item label="选择链 / 币种"><a-select v-model="form.chain" placeholder="请选择转出链" size="large"><a-option v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option></a-select></a-form-item></a-col>
+          <a-col :xs="24" :sm="12"><a-form-item label="转出金额 (USDT)"><a-input-number v-model="form.amount" :min="20" :max="available" :precision="2" placeholder="请输入转出金额" size="large"><template #suffix>U</template><template #append><a-button size="mini" type="text" @click="fillAll">全部</a-button></template></a-input-number></a-form-item></a-col>
         </a-row>
         <a-form-item label="目标地址"><a-input v-model="form.toAddress" placeholder="请输入所选链对应的 USDT 地址" size="large" /></a-form-item>
         <div v-if="errMsg" class="err">{{ errMsg }}</div>
