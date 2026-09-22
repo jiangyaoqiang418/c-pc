@@ -14,7 +14,7 @@ const router = useRouter();
     <div class="auth-card">
       <RouterView />
     </div>
-    <div class="auth-footer">{{ BRAND.copyright }}</div>
+    <div class="auth-footer">© 2026 {{ BRAND.name }}</div>
   </div>
 </template>
 
