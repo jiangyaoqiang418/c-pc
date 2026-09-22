@@ -8,7 +8,7 @@ const router = useRouter();
 <template>
   <div class="layout-auth">
     <div class="logo" role="link" tabindex="0" @click="router.push('/')" @keydown.enter="router.push('/')" @keydown.space.prevent="router.push('/')">
-      <span class="logo-mark">油宝</span>
+      <img class="logo-mark" src="/favicon.svg" alt="油宝" />
       <span class="logo-name">{{ BRAND.name }}</span>
     </div>
     <div class="auth-card">
@@ -49,17 +49,11 @@ const router = useRouter();
   border-radius: 4px;
 }
 .logo-mark {
-  min-width: 32px;
+  width: 32px;
   height: 32px;
-  padding: 0 8px;
-  background: rgba(201, 24, 32, 0.1);
   border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 1px;
+  display: block;
+  object-fit: contain;
 }
 .logo-name {
   font-weight: 700;
