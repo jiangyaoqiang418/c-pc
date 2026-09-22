@@ -6,6 +6,7 @@ export interface LoginSession {
   token: string;
   user: Api.RealSession.UserRecord;
   newUser?: boolean;
+  loginPasswordSet?: boolean;
   payPasswordSet?: boolean;
 }
 
@@ -40,7 +41,8 @@ function toUserRecord(
 
   return {
     id,
-    email: profile.email || '',
+    email: profile.email ?? null,
+    loginPasswordSet: profile.loginPasswordSet ?? fallback?.loginPasswordSet,
     nickname: profile.nickname || fallback?.nickname || '',
     avatar: profile.avatar || fallback?.avatar,
     phone: profile.phone,
@@ -67,6 +69,7 @@ async function completeLogin(loginResult: Api.RealAuth.LoginVO): Promise<LoginSe
     token: loginResult.token,
     user: profile,
     newUser: Boolean(loginResult.newUser),
+    loginPasswordSet: profile.loginPasswordSet,
     payPasswordSet: loginResult.payPasswordSet !== false
   };
 }

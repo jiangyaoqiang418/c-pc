@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@arco-design/web-vue';
 import { useUserStore } from '@/stores';
 import OAuthLoginOptions from '@/components/auth/oauth-login-options.vue';
+import { RequestError } from '@/service/request';
 
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 
 const form = reactive({ email: '', password: '' });
+const emailInput = ref<{ focus: () => void }>();
 const submitting = ref(false);
 const oauthProvider = ref<Api.RealAuth.OAuthProvider>();
+const oauthConflictMessage = ref('');
 let disposed = false;
 onBeforeUnmount(() => { disposed = true; });
 const redirect = computed(() => {
@@ -44,6 +47,7 @@ async function submit() {
 
 async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
   if (submitting.value) return;
+  oauthConflictMessage.value = '';
   submitting.value = true;
   oauthProvider.value = params.provider;
   try {
@@ -53,7 +57,14 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
     if (result.newUser || !result.payPasswordSet) Message.info('账号已登录，请在进行资金操作前完善安全设置');
     router.push(redirect.value);
   } catch (error) {
-    if (!disposed) Message.error(error instanceof Error ? error.message : '第三方登录失败，请稍后重试');
+    if (!disposed && error instanceof RequestError && error.code === '-317') {
+      oauthConflictMessage.value = error.message;
+      Message.error(error.message);
+      await nextTick();
+      emailInput.value?.focus();
+    } else if (!disposed) {
+      Message.error(error instanceof Error ? error.message : '第三方登录失败，请稍后重试');
+    }
   } finally {
     submitting.value = false;
     oauthProvider.value = undefined;
@@ -66,9 +77,13 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
     <h2 class="title">登录</h2>
     <p class="hint">使用平台账号和邮箱密码登录。</p>
 
+    <a-alert v-if="oauthConflictMessage" type="warning" class="oauth-conflict" :closable="false">
+      {{ oauthConflictMessage }}
+    </a-alert>
+
     <a-form :model="form" layout="vertical" @submit-success="submit">
       <a-form-item label="邮箱">
-        <a-input v-model="form.email" placeholder="请输入注册邮箱" size="large" />
+        <a-input ref="emailInput" v-model="form.email" placeholder="请输入注册邮箱" size="large" />
       </a-form-item>
       <a-form-item label="密码">
         <a-input-password v-model="form.password" placeholder="请输入登录密码" size="large" />
@@ -98,6 +113,9 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
   color: #86909c;
   font-size: 12px;
   margin-bottom: 20px;
+}
+.oauth-conflict {
+  margin-bottom: 16px;
 }
 .bottom {
   margin-top: 24px;

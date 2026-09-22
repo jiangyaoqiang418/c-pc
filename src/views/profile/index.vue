@@ -216,7 +216,7 @@ const orderTabsMeta = computed(() => [
                 <a-tag v-if="user.isBuyer" color="orange" size="small">已是买手</a-tag>
               </div>
               <div class="meta">
-                <span>{{ user.email }}</span>
+                <span>{{ user.email ?? '未绑定邮箱' }}</span>
                 <span class="dot">·</span>
                 <span>积分 {{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
                 <template v-if="registeredDate">

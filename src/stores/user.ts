@@ -148,7 +148,11 @@ export const useUserStore = defineStore('bw-user', () => {
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.setItem(STORAGE_KEY.currentAudience, currentAudience.value);
     void refreshAccountInfo();
-    return { newUser: result.newUser, payPasswordSet: result.payPasswordSet };
+    return {
+      newUser: result.newUser,
+      loginPasswordSet: result.loginPasswordSet,
+      payPasswordSet: result.payPasswordSet
+    };
   }
 
   async function loginWithPassword(params: Api.RealAuth.LoginParams) {
@@ -236,6 +240,7 @@ export const useUserStore = defineStore('bw-user', () => {
 
   const isLoggedIn = computed(() => !!currentUser.value);
   const displayName = computed(() => currentUser.value?.nickname || currentUser.value?.email?.split('@')[0] || '');
+  const needsLoginPassword = computed(() => currentUser.value?.loginPasswordSet === false);
   const canSwitchToBuyer = computed(() => !!currentUser.value?.isBuyer);
   const isBuyerActive = computed(() => canSwitchToBuyer.value && currentAudience.value === 'buyer');
   const demoUserList = computed(() => MOCK_USERS);
@@ -250,6 +255,7 @@ export const useUserStore = defineStore('bw-user', () => {
     currentAudience,
     isLoggedIn,
     displayName,
+    needsLoginPassword,
     canSwitchToBuyer,
     isBuyerActive,
     demoUserList,

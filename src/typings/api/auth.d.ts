@@ -21,6 +21,7 @@ declare namespace Api.RealAuth {
     nickname: string;
     avatar?: string;
     newUser?: boolean;
+    loginPasswordSet?: boolean;
     payPasswordSet?: boolean;
   }
 
@@ -42,7 +43,8 @@ declare namespace Api.RealAuth {
 
   interface UserProfileVO {
     userId: string;
-    email: string;
+    email: string | null;
+    loginPasswordSet?: boolean;
     nickname: string;
     avatar?: string;
     phone?: string;
