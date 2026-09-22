@@ -21,7 +21,11 @@ const router = useRouter();
 <style scoped>
 .layout-auth {
   min-height: 100vh;
-  background: linear-gradient(135deg, #165dff 0%, #722ed1 100%);
+  background-color: #f8f8f8;
+  background-image: url('../assets/images/bg-login-commerce-red.png');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -37,10 +41,10 @@ const router = useRouter();
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #fff;
+  color: #c91820;
 }
 .logo:focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid #c91820;
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -48,7 +52,7 @@ const router = useRouter();
   min-width: 32px;
   height: 32px;
   padding: 0 8px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(201, 24, 32, 0.1);
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -72,7 +76,7 @@ const router = useRouter();
 .auth-footer {
   position: absolute;
   bottom: 24px;
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(70, 70, 70, 0.72);
   font-size: 12px;
 }
 </style>
