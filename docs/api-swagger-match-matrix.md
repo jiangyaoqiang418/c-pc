@@ -34,6 +34,10 @@
 
 ## 既有模块四层索引
 
+### 2026-09-23 J1：USDT 钱包直付阶段接入
+
+测试环境 order Swagger 已出现 `GET /orders/wallet-pay/chains`、`GET /orders/wallet-pay/latest`、`POST /orders/wallet-pay/create`、`POST /orders/wallet-pay/submit-tx`、`GET /orders/wallet-pay/detail`。J1 仅封装并调用 chains/create/latest，页面展示支付参数但默认隐藏入口；submit-tx/detail、钱包签名和轮询归 J2。Swagger 把 confirmedAmount/orderAmount/payAmount 标为 number、expireAt 标为 int64，后端手册描述实际 JSON 使用字符串；rawAmount 在两处均为字符串。真实登录态响应、测试链开放和链上结果尚未验证，不计接口联调通过。
+
 下面是当前仍在使用的核心接口与已有验证基线。历史正常交易验收不能替代上表新金额/幂等/已读等契约变更的再验收。
 
 | 能力 | 服务及契约 | API/类型 | 页面调用 | 有效验证及保留边界 |

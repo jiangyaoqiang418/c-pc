@@ -13,6 +13,7 @@ export interface PendingCheckout {
   contextId?: string;
   cartSnapshot?: CartItem[];
   paymentResult?: Api.RealOrder.OrderGroupPayResult;
+  walletPayAttempt?: { chain: string; idempotencyKey: string; payNo?: string };
 }
 
 /** 按十进制原值相加，不使用浮点累加或截断到展示精度。 */
@@ -82,6 +83,10 @@ export function readPendingCheckout(userId: string | number): PendingCheckout | 
       || (value.orderGroupNo !== undefined && (typeof value.orderGroupNo !== 'string' || !value.orderGroupNo.trim()))
       || (value.firstOrderId !== undefined && !isId(value.firstOrderId))
       || (value.contextId !== undefined && typeof value.contextId !== 'string')
+      || (value.walletPayAttempt !== undefined && (!value.walletPayAttempt
+        || typeof value.walletPayAttempt.chain !== 'string' || !value.walletPayAttempt.chain.trim()
+        || typeof value.walletPayAttempt.idempotencyKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.walletPayAttempt.idempotencyKey)
+        || (value.walletPayAttempt.payNo !== undefined && (typeof value.walletPayAttempt.payNo !== 'string' || !value.walletPayAttempt.payNo.trim()))))
       || (value.cartSnapshot !== undefined && (!Array.isArray(value.cartSnapshot) || value.cartSnapshot.some(item => !item
         || !isId(item.productId) || !Number.isSafeInteger(item.qty) || item.qty < 1 || typeof item.addedAt !== 'string')))) {
       throw new Error('invalid pending checkout');

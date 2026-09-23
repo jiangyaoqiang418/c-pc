@@ -12,6 +12,7 @@ interface ImportMetaEnv {
   readonly VITE_REAL_ORDER_TARGET_URL?: string;
   readonly VITE_REAL_NOTIFY_BASE_URL?: string;
   readonly VITE_REAL_NOTIFY_TARGET_URL?: string;
+  readonly VITE_WALLET_PAY_ENTRY_ENABLED?: string;
 }
 
 interface ImportMeta {

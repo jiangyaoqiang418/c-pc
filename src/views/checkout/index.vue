@@ -5,6 +5,7 @@ import { Message, Modal } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import * as realOrderApi from '@/service/api/order';
+import { createWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain } from '@/service/api/wallet-pay';
 import * as realWalletApi from '@/service/api/wallet';
 import * as productApi from '@/service/api/product';
 import { readCheckoutIntent, clearCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout,
@@ -21,6 +22,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { getOrderCapabilities } from '@/utils/order';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import { requestPayPassword } from '@/utils/pay-password';
+import { walletPayEntryEnabled } from '@/utils/wallet-pay-feature';
 
 const router = useRouter();
 const route = useRoute();
@@ -30,8 +32,14 @@ const userStore = useUserStore();
 const cart = useCartStore();
 const requestGuard = createLatestRequestGuard();
 const walletGuard = createLatestRequestGuard();
+const chainsGuard = createLatestRequestGuard();
 const walletLoading = ref(false);
 const walletError = ref('');
+const walletChains = ref<WalletPayChain[]>([]);
+const walletChainsLoading = ref(false);
+const walletChainsError = ref('');
+const paymentMethod = ref<'balance' | 'wallet'>('balance');
+const selectedChain = ref('');
 
 const addressId = ref<string | number>();
 const addressValid = ref(false);
@@ -88,6 +96,46 @@ const selfSoldTitles = computed(() => selfSoldItems.value.map(item => item.produ
 
 const availableBalance = computed(() => wallet.value?.available === undefined ? undefined : Number(wallet.value.available));
 const balanceEnough = computed(() => availableBalance.value !== undefined && availableBalance.value >= Number(grandTotal.value));
+const walletSelected = computed(() => walletPayEntryEnabled && paymentMethod.value === 'wallet');
+
+function amountAtLeast(amount: string | number, minimum: string | number | null) {
+  if (minimum === null || minimum === undefined || minimum === '') return true;
+  const [amountInteger, amountFraction = ''] = sumPaymentAmounts([amount]).split('.');
+  const [minInteger, minFraction = ''] = sumPaymentAmounts([minimum]).split('.');
+  if (BigInt(amountInteger) !== BigInt(minInteger)) return BigInt(amountInteger) > BigInt(minInteger);
+  const scale = Math.max(amountFraction.length, minFraction.length);
+  return BigInt((amountFraction || '0').padEnd(scale, '0')) >= BigInt((minFraction || '0').padEnd(scale, '0'));
+}
+
+function selectedWalletChain(amount = hasCreatedOrders.value ? pendingTotal.value : grandTotal.value) {
+  return walletChains.value.find(chain => chain.chain === selectedChain.value && chain.enabled && amount
+    && amountAtLeast(amount, chain.minAmount));
+}
+
+async function loadWalletChains() {
+  if (!walletPayEntryEnabled || !userStore.currentUser) return;
+  const isCurrent = chainsGuard.begin();
+  const userId = userStore.currentUser.id;
+  walletChainsLoading.value = true;
+  walletChainsError.value = '';
+  try {
+    const chains = await fetchWalletPayChains({ signal: isCurrent.signal });
+    if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
+    walletChains.value = chains;
+    if (!chains.some(chain => chain.chain === selectedChain.value)) {
+      selectedChain.value = chains.find(chain => chain.enabled)?.chain || '';
+    }
+    if (!chains.length) paymentMethod.value = 'balance';
+  } catch {
+    if (isCurrent()) {
+      walletChains.value = [];
+      walletChainsError.value = '钱包支付可用链读取失败，当前仍可使用余额支付';
+      paymentMethod.value = 'balance';
+    }
+  } finally {
+    if (isCurrent()) walletChainsLoading.value = false;
+  }
+}
 
 function savePendingCheckout(value: PendingCheckout) {
   localStorage.setItem(pendingStorageKey(userStore.currentUser!.id), JSON.stringify(value));
@@ -160,6 +208,10 @@ async function startNewCheckout() {
 }
 
 async function payPendingOrders() {
+  if (walletSelected.value) {
+    await payPendingOrdersWithWallet();
+    return;
+  }
   const pending = pendingCheckout.value;
   const userId = userStore.currentUser?.id;
   if (!pending?.orderIds?.length || userId === undefined || submitting.value || loading.value || loadError.value) return;
@@ -197,6 +249,89 @@ async function payPendingOrders() {
     Message.error(error instanceof Error ? error.message : '支付结果未确认，请重新读取订单状态');
     agreed.value = false;
     await load();
+  } finally {
+    if (isCurrent()) submitting.value = false;
+  }
+}
+
+async function createWalletPayForPending(pending: PendingCheckout, confirmedOrders: Api.RealOrder.Record[],
+  userId: string | number, chain: string, isCurrent: () => boolean) {
+  const group = pending.orderGroupNo;
+  const ids = pending.orderIds;
+  if (!group || !ids?.length) throw new Error('订单组信息缺失，请返回订单核对');
+  const latest = await Promise.all(ids.map(id => realOrderApi.fetchOrderDetail(id)));
+  if (!isCurrent()) return;
+  const prepared = prepareCheckoutPayment(confirmedOrders, latest, userId, group);
+  if (prepared.changed) throw new Error('订单状态或金额已变化，请重新读取并确认');
+  const payable = prepared.payable;
+  const groupResult = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(group), group, ids);
+  if (!isCurrent()) return;
+  const remaining = groupResult.items.filter(item => item.status === 'CREATED');
+  if (groupResult.items.length !== ids.length || remaining.length !== payable.length
+    || remaining.some(item => !payable.some(order => String(order.id) === String(item.orderId)
+      && sumPaymentAmounts([order.totalAmount]) === sumPaymentAmounts([item.amount])))) {
+    throw new Error('订单组状态或金额已变化，请重新读取并确认');
+  }
+  const confirmedAmount = sumPaymentAmounts(payable.map(order => order.totalAmount));
+  const chosen = walletChains.value.find(item => item.chain === chain && item.enabled);
+  if (!chosen || !amountAtLeast(confirmedAmount, chosen.minAmount)) throw new Error('该链当前不可用或低于最小支付金额，请重新选择');
+  let attempt = pending.walletPayAttempt;
+  if (attempt && attempt.chain !== chain) throw new Error('已有另一条链的钱包支付尝试，请先核对原支付单');
+  if (!attempt) {
+    attempt = { chain, idempotencyKey: crypto.randomUUID() };
+    pending.walletPayAttempt = attempt;
+    savePendingCheckout(pending);
+  }
+  try {
+    const pay = validateWalletPay(await createWalletPay({ orderGroupNo: group, chain,
+      confirmedAmount, idempotencyKey: attempt.idempotencyKey }), group, chain);
+    if (!isCurrent()) return;
+    attempt.payNo = pay.payNo;
+    savePendingCheckout(pending);
+    await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: group } });
+  } catch (error) {
+    if (error instanceof RequestError && ['-300', '-301', '-302', '-309', '-312'].includes(error.code || '') && !attempt.payNo) {
+      // 明确拒绝时没有支付单；释放本次键，用户重新核价或换链后才能新发起。
+      delete pending.walletPayAttempt;
+      savePendingCheckout(pending);
+    }
+    if (error instanceof RequestError && error.code === '-312') throw new Error('订单金额已变化，请重新读取订单并确认金额');
+    if (error instanceof RequestError && error.code === '-305' && isCurrent()) {
+      await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: group } });
+      return;
+    }
+    throw error;
+  }
+}
+
+async function payPendingOrdersWithWallet() {
+  const pending = pendingCheckout.value;
+  const userId = userStore.currentUser?.id;
+  const chain = selectedChain.value;
+  if (!pending?.orderIds?.length || userId === undefined || submitting.value || loading.value || loadError.value) return;
+  if (!agreed.value || !unpaidOrders.value.length || !pendingTotal.value || !selectedWalletChain(pendingTotal.value)) {
+    Message.warning('请先核对待付订单金额并选择可用的链');
+    return;
+  }
+  const confirmedOrders = pendingOrders.value.map(order => ({ ...order }));
+  const operation = ++writeVersion;
+  const isCurrent = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId);
+  submitting.value = true;
+  try {
+    await withSubmissionLock(pendingStorageKey(userId), async () => {
+      if (!isCurrent()) return;
+      const stored = readPendingCheckout(userId);
+      if (!stored || stored.idempotencyKey !== pending.idempotencyKey) throw new Error('结算记录已变化，请重新读取');
+      if (sumPaymentAmounts(confirmedOrders.filter(order => getOrderCapabilities(order, userId).pay)
+        .map(order => order.totalAmount)) !== pendingTotal.value) throw new Error('待付金额已变化，请重新读取');
+      await createWalletPayForPending(stored, confirmedOrders, userId, chain, isCurrent);
+    });
+  } catch (error) {
+    if (isCurrent()) {
+      Message.error(error instanceof Error ? error.message : '支付单创建结果待核对，请勿更换链重复发起');
+      agreed.value = false;
+      await load();
+    }
   } finally {
     if (isCurrent()) submitting.value = false;
   }
@@ -268,7 +403,8 @@ async function payGroup(pending: PendingCheckout, payable: Api.RealOrder.Record[
 }
 
 function checkoutSignature() {
-  return JSON.stringify([userStore.currentUser?.id, contextId.value, currentOrderItems(), addressId.value, grandTotal.value]);
+  return JSON.stringify([userStore.currentUser?.id, contextId.value, currentOrderItems(), addressId.value,
+    grandTotal.value, paymentMethod.value, selectedChain.value]);
 }
 
 function isSelfPurchaseError(error: unknown) {
@@ -307,6 +443,10 @@ async function load() {
     pendingOrders.value = [];
     pendingCheckout.value = undefined;
     pendingCheckout.value = readPendingCheckout(userId!);
+    if (walletPayEntryEnabled && pendingCheckout.value?.walletPayAttempt) {
+      paymentMethod.value = 'wallet';
+      selectedChain.value = pendingCheckout.value.walletPayAttempt.chain;
+    }
     if (pendingCheckout.value?.orderIds?.length) {
       const orders = await Promise.all(pendingCheckout.value.orderIds.map(id => realOrderApi.fetchOrderDetail(id, { signal: isCurrent.signal })));
       if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
@@ -353,13 +493,14 @@ async function load() {
   }
 }
 
-onMounted(load);
+onMounted(() => { void load(); void loadWalletChains(); });
 onBeforeUnmount(() => {
   writeVersion += 1;
   cancelConfirmation?.();
   confirmationModal?.close();
   requestGuard.invalidate();
   walletGuard.invalidate();
+  chainsGuard.invalidate();
   if (insufficientBalanceTimer) clearTimeout(insufficientBalanceTimer);
   insufficientBalanceTimer = undefined;
 });
@@ -368,8 +509,14 @@ watch([() => userStore.currentUser?.id, () => route.query.contextId], () => {
   confirmationModal?.close();
   requestGuard.invalidate();
   walletGuard.invalidate();
+  chainsGuard.invalidate();
   walletLoading.value = false;
   walletError.value = '';
+  walletChains.value = [];
+  walletChainsLoading.value = false;
+  walletChainsError.value = '';
+  paymentMethod.value = 'balance';
+  selectedChain.value = '';
   if (insufficientBalanceTimer) clearTimeout(insufficientBalanceTimer);
   insufficientBalanceTimer = undefined;
   addressId.value = undefined;
@@ -384,6 +531,7 @@ watch([() => userStore.currentUser?.id, () => route.query.contextId], () => {
   submitting.value = false;
   confirmationPending.value = false;
   void load();
+  void loadWalletChains();
 });
 
 async function submit() {
@@ -392,7 +540,7 @@ async function submit() {
     await payPendingOrders();
     return;
   }
-  if (loading.value || walletLoading.value || cart.mutating || checkoutItems.value.some(item => !item.available)) {
+  if (loading.value || (!walletSelected.value && walletLoading.value) || cart.mutating || checkoutItems.value.some(item => !item.available)) {
     Message.warning('请等待商品读取完成并检查已选商品数量');
     return;
   }
@@ -412,11 +560,15 @@ async function submit() {
     Message.warning('请等待地址读取成功后选择收货地址');
     return;
   }
-  if (availableBalance.value === undefined) {
+  if (walletSelected.value && !selectedWalletChain()) {
+    Message.warning('请选择当前可用且满足最低支付金额的链');
+    return;
+  }
+  if (!walletSelected.value && availableBalance.value === undefined) {
     Message.warning('可用余额尚未取得，请重新加载核对后再提交');
     return;
   }
-  if (!balanceEnough.value) {
+  if (!walletSelected.value && !balanceEnough.value) {
     Message.error({
       content: '钱包余额不足，请前往钱包链上充值',
       duration: 3500
@@ -452,10 +604,10 @@ async function submit() {
     Message.warning('结算信息已变化，请重新确认后提交');
     return;
   }
-  await doSubmit();
+  await doSubmit(paymentMethod.value, selectedChain.value);
 }
 
-async function doSubmit() {
+async function doSubmit(method: 'balance' | 'wallet', chain: string) {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
@@ -507,6 +659,19 @@ async function doSubmit() {
           if (orderGroup.totalAmount === undefined || sumPaymentAmounts([orderGroup.totalAmount]) !== sumPaymentAmounts([grandTotal.value])) {
             throw new Error('订单实际金额已变化，请在订单详情确认金额后付款');
           }
+        }
+        if (method === 'wallet') {
+          if (!walletPayEntryEnabled || !walletChains.value.some(item => item.chain === chain && item.enabled)) {
+            throw new Error('钱包支付暂不可用，请返回选择余额支付');
+          }
+          const createdOrders = await Promise.all(pending.orderIds!.map(id => realOrderApi.fetchOrderDetail(id)));
+          if (!isCurrentWrite()) return;
+          const payment = prepareCheckoutPayment(createdOrders, createdOrders, requestedUserId, pending.orderGroupNo);
+          if (sumPaymentAmounts(payment.payable.map(order => order.totalAmount)) !== sumPaymentAmounts([grandTotal.value])) {
+            throw new Error('订单实际金额已变化，请重新确认已有订单后付款');
+          }
+          await createWalletPayForPending(pending, createdOrders, requestedUserId, chain, isCurrentWrite);
+          return;
         }
         const paid = await payCheckoutOrders(pending, requestedUserId, isCurrentWrite, createdOrders => {
           const payment = prepareCheckoutPayment(createdOrders, createdOrders, requestedUserId, pending.orderGroupNo);
@@ -572,9 +737,25 @@ async function doSubmit() {
             {{ item.orderNo || item.orderId }} · U {{ item.amount }} · {{ item.status }} {{ item.message || '' }}
           </div>
         </a-alert>
+        <div v-if="walletPayEntryEnabled && walletChains.length && unpaidOrders.length" class="pay-methods pending-methods">
+          <a-radio-group v-model="paymentMethod" type="button">
+            <a-radio value="balance">站内余额支付</a-radio>
+            <a-radio value="wallet">USDT 钱包直付</a-radio>
+          </a-radio-group>
+          <a-select v-if="walletSelected" v-model="selectedChain" placeholder="请选择支付链" style="width: 280px">
+            <a-option v-for="chain in walletChains" :key="chain.chain" :value="chain.chain"
+              :disabled="!chain.enabled || !amountAtLeast(pendingTotal || '0', chain.minAmount)">
+              {{ chain.label || chain.chain }} · {{ chain.network }}
+            </a-option>
+          </a-select>
+        </div>
         <a-checkbox v-if="unpaidOrders.length" v-model="agreed">已核对上述订单及待付金额</a-checkbox>
         <a-space>
-          <a-button v-if="unpaidOrders.length" type="primary" :disabled="!agreed || loading || !!loadError" :loading="submitting" @click="payPendingOrders">支付上述待付款订单</a-button>
+          <a-button v-if="unpaidOrders.length" type="primary"
+            :disabled="!agreed || loading || !!loadError || (walletSelected && !selectedWalletChain(pendingTotal))"
+            :loading="submitting" @click="payPendingOrders">
+            {{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}
+          </a-button>
           <a-button :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</a-button>
           <a-button @click="router.push({ name: 'order-list' })">查看我的订单</a-button>
         </a-space>
@@ -658,12 +839,32 @@ async function doSubmit() {
 
       <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
         <div class="step-title">4. 支付</div>
-        <div class="pay-row">
-          <span class="pay-name">使用钱包余额支付</span>
-          <span class="pay-meta" :class="{ insufficient: !balanceEnough }">
-            可用 U {{ formatAmount(availableBalance) }} {{ availableBalance === undefined ? '· 余额待确认' : balanceEnough ? '' : '· 余额不足' }}
-          </span>
+        <div class="pay-methods">
+          <a-radio-group v-model="paymentMethod" type="button">
+            <a-radio value="balance">站内余额支付</a-radio>
+            <a-radio v-if="walletPayEntryEnabled && walletChains.length" value="wallet">USDT 钱包直付</a-radio>
+          </a-radio-group>
+          <div v-if="!walletSelected" class="pay-row">
+            <span class="pay-name">使用钱包余额支付</span>
+            <span class="pay-meta" :class="{ insufficient: !balanceEnough }">
+              可用 U {{ formatAmount(availableBalance) }} {{ availableBalance === undefined ? '· 余额待确认' : balanceEnough ? '' : '· 余额不足' }}
+            </span>
+          </div>
+          <template v-else>
+            <a-select v-model="selectedChain" placeholder="请选择支付链" style="max-width: 360px; width: 100%">
+              <a-option v-for="chain in walletChains" :key="chain.chain" :value="chain.chain"
+                :disabled="!chain.enabled || !amountAtLeast(grandTotal, chain.minAmount)">
+                {{ chain.label || chain.chain }} · {{ chain.network }}
+                {{ chain.minAmount ? `（最低 U ${chain.minAmount}）` : '' }}
+              </a-option>
+            </a-select>
+            <p class="wallet-pay-hint">订单创建后以服务端金额为准；正式转账需少量 ETH、BNB 或 TRX 支付链上手续费。</p>
+            <a-alert type="warning" :closable="false">钱包转账将在 J2 接入。当前入口默认关闭，不会对普通用户开放未完成的支付流程。</a-alert>
+          </template>
         </div>
+        <a-alert v-if="walletPayEntryEnabled && walletChainsError" type="warning" :closable="false">
+          {{ walletChainsError }} <a-link @click="loadWalletChains">重试</a-link>
+        </a-alert>
         <a-alert v-if="walletError" type="warning" :closable="false">
           {{ walletError }}；商品、收货地址及协议选择保持不变。
           <template #action><a-button size="mini" :loading="walletLoading" :disabled="loading || submitting || confirmationPending" @click="loadWallet">重新读取余额</a-button></template>
@@ -692,8 +893,10 @@ async function doSubmit() {
             <span class="grand">{{ formatUsdt(grandTotal) }}</span>
             <span class="grand-usdt">≈ {{ formatCny(grandTotal) }}</span>
           </div>
-          <a-button type="primary" size="large" :loading="submitting || confirmationPending" :disabled="!agreed || !addressValid || selfSoldItems.length > 0 || !!loadError || loading || walletLoading || availableBalance === undefined" @click="submit">
-            提交订单
+          <a-button type="primary" size="large" :loading="submitting || confirmationPending"
+            :disabled="!agreed || !addressValid || selfSoldItems.length > 0 || !!loadError || loading || (!walletSelected && (walletLoading || availableBalance === undefined)) || (walletSelected && !selectedWalletChain())"
+            @click="submit">
+            {{ walletSelected ? '提交订单并前往钱包支付' : '提交订单' }}
           </a-button>
         </div>
       </a-card>
@@ -853,6 +1056,9 @@ async function doSubmit() {
   gap: 12px;
   padding: 6px 0;
 }
+.pay-methods { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.pending-methods { margin: 16px 0; }
+.wallet-pay-hint { margin: 0; font-size: 12px; color: #86909c; }
 .pay-name {
   font-weight: 500;
   color: #1d2129;

@@ -94,6 +94,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'checkout', title: '支付结果', requiresAuth: true }
   },
   {
+    path: '/checkout/wallet-pay/:orderGroupNo',
+    name: 'checkout-wallet-pay',
+    component: () => import('@/views/checkout/wallet-pay.vue'),
+    meta: { layout: 'checkout', title: '钱包支付', requiresAuth: true }
+  },
+  {
     path: '/auth/login',
     name: 'login',
     component: () => import('@/views/auth/login.vue'),
