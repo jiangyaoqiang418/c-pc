@@ -5,7 +5,7 @@ import { Message, Modal } from '@arco-design/web-vue';
 import { formatAmount } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import * as realOrderApi from '@/service/api/order';
-import { createWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain } from '@/service/api/wallet-pay';
+import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
 import * as realWalletApi from '@/service/api/wallet';
 import * as productApi from '@/service/api/product';
 import { readCheckoutIntent, clearCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout,
@@ -40,6 +40,7 @@ const walletChainsLoading = ref(false);
 const walletChainsError = ref('');
 const paymentMethod = ref<'balance' | 'wallet'>('balance');
 const selectedChain = ref('');
+const latestWalletPay = ref<WalletPayOrder>();
 
 const addressId = ref<string | number>();
 const addressValid = ref(false);
@@ -228,6 +229,13 @@ async function payPendingOrders() {
       if (!isCurrent()) return;
       const stored = readPendingCheckout(userId);
       if (!stored || stored.idempotencyKey !== pending.idempotencyKey) throw new Error('结算记录已在其他页面变化，请重新读取已有订单');
+      if (walletPayEntryEnabled && stored.orderGroupNo) {
+        const walletPay = await fetchLatestWalletPay(stored.orderGroupNo);
+        if (!isCurrent()) return;
+        if (walletPay && ['PENDING', 'SUBMITTED'].includes(validateWalletPay(walletPay, stored.orderGroupNo).status)) {
+          throw new Error('该订单组已有钱包支付单，请先到钱包支付页核对，勿重复付款');
+        }
+      }
       const paid = await payCheckoutOrders(pending, userId, isCurrent, latest => {
         const payment = prepareCheckoutPayment(confirmedOrders, latest, userId, pending.orderGroupNo);
         pendingOrders.value = latest;
@@ -259,6 +267,18 @@ async function createWalletPayForPending(pending: PendingCheckout, confirmedOrde
   const group = pending.orderGroupNo;
   const ids = pending.orderIds;
   if (!group || !ids?.length) throw new Error('订单组信息缺失，请返回订单核对');
+  const existing = await fetchLatestWalletPay(group);
+  if (!isCurrent()) return;
+  if (existing) {
+    const current = validateWalletPay(existing, group);
+    if (['PENDING', 'SUBMITTED', 'SUCCESS'].includes(current.status)) {
+      await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: group } });
+      return;
+    }
+    if (current.status === 'CLOSED' && pending.walletPayAttempt?.payNo === current.payNo) {
+      throw new Error('原支付单已关闭，请先到钱包支付页核对链上交易，再重新发起');
+    }
+  }
   const latest = await Promise.all(ids.map(id => realOrderApi.fetchOrderDetail(id)));
   if (!isCurrent()) return;
   const prepared = prepareCheckoutPayment(confirmedOrders, latest, userId, group);
@@ -439,6 +459,7 @@ async function load() {
   }
   loading.value = true;
   loadError.value = '';
+  latestWalletPay.value = undefined;
   try {
     pendingOrders.value = [];
     pendingCheckout.value = undefined;
@@ -461,6 +482,13 @@ async function load() {
         if (!isCurrent() || String(userStore.currentUser?.id) !== String(userId)) return;
         pending.paymentResult = result;
         savePendingCheckout(pending);
+        if (walletPayEntryEnabled) {
+          try {
+            const walletPay = await fetchLatestWalletPay(pending.orderGroupNo, { signal: isCurrent.signal });
+            if (!isCurrent()) return;
+            latestWalletPay.value = walletPay ? validateWalletPay(walletPay, pending.orderGroupNo) : undefined;
+          } catch { if (isCurrent()) walletChainsError.value = '钱包支付进度暂时无法读取，请勿重复付款'; }
+        }
       }
       return;
     }
@@ -731,6 +759,10 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
           </div>
         </a-spin>
         <p>本次待付款：{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</p>
+        <a-alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" type="info" :closable="false">
+          钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。
+          <template #action><a-button @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</a-button></template>
+        </a-alert>
         <a-alert v-if="pendingCheckout?.paymentResult" type="info">
           上次核对回执（当前状态以上方订单为准）：
           <div v-for="item in pendingCheckout.paymentResult.items" :key="String(item.orderId)">

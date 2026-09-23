@@ -17,11 +17,17 @@ import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-place
 import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
 import { financialSubmissionIssue } from '@/utils/financial-submission';
+import { fetchLatestWalletPay, validateWalletPay, type WalletPayOrder } from '@/service/api/wallet-pay';
+import { walletPayEntryEnabled } from '@/utils/wallet-pay-feature';
+import { readPendingCheckout } from '@/utils/checkout';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const order = ref<Api.RealOrder.Record>();
+const walletPay = ref<WalletPayOrder>();
+const walletPayError = ref('');
+const walletGroupNo = ref('');
 const permissions = computed(() => getOrderCapabilities(order.value, userStore.currentUser?.id));
 const logisticsSection = ref<HTMLElement>();
 
@@ -93,6 +99,9 @@ async function load() {
   reviewableLoading.value = false;
   reviewableError.value = '';
   reviewable.value = false;
+  walletPay.value = undefined;
+  walletPayError.value = '';
+  walletGroupNo.value = '';
   const isCurrent = requestGuard.begin();
   const requestedId = id.value;
   const requestedUserId = userStore.currentUser?.id;
@@ -112,6 +121,19 @@ async function load() {
     const nextOrder = await orderApi.fetchOrderDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     order.value = nextOrder;
+    if (walletPayEntryEnabled && getOrderCapabilities(nextOrder, requestedUserId).isCustomer) {
+      try {
+        const pending = readPendingCheckout(requestedUserId);
+        if (pending?.orderGroupNo && pending.orderIds?.some(orderId => String(orderId) === String(nextOrder.id))) walletGroupNo.value = pending.orderGroupNo;
+      } catch { walletPayError.value = '本机结算记录无法读取，请联系平台核对钱包支付'; }
+    }
+    if (walletGroupNo.value) {
+      const group = walletGroupNo.value;
+      void fetchLatestWalletPay(group, { signal: isCurrent.signal }).then(result => {
+        if (!isCurrent()) return;
+        walletPay.value = result ? validateWalletPay(result, group) : undefined;
+      }).catch(() => { if (isCurrent()) walletPayError.value = '钱包支付状态读取失败，请刷新后核对'; });
+    }
     void loadReviewable(nextOrder);
     try {
       const nextLogistics = await orderApi.fetchOrderLogistics(order.value.id, { signal: isCurrent.signal });
@@ -186,6 +208,18 @@ function formatTime(value?: string | number) {
 async function pay() {
   if (!permissions.value.pay) return;
   if (!order.value || acting.value) return;
+  if (walletPayEntryEnabled && walletPayError.value) { Message.warning(walletPayError.value); return; }
+  if (walletPayEntryEnabled && walletGroupNo.value) {
+    try {
+      const latest = await fetchLatestWalletPay(walletGroupNo.value);
+      walletPay.value = latest ? validateWalletPay(latest, walletGroupNo.value) : undefined;
+      if (walletPay.value && ['PENDING', 'SUBMITTED'].includes(walletPay.value.status)) {
+        Message.warning('该订单组已有钱包支付单，请先核对原支付进度，勿重复付款');
+        await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: walletGroupNo.value } });
+        return;
+      }
+    } catch { Message.warning('无法核对钱包支付状态，暂不可重复付款'); return; }
+  }
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
@@ -317,6 +351,11 @@ function contactShopper() {
   <div class="order-detail-page shop-container">
     <a-spin :loading="loading">
       <template v-if="order">
+        <a-alert v-if="walletPayError" type="warning" :closable="false">{{ walletPayError }}</a-alert>
+        <a-alert v-if="walletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(walletPay.status)" type="info" :closable="false">
+          钱包支付单 {{ walletPay.payNo }}：{{ walletPay.statusText || walletPay.status }}。{{ walletPay.status === 'SUBMITTED' ? '等待平台确认，请勿重复转账。' : '请核对支付进度。' }}
+          <template #action><a-button @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: walletPay.orderGroupNo } })">查看钱包支付</a-button></template>
+        </a-alert>
         <a-alert v-if="reviewableLoading" type="info">正在核对评价资格，不影响查看订单详情。</a-alert>
         <a-alert v-if="reviewReason && !reviewableLoading && !reviewableError" type="info">{{ reviewReason }}</a-alert>
         <a-alert v-if="reviewableError" type="warning">

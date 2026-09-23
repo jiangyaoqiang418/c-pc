@@ -70,6 +70,17 @@ export function fetchLatestWalletPay(orderGroupNo: string, options: { signal?: A
   });
 }
 
+export function fetchWalletPayDetail(payNo: string, options: { signal?: AbortSignal } = {}) {
+  return realOrderRequest.get<WalletPayOrder>('/orders/wallet-pay/detail', {
+    params: { payNo }, ...options, showError: false, preserveDecimals: true
+  });
+}
+
+export function submitWalletPayTx(params: { payNo: string; txHash: string; fromAddress?: string }) {
+  return realOrderRequest.post<WalletPayOrder, typeof params>('/orders/wallet-pay/submit-tx', params,
+    { showError: false, preserveDecimals: true });
+}
+
 export function validateWalletPay(pay: WalletPayOrder | null, orderGroupNo: string, chain?: string): WalletPayOrder {
   if (!pay || typeof pay.payNo !== 'string' || !pay.payNo.trim()
     || pay.orderGroupNo !== orderGroupNo || (chain && pay.chain !== chain)
