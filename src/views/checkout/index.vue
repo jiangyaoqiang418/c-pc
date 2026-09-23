@@ -891,7 +891,6 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
               </a-option>
             </a-select>
             <p class="wallet-pay-hint">订单创建后以服务端金额为准；正式转账需少量 ETH、BNB 或 TRX 支付链上手续费。</p>
-            <a-alert type="warning" :closable="false">钱包转账将在 J2 接入。当前入口默认关闭，不会对普通用户开放未完成的支付流程。</a-alert>
           </template>
         </div>
         <a-alert v-if="walletPayEntryEnabled && walletChainsError" type="warning" :closable="false">

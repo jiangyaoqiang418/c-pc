@@ -161,13 +161,13 @@ function submit(restoring = false) {
 .cover { width:80px; height:80px; object-fit:cover; border-radius:4px; background:#f7f8fa; }
 .meta { color:#86909c; font-size:12px; margin-top:6px; }.step-title { font-weight:600; margin-bottom:14px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }
 .aftersale-create-content { display:block; width:100%; max-width:560px; margin:0 auto; }
-.actions-card { display:flex; justify-content:center; gap:16px; }
+.actions-card :deep(.arco-card-body) { display:flex; justify-content:center; gap:16px; }
 @media (max-width: 640px) {
   .aftersale-create-page { padding-top: 10px; }
   .order-row { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
   .order-row > strong:last-child { grid-column: 2; }
   .cover { width: 64px; height: 64px; }
-  .actions-card { justify-content: stretch; }
+  .actions-card :deep(.arco-card-body) { justify-content: stretch; }
   .actions-card :deep(.arco-btn) { flex: 1; }
 }
 </style>

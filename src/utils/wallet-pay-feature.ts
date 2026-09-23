@@ -1,2 +1,2 @@
-/** J1 只建立支付单；J2 接好钱包转账与恢复后才允许对用户开放入口。 */
-export const walletPayEntryEnabled = import.meta.env.VITE_WALLET_PAY_ENTRY_ENABLED === 'true';
+/** 默认展示已配置的可用链；需要暂停入口时可在构建时设为 false。 */
+export const walletPayEntryEnabled = import.meta.env.VITE_WALLET_PAY_ENTRY_ENABLED !== 'false';
