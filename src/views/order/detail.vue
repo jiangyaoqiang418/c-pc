@@ -122,10 +122,13 @@ async function load() {
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     order.value = nextOrder;
     if (walletPayEntryEnabled && getOrderCapabilities(nextOrder, requestedUserId).isCustomer) {
-      try {
-        const pending = readPendingCheckout(requestedUserId);
-        if (pending?.orderGroupNo && pending.orderIds?.some(orderId => String(orderId) === String(nextOrder.id))) walletGroupNo.value = pending.orderGroupNo;
-      } catch { walletPayError.value = '本机结算记录无法读取，请联系平台核对钱包支付'; }
+      walletGroupNo.value = nextOrder.orderGroupNo || '';
+      if (!walletGroupNo.value) {
+        try {
+          const pending = readPendingCheckout(requestedUserId);
+          if (pending?.orderGroupNo && pending.orderIds?.some(orderId => String(orderId) === String(nextOrder.id))) walletGroupNo.value = pending.orderGroupNo;
+        } catch { walletPayError.value = '订单未返回组号，且本机结算记录无法读取，请联系平台核对钱包支付'; }
+      }
     }
     if (walletGroupNo.value) {
       const group = walletGroupNo.value;
@@ -210,12 +213,16 @@ async function pay() {
   if (!order.value || acting.value) return;
   if (walletPayEntryEnabled && walletPayError.value) { Message.warning(walletPayError.value); return; }
   if (walletPayEntryEnabled && walletGroupNo.value) {
+    const group = walletGroupNo.value;
+    const userId = userStore.currentUser?.id;
+    const orderId = order.value.id;
     try {
-      const latest = await fetchLatestWalletPay(walletGroupNo.value);
-      walletPay.value = latest ? validateWalletPay(latest, walletGroupNo.value) : undefined;
+      const latest = await fetchLatestWalletPay(group);
+      if (String(userStore.currentUser?.id) !== String(userId) || !sameBusinessId(order.value?.id, orderId) || walletGroupNo.value !== group) return;
+      walletPay.value = latest ? validateWalletPay(latest, group) : undefined;
       if (walletPay.value && ['PENDING', 'SUBMITTED'].includes(walletPay.value.status)) {
         Message.warning('该订单组已有钱包支付单，请先核对原支付进度，勿重复付款');
-        await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: walletGroupNo.value } });
+        await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: group } });
         return;
       }
     } catch { Message.warning('无法核对钱包支付状态，暂不可重复付款'); return; }

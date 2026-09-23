@@ -18,6 +18,7 @@ declare namespace Api.RealOrder {
   > & {
     id: Id;
     groupId?: Id;
+    orderGroupNo?: string;
     productId: Id;
     quantity?: number;
     customerId: Id;
@@ -53,6 +54,7 @@ declare namespace Api.RealOrder {
     reviewEligibility?: ReviewEligibility | null;
     orderId: string;
     orderNo?: string;
+    orderGroupNo?: string;
     orderType?: string;
     status?: OrderStatus;
     statusText?: string;
