@@ -1,8 +1,10 @@
 import { realOrderRequest } from '@/service/request';
+import { RequestError, isDefinitiveRejection } from '@/service/request/type';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
 import { submitOrderConfirmation, withOrderSubmissionLocks } from '@/utils/financial-submission';
 import { getAccessToken } from '@/service/request/token';
+import { getOrderCapabilities } from '@/utils/order';
 
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
@@ -182,8 +184,8 @@ export function markLogisticsException(params: Api.RealOrder.LogisticsExceptionP
   return realOrderRequest.put<string | number, Api.RealOrder.LogisticsExceptionParams>('/orders/logistics/exception/mark', params);
 }
 
-export async function cancelOrder(id: string | number) {
-  await realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/cancel', { id });
+export async function cancelOrder(id: string | number, reason: string) {
+  await realOrderRequest.post<string, Api.RealOrder.OrderCancelParams>('/orders/cancel', { id, reason });
   return { ok: true, message: '' };
 }
 
@@ -192,11 +194,70 @@ export async function changeOrderPrice(p: Api.RealOrder.OrderPriceChangeParams) 
   return { ok: true };
 }
 
-export async function confirmReceipt(id: string | number, userId: string | number, restoring = false) {
+export async function confirmReceipt(id: string | number, userId: string | number, payPassword: string) {
+  if (!/^\d{6}$/.test(payPassword)) throw new Error('请输入6位数字支付密码');
   await submitOrderConfirmation(userId, id, {
-    submit: () => realOrderRequest.post<string, Api.RealOrder.OrderIdParams>('/orders/confirm', { id }, { showError: false }),
-    lookup: () => realOrderRequest.get<Api.RealOrder.OrderDTO>('/orders/detail', { params: { id }, showError: false })
-      .then(dto => ({ id: dto.orderId, customerId: dto.customerId, status: dto.status || '' }))
-  }, restoring);
+    submit: () => realOrderRequest.post<string, Api.RealOrder.OrderConfirmParams>('/orders/confirm', { id, payPassword }, { showError: false })
+  });
   return { ok: true, message: '' };
+}
+
+/** 无幂等键的顺延操作：未知结果只回查原订单，不自动重发。 */
+export function extendReceipt(id: string | number, userId: string | number) {
+  return withOrderSubmissionLocks(userId, [id], async () => {
+    const session = getAccessToken();
+    const key = `cpc:extend-receipt:${encodeURIComponent(String(userId))}:${encodeURIComponent(String(id))}`;
+    const assertSession = () => {
+      if (getAccessToken() !== session) throw new Error('登录会话已切换，请重新核对订单');
+    };
+    const latest = await fetchOrderDetail(id);
+    assertSession();
+    if (String(latest.id) !== String(id) || String(latest.customerId) !== String(userId)) throw new Error('订单归属已变化，请刷新后核对');
+    const wasExtended = (count: number, autoConfirmAt: string, current: Api.RealOrder.Record) =>
+      String(current.id) === String(id) && String(current.customerId) === String(userId)
+      && current.receiveExtendCount !== undefined && current.receiveExtendCount > count
+      && !!current.autoConfirmAt && new Date(current.autoConfirmAt).getTime() > new Date(autoConfirmAt).getTime();
+    const raw = localStorage.getItem(key);
+    if (raw !== null) {
+      let previous: { count: number; autoConfirmAt: string };
+      try { previous = JSON.parse(raw); } catch { throw new Error('上次延长收货结果无法核对，请联系平台，勿重复提交'); }
+      if (!Number.isSafeInteger(previous.count) || !previous.autoConfirmAt) throw new Error('上次延长收货记录无效，请联系平台，勿重复提交');
+      if (wasExtended(previous.count, previous.autoConfirmAt, latest)) {
+        localStorage.removeItem(key);
+        return { recovered: true };
+      }
+      throw new Error('上次延长收货结果尚未确认，请核对自动收货时间或联系平台，勿重复提交');
+    }
+    if (!getOrderCapabilities(latest, userId).extendReceipt) throw new Error('当前订单不能延长收货，请刷新后核对');
+    const initialCount = latest.receiveExtendCount;
+    const initialAutoConfirmAt = latest.autoConfirmAt;
+    if (initialCount === undefined || !initialAutoConfirmAt) throw new Error('订单缺少延长次数或自动收货时间，请刷新后核对');
+    const marker = JSON.stringify({ count: initialCount, autoConfirmAt: initialAutoConfirmAt });
+    localStorage.setItem(key, marker);
+    try {
+      const receipt = await realOrderRequest.post<string | number, Api.RealOrder.OrderIdParams>(
+        '/orders/extend-receipt', { id }, { showError: false }
+      );
+      assertSession();
+      if (String(receipt) !== String(id)) throw new Error('延长收货回执无法核对，请先查看订单最新状态');
+      localStorage.removeItem(key);
+      return { recovered: false };
+    } catch (error) {
+      const rejected = isDefinitiveRejection(error) || (error instanceof RequestError && [
+        '仅待收货订单可延长收货', '每笔订单最多延长收货 5 次', '订单即将自动确认收货，无法延长'
+      ].some(message => error.message.includes(message)));
+      if (rejected) localStorage.removeItem(key);
+      else if (getAccessToken() === session) {
+        try {
+          const current = await fetchOrderDetail(id);
+          assertSession();
+          if (wasExtended(initialCount, initialAutoConfirmAt, current)) {
+            localStorage.removeItem(key);
+            return { recovered: true };
+          }
+        } catch { /* 回查失败时保留原标记，不自动重发。 */ }
+      }
+      throw error;
+    }
+  });
 }

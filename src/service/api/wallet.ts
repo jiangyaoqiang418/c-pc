@@ -304,12 +304,12 @@ export async function fetchWithdrawByKey(idempotencyKey: string) {
 }
 
 export async function fetchRechargeChains(options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  const list = await realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', options);
+  const list = await realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', { ...options, preserveDecimals: true });
   return requireArray<Api.RealWallet.RechargeChainVO>(list, '充值链列表');
 }
 
 export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...options, params: { chain } });
+  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...options, params: { chain }, preserveDecimals: true });
 }
 
 export function fetchRechargeDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {

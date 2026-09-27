@@ -103,6 +103,9 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     createdAt,
     paidAt: toIsoDate(dto.paidAt) || undefined,
     shippedAt: toIsoDate(dto.shippedAt) || undefined,
+    autoConfirmAt: toIsoDate(dto.autoConfirmAt ?? undefined) || undefined,
+    receiveExtendCount: Number.isSafeInteger(dto.receiveExtendCount) && dto.receiveExtendCount! >= 0 ? dto.receiveExtendCount! : undefined,
+    receiveExtendable: dto.receiveExtendable === true,
     deliveredAt: toIsoDate(dto.completedAt) || undefined,
     archivedAt: dto.status === 'REFUNDED' || dto.status === 'CANCELED' ? toIsoDate(dto.completedAt) : undefined
   };

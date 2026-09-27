@@ -15,6 +15,8 @@ export function getOrderCapabilities(order: Api.RealOrder.DisplayRecord | undefi
     pay: isCustomer && status === 'PENDING_PAYMENT',
     cancel: isCustomer && status === 'PENDING_PAYMENT',
     confirm: isCustomer && (status === 'IN_TRANSIT' || status === 'AFTERSALE_CONFIRM'),
+    extendReceipt: isCustomer && status === 'IN_TRANSIT' && !!order
+      && 'receiveExtendable' in order && order.receiveExtendable === true,
     refund: isCustomer && !!status && ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(status),
     review: isCustomer && (status === 'COMPLETED' || status === 'WARRANTY'),
     viewAftersale: (isCustomer || isSeller) && status === 'IN_AFTERSALE',

@@ -17,7 +17,7 @@ export async function withSubmissionLock<T>(key: string, submit: () => Promise<T
   });
 }
 
-type FinancialAction = 'withdraw' | 'recharge' | `finance-subscribe:${string}` | `finance-redeem:${string}` | `order-confirm:${string}`;
+type FinancialAction = 'withdraw' | 'recharge' | `finance-subscribe:${string}` | `finance-redeem:${string}`;
 
 /** 结算锁之后按固定顺序取得原订单锁；失败立即释放，不排队，也不转换业务 ID。 */
 export async function withOrderSubmissionLocks<T>(userId: string | number, orderIds: readonly (string | number)[], submit: () => Promise<T>): Promise<T> {
@@ -128,9 +128,6 @@ export async function submitRefundIntent(userId: string | number, params: Api.Re
         return result.refundId;
       }
     }
-    if (readOrderConfirmation(userId, params.orderId) !== undefined) {
-      throw new Error('收货结果尚未核实，暂不可提交退款，请先核对原订单');
-    }
     localStorage.setItem(key, JSON.stringify(intent));
     const id = await api.submit({ ...intent.params, evidenceImages: [...(intent.params.evidenceImages || [])] });
     if (!((typeof id === 'string' && id.trim()) || (typeof id === 'number' && Number.isSafeInteger(id)))) throw new Error('退款申请回执无效，请恢复原申请核对');
@@ -143,64 +140,16 @@ function storageKey(userId: string | number, action: FinancialAction) {
   return `cpc:financial-pending:${encodeURIComponent(String(userId))}:${action}`;
 }
 
-function readOrderConfirmation(userId: string | number, orderId: string | number) {
-  const raw = localStorage.getItem(storageKey(userId, `order-confirm:${orderId}`));
-  if (raw === null) return;
-  let value;
-  try { value = JSON.parse(raw); } catch { /* 保留损坏记录，不能按新操作重发。 */ }
-  if (!value || String(value.userId) !== String(userId) || String(value.orderId) !== String(orderId)
-    || value.action !== 'confirm' || typeof value.attemptId !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.attemptId)) {
-    throw new Error('原收货记录无法读取，请联系平台核实，暂不可重复操作');
-  }
-  return raw;
-}
-
-/** 与同订单退款共用锁；未知结果只读原订单终态，不重新确认收货。 */
+/** 与同订单退款共用请求锁，但不在浏览器保存收货结果或阻止后续操作。 */
 export async function submitOrderConfirmation(userId: string | number, orderId: string | number, api: {
   submit: () => Promise<unknown>;
-  lookup: () => Promise<{ id: string | number; customerId?: string | number; status: string }>;
-}, restoring = false) {
+}) {
   return withSubmissionLock(refundIntentKey(userId, orderId), async () => {
-    const key = storageKey(userId, `order-confirm:${orderId}`);
-    const previous = readOrderConfirmation(userId, orderId);
-    if (restoring && previous === undefined) throw new Error('原收货记录已变化，请重新读取订单状态');
-    const session = getAccessToken();
-    const clearOwn = (marker: string) => {
-      try { if (localStorage.getItem(key) === marker) localStorage.removeItem(key); } catch { /* 已知结果不被清理失败改写。 */ }
-    };
-    const reconcile = async (marker: string) => {
-      const unchanged = () => getAccessToken() === session;
-      if (!unchanged()) throw new Error('账号已切换，原收货操作保留待核实');
-      try {
-        const result = await api.lookup();
-        if (!unchanged()) throw new Error('账号已切换，原收货操作保留待核实');
-        if (result && String(result.id) === String(orderId) && String(result.customerId) === String(userId)
-          && result.status === 'COMPLETED') {
-          clearOwn(marker);
-          return orderId;
-        }
-      } catch { /* 读取失败或其他状态均不能证明原确认结果。 */ }
-      throw new RequestError('收货结果尚未确认，请稍后核对原订单；再次操作只核对结果，不会重复提交', { code: 'ORDER_CONFIRM_PENDING' });
-    };
-    if (previous !== undefined) return reconcile(previous);
-    const refund = readRefundIntent(userId, orderId);
-    if (refund && !validReceipt(refund.receipt)) throw new Error('退款申请结果尚未核实，暂不能确认收货');
-    const marker = JSON.stringify({ userId, orderId, action: 'confirm', attemptId: crypto.randomUUID() });
-    localStorage.setItem(key, marker);
-    try {
-      const receipt = await api.submit();
-      if (!validReceipt(receipt) || String(receipt) !== String(orderId)) {
-        throw new RequestError('收货回执无法核对', { code: 'UNKNOWN_OPERATION_RESULT' });
-      }
-      clearOwn(marker);
-      return orderId;
-    } catch (error) {
-      if (isDefinitiveRejection(error)) {
-        clearOwn(marker);
-        throw error;
-      }
-      return reconcile(marker);
+    const receipt = await api.submit();
+    if (!validReceipt(receipt) || String(receipt) !== String(orderId)) {
+      throw new RequestError('收货回执无法核对，请刷新订单查看实际状态', { code: 'UNKNOWN_OPERATION_RESULT' });
     }
+    return orderId;
   });
 }
 

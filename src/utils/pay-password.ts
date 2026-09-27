@@ -3,7 +3,7 @@ import { InputPassword, Message, Modal } from '@arco-design/web-vue';
 import { fetchPayPasswordStatus } from '@/service/api/pay-password';
 import { router } from '@/router';
 
-export async function requestPayPassword(returnTo?: string): Promise<string | undefined> {
+export async function requestPayPassword(returnTo?: string, purpose?: string): Promise<string | undefined> {
   const status = await fetchPayPasswordStatus();
   if (!status.hasSet) {
     Message.warning('请先设置支付密码');
@@ -20,7 +20,7 @@ export async function requestPayPassword(returnTo?: string): Promise<string | un
     let settled = false;
     const finish = (result?: string) => { if (!settled) { settled = true; resolve(result); } };
     Modal.confirm({
-      title: '请输入支付密码',
+      title: purpose ? `${purpose}：请输入支付密码` : '请输入支付密码',
       content: () => h(InputPassword, {
         modelValue: value.value, maxLength: 6, placeholder: '6位数字支付密码', allowClear: true,
         'onUpdate:modelValue': (next: string) => { value.value = next.replace(/\D/g, '').slice(0, 6); }

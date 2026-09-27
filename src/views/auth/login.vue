@@ -107,13 +107,16 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
 }
 .title {
   font-size: 22px;
+  font-weight: 700;
   margin: 0 0 6px;
   color: #1d2129;
+  text-align: center;
 }
 .hint {
   color: #86909c;
   font-size: 12px;
   margin-bottom: 20px;
+  text-align: center;
 }
 .oauth-conflict {
   margin-bottom: 16px;

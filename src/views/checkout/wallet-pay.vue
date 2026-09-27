@@ -27,6 +27,14 @@ const manualHash = ref('');
 const recoveryBlocked = ref(false);
 const minConfirmations = ref<number>();
 const wallets = computed(() => availableWallets(pay.value?.chain || ''));
+const walletInstallLinks = computed(() => pay.value?.chain === 'TRON'
+  ? [{ label: '安装 TronLink', url: 'https://www.tronlink.org/dlDetails/' }]
+  : pay.value?.chain === 'ETH' || pay.value?.chain === 'BSC'
+    ? [
+        { label: '安装 MetaMask', url: 'https://metamask.io/download' },
+        { label: '安装 OKX Wallet', url: 'https://web3.okx.com/zh-hans/extension' }
+      ]
+    : []);
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
 let generation = 0;
 let successHandled = false;
@@ -267,7 +275,12 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
           <a-descriptions :column="1" bordered class="pay-details">
             <a-descriptions-item label="订单组号">{{ pay.orderGroupNo }}</a-descriptions-item>
             <a-descriptions-item label="支付单号">{{ pay.payNo }}</a-descriptions-item>
-            <a-descriptions-item label="状态">{{ pay.statusText || pay.status }}</a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <span class="pay-status">
+                <span>{{ pay.statusText || pay.status }}</span>
+                <a-spin v-if="pay.status === 'SUBMITTED'" :loading="true" :size="14" aria-label="链上确认中" />
+              </span>
+            </a-descriptions-item>
             <a-descriptions-item label="链与网络">{{ pay.chainLabel || pay.chain }} · {{ pay.network }}</a-descriptions-item>
             <a-descriptions-item label="应转 USDT">{{ pay.payAmount }}</a-descriptions-item>
             <a-descriptions-item label="收款地址">{{ pay.toAddress }}</a-descriptions-item>
@@ -281,7 +294,13 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
               <a-option v-for="item in wallets" :key="item.key" :value="item.key">{{ item.label }}</a-option>
             </a-select>
             <a-button type="primary" :loading="busy" :disabled="!walletKey || loading" @click="transfer">连接钱包并转账</a-button>
-            <span v-if="!wallets.length" class="muted">未检测到当前链可用的浏览器钱包，请安装 MetaMask、OKX Wallet 或 TronLink。</span>
+            <div v-if="!wallets.length" class="wallet-install">
+              <span class="muted">未检测到当前链可用的浏览器钱包，请从官方页面安装：</span>
+              <a v-for="item in walletInstallLinks" :key="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="wallet-install-link">
+                {{ item.label }}
+              </a>
+              <span class="muted">安装并解锁后，请刷新本页重新连接。</span>
+            </div>
           </div>
           <div v-if="progress?.started && !progress.txHash && pay.status === 'PENDING'" class="pay-operations">
             <a-alert type="warning" :closable="false">本机曾打开钱包签名，但未取得交易哈希。请先在钱包中核对交易记录，勿再次转账。</a-alert>
@@ -309,8 +328,11 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
 .wallet-pay-page { max-width: 840px; margin: 48px auto 80px; padding: 0 20px; }
 .wallet-pay-card { border-radius: 12px; box-shadow: 0 12px 32px rgb(22 33 54 / 8%); }
 .pay-details { margin-top: 20px; overflow-wrap: anywhere; }
+.pay-status { display: inline-flex; align-items: center; gap: 8px; }
 .pay-operations { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
 .wallet-select { width: 240px; }
+.wallet-install { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.wallet-install-link { color: rgb(var(--primary-6)); text-decoration: underline; }
 .hash-input { width: 360px; max-width: 100%; }
 .muted { color: #697586; }
 .restart { margin-top: 20px; }

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal, Textarea } from '@arco-design/web-vue';
 import { enums } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import OrderTimeline from '@/components/order/order-timeline.vue';
 import OrderActions from '@/components/order/order-actions.vue';
+import OrderPaymentSelector from '@/components/order/order-payment-selector.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
@@ -16,10 +17,9 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
-import { financialSubmissionIssue } from '@/utils/financial-submission';
 import { fetchLatestWalletPay, validateWalletPay, type WalletPayOrder } from '@/service/api/wallet-pay';
 import { walletPayEntryEnabled } from '@/utils/wallet-pay-feature';
-import { readPendingCheckout } from '@/utils/checkout';
+import { readPendingCheckout, sumPaymentAmounts } from '@/utils/checkout';
 
 const route = useRoute();
 const router = useRouter();
@@ -44,19 +44,7 @@ const reviewableGuard = createLatestRequestGuard();
 const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
-const confirmationPending = ref(false);
-function refreshConfirmationPending() {
-  confirmationPending.value = order.value !== undefined && !!financialSubmissionIssue(userStore.currentUser?.id, `order-confirm:${order.value.id}`);
-}
-watch([order, () => userStore.currentUser?.id, acting], refreshConfirmationPending, { immediate: true });
-onMounted(() => {
-  window.addEventListener('storage', refreshConfirmationPending);
-  window.addEventListener('focus', refreshConfirmationPending);
-});
-onBeforeUnmount(() => {
-  window.removeEventListener('storage', refreshConfirmationPending);
-  window.removeEventListener('focus', refreshConfirmationPending);
-});
+const paymentOpen = ref(false);
 const confirmationOpen = ref(false);
 const requestGuard = createLatestRequestGuard();
 let actionVersion = 0;
@@ -165,6 +153,7 @@ async function load() {
 onMounted(load);
 onBeforeUnmount(() => {
   actionVersion += 1;
+  paymentOpen.value = false;
   confirmationModal?.close();
   requestGuard.invalidate();
   reviewableGuard.invalidate();
@@ -172,6 +161,7 @@ onBeforeUnmount(() => {
 watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
   actionVersion += 1;
+  paymentOpen.value = false;
   confirmationModal?.close();
   requestGuard.invalidate();
   order.value = undefined;
@@ -199,7 +189,12 @@ function formatTime(value?: string | number) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
 }
 
-async function pay() {
+function pay() {
+  if (!permissions.value.pay || !order.value || acting.value || confirmationOpen.value) return;
+  paymentOpen.value = true;
+}
+
+async function payBalance() {
   if (!permissions.value.pay) return;
   if (!order.value || acting.value) return;
   if (walletPayEntryEnabled && walletPayError.value) { Message.warning(walletPayError.value); return; }
@@ -220,6 +215,7 @@ async function pay() {
   }
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
+  const requestedAmount = String(order.value.totalAmount);
   if (requestedUserId === undefined) return;
   const operation = ++actionVersion;
   const isCurrentAction = () => operation === actionVersion
@@ -229,7 +225,20 @@ async function pay() {
   try {
     const payPassword = await requestPayPassword(route.fullPath);
     if (!payPassword || !isCurrentAction()) return;
-    const r = await orderApi.payOrder(requestedOrderId, String(order.value.totalAmount), payPassword, requestedUserId, { showError: false });
+    const r = await orderApi.withOrderPayment(requestedUserId, [requestedOrderId], undefined, async payment => {
+      const latestOrder = await orderApi.fetchOrderDetail(requestedOrderId);
+      if (!getOrderCapabilities(latestOrder, requestedUserId).pay
+        || sumPaymentAmounts([latestOrder.totalAmount]) !== sumPaymentAmounts([requestedAmount])) {
+        throw new Error('订单状态或金额已变化，请刷新后重新核对');
+      }
+      if (latestOrder.orderGroupNo) {
+        const latestPay = await fetchLatestWalletPay(latestOrder.orderGroupNo);
+        if (latestPay && ['PENDING', 'SUBMITTED', 'SUCCESS'].includes(validateWalletPay(latestPay, latestOrder.orderGroupNo).status)) {
+          throw new Error('该订单组已有链上支付单，请先核对支付进度，勿重复付款');
+        }
+      }
+      return payment.payOrder(requestedOrderId, String(latestOrder.totalAmount), payPassword, { showError: false });
+    });
     if (!isCurrentAction()) return;
     if (r.ok) { Message.success('支付成功'); await load(); }
     else Message.error(r.message || '支付失败');
@@ -249,11 +258,23 @@ function cancel() {
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
   const operation = ++actionVersion;
+  const reason = ref('');
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
     title: '取消订单？',
-    content: '取消后订单将不可恢复',
+    content: () => h(Textarea, {
+      modelValue: reason.value,
+      'onUpdate:modelValue': (value: string) => { reason.value = value; },
+      placeholder: '请输入取消原因（必填）',
+      autoSize: { minRows: 3, maxRows: 5 }
+    }),
+    okText: '确认取消',
     okButtonProps: { status: 'danger' },
+    onBeforeOk() {
+      if (reason.value.trim()) return true;
+      Message.warning('请填写取消原因');
+      return false;
+    },
     onCancel() {
       if (operation === actionVersion) confirmationOpen.value = false;
     },
@@ -267,7 +288,7 @@ function cancel() {
       }
       acting.value = true;
       try {
-        const r = await orderApi.cancelOrder(requestedOrderId);
+        const r = await orderApi.cancelOrder(requestedOrderId, reason.value.trim());
         if (!isCurrentAction()) return;
         if (r.ok) { Message.success('订单已取消'); await load(); }
         else Message.error(r.message || '取消订单失败');
@@ -282,38 +303,72 @@ function cancel() {
   });
 }
 
-function confirm() {
-  refreshConfirmationPending();
-  if (!permissions.value.isCustomer || (!permissions.value.confirm && !confirmationPending.value)) return;
+async function confirm() {
+  if (!permissions.value.confirm) return;
   if (!order.value || acting.value || confirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
   const operation = ++actionVersion;
-  const pending = !!financialSubmissionIssue(requestedUserId, `order-confirm:${requestedOrderId}`);
+  const isCurrentAction = () => operation === actionVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(order.value?.id, requestedOrderId);
+  confirmationOpen.value = true;
+  acting.value = true;
+  try {
+    const payPassword = await requestPayPassword(route.fullPath, '确认收货');
+    if (!payPassword || !isCurrentAction() || !permissions.value.confirm) return;
+    const r = await orderApi.confirmReceipt(requestedOrderId, requestedUserId, payPassword);
+    if (!isCurrentAction()) return;
+    if (r.ok) { Message.success('已确认收货'); await load(); }
+    else Message.error(r.message || '确认收货失败');
+  } catch (error) {
+    if (isCurrentAction()) {
+      Message.error(error instanceof Error ? error.message : '确认收货失败');
+      await load();
+    }
+  } finally {
+    if (operation === actionVersion) {
+      acting.value = false;
+      confirmationOpen.value = false;
+    }
+  }
+}
+
+function extendReceipt() {
+  if (!permissions.value.extendReceipt || !order.value || acting.value || confirmationOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  const requestedOrderId = order.value.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++actionVersion;
+  const isCurrentAction = () => operation === actionVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && sameBusinessId(order.value?.id, requestedOrderId);
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
-    title: pending ? '核对收货结果' : '确认收货？',
-    content: pending ? '上次收货结果尚未确认，本次只读取原订单状态，不会再次提交收货。' : '请确认您已收到商品并验货无误',
+    title: '延长收货？',
+    content: '确认后自动收货时间将顺延 5 天，每笔订单最多可延长 5 次。',
+    okText: '确认延长',
     onCancel() {
       if (operation === actionVersion) confirmationOpen.value = false;
     },
     async onOk() {
-      const isCurrentAction = () => operation === actionVersion
-        && String(userStore.currentUser?.id) === String(requestedUserId)
-        && sameBusinessId(order.value?.id, requestedOrderId);
-      if (!isCurrentAction() || !permissions.value.isCustomer || (!pending && !permissions.value.confirm)) {
+      if (!isCurrentAction() || !permissions.value.extendReceipt) {
         if (operation === actionVersion) confirmationOpen.value = false;
         return;
       }
       acting.value = true;
       try {
-        const r = await orderApi.confirmReceipt(requestedOrderId, requestedUserId, pending);
+        const result = await orderApi.extendReceipt(requestedOrderId, requestedUserId);
         if (!isCurrentAction()) return;
-        if (r.ok) { Message.success('已确认收货'); await load(); }
-        else Message.error(r.message || '确认收货失败');
-      } catch (error) { if (isCurrentAction()) Message.error(error instanceof Error ? error.message : '收货结果未确认，请核对原订单'); }
-      finally {
+        Message.success(result.recovered ? '已核对到延长收货结果' : '已延长收货 5 天');
+        await load();
+      } catch (error) {
+        if (isCurrentAction()) {
+          Message.error(error instanceof Error ? error.message : '延长收货结果未确认，请核对订单');
+          await load();
+        }
+      } finally {
         if (operation === actionVersion) {
           acting.value = false;
           confirmationOpen.value = false;
@@ -367,7 +422,7 @@ function contactShopper() {
               <div class="hero-code">订单号：{{ order.code }}</div>
               <div class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</div>
             </div>
-            <OrderActions :order="order" :reviewable="reviewable" :confirmation-pending="confirmationPending" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" />
+            <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" />
           </div>
         </a-card>
 
@@ -503,6 +558,7 @@ function contactShopper() {
 
       <EmptyState v-else-if="!loading" :title="loadError || '订单不存在'" :description="loadError ? '不会展示不完整的订单数据。' : undefined" :action-text="loadError ? '重新加载' : '返回订单列表'" @action="loadError ? load() : router.push('/order')" />
     </a-spin>
+    <OrderPaymentSelector v-if="order" v-model:visible="paymentOpen" :order="order" @balance="payBalance" />
   </div>
 </template>
 

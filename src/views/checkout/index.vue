@@ -847,16 +847,18 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
             </a-option>
           </a-select>
         </div>
-        <a-checkbox v-if="unpaidOrders.length" v-model="agreed">已核对上述订单及待付金额</a-checkbox>
-        <a-space>
-          <a-button v-if="unpaidOrders.length" type="primary"
-            :disabled="!agreed || loading || !!loadError || (walletSelected && !selectedWalletChain(pendingTotal))"
-            :loading="submitting" @click="payPendingOrders">
-            {{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}
-          </a-button>
-          <a-button :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</a-button>
-          <a-button @click="router.push({ name: 'order-list' })">查看我的订单</a-button>
-        </a-space>
+        <div class="pending-actions">
+          <a-checkbox v-if="unpaidOrders.length" v-model="agreed">已核对上述订单及待付金额</a-checkbox>
+          <a-space>
+            <a-button v-if="unpaidOrders.length" type="primary"
+              :disabled="!agreed || loading || !!loadError || (walletSelected && !selectedWalletChain(pendingTotal))"
+              :loading="submitting" @click="payPendingOrders">
+              {{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}
+            </a-button>
+            <a-button :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</a-button>
+            <a-button @click="router.push({ name: 'order-list' })">查看我的订单</a-button>
+          </a-space>
+        </div>
       </a-card>
     </div>
     <div v-else-if="hasUnconfirmedOrder" class="container">
@@ -1188,6 +1190,13 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 }
 .agree-row {
   margin: 12px 0;
+}
+.pending-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-top: 12px;
 }
 .submit-row {
   display: flex;

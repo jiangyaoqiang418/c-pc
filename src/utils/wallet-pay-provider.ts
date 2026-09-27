@@ -1,5 +1,7 @@
 import type { WalletPayOrder } from '@/service/api/wallet-pay';
 
+type WalletTransfer = Pick<WalletPayOrder, 'chain' | 'network' | 'toAddress' | 'tokenContract' | 'rawAmount'>;
+
 interface EvmProvider {
   isMetaMask?: boolean;
   isOkxWallet?: boolean;
@@ -62,9 +64,9 @@ export function availableWallets(chain: string): WalletOption[] {
   return [];
 }
 
-function requireRawAmount(pay: WalletPayOrder) {
+function requireRawAmount(pay: WalletTransfer) {
   if (!/^\d+$/.test(pay.rawAmount) || BigInt(pay.rawAmount) <= 0n || BigInt(pay.rawAmount) >= (1n << 256n)) {
-    throw new Error('链上转账金额无效，请返回订单核对');
+    throw new Error('链上转账金额无效，请返回页面核对');
   }
 }
 
@@ -73,7 +75,7 @@ function matchesEvmChain(value: unknown, expected: bigint) {
   return BigInt(value) === expected;
 }
 
-async function connectEvm(pay: WalletPayOrder, walletKey: string): Promise<ConnectedWallet> {
+async function connectEvm(pay: WalletTransfer, walletKey: string): Promise<ConnectedWallet> {
   const provider = evmProviders().find(item => item.key === walletKey)?.provider;
   if (!provider) throw new Error('所选钱包不可用，请刷新页面后重试');
   if (!/^0x[0-9a-fA-F]{40}$/.test(pay.toAddress) || !/^0x[0-9a-fA-F]{40}$/.test(pay.tokenContract)) {
@@ -122,7 +124,7 @@ function tronNetwork(tronWeb: TronWeb): string | undefined {
   if (hostname === 'nile.trongrid.io') return 'nile';
 }
 
-async function connectTron(pay: WalletPayOrder): Promise<ConnectedWallet> {
+async function connectTron(pay: WalletTransfer): Promise<ConnectedWallet> {
   const provider = tronProvider();
   if (!provider) throw new Error('未检测到 TronLink，请安装并解锁钱包后重试');
   const network = pay.network.toLowerCase();
@@ -168,7 +170,7 @@ async function connectTron(pay: WalletPayOrder): Promise<ConnectedWallet> {
   };
 }
 
-export function connectPaymentWallet(pay: WalletPayOrder, walletKey: string): Promise<ConnectedWallet> {
+export function connectPaymentWallet(pay: WalletTransfer, walletKey: string): Promise<ConnectedWallet> {
   if (pay.chain === 'TRON') return connectTron(pay);
   if (pay.chain === 'ETH' || pay.chain === 'BSC') return connectEvm(pay, walletKey);
   throw new Error('当前链暂不支持浏览器钱包支付');

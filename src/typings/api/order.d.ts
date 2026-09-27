@@ -38,6 +38,9 @@ declare namespace Api.RealOrder {
     purchaseNo?: string;
     purchaseVouchers?: string[];
     reviewEligibility?: ReviewEligibility | null;
+    autoConfirmAt?: string;
+    receiveExtendCount?: number;
+    receiveExtendable?: boolean;
   };
 
   type DisplayRecord = Api.Order.OrderRecord | Record;
@@ -113,6 +116,9 @@ declare namespace Api.RealOrder {
     refundAmount?: string | number;
     paidAt?: string | number;
     shippedAt?: string | number;
+    autoConfirmAt?: string | number | null;
+    receiveExtendCount?: number | null;
+    receiveExtendable?: boolean | null;
     completedAt?: string | number;
     createdAt?: string | number;
   }
@@ -133,6 +139,12 @@ declare namespace Api.RealOrder {
 
   interface OrderIdParams {
     id: string | number;
+  }
+  interface OrderConfirmParams extends OrderIdParams {
+    payPassword: string;
+  }
+  interface OrderCancelParams extends OrderIdParams {
+    reason: string;
   }
   interface OrderPayParams extends OrderIdParams {
     confirmedAmount: string;

@@ -15,7 +15,11 @@ import * as notifyApi from '@/service/api/notify';
 import { redeemFinanceWithReadback } from '@/service/api/finance';
 import { useReviewStore } from '@/stores/review';
 import * as reviewApi from '@/service/api/review';
-import { confirmReceipt as confirmOrderReceipt, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
+import { confirmReceipt as confirmReceiptApi, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
+
+function confirmOrderReceipt(id: string | number, userId: string | number) {
+  return confirmReceiptApi(id, userId, '123456');
+}
 
 beforeEach(() => {
   vi.spyOn(authApi, 'fetchUserAccountInfo').mockResolvedValue({ points: undefined, vipLevel: undefined, accountInfoUnavailable: true });
@@ -406,8 +410,8 @@ describe('资金操作结果待确认', () => {
     expect(lookup).not.toHaveBeenCalled();
   });
 
-  it('同订单退款在途或未决阻挡收货，无关订单不受影响', async () => {
-    setupStorage();
+  it('同订单退款与收货只阻止同时提交，不读取浏览器待核对记录', async () => {
+    const values = setupStorage();
     const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async (_path, body: any) => body.id);
     let fail!: (error: Error) => void;
     const refund = submitRefundIntent('u', { orderId: 'o', reason: 'QA', evidenceImages: [] }, {
@@ -418,99 +422,32 @@ describe('资金操作结果待确认', () => {
     await expect(confirmOrderReceipt('other', 'u')).resolves.toMatchObject({ ok: true });
     fail(new Error('timeout'));
     await refund;
-    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('退款');
-    expect(post).toHaveBeenCalledTimes(1);
-    expect(readRefundIntent('u', 'o')?.receipt).toBeUndefined();
-  });
-  it('收货在途及未知结果阻挡同单退款首次和null恢复，只读完成后解除', async () => {
-    const values = setupStorage();
-    let fail!: (error: Error) => void;
-    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(() => new Promise((_, reject) => { fail = reject; }));
-    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue({ orderId: 'o', customerId: 'u', status: 'SHIPPED' });
-    const first = confirmOrderReceipt('o', 'u').catch(error => error);
-    await Promise.resolve();
-    const params = { orderId: 'o', reason: 'QA', evidenceImages: [] };
-    const submit = vi.fn().mockResolvedValue('r'), lookup = vi.fn().mockResolvedValue(null);
-    await expect(submitRefundIntent('u', params, { submit, lookup })).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
-    fail(new Error('timeout'));
-    expect(await first).toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
-    await expect(submitRefundIntent('u', params, { submit, lookup })).rejects.toThrow('收货结果');
-    values.set('cpc:refund-intent:u:o', JSON.stringify({ userId: 'u', params: { ...params, idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' } }));
-    await expect(submitRefundIntent('u', params, { submit, lookup }, true)).rejects.toThrow('收货结果');
-    expect(submit).not.toHaveBeenCalled();
-    get.mockResolvedValue({ orderId: 'o', customerId: 'u', status: 'COMPLETED' });
-    await expect(confirmOrderReceipt('o', 'u', true)).resolves.toMatchObject({ ok: true });
-    expect(post).toHaveBeenCalledTimes(1);
-    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
-    await expect(confirmOrderReceipt('o', 'u', true)).rejects.toThrow('记录已变化');
-    expect(post).toHaveBeenCalledTimes(1);
-  });
-  it('收货未知回查拒绝空值错单错账号和未完成，原键记录保留且不重发', async () => {
-    const values = setupStorage();
-    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('wrong-id');
-    const get = vi.spyOn(realOrderRequest, 'get');
-    for (const result of [null, {}, { orderId: 'other', customerId: 'u', status: 'COMPLETED' },
-      { orderId: 'o', customerId: 'other', status: 'COMPLETED' }, { orderId: 'o', customerId: 'u', status: 'SHIPPED' },
-      { orderId: 'o', customerId: 'u', status: 'REFUNDED' }]) {
-      get.mockResolvedValueOnce(result);
-      await expect(confirmOrderReceipt('o', 'u')).rejects.toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
-      expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(true);
-    }
-    get.mockRejectedValueOnce(new Error('offline'));
-    await expect(confirmOrderReceipt('o', 'u', true)).rejects.toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
-    expect(post).toHaveBeenCalledTimes(1);
-  });
-  it('收货存储失败不提交，明确拒绝释放；成功不因清理失败变成失败', async () => {
-    const values = setupStorage();
-    const post = vi.spyOn(realOrderRequest, 'post').mockRejectedValueOnce(new RequestError('状态拒绝', { status: 422 })).mockResolvedValue('o');
-    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue({ orderId: 'o', customerId: 'u', status: 'COMPLETED' });
-    vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => { throw new Error('storage denied'); });
-    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('storage denied');
-    expect(post).not.toHaveBeenCalled();
-    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('状态拒绝');
-    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
-    vi.spyOn(localStorage, 'removeItem').mockImplementationOnce(() => { throw new Error('storage denied'); });
     await expect(confirmOrderReceipt('o', 'u')).resolves.toMatchObject({ ok: true });
-    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(true);
-    await expect(confirmOrderReceipt('o', 'u', true)).resolves.toMatchObject({ ok: true });
-    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
     expect(post).toHaveBeenCalledTimes(2);
-    expect(get).toHaveBeenCalledTimes(1);
-  });
-  it('收货迟到失败和回查中切账号都保留原记录，不跨会话核实或清理', async () => {
-    const values = setupStorage();
-    setAccessToken('qa-confirm-a');
-    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async () => { setAccessToken('qa-confirm-b'); throw new Error('late'); });
-    const get = vi.spyOn(realOrderRequest, 'get');
-    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('账号已切换');
-    expect(get).not.toHaveBeenCalled();
-    const marker = values.get('cpc:financial-pending:u:order-confirm:o');
-    setAccessToken('qa-confirm-a');
-    get.mockImplementationOnce(async () => { setAccessToken('qa-confirm-b'); return { orderId: 'o', customerId: 'u', status: 'COMPLETED' }; });
-    await expect(confirmOrderReceipt('o', 'u', true)).rejects.toMatchObject({ code: 'ORDER_CONFIRM_PENDING' });
-    expect(values.get('cpc:financial-pending:u:order-confirm:o')).toBe(marker);
-    expect(post).toHaveBeenCalledTimes(1);
-  });
-  it('损坏收货或退款记录阻止相反动作，另一账号不读取原账号标记', async () => {
-    const values = setupStorage();
-    const post = vi.spyOn(realOrderRequest, 'post').mockImplementation(async (_path, body: any) => body.id);
-    const get = vi.spyOn(realOrderRequest, 'get');
-    const submit = vi.fn(), lookup = vi.fn();
-    for (const raw of ['', 'null', '{}', '{broken']) {
-      values.set('cpc:financial-pending:u:order-confirm:o', raw);
-      await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('原收货记录');
-      await expect(submitRefundIntent('u', { orderId: 'o', reason: 'QA', evidenceImages: [] }, { submit, lookup })).rejects.toThrow('原收货记录');
-    }
-    expect(post).not.toHaveBeenCalled();
-    expect(get).not.toHaveBeenCalled();
-    expect(submit).not.toHaveBeenCalled();
-    await expect(confirmOrderReceipt('o', 'other')).resolves.toMatchObject({ ok: true });
-    values.delete('cpc:financial-pending:u:order-confirm:o');
-    values.set('cpc:refund-intent:u:o', '{broken');
-    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow();
-    expect(post).toHaveBeenCalledTimes(1);
+    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
   });
 
+  it('收货请求不创建待核对记录，未知响应直接报错且下一次仍可提交', async () => {
+    const values = setupStorage();
+    const post = vi.spyOn(realOrderRequest, 'post').mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce('o');
+    const get = vi.spyOn(realOrderRequest, 'get');
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toThrow('timeout');
+    expect(values.has('cpc:financial-pending:u:order-confirm:o')).toBe(false);
+    await expect(confirmOrderReceipt('o', 'u')).resolves.toMatchObject({ ok: true });
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('旧版收货待核对记录不再影响收货或退款，仍校验支付密码和回执', async () => {
+    const values = setupStorage();
+    values.set('cpc:financial-pending:u:order-confirm:o', '{broken');
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValueOnce('wrong-id').mockResolvedValueOnce('o');
+    await expect(confirmReceiptApi('o', 'u', '')).rejects.toThrow('支付密码');
+    await expect(confirmOrderReceipt('o', 'u')).rejects.toMatchObject({ code: 'UNKNOWN_OPERATION_RESULT' });
+    await expect(confirmOrderReceipt('o', 'u')).resolves.toMatchObject({ ok: true });
+    expect(values.get('cpc:financial-pending:u:order-confirm:o')).toBe('{broken');
+    expect(post).toHaveBeenCalledTimes(2);
+  });
   it('退款响应丢失保持原键与快照，null 回查才允许同参重试', async () => {
     setupStorage();
     const params = { orderId: '9007199254740993', reason: 'QA', evidenceImages: ['qa.png'] };
