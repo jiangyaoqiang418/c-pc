@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useCartStore, useNotifyStore, useUserStore } from '@/stores';
 import { ACCESS_TOKEN_KEY } from '@/service/request/token';
@@ -15,6 +15,11 @@ const router = useRouter();
 const userStore = useUserStore();
 const cartStore = useCartStore();
 const notifyStore = useNotifyStore();
+const routeReady = ref(false);
+void router.isReady().then(
+  () => { routeReady.value = true; },
+  () => { routeReady.value = true; }
+);
 
 const layoutComponent = computed(() => layouts[route.meta.layout || 'default']);
 const protectedSessionPending = computed(() => route.meta.requiresAuth
@@ -76,7 +81,11 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
 </script>
 
 <template>
-  <a-result v-if="protectedSessionPending" status="warning" :title="userStore.initializationError ? '会话读取失败' : '正在核对登录状态'"
+  <div v-if="!routeReady" class="route-loading" role="status" aria-live="polite">
+    <a-spin :loading="true" :size="32" />
+    <span>正在加载页面</span>
+  </div>
+  <a-result v-else-if="protectedSessionPending" status="warning" :title="userStore.initializationError ? '会话读取失败' : '正在核对登录状态'"
     :subtitle="userStore.initializationError || '核对完成后继续访问当前页面。'">
     <template #extra>
       <a-button v-if="userStore.initializationError" type="primary" :loading="userStore.initializing" @click="retrySession">重新读取会话</a-button>
@@ -95,3 +104,15 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
     </template>
   </template>
 </template>
+
+<style scoped>
+.route-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #86909c;
+}
+</style>

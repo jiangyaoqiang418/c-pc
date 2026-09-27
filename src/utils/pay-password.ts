@@ -1,4 +1,4 @@
-import { h } from 'vue';
+import { h, ref } from 'vue';
 import { InputPassword, Message, Modal } from '@arco-design/web-vue';
 import { fetchPayPasswordStatus } from '@/service/api/pay-password';
 import { router } from '@/router';
@@ -15,23 +15,23 @@ export async function requestPayPassword(returnTo?: string): Promise<string | un
     Message.error(time ? `支付密码已锁定，请于 ${time} 后重试或重置` : '支付密码已锁定，请稍后重试或重置');
     return;
   }
-  let value = '';
+  const value = ref('');
   return new Promise(resolve => {
     let settled = false;
     const finish = (result?: string) => { if (!settled) { settled = true; resolve(result); } };
     Modal.confirm({
       title: '请输入支付密码',
       content: () => h(InputPassword, {
-        modelValue: value, maxLength: 6, placeholder: '6位数字支付密码', allowClear: true,
-        'onUpdate:modelValue': (next: string) => { value = next.replace(/\D/g, '').slice(0, 6); }
+        modelValue: value.value, maxLength: 6, placeholder: '6位数字支付密码', allowClear: true,
+        'onUpdate:modelValue': (next: string) => { value.value = next.replace(/\D/g, '').slice(0, 6); }
       }),
       okText: '确认', cancelText: '取消',
       onBeforeOk: () => {
-        if (!/^\d{6}$/.test(value)) { Message.warning('请输入6位数字支付密码'); return false; }
-        finish(value); value = ''; return true;
+        if (!/^\d{6}$/.test(value.value)) { Message.warning('请输入6位数字支付密码'); return false; }
+        finish(value.value); value.value = ''; return true;
       },
-      onCancel: () => { value = ''; finish(); },
-      onClose: () => { value = ''; finish(); }
+      onCancel: () => { value.value = ''; finish(); },
+      onClose: () => { value.value = ''; finish(); }
     });
   });
 }

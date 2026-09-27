@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Message, Modal } from '@arco-design/web-vue';
 import { isAuthenticationFailure, isDefinitiveRejection, RequestError } from './type';
-import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, pendingDepositOperation, submitDepositOperation, withSubmissionLock, withOrderSubmissionLocks, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
+import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, submitDepositOperation, withSubmissionLock, withOrderSubmissionLocks, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
 import { getAccessToken, realOrderRequest, realUserRequest, setAccessToken, shouldRedirectAfterAuthenticationFailure } from '.';
 import { createPinia, setActivePinia } from 'pinia';
 import * as authApi from '@/service/api/auth';
@@ -687,59 +687,54 @@ describe('资金操作结果待确认', () => {
     expect([...values.values()].join('')).not.toContain('not-to-be-stored');
   });
 
-  it('押金响应丢失后按原金额和幂等键恢复，成功后才允许新操作', async () => {
-    setupStorage();
+  it('押金响应丢失后允许直接提交新金额或方向，每次使用新幂等键', async () => {
+    const values = setupStorage();
     const submit = vi.fn().mockRejectedValueOnce(new TypeError('offline')).mockResolvedValue('9007199254740993');
     await expect(submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toThrow();
-    const pending = pendingDepositOperation('qa-a');
-    expect(pending).toMatchObject({ kind: 'pay', amount: 2 });
-    expect(pendingDepositOperation('qa-b')).toBeUndefined();
-    await expect(submitDepositOperation('qa-a', 'pay', 3, submit)).rejects.toThrow('原金额和方向');
-    await expect(submitDepositOperation('qa-a', 'refund', 2, submit)).rejects.toThrow('原金额和方向');
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(await submitDepositOperation('qa-a', 'pay', 2, submit)).toBe('9007199254740993');
-    expect(submit.mock.calls[0][0]).toEqual(submit.mock.calls[1][0]);
-    expect(pendingDepositOperation('qa-a')).toBeUndefined();
+    expect(await submitDepositOperation('qa-a', 'pay', 3, submit)).toBe('9007199254740993');
+    expect(await submitDepositOperation('qa-a', 'refund', 2, submit)).toBe('9007199254740993');
+    expect(submit.mock.calls.map(([operation]) => operation.idempotencyKey)).toEqual([
+      expect.any(String), expect.any(String), expect.any(String)
+    ]);
+    expect(new Set(submit.mock.calls.map(([operation]) => operation.idempotencyKey)).size).toBe(3);
+    expect([...values.keys()].some(key => key.startsWith('cpc:deposit-pending:'))).toBe(false);
   });
 
-  it('押金首次明确拒绝解除标记，未知结果后的重试拒绝不能丢弃原键', async () => {
-    setupStorage();
+  it('押金明确拒绝或网络错误均不会留下待确认记录', async () => {
+    const values = setupStorage();
     const rejected = vi.fn().mockRejectedValue(new RequestError('参数拒绝', { status: 422 }));
     await expect(submitDepositOperation('qa-a', 'refund', 2, rejected)).rejects.toThrow();
-    expect(pendingDepositOperation('qa-a')).toBeUndefined();
     await expect(submitDepositOperation('qa-a', 'refund', 2, async () => { throw new TypeError('offline'); })).rejects.toThrow();
-    const pending = pendingDepositOperation('qa-a');
     await expect(submitDepositOperation('qa-a', 'refund', 2, rejected)).rejects.toThrow();
-    expect(pendingDepositOperation('qa-a')).toEqual(pending);
+    expect(rejected).toHaveBeenCalledTimes(2);
+    expect([...values.keys()].some(key => key.startsWith('cpc:deposit-pending:'))).toBe(false);
   });
 
-  it('押金写前持久化、并发互斥和缺失业务编号保留原操作', async () => {
-    setupStorage();
+  it('押金提交中并发互斥，缺失业务编号后允许新操作', async () => {
+    const values = setupStorage();
     let finish!: (id: string) => void;
-    const first = submitDepositOperation('qa-a', 'pay', 2, operation => {
-      expect(pendingDepositOperation('qa-a')).toEqual(operation);
-      return new Promise<string>(resolve => { finish = resolve; });
-    });
+    const first = submitDepositOperation('qa-a', 'pay', 2, () => new Promise<string>(resolve => { finish = resolve; }));
     const second = vi.fn(async () => '2');
     await expect(submitDepositOperation('qa-a', 'pay', 2, second)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
     expect(second).not.toHaveBeenCalled();
     finish('1');
     await first;
     await expect(submitDepositOperation('qa-a', 'pay', 2, async () => '')).rejects.toMatchObject({ code: 'UNKNOWN_OPERATION_RESULT' });
-    expect(pendingDepositOperation('qa-a')?.amount).toBe(2);
+    expect(await submitDepositOperation('qa-a', 'pay', 3, second)).toBe('2');
+    expect([...values.keys()].some(key => key.startsWith('cpc:deposit-pending:'))).toBe(false);
   });
 
-  it('押金记录损坏或存储失败时不发送新请求', async () => {
+  it('旧押金记录损坏或本地存储失败不阻止新请求', async () => {
     const values = setupStorage();
     const submit = vi.fn(async () => '1');
-    vi.spyOn(localStorage, 'setItem').mockImplementationOnce(() => { throw new Error('storage denied'); });
-    await expect(submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toThrow();
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('storage denied'); });
     for (const raw of ['', 'null', 'false', '0', '{}', '{broken']) {
       values.set('cpc:deposit-pending:qa-a', raw);
-      await expect(submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toThrow();
+      expect(await submitDepositOperation('qa-a', 'pay', 2, submit)).toBe('1');
       expect(values.get('cpc:deposit-pending:qa-a')).toBe(raw);
     }
-    expect(submit).not.toHaveBeenCalled();
+    expect(submit).toHaveBeenCalledTimes(6);
+    expect(localStorage.setItem).not.toHaveBeenCalled();
   });
   it('赎回等旧资金保护记录为空仍阻止新提交，不能覆盖原记录', async () => {
     const values = setupStorage();
@@ -751,20 +746,23 @@ describe('资金操作结果待确认', () => {
     expect(submit).not.toHaveBeenCalled();
   });
 
-  it('独立模块实例通过同源锁互斥，未知结果继续复用原押金键', async () => {
+  it('独立模块实例通过同源锁互斥，未知结果后使用新押金键', async () => {
     setupStorage();
     vi.resetModules();
     const otherPage = await import('@/utils/financial-submission');
     let fail!: (error: Error) => void;
-    const first = submitDepositOperation('qa-a', 'pay', 2, () => new Promise<string>((_, reject) => { fail = reject; })).catch(error => error);
-    const submit = vi.fn(async () => '1');
+    let originalKey = '';
+    const first = submitDepositOperation('qa-a', 'pay', 2, operation => {
+      originalKey = operation.idempotencyKey;
+      return new Promise<string>((_, reject) => { fail = reject; });
+    }).catch(error => error);
+    const submit = vi.fn(async (_operation: { idempotencyKey: string }) => '1');
     await expect(otherPage.submitDepositOperation('qa-a', 'pay', 2, submit)).rejects.toMatchObject({ code: 'SUBMISSION_IN_PROGRESS' });
     expect(submit).not.toHaveBeenCalled();
-    const original = pendingDepositOperation('qa-a');
     fail(new TypeError('offline'));
     await first;
     expect(await otherPage.submitDepositOperation('qa-a', 'pay', 2, submit)).toBe('1');
-    expect(submit).toHaveBeenCalledWith(original);
+    expect(submit.mock.calls[0][0].idempotencyKey).not.toBe(originalKey);
   });
 
   it('锁不可用或申请锁期间身份变化时，请求不发出、不保存资金标记', async () => {

@@ -11,7 +11,7 @@ import * as realBuyerApi from '@/service/api/buyer';
 import * as realOrderApi from '@/service/api/order';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { pendingDepositOperation, submitDepositOperation, type PendingDeposit } from '@/utils/financial-submission';
+import { submitDepositOperation } from '@/utils/financial-submission';
 import { resolvePageSize } from '@/service/api/page';
 import { requestPayPassword } from '@/utils/pay-password';
 
@@ -51,18 +51,6 @@ const transferOpen = ref(false);
 const transferKind = ref<'pay' | 'refund'>('pay');
 const transferAmount = ref<number>();
 const transferring = ref(false);
-const pendingTransfer = ref<PendingDeposit>();
-const pendingError = ref('');
-const transferPendingKey = ref<string>();
-function refreshPendingTransfer() {
-  try {
-    pendingTransfer.value = pendingDepositOperation(userStore.currentUser?.id);
-    pendingError.value = '';
-  } catch {
-    pendingTransfer.value = undefined;
-    pendingError.value = '无法读取原押金操作记录，请联系平台核实，暂不可发起新操作';
-  }
-}
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 const maxTransferAmount = computed(() => {
@@ -129,9 +117,6 @@ async function loadAll() {
 }
 onMounted(() => {
   const hasInvalidPage = readPageQuery();
-  refreshPendingTransfer();
-  window.addEventListener('focus', refreshPendingTransfer);
-  window.addEventListener('storage', refreshPendingTransfer);
   if (hasInvalidPage) syncPageQuery(true);
   else void loadAll();
 });
@@ -143,8 +128,6 @@ watch(() => route.query.page, () => {
   void loadAll();
 });
 onBeforeUnmount(() => {
-  window.removeEventListener('focus', refreshPendingTransfer);
-  window.removeEventListener('storage', refreshPendingTransfer);
   writeVersion += 1;
   requestGuard.invalidate();
 });
@@ -155,7 +138,6 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
   transferOpen.value = false;
   drawerOpen.value = false;
   drawerTxn.value = undefined;
-  refreshPendingTransfer();
   txns.value = [];
   summary.value = undefined;
   total.value = 0;
@@ -177,35 +159,25 @@ const depositUtilization = computed(() => summary.value?.usageRate === undefined
 
 function openDepositTransfer(kind: 'pay' | 'refund') {
   if (transferring.value) return;
-  refreshPendingTransfer();
-  if (pendingError.value) return;
   writeVersion += 1;
-  transferKind.value = pendingTransfer.value?.kind || kind;
-  transferAmount.value = pendingTransfer.value?.amount;
-  transferPendingKey.value = pendingTransfer.value?.idempotencyKey;
+  transferKind.value = kind;
+  transferAmount.value = undefined;
   transferOpen.value = true;
 }
 
 async function submitDepositTransfer() {
   if (transferring.value) return;
-  refreshPendingTransfer();
-  if (pendingError.value) return;
-  if (transferPendingKey.value !== pendingTransfer.value?.idempotencyKey) {
-    transferOpen.value = false;
-    Message.warning('原押金操作状态已变化，请重新核对后操作');
-    return;
-  }
   const amount = transferAmount.value;
   const kind = transferKind.value;
   if (amount === undefined || !Number.isFinite(amount) || amount <= 0) {
     Message.warning('请输入正确的保证金金额');
     return;
   }
-  if (!pendingTransfer.value && (loading.value || !account.value || maxTransferAmount.value === undefined)) {
+  if (loading.value || !account.value || maxTransferAmount.value === undefined) {
     Message.warning('请等待押金账户读取完成后再提交');
     return;
   }
-  if (!pendingTransfer.value && maxTransferAmount.value !== undefined && amount > maxTransferAmount.value) {
+  if (amount > maxTransferAmount.value) {
     Message.warning(transferKind.value === 'pay' ? '缴纳金额不能超过钱包可用余额' : '退还金额不能超过可用保证金');
     return;
   }
@@ -228,17 +200,12 @@ async function submitDepositTransfer() {
           : realBuyerApi.refundBuyerDeposit(params, { showError: false });
       });
       if (!isCurrentWrite()) return;
-      refreshPendingTransfer();
       Message.success(kind === 'pay' ? '保证金缴纳成功' : '保证金已退还至钱包');
       transferOpen.value = false;
       await loadAll();
     } catch (error) {
       if (isCurrentWrite()) {
-        refreshPendingTransfer();
-        transferPendingKey.value = pendingTransfer.value?.idempotencyKey;
-        Message.error(pendingTransfer.value
-          ? '押金操作结果待确认，请保留原金额与方向，使用原操作重试'
-          : error instanceof Error ? error.message : '押金操作未完成，请重新核对');
+        Message.error(error instanceof Error ? error.message : '押金操作未完成，请重新核对');
       }
     }
   } finally {
@@ -255,11 +222,6 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 <template>
   <div class="deposit-page shop-container">
     <h1 class="page-title">押金管理</h1>
-    <a-alert v-if="pendingError || pendingTransfer" type="warning" :closable="false">
-      {{ pendingError || `上次${pendingTransfer?.kind === 'pay' ? '缴纳' : '退还'}押金 U ${pendingTransfer?.amount} 结果待确认。重试将沿用原操作标识，不创建新的划转。` }}
-      <template v-if="pendingTransfer" #action><a-button :disabled="transferring" @click="openDepositTransfer(pendingTransfer.kind)">重试原操作</a-button></template>
-    </a-alert>
-
     <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
       {{ loadError }}
       <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
@@ -275,8 +237,8 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
         <a-divider />
         <a-alert type="info" class="alert">保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</a-alert>
         <div class="actions">
-          <a-button type="primary" :disabled="transferring || !!pendingTransfer || !!pendingError || loading" @click="openDepositTransfer('pay')">充值押金</a-button>
-          <a-button :disabled="transferring || !!pendingTransfer || !!pendingError || loading" @click="openDepositTransfer('refund')">转出至钱包</a-button>
+          <a-button type="primary" :disabled="transferring || loading" @click="openDepositTransfer('pay')">充值押金</a-button>
+          <a-button :disabled="transferring || loading" @click="openDepositTransfer('refund')">转出至钱包</a-button>
           <a-tooltip content="上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。">
             <a-button type="text">📖 规则说明</a-button>
           </a-tooltip>
@@ -333,8 +295,8 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
           <a-input-number
             v-model="transferAmount"
             :min="0.01"
-            :max="pendingTransfer ? undefined : maxTransferAmount"
-            :disabled="transferring || !!pendingTransfer"
+            :max="maxTransferAmount"
+            :disabled="transferring"
             :precision="2"
             placeholder="请输入金额"
             style="width: 100%"

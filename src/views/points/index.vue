@@ -400,7 +400,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
             <a-range-picker v-model="filter.dateRange" :placeholder="['开始日期', '结束日期']" />
           </a-form-item>
           <a-button type="primary" @click="(() => { current = 1; syncQuery(); })()">查询</a-button>
-          <a-button @click="reset">重置</a-button>
+          <a-button class="filter-reset" @click="reset">重置</a-button>
         </a-form>
       </a-card>
 
@@ -444,7 +444,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
             </a-select>
           </a-form-item>
           <a-button type="primary" @click="(() => { appealCurrent = 1; syncQuery(); })()">查询</a-button>
-          <a-button @click="resetAppeals">重置</a-button>
+          <a-button class="filter-reset" @click="resetAppeals">重置</a-button>
         </a-form>
       </a-card>
 
@@ -579,6 +579,9 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
   background: #fff;
   border-radius: var(--bw-card-radius);
   margin-bottom: 12px;
+}
+.filter-reset {
+  margin-left: 12px;
 }
 .pagination-bar {
   display: flex;

@@ -793,7 +793,10 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
     });
   } catch (error) {
     if (isCurrentWrite()) {
-      Message.error(error instanceof Error ? error.message : '订单提交失败，请稍后重试');
+      Message.error({
+        content: error instanceof Error ? error.message : '订单提交失败，请稍后重试',
+        resetOnHover: true
+      });
       agreed.value = false;
       if (hasCreatedOrders.value) await load();
     }

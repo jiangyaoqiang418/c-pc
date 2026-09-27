@@ -186,22 +186,13 @@ const aftersaleMeta = computed(() => {
   const aftersaleType = order.value?.aftersaleType;
   return aftersaleType ? enums.AFTERSALE_TYPE_META[aftersaleType] : undefined;
 });
-interface TrackEvent {
-  time: string;
-  location: string;
-  description: string;
-  sourceText: string;
-}
-
-const trackEvents = computed<TrackEvent[]>(() => {
-  return (logistics.value?.tracks || []).map(track => ({
-    time: formatTime(track.occurredAt),
-    location: track.location || '',
-    description: track.description || track.statusText || track.status,
-    sourceText: track.sourceText || (track.source === 'CARRIER_SYNC' ? '承运商同步' : '')
-  }));
+const currentLogistics = computed(() => order.value && logistics.value && sameBusinessId(order.value.id, logistics.value.orderId) ? logistics.value : undefined);
+const purchaseNo = computed(() => currentLogistics.value?.purchaseNo || order.value?.purchaseNo);
+const purchaseVouchers = computed(() => {
+  if (currentLogistics.value?.purchaseVouchers?.length) return currentLogistics.value.purchaseVouchers;
+  if (order.value?.purchaseVouchers?.length) return order.value.purchaseVouchers;
+  return order.value?.purchaseScreenshotUrl ? [order.value.purchaseScreenshotUrl] : [];
 });
-
 function formatTime(value?: string | number) {
   if (!value) return '—';
   const date = new Date(typeof value === 'number' || /^\d+$/.test(value) ? Number(value) : value);
@@ -380,30 +371,24 @@ function contactShopper() {
           </div>
         </a-card>
 
+        <div id="logistics" ref="logisticsSection"></div>
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
           <div class="section-title">订单进度</div>
           <a-alert v-if="logisticsError" class="contract-alert" type="error" :closable="false">
             {{ logisticsError }}<template #action><a-button size="mini" @click="load">重新加载</a-button></template>
           </a-alert>
-          <OrderTimeline :order="order" />
+          <OrderTimeline :order="order" :logistics="currentLogistics" />
         </a-card>
 
-        <div id="logistics" ref="logisticsSection"></div>
-        <a-card v-if="logistics" class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">物流状态</div>
-          <div class="logistics-meta">
-            <a-tag v-if="logistics.logisticsStatusText" color="arcoblue">{{ logistics.logisticsStatusText }}</a-tag>
-            <span class="muted">{{ logistics.carrierName || logistics.carrier || '承运方待确认' }}</span>
-            <span class="muted">运单号 {{ logistics.trackingNo || '—' }}</span>
+        <a-card v-if="purchaseNo || purchaseVouchers.length" class="step-card" :body-style="{ padding: '20px 24px' }">
+          <div class="section-title">采购信息</div>
+          <div v-if="purchaseNo" class="muted">采购单号 {{ purchaseNo }}</div>
+          <div v-if="purchaseVouchers.length" class="voucher-list">
+            <span class="voucher-label">采购凭证</span>
+            <a-image-preview-group>
+              <a-image v-for="url in purchaseVouchers" :key="url" :src="url" width="88" height="88" fit="cover" />
+            </a-image-preview-group>
           </div>
-          <a-timeline v-if="trackEvents.length">
-            <a-timeline-item v-for="ev in trackEvents" :key="ev.time">
-              <div class="track-desc">{{ ev.description }} <a-tag v-if="ev.sourceText" size="small" color="arcoblue">{{ ev.sourceText }}</a-tag></div>
-              <div v-if="ev.location" class="track-loc">{{ ev.location }}</div>
-              <div class="track-time">{{ ev.time }}</div>
-            </a-timeline-item>
-          </a-timeline>
-          <div v-else class="muted">{{ logistics.logisticsStatusText || '暂无物流轨迹' }}</div>
         </a-card>
 
         <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
@@ -470,20 +455,13 @@ function contactShopper() {
           </div>
         </a-card>
 
-        <a-card v-if="order.shippingVoucherUrls?.length || order.shippedRemark || order.refundId" class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">履约与退款信息</div>
+        <a-card v-if="order.refundId || order.refundStatus || order.refundAmount" class="step-card" :body-style="{ padding: '20px 24px' }">
+          <div class="section-title">退款信息</div>
           <a-descriptions :column="2" :data="[
-            { label: '发货备注', value: order.shippedRemark || '—' },
             { label: '退款单号', value: order.refundId ? String(order.refundId) : '—' },
             { label: '退款状态', value: order.refundStatus || '—' },
             { label: '退款金额', value: order.refundAmount ? formatUsdt(order.refundAmount) : '—' }
           ]" />
-          <div v-if="order.shippingVoucherUrls?.length" class="voucher-list">
-            <span class="voucher-label">发货凭证</span>
-            <a-image-preview-group>
-              <a-image v-for="url in order.shippingVoucherUrls" :key="url" :src="url" width="88" height="88" fit="cover" />
-            </a-image-preview-group>
-          </div>
         </a-card>
 
         <a-card v-if="order.priceHistory?.length" class="step-card" :body-style="{ padding: '20px 24px' }">
@@ -573,26 +551,6 @@ function contactShopper() {
 }
 .contract-alert {
   margin-bottom: 12px;
-}
-.logistics-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 13px;
-}
-.track-desc {
-  font-size: 13px;
-  color: #1d2129;
-  font-weight: 500;
-}
-.track-loc {
-  font-size: 12px;
-  color: #4e5969;
-}
-.track-time {
-  font-size: 11px;
-  color: #86909c;
 }
 .voucher-list { margin-top: 16px; display: flex; gap: 12px; align-items: flex-start; }
 .voucher-label { color: var(--yb-muted); font-size: 13px; white-space: nowrap; }

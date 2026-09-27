@@ -34,74 +34,40 @@ export async function withOrderSubmissionLocks<T>(userId: string | number, order
   return acquire(0);
 }
 
-export interface PendingDeposit {
+export interface DepositOperation {
   kind: 'pay' | 'refund';
   amount: number;
   idempotencyKey: string;
 }
 const depositSubmitting = new Set<string>();
 
-function depositStorageKey(userId: string | number) {
+function depositLockKey(userId: string | number) {
   return `cpc:deposit-pending:${encodeURIComponent(String(userId))}`;
 }
 
-export function pendingDepositOperation(userId: string | number | undefined): PendingDeposit | undefined {
-  if (userId === undefined) return;
-  const raw = localStorage.getItem(depositStorageKey(userId));
-  if (raw === null) return;
-  const value = JSON.parse(raw) as PendingDeposit;
-  if (!value || !['pay', 'refund'].includes(value.kind) || !Number.isFinite(value.amount) || value.amount <= 0
-    || typeof value.idempotencyKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.idempotencyKey)) {
-    throw new Error('原押金操作记录无法读取，请联系平台核实，暂不可发起新操作');
-  }
-  return { kind: value.kind, amount: value.amount, idempotencyKey: value.idempotencyKey };
-}
-
-/** 押金契约支持同键重试；未知结果保留原金额/方向/键，不创建另一笔操作。 */
+/** 每次押金提交使用新幂等键，仅防止同一时刻重复提交。 */
 export async function submitDepositOperation(
   userId: string | number,
-  kind: PendingDeposit['kind'],
+  kind: DepositOperation['kind'],
   amount: number,
-  submit: (operation: PendingDeposit) => Promise<string | number>
+  submit: (operation: DepositOperation) => Promise<string | number>
 ) {
-  return withSubmissionLock(depositStorageKey(userId), () => submitDepositUnderLock(userId, kind, amount, submit));
-}
-
-async function submitDepositUnderLock(
-  userId: string | number,
-  kind: PendingDeposit['kind'],
-  amount: number,
-  submit: (operation: PendingDeposit) => Promise<string | number>
-) {
-  const key = depositStorageKey(userId);
-  if (depositSubmitting.has(key)) throw new Error('押金操作正在提交，请勿重复操作');
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error('请输入正确的保证金金额');
-  const previous = pendingDepositOperation(userId);
-  if (previous && (previous.kind !== kind || previous.amount !== amount)) {
-    throw new Error('上次押金操作结果待确认，请使用原金额和方向重试');
-  }
-  const operation: PendingDeposit = previous || { kind, amount, idempotencyKey: crypto.randomUUID() };
-  const marker = JSON.stringify(operation);
-  // 持久化失败发生在请求之前，不会发送资金操作。
-  localStorage.setItem(key, marker);
-  depositSubmitting.add(key);
-  const clearOwn = () => {
-    try { if (localStorage.getItem(key) === marker) localStorage.removeItem(key); } catch { /* 保留同键恢复入口。 */ }
-  };
-  try {
-    const id = await submit({ ...operation });
-    if (!((typeof id === 'string' && id.trim()) || (typeof id === 'number' && Number.isSafeInteger(id)))) {
-      throw new RequestError('未取得可核对的保证金流水编号，请使用原操作重试', { code: 'UNKNOWN_OPERATION_RESULT' });
+  const key = depositLockKey(userId);
+  return withSubmissionLock(key, async () => {
+    if (depositSubmitting.has(key)) throw new Error('押金操作正在提交，请勿重复操作');
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('请输入正确的保证金金额');
+    const operation: DepositOperation = { kind, amount, idempotencyKey: crypto.randomUUID() };
+    depositSubmitting.add(key);
+    try {
+      const id = await submit(operation);
+      if (!((typeof id === 'string' && id.trim()) || (typeof id === 'number' && Number.isSafeInteger(id)))) {
+        throw new RequestError('未取得可核对的保证金流水编号，请核对余额和流水', { code: 'UNKNOWN_OPERATION_RESULT' });
+      }
+      return id;
+    } finally {
+      depositSubmitting.delete(key);
     }
-    clearOwn();
-    return id;
-  } catch (error) {
-    // 重试遭拒绝并不能推翻原请求可能已成功的事实，仍保留原键。
-    if (!previous && isDefinitiveRejection(error)) clearOwn();
-    throw error;
-  } finally {
-    depositSubmitting.delete(key);
-  }
+  });
 }
 export interface FinancialSnapshot {
   amount: string | number;
