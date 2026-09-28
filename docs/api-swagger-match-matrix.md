@@ -15,7 +15,7 @@
 
 依据工作区 `20260905_C-PC_后端变更执行清单.md`，当前为**部分完成**。表中浏览器结果为9月5日契约适配后证据；9月6日显示层补验另列，不能相互替代。
 
-9月8日依据三端执行计划补齐：商品/求购分类使用当前启用树的完整三级路径，提交前刷新复核；CategoryNodeDTO.parentId没有required声明，允许随嵌套路径省略，但拒绝明确错父级、错误层级和未明确启用的节点。create/create-batch同键异参-311仅后端回复明确，Swagger仍描述旧单返回；请求HTTP错误保留业务code，checkout即使首次HTTP400/-311也保留原键原参数，不自动重建。错误增加可选去重traceId，不记录敏感请求或改变成功响应。均为代码适配，不是新订单真实冲突验收。
+当前实时契约已明确：分类层级不固定、最多五级，发布商品和求购可选任一启用层级；C 端分类展示传 `onlyWithProduct=true`，创建表单传 `onlyWithProduct=false`，提交前重新读取有效分类。`CategoryNodeDTO.parentId` 没有 required 声明，允许随嵌套路径省略，但拒绝明确错父级、错误层级和未明确启用的节点。create/create-batch同键异参-311仅后端回复明确，Swagger仍描述旧单返回；请求HTTP错误保留业务code，checkout即使首次HTTP400/-311也保留原键原参数，不自动重建。错误增加可选去重traceId，不记录敏感请求或改变成功响应。均为代码适配，不是新订单真实冲突验收。
 
 | 任务/能力 | 最新契约 | API/类型 | 页面 | 本轮真实验证 |
 | --- | --- | --- | --- | --- |
@@ -46,11 +46,11 @@
 | 支付密码前置安全 | user：POST `/auth/pay-password/set`、PUT `/auth/pay-password/reset` 在未设登录密码时返回 `-316`；update 不受影响 | set/reset 请求保留业务错误码供页面分支，不自动重试 | 首次设置或重置前检查 `loginPasswordSet`；false 或 `-316` 转设置登录密码，成功后恢复 set/reset 及合法站内返回地址；所有密码输入清空后跳转，不自动执行资金操作 | 代码已推送，类型检查及生产构建通过；待真实 `-316`/set/reset 联调 |
 | 积分/VIP | user：GET `/points/account`、`/points/rules`、`/points/vip-configs` | 已封装C端公开规则，不再借admin权限 | 积分/VIP/个人中心调用，公开与登录状态分开 | 真实规则、VIP及KYC积分非空已验；未知类型/配置变化等边界待验 |
 | 积分申诉 | user：POST `/points/appeals/submit`、`/points/appeals/page` | ledgerId/reason及分页已封装 | 流水申诉、记录页、版本保护弹窗已调用 | 列表/筛选空态已验；非空提交及慢写入重开待验 |
-| 首页/分类 | order：GET `/categories/tree`、`/banners/list`、`/storefront/recommend`、`/storefront/flash-sale`；POST榜单分页 | 已封装分类Long、时间/金额/必需数组校验 | 导航、首页、分类和表单选择器已调用 | 非空商品榜单、分类及分项失败已验；非空活动/秒杀及>24分类商品待验 |
+| 首页/分类 | order：GET `/categories/tree` 支持 `onlyEnabled`、`onlyWithProduct`，有商品模式返回聚合 `productCount`；另有 `/banners/list`、`/storefront/recommend`、`/storefront/flash-sale` 及榜单分页 | 分类 Long 与 `productCount` 已适配；公开导航统一读取启用且有在售商品的分类 | 导航、首页和分类页已调用 `onlyWithProduct=true`，空分类不展示 | 实时有商品树未返回零商品节点；非空活动/秒杀及>24分类商品待验 |
 | 公开商品 | order：POST `/storefront/products/page`；GET `/storefront/product/detail` | 已适配分页/排序/分类/价格/卖家/审核及售后 | 列表、详情、购物车与立即购买已调用 | 搜索、分类、详情、库存与本人禁购已验；同店sellerId查询仍缺，不以my/page替代 |
 | 收藏/浏览 | order：POST/DELETE `/products/favorite`、POST `/products/favorites/page`、`/storefront/browse`、`/products/view` | 已封装，真实失败不乐观伪成功 | 详情/收藏已调用；进入详情有浏览记录副作用 | 收藏/取消回读已验并清理QA收藏；只读批次不进入商品详情冒称零写入 |
-| 买手商品/文件 | order：products/create与demands/create的categoryId已明确第三级，启用树默认true | 共用有效三级选项/验证，显式onlyEnabled=true，ID原值 | 两种创建移除中间层可选；提交前新树复核，失败/失效不创建且保留表单；求购异步后再核地址并保持确认快照 | 现有测试覆盖三级/低级叶子/停用祖先/错父级/省略父ID/过期/读取失败；两页三级选择/路径回显已验，清除重选与新创建未验，分类由用户配置、前端未造数；其他商品能力保留历史证据 |
-| 分类申请/秒杀 | order：`/categories/apply/my/page`、`/categories/apply/submit`、`/flash-sale/sessions/available`、`/flash-sale/my`、`/flash-sale/enroll` | 已封装申请/审核字段、报名/取消、场次商品组合键 | 买手分类及秒杀页调用 | 历史分类申请→审核→分类树、秒杀报名/取消闭环已验，QA场次已停用；新版慢写入/深页未验 |
+| 买手商品/文件 | order：products/create与demands/create的categoryId允许当前启用树任一层级，分类最多五级 | 共用递归分类选项/验证，显式 `onlyEnabled=true`、`onlyWithProduct=false`，ID 原值 | 商品创建可手动刷新分类；商品/求购提交前重新读取分类树复核，失败/失效不创建且保留表单 | 现有测试覆盖任意启用层级、停用节点、错父级、省略父ID、过期/读取失败及有商品树计数；真实新创建仍待验 |
+| 分类申请/秒杀 | order：`/categories/apply/my/page`、`/categories/apply/submit`、`/flash-sale/sessions/available`、`/flash-sale/my`、`/flash-sale/enroll` | 已封装申请/审核字段、报名/取消、场次商品组合键；申请通过的启用分类由完整分类树返回 | 买手分类及秒杀页调用；商品创建页可刷新并显示尚无商品的申请分类 | 历史分类申请→审核→分类树、秒杀报名/取消闭环已验，QA场次已停用；新版慢写入/深页未验 |
 | 买手身份 | user：GET `/buyer/application`、POST `/buyer/apply` | BUYER角色守卫，不擅加KYC门槛；未知提交核实状态 | 申请、工作台与买手路由调用 | 历史申请/后台批准/权限回读已验；审核状态变化、失败及权限撤销待验 |
 | 购物车 | 本地Pinia/storage，无远端购物车契约 | 账号缓存、库存复核、同源锁和独立结算快照 | 购物车/立即购买/结算已使用 | 双标签增删改选同步及恢复空车已验；坏缓存和真实付款后并发待验 |
 | 地址 | user：GET `/addresses/list`；POST `/addresses/create`；PUT `/addresses/update`、`/addresses/default`；DELETE `/addresses/delete` | 原Long、country/detailAddress/defaultFlag、返回ID与回读分离 | 管理、结算/求购共用选择器 | CRUD及保存成功后列表503重试已验；临时QA地址清理，结算在途失效待验 |

@@ -35,6 +35,7 @@ const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
 
 const cascaderOptions = ref<CategoryOption[]>([]);
 const categoryLoadError = ref('');
+const categoryLoading = ref(false);
 const uploading = ref(false);
 const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
 const categoryGuard = createLatestRequestGuard();
@@ -70,16 +71,21 @@ onMounted(async () => {
   await reloadCategories();
 });
 
-async function reloadCategories() {
+async function reloadCategories(showSuccess = false) {
   const isCurrent = categoryGuard.begin();
+  categoryLoading.value = true;
   categoryLoadError.value = '';
   try {
     const options = await fetchCreateCategoryOptions({ signal: isCurrent.signal });
-    if (isCurrent()) cascaderOptions.value = options;
+    if (!isCurrent()) return;
+    cascaderOptions.value = options;
+    if (showSuccess) Message.success('商品分类已刷新');
   } catch {
     if (!isCurrent()) return;
     cascaderOptions.value = [];
     categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
+  } finally {
+    if (isCurrent()) categoryLoading.value = false;
   }
 }
 
@@ -140,15 +146,19 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
     </a-form-item>
 
     <a-form-item label="商品分类" required>
-      <a-cascader
-        v-model="form.categoryId"
-        :options="cascaderOptions"
-        placeholder="选择分类"
-        expand-trigger="hover"
-        check-strictly
-        allow-clear
-      />
-      <div v-if="categoryLoadError" class="hint">{{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories" @keydown.enter="reloadCategories" @keydown.space.prevent="reloadCategories">重新加载</a-link></div>
+      <div class="category-picker-row">
+        <a-cascader
+          v-model="form.categoryId"
+          :options="cascaderOptions"
+          :loading="categoryLoading"
+          placeholder="选择分类"
+          expand-trigger="hover"
+          check-strictly
+          allow-clear
+        />
+        <a-button :loading="categoryLoading" @click="reloadCategories(true)">刷新分类</a-button>
+      </div>
+      <div v-if="categoryLoadError" class="hint">{{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories()" @keydown.enter="reloadCategories()" @keydown.space.prevent="reloadCategories()">重新加载</a-link></div>
     </a-form-item>
 
     <a-row :gutter="12">
@@ -216,6 +226,14 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
   margin-left: 8px;
   color: #86909c;
   font-size: 12px;
+}
+.category-picker-row {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+.category-picker-row :deep(.arco-cascader) {
+  flex: 1;
 }
 .actions {
   display: flex;

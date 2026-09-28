@@ -18,7 +18,7 @@ import { submitBuyerApplication } from './buyer';
 import { fetchKycSchema, kycSubmissionIssue } from './kyc';
 import { fetchRechargeByKey, fetchWithdrawByKey } from './wallet';
 import { fetchFinanceOrderByKey } from './finance';
-import { createCategoryOptions, fetchCreateCategoryOptions, isSelectableCategory } from './category';
+import { createCategoryOptions, fetchCategoryTree, fetchCreateCategoryOptions, isSelectableCategory } from './category';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -46,6 +46,16 @@ describe('本轮交互边界', () => {
     expect(get).toHaveBeenLastCalledWith('/categories/tree', { params: { onlyEnabled: true, onlyWithProduct: false } });
     expect(isSelectableCategory(await fetchCreateCategoryOptions(), leaf.id)).toBe(false);
     await expect(fetchCreateCategoryOptions()).rejects.toThrow('offline');
+  });
+  it('C 端分类树请求有商品分类并保留服务端商品数', async () => {
+    const root: Api.RealCategory.CategoryNodeDTO = {
+      id: 'root', level: 1, name: '有商品分类', enabled: true, source: 'APPLY', productCount: 3
+    };
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValueOnce([root]);
+    const tree = await fetchCategoryTree();
+    expect(get).toHaveBeenCalledWith('/categories/tree', { params: { onlyEnabled: true, onlyWithProduct: true } });
+    expect(tree[0].productCount).toBe(3);
+    expect(tree[0].creatorType).toBe('buyer');
   });
   it('钱包桶和日期关键词透传服务端，返回总数和记录不再二次筛选', async () => {
     const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1 }] });

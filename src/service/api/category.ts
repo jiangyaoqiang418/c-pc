@@ -11,10 +11,10 @@ function toCategoryNode(node: Api.RealCategory.CategoryNodeDTO): Api.RealCategor
     parentPath: '',
     sort: node.sortOrder || 0,
     status: node.enabled === false ? '2' : '1',
-    productCount: 0,
+    productCount: node.productCount ?? 0,
     createdAt: '',
     updatedAt: '',
-    creatorType: node.source === 'BUYER' ? 'buyer' : 'system',
+    creatorType: node.source === 'APPLY' ? 'buyer' : 'system',
     children: node.children?.map(toCategoryNode)
   };
 }

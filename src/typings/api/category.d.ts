@@ -8,6 +8,8 @@ declare namespace Api.RealCategory {
     enabled?: boolean;
     source?: string;
     childCount?: number;
+    /** onlyWithProduct=true 时返回；统计当前节点及其子孙的在售商品数 */
+    productCount?: number;
     children?: CategoryNodeDTO[];
   }
 
