@@ -268,8 +268,8 @@ export async function fetchMyFavorites(q: { current?: number; size?: number; sig
   };
 }
 
-export async function fetchSellerProductDetail(id: string | number) {
-  const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/products/detail', { params: { id } });
+export async function fetchSellerProductDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
+  const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/products/detail', { params: { id }, signal: options.signal });
   return toProductRecord(dto);
 }
 

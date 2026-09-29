@@ -38,6 +38,12 @@
 
 测试环境 order Swagger 已出现 `GET /orders/wallet-pay/chains`、`GET /orders/wallet-pay/latest`、`POST /orders/wallet-pay/create`、`POST /orders/wallet-pay/submit-tx`、`GET /orders/wallet-pay/detail`。J1 仅封装并调用 chains/create/latest，页面展示支付参数但默认隐藏入口；submit-tx/detail、钱包签名和轮询归 J2。Swagger 把 confirmedAmount/orderAmount/payAmount 标为 number、expireAt 标为 int64，后端手册描述实际 JSON 使用字符串；rawAmount 在两处均为字符串。真实登录态响应、测试链开放和链上结果尚未验证，不计接口联调通过。
 
+### 2026-09-29：解冻通知与钱包直付链上进度
+
+- 通知中心已识别 `product_unfrozen`，按 `bizType=PRODUCT`、`bizId=商品ID` 跳转“我的商品-已下架”，保留商品 ID 供页面定位；`product_approved`、`product_rejected` 原跳转保持不变。
+- `GET /orders/wallet-pay/detail` 新增的 `chainTx` 已接入支付单类型和页面：区分 `NOT_FOUND/PENDING/CONFIRMING/CONFIRMED/FAILED`，展示确认数、块高与识别金额；`null` 保持原“链上确认中”并继续轮询。
+- 链上失败只表示该笔转账未执行，不直接把商城支付单判为失败；页面允许使用原支付参数重新签名并通过 `/orders/wallet-pay/submit-tx` 上报新哈希。类型检查和通知定向测试通过；真实链上交易及通知点击仍待测试环境数据验收。
+
 下面是当前仍在使用的核心接口与已有验证基线。历史正常交易验收不能替代上表新金额/幂等/已读等契约变更的再验收。
 
 | 能力 | 服务及契约 | API/类型 | 页面调用 | 有效验证及保留边界 |

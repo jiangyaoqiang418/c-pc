@@ -12,6 +12,15 @@ export interface WalletPayChain {
 }
 
 export type WalletPayStatus = 'PENDING' | 'SUBMITTED' | 'SUCCESS' | 'FAILED' | 'CLOSED';
+export type WalletPayChainStatus = 'NOT_FOUND' | 'PENDING' | 'CONFIRMING' | 'CONFIRMED' | 'FAILED';
+
+export interface WalletPayChainTx {
+  status: WalletPayChainStatus;
+  confirmations: number;
+  minConfirmations: number;
+  blockHeight?: string | null;
+  transferAmount?: string | null;
+}
 
 export interface WalletPayOrder {
   payNo: string;
@@ -34,6 +43,7 @@ export interface WalletPayOrder {
   submittedAt?: string | number;
   paidAt?: string | number;
   payResult?: Api.RealOrder.OrderGroupPayResult;
+  chainTx?: WalletPayChainTx | null;
 }
 
 export interface CreateWalletPayParams {
@@ -93,6 +103,12 @@ export function validateWalletPay(pay: WalletPayOrder | null, orderGroupNo: stri
     || !Number.isSafeInteger(Number(pay.expireAt))
     || !['PENDING', 'SUBMITTED', 'SUCCESS', 'FAILED', 'CLOSED'].includes(pay.status)) {
     throw new Error('钱包支付单参数不完整，请返回订单核对');
+  }
+  if (pay.chainTx && (!['NOT_FOUND', 'PENDING', 'CONFIRMING', 'CONFIRMED', 'FAILED'].includes(pay.chainTx.status)
+    || !Number.isSafeInteger(pay.chainTx.confirmations) || pay.chainTx.confirmations < 0
+    || !Number.isSafeInteger(pay.chainTx.minConfirmations) || pay.chainTx.minConfirmations < 0
+    || (pay.chainTx.transferAmount != null && !validDecimal(pay.chainTx.transferAmount)))) {
+    throw new Error('钱包支付链上进度响应不完整，请稍后重试');
   }
   return pay;
 }

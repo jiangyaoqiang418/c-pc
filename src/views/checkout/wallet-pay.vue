@@ -26,6 +26,16 @@ const walletAccount = ref('');
 const manualHash = ref('');
 const recoveryBlocked = ref(false);
 const minConfirmations = ref<number>();
+const chainRetryable = computed(() => pay.value?.status === 'SUBMITTED' && pay.value.chainTx?.status === 'FAILED');
+const chainProgressText = computed(() => {
+  const tx = pay.value?.chainTx;
+  if (!tx) return '';
+  if (tx.status === 'NOT_FOUND') return '正在等待区块链广播…';
+  if (tx.status === 'PENDING') return '交易打包中…';
+  if (tx.status === 'CONFIRMING') return `区块确认中 ${tx.confirmations}/${tx.minConfirmations}`;
+  if (tx.status === 'CONFIRMED') return '链上已确认，正在入账付款…';
+  return '这笔链上转账执行失败，资金未转出';
+});
 const wallets = computed(() => availableWallets(pay.value?.chain || ''));
 const walletInstallLinks = computed(() => pay.value?.chain === 'TRON'
   ? [{ label: '安装 TronLink', url: 'https://www.tronlink.org/dlDetails/' }]
@@ -193,15 +203,18 @@ async function load() {
 async function transfer() {
   const current = pay.value;
   const userId = userStore.currentUser?.id;
-  if (!current || userId === undefined || busy.value || recoveryBlocked.value || current.status !== 'PENDING') return;
-  if (progress.value?.started) { Message.warning('本机已有转账尝试，请先核对或上报原交易，勿重复转账'); return; }
+  const retryingFailedChainTx = current?.status === 'SUBMITTED' && current.chainTx?.status === 'FAILED';
+  if (!current || userId === undefined || busy.value || recoveryBlocked.value
+    || (current.status !== 'PENDING' && !retryingFailedChainTx)) return;
+  if (progress.value?.started && !retryingFailedChainTx) { Message.warning('本机已有转账尝试，请先核对或上报原交易，勿重复转账'); return; }
   busy.value = true;
   errorMessage.value = '';
   let signatureStarted = false;
   try {
-    if (Number(current.expireAt) <= Date.now()) throw new Error('支付单已过期，请刷新状态，勿继续转账');
+    if (!retryingFailedChainTx && Number(current.expireAt) <= Date.now()) throw new Error('支付单已过期，请刷新状态，勿继续转账');
     const latest = validateWalletPay(await fetchWalletPayDetail(current.payNo), current.orderGroupNo);
-    if (latest.payNo !== current.payNo || latest.status !== 'PENDING'
+    const latestRetryable = latest.status === 'SUBMITTED' && latest.chainTx?.status === 'FAILED';
+    if (latest.payNo !== current.payNo || (latest.status !== 'PENDING' && !latestRetryable)
       || latest.rawAmount !== current.rawAmount || latest.toAddress !== current.toAddress
       || latest.tokenContract !== current.tokenContract || latest.network !== current.network) {
       acceptPay(latest);
@@ -218,9 +231,12 @@ async function transfer() {
     if (!confirmed) return;
     if (String(userStore.currentUser?.id) !== String(userId) || pay.value?.payNo !== latest.payNo) throw new Error('当前账号或支付单已变化，请重新核对');
     const beforeSignature = validateWalletPay(await fetchWalletPayDetail(latest.payNo), latest.orderGroupNo);
-    if (beforeSignature.status !== 'PENDING' || beforeSignature.chain !== latest.chain || beforeSignature.rawAmount !== latest.rawAmount
+    const beforeSignatureRetryable = beforeSignature.status === 'SUBMITTED' && beforeSignature.chainTx?.status === 'FAILED';
+    if ((beforeSignature.status !== 'PENDING' && !beforeSignatureRetryable)
+      || beforeSignature.chain !== latest.chain || beforeSignature.rawAmount !== latest.rawAmount
       || beforeSignature.toAddress !== latest.toAddress || beforeSignature.tokenContract !== latest.tokenContract
-      || beforeSignature.network !== latest.network || Number(beforeSignature.expireAt) <= Date.now()) {
+      || beforeSignature.network !== latest.network
+      || (beforeSignature.status === 'PENDING' && Number(beforeSignature.expireAt) <= Date.now())) {
       acceptPay(beforeSignature);
       throw new Error('支付单状态或参数已变化，请刷新并核对，勿继续转账');
     }
@@ -269,7 +285,8 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
         <a-alert v-if="errorMessage" type="warning" :closable="false">{{ errorMessage }}</a-alert>
         <template v-if="pay">
           <a-alert v-if="pay.status === 'PENDING'" type="info" :closable="false">请核对链、金额和收款地址后再打开钱包；准备对应网络的 Gas 币。只有平台确认到账才算付款成功。</a-alert>
-          <a-alert v-else-if="pay.status === 'SUBMITTED'" type="info" :closable="false">交易已提交，正在等待链上确认{{ minConfirmations ? `（至少 ${minConfirmations} 个确认）` : '' }}和平台入账。请勿重复转账。</a-alert>
+          <a-alert v-else-if="chainRetryable" type="warning" :closable="false">原链上交易执行失败，资金未转出。请核对钱包记录后，使用本支付单原链、金额和收款地址重新转账并上报新哈希。</a-alert>
+          <a-alert v-else-if="pay.status === 'SUBMITTED'" type="info" :closable="false">{{ chainProgressText || `交易已提交，正在等待链上确认${minConfirmations ? `（至少 ${minConfirmations} 个确认）` : ''}和平台入账。` }}请勿重复转账。</a-alert>
           <a-alert v-else-if="pay.status === 'CLOSED'" type="warning" :closable="false">支付单已关闭，仍可能收到延迟到账回调。请先核对链上交易，再决定是否重新发起。</a-alert>
           <a-alert v-else-if="pay.status === 'FAILED'" type="warning" :closable="false">链上到账未能完成订单支付，资金将按后端规则入平台余额。请前往订单核对，勿重复链上转账。</a-alert>
           <a-descriptions :column="1" bordered class="pay-details">
@@ -288,12 +305,15 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
             <a-descriptions-item label="有效期至">{{ formatExpiry(pay.expireAt) }}</a-descriptions-item>
             <a-descriptions-item label="钱包账户">{{ walletAccount || progress?.fromAddress || '尚未连接' }}</a-descriptions-item>
             <a-descriptions-item v-if="pay.txHash || progress?.txHash" label="交易哈希">{{ pay.txHash || progress?.txHash }}</a-descriptions-item>
+            <a-descriptions-item v-if="pay.chainTx" label="链上进度">{{ chainProgressText }}</a-descriptions-item>
+            <a-descriptions-item v-if="pay.chainTx?.blockHeight" label="区块高度">{{ pay.chainTx.blockHeight }}</a-descriptions-item>
+            <a-descriptions-item v-if="pay.chainTx?.transferAmount" label="已识别转入">{{ pay.chainTx.transferAmount }} USDT</a-descriptions-item>
           </a-descriptions>
-          <div v-if="pay.status === 'PENDING' && !progress?.started && !recoveryBlocked" class="pay-operations">
+          <div v-if="(pay.status === 'PENDING' && !progress?.started || chainRetryable) && !recoveryBlocked" class="pay-operations">
             <a-select v-model="walletKey" placeholder="选择已安装的钱包" class="wallet-select">
               <a-option v-for="item in wallets" :key="item.key" :value="item.key">{{ item.label }}</a-option>
             </a-select>
-            <a-button type="primary" :loading="busy" :disabled="!walletKey || loading" @click="transfer">连接钱包并转账</a-button>
+            <a-button type="primary" :loading="busy" :disabled="!walletKey || loading" @click="transfer">{{ chainRetryable ? '重新连接钱包并转账' : '连接钱包并转账' }}</a-button>
             <div v-if="!wallets.length" class="wallet-install">
               <span class="muted">未检测到当前链可用的浏览器钱包，请从官方页面安装：</span>
               <a v-for="item in walletInstallLinks" :key="item.url" :href="item.url" target="_blank" rel="noopener noreferrer" class="wallet-install-link">

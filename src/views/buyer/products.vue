@@ -38,6 +38,7 @@ const loading = ref(false);
 const loadError = ref('');
 const keyword = ref('');
 const categoryId = ref<string | number>();
+const focusedProductId = ref<string>();
 const categoryOptions = ref<Array<{ value: string | number; label: string; children?: any[] }>>([]);
 const current = ref(1);
 const size = ref(12);
@@ -62,6 +63,7 @@ function syncFromQuery() {
   activeKey.value = TABS.some(tab => tab.key === value('tab')) ? value('tab')! : 'all';
   keyword.value = value('keyword') || '';
   categoryId.value = value('categoryId') || undefined;
+  focusedProductId.value = value('productId') || undefined;
   const page = Number(value('page'));
   current.value = Number.isSafeInteger(page) && page > 0 ? page : 1;
   syncingQuery = false;
@@ -73,7 +75,7 @@ function syncQuery(replace = false) {
   const before = route.fullPath;
   const query = { ...route.query, tab: activeKey.value === 'all' ? undefined : activeKey.value,
     keyword: keyword.value.trim() || undefined, categoryId: categoryId.value === undefined || categoryId.value === '' ? undefined : String(categoryId.value),
-    page: current.value > 1 ? String(current.value) : undefined };
+    productId: focusedProductId.value, page: current.value > 1 ? String(current.value) : undefined };
   void (replace ? router.replace({ query }) : router.push({ query })).then(() => {
     if (route.fullPath === before) void load();
   });
@@ -118,7 +120,18 @@ async function load() {
       syncQuery(true);
       return;
     }
-    products.value = r.records;
+    let records = r.records;
+    if (focusedProductId.value && !records.some(item => String(item.id) === focusedProductId.value)) {
+      try {
+        const focused = await productApi.fetchSellerProductDetail(focusedProductId.value, { signal: isCurrent.signal });
+        if (!isCurrent()) return;
+        records = [focused, ...records].slice(0, size.value);
+      } catch {
+        if (!isCurrent()) return;
+        Message.warning('已进入商品管理，但暂时无法定位通知对应商品');
+      }
+    }
+    products.value = records;
     total.value = r.total;
   } catch {
     if (!isCurrent()) return;
@@ -143,11 +156,13 @@ async function loadCategories() {
 }
 
 function queryProducts() {
+  focusedProductId.value = undefined;
   current.value = 1;
   syncQuery();
 }
 
 function resetFilters() {
+  focusedProductId.value = undefined;
   keyword.value = '';
   categoryId.value = undefined;
   queryProducts();
@@ -166,6 +181,7 @@ onBeforeUnmount(() => {
 });
 watch(activeKey, () => {
   if (syncingQuery) return;
+  focusedProductId.value = undefined;
   current.value = 1;
   syncQuery();
 }, { flush: 'sync' });
@@ -319,6 +335,7 @@ async function savePrice() {
         <BuyerProductCard
           v-for="p in products"
           :key="p.id"
+          :class="{ 'focused-product': focusedProductId && String(p.id) === focusedProductId }"
           :product="p"
           :shelving="shelvingId === p.id"
           :deleting="deletingId === p.id"
@@ -364,6 +381,11 @@ async function savePrice() {
 <style scoped>
 .bp-page {
   padding-top: 16px;
+}
+.focused-product {
+  outline: 2px solid rgb(var(--primary-6));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgb(var(--primary-1));
 }
 .page-head {
   display: flex;

@@ -24,6 +24,10 @@ describe('通知与会话跳转', () => {
       params: { id: '2087164523669184512' }
     });
     expect(notificationRoute({ bizType: 'RECHARGE', bizId: '1', templateCode: 'recharge_confirmed' })).toEqual({ name: 'wallet-deposit', query: { id: '1' } });
+    expect(notificationRoute({ bizType: 'PRODUCT', bizId: '9001', templateCode: 'product_unfrozen' })).toEqual({
+      name: 'buyer-products',
+      query: { tab: 'off-shelf', productId: '9001' }
+    });
     expect(notificationRoute({ bizType: 'REFUND', bizId: '2087164523669184512' })).toBeUndefined();
   });
 });
