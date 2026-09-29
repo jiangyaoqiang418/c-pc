@@ -8,7 +8,7 @@ import { walletPayEntryEnabled } from '@/utils/wallet-pay-feature';
 import { fetchLatestWalletPay, fetchWalletPayDetail, fetchWalletPayChains, submitWalletPayTx, validateWalletPay, type WalletPayOrder } from '@/service/api/wallet-pay';
 import { availableWallets, connectPaymentWallet, walletRequestRejected } from '@/utils/wallet-pay-provider';
 import { readWalletTransferProgress, saveWalletTransferProgress, clearWalletTransferProgress, type WalletTransferProgress } from '@/utils/wallet-pay-progress';
-import { readPendingCheckout, pendingCheckoutStorageKey, clearCheckoutIntent, cleanupPaidCheckout } from '@/utils/checkout';
+import { readPendingCheckout, pendingCheckoutStorageKey, clearCheckoutIntent, cleanupPaidCheckout, sumPaymentAmounts } from '@/utils/checkout';
 
 const route = useRoute();
 const router = useRouter();
@@ -27,6 +27,19 @@ const manualHash = ref('');
 const recoveryBlocked = ref(false);
 const minConfirmations = ref<number>();
 const chainRetryable = computed(() => pay.value?.status === 'SUBMITTED' && pay.value.chainTx?.status === 'FAILED');
+const transferAmountInsufficient = computed(() => {
+  const current = pay.value;
+  const transferred = current?.chainTx?.transferAmount;
+  if (current?.status !== 'SUBMITTED' || current.chainTx?.status === 'FAILED' || transferred == null) return false;
+  try {
+    const [receivedWhole, receivedFraction = ''] = sumPaymentAmounts([transferred]).split('.');
+    const [payableWhole, payableFraction = ''] = sumPaymentAmounts([current.payAmount]).split('.');
+    if (BigInt(receivedWhole) !== BigInt(payableWhole)) return BigInt(receivedWhole) < BigInt(payableWhole);
+    const scale = Math.max(receivedFraction.length, payableFraction.length);
+    return BigInt((receivedFraction || '0').padEnd(scale, '0'))
+      < BigInt((payableFraction || '0').padEnd(scale, '0'));
+  } catch { return false; }
+});
 const chainProgressText = computed(() => {
   const tx = pay.value?.chainTx;
   if (!tx) return '';
@@ -289,6 +302,7 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
           <a-alert v-else-if="pay.status === 'SUBMITTED'" type="info" :closable="false">{{ chainProgressText || `交易已提交，正在等待链上确认${minConfirmations ? `（至少 ${minConfirmations} 个确认）` : ''}和平台入账。` }}请勿重复转账。</a-alert>
           <a-alert v-else-if="pay.status === 'CLOSED'" type="warning" :closable="false">支付单已关闭，仍可能收到延迟到账回调。请先核对链上交易，再决定是否重新发起。</a-alert>
           <a-alert v-else-if="pay.status === 'FAILED'" type="warning" :closable="false">链上到账未能完成订单支付，资金将按后端规则入平台余额。请前往订单核对，勿重复链上转账。</a-alert>
+          <a-alert v-if="transferAmountInsufficient" type="warning" :closable="false">已识别转入金额低于应付金额，到账后可能存入平台余额；最终付款结果以支付单状态为准。</a-alert>
           <a-descriptions :column="1" bordered class="pay-details">
             <a-descriptions-item label="订单组号">{{ pay.orderGroupNo }}</a-descriptions-item>
             <a-descriptions-item label="支付单号">{{ pay.payNo }}</a-descriptions-item>

@@ -42,6 +42,7 @@
 
 - 通知中心已识别 `product_unfrozen`，按 `bizType=PRODUCT`、`bizId=商品ID` 跳转“我的商品-已下架”，保留商品 ID 供页面定位；`product_approved`、`product_rejected` 原跳转保持不变。
 - `GET /orders/wallet-pay/detail` 新增的 `chainTx` 已接入支付单类型和页面：区分 `NOT_FOUND/PENDING/CONFIRMING/CONFIRMED/FAILED`，展示确认数、块高与识别金额；`null` 保持原“链上确认中”并继续轮询。
+- 识别转入金额小于应付金额时，按十进制字符串精确比较并提示可能转入平台余额；最终付款结果仍仅以支付单状态为准。本轮类型检查通过，真实不足额交易尚未验收。
 - 链上失败只表示该笔转账未执行，不直接把商城支付单判为失败；页面允许使用原支付参数重新签名并通过 `/orders/wallet-pay/submit-tx` 上报新哈希。类型检查和通知定向测试通过；真实链上交易及通知点击仍待测试环境数据验收。
 
 下面是当前仍在使用的核心接口与已有验证基线。历史正常交易验收不能替代上表新金额/幂等/已读等契约变更的再验收。
