@@ -24,7 +24,7 @@ interface TronProvider {
 }
 
 export interface WalletOption { key: string; label: string }
-export interface ConnectedWallet { account: string; sendTransfer(): Promise<string> }
+export interface ConnectedWallet { account: string; sendTransfer(beforeSubmit?: () => void): Promise<string> }
 
 function injectedWallets() {
   return window as Window & {
@@ -94,13 +94,14 @@ async function connectEvm(pay: WalletTransfer, walletKey: string): Promise<Conne
   if (!matchesEvmChain(await provider.request({ method: 'eth_chainId' }), expectedChain)) throw new Error('钱包网络仍与支付单不一致，请手动切换后重试');
   return {
     account,
-    async sendTransfer() {
+    async sendTransfer(beforeSubmit) {
       const currentAccounts = await provider.request({ method: 'eth_accounts' });
       if (!Array.isArray(currentAccounts) || typeof currentAccounts[0] !== 'string'
         || currentAccounts[0].toLowerCase() !== account.toLowerCase()) throw new Error('钱包账户已变化，请重新连接后核对');
       if (!matchesEvmChain(await provider.request({ method: 'eth_chainId' }), expectedChain)) throw new Error('钱包网络已变化，请重新连接后核对');
       const encodedAddress = pay.toAddress.slice(2).toLowerCase().padStart(64, '0');
       const encodedAmount = BigInt(pay.rawAmount).toString(16).padStart(64, '0');
+      beforeSubmit?.();
       const hash = await provider.request({ method: 'eth_sendTransaction', params: [{
         from: account, to: pay.tokenContract, value: '0x0', data: `0xa9059cbb${encodedAddress}${encodedAmount}`
       }] });
@@ -155,13 +156,15 @@ async function connectTron(pay: WalletTransfer): Promise<ConnectedWallet> {
   }
   return {
     account,
-    async sendTransfer() {
+    async sendTransfer(beforeSubmit) {
       const activeWeb = provider.tronWeb || undefined;
       if (!activeWeb?.ready || activeWeb.defaultAddress?.base58 !== account || tronNetwork(activeWeb) !== network) {
         throw new Error('TronLink 账户或网络已变化，请重新连接后核对');
       }
       const contract = await activeWeb.contract().at(pay.tokenContract);
-      const hash = await contract.transfer(pay.toAddress, pay.rawAmount).send({ feeLimit: 100_000_000 });
+      const transfer = contract.transfer(pay.toAddress, pay.rawAmount);
+      beforeSubmit?.();
+      const hash = await transfer.send({ feeLimit: 100_000_000 });
       if (typeof hash !== 'string' || !/^[0-9a-fA-F]{64}$/.test(hash)) {
         throw new Error('TronLink 未返回有效交易哈希，请先核对钱包交易记录，勿重复转账');
       }

@@ -388,9 +388,12 @@ async function directTransfer() {
       toAddress: address.address, fromAddress: wallet.account };
     readDirectProgress();
     if (!isCurrent()) throw new Error('本机已有待核对的直充记录，请先核对钱包交易');
-    saveDirectProgress(userId, progress);
-    signatureStarted = true;
-    const hash = await wallet.sendTransfer();
+    const hash = await wallet.sendTransfer(() => {
+      readDirectProgress();
+      if (!isCurrent()) throw new Error('账号、链、金额或直充记录已变化，请重新核对');
+      saveDirectProgress(userId, progress);
+      signatureStarted = true;
+    });
     saveDirectProgress(userId, { ...progress, txHash: hash });
     if (operation === directWriteVersion && String(userStore.currentUser?.id) === String(userId)) {
       Message.success('钱包已提交交易，请等待链上确认和平台入账');
@@ -721,14 +724,14 @@ watch(() => route.query.id, id => {
             <a-alert v-if="directProgress || directProgressError" type="warning" class="chain-alert direct-progress-alert" :closable="false">
               <div class="direct-progress-content">
                 <template v-if="directProgress">
-                  <div>上一笔 {{ directProgress.chain }} · {{ directProgress.amount }} USDT 已打开钱包签名。</div>
+                  <div>{{ directBusy ? '本次' : '上一笔' }} {{ directProgress.chain }} · {{ directProgress.amount }} USDT {{ directBusy ? '正在等待钱包返回转账结果。' : '转账结果待核对。' }}</div>
                   <div v-if="directProgress.txHash" class="direct-progress-hash">交易哈希：{{ directProgress.txHash }}</div>
-                  <div>{{ directProgress.txHash ? '请等待平台确认到账，勿重复转账。' : '尚未取得交易哈希，请先核对钱包交易记录，勿重复转账。' }}</div>
+                  <div>{{ directProgress.txHash ? '请等待平台确认到账，勿重复转账。' : directBusy ? '请在钱包中确认或取消；当前尚未取得交易哈希。' : '尚未取得交易哈希，请先核对钱包交易记录，勿重复转账。' }}</div>
                 </template>
                 <div v-else>{{ directProgressError }}</div>
                 <div class="direct-progress-actions">
                   <a-button size="mini" @click="router.push({ name: 'wallet-history' })">查看钱包流水</a-button>
-                  <a-button size="mini" @click="clearDirectProgress">核对后开始下一笔</a-button>
+                  <a-button size="mini" :disabled="directBusy" @click="clearDirectProgress">核对后开始下一笔</a-button>
                 </div>
               </div>
             </a-alert>
