@@ -507,13 +507,13 @@ async function submit() {
   border: 1px solid transparent;
 }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover:not(:disabled) {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(250, 36, 60, 0.24);
+  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.24);
 }
 .btn.primary:disabled {
   opacity: 0.5;

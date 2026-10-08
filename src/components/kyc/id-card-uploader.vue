@@ -131,7 +131,7 @@ onBeforeUnmount(() => {
 .id-uploader:not(.face) { width: 360px; }
 .preview {
   position: relative; width: 100%; border-radius: 6px; overflow: hidden; cursor: pointer;
-  border: 2px dashed #c9cdd4; background: #f7f8fa; transition: border-color 0.15s;
+  border: 2px dashed var(--yb-hairline-2); background: var(--yb-fill); transition: border-color 0.15s;
 }
 .id-uploader:not(.face) .preview { aspect-ratio: 360 / 220; }
 .id-uploader.face .preview { aspect-ratio: 1; border-radius: 50%; }
@@ -139,10 +139,10 @@ onBeforeUnmount(() => {
 .preview:hover { border-color: var(--bw-brand-primary); }
 .preview:focus-visible { outline: 2px solid var(--bw-brand-primary); outline-offset: 3px; }
 .img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.placeholder { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #4e5969; font-size: 13px; }
-.placeholder small { color: #86909c; font-size: 11px; }
+.placeholder { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--yb-ink-2); font-size: 13px; }
+.placeholder small { color: var(--yb-muted); font-size: 11px; }
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 13px; }
 .meta { display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 12px; }
-.title { color: #1d2129; font-weight: 500; }
-.hint { color: #86909c; }
+.title { color: var(--yb-ink); font-weight: 500; }
+.hint { color: var(--yb-muted); }
 </style>

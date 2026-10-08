@@ -68,8 +68,8 @@ function exitBuyer() {
 
 <style scoped>
 .buyer-nav {
-  background: linear-gradient(90deg, #fff7e6 0%, #fff 100%);
-  border-bottom: 1px solid #ffd591;
+  background: linear-gradient(90deg, var(--yb-champagne) 0%, #fff 100%);
+  border-bottom: 1px solid var(--yb-apricot);
   position: sticky;
   top: 60px;
   z-index: 40;
@@ -88,7 +88,7 @@ function exitBuyer() {
   gap: 4px;
 }
 .prefix {
-  background: #ff7d00;
+  background: var(--yb-brand-primary);
   color: #fff;
   padding: 4px 10px;
   border-radius: 4px;
@@ -103,20 +103,20 @@ function exitBuyer() {
   padding: 6px 12px;
   border-radius: 4px;
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   cursor: pointer;
   transition: all 0.15s;
 }
 .nav-item:hover {
   background: rgba(255, 125, 0, 0.1);
-  color: #ff7d00;
+  color: var(--yb-brand-primary);
 }
 .nav-item.active {
-  background: #ff7d00;
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .nav-item:focus-visible {
-  outline: 2px solid #ff7d00;
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .emoji {
@@ -124,8 +124,8 @@ function exitBuyer() {
 }
 .exit-btn {
   background: transparent;
-  border: 1px solid #ff7d00;
-  color: #ff7d00;
+  border: 1px solid var(--yb-brand-primary);
+  color: var(--yb-brand-primary);
   padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -133,7 +133,7 @@ function exitBuyer() {
   transition: all 0.15s;
 }
 .exit-btn:hover {
-  background: #ff7d00;
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 </style>

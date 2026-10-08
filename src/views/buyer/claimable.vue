@@ -186,7 +186,7 @@ async function onClaim(req: Api.RealPurchase.Record) {
   padding-top: 16px;
 }
 .hero-card {
-  background: linear-gradient(135deg, #ff7d00 0%, #f53f3f 100%);
+  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-brand-primary) 100%);
   color: #fff;
   border-radius: var(--bw-card-radius);
   margin-bottom: 16px;

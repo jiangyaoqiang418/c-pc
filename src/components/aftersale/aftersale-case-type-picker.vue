@@ -54,7 +54,7 @@ const TYPES: TypeDef[] = [
 .type-card {
   position: relative;
   padding: 18px 12px 16px;
-  border: 2px solid #f2f3f5;
+  border: 2px solid var(--yb-hairline);
   border-radius: 8px;
   background: #fff;
   text-align: center;
@@ -62,11 +62,11 @@ const TYPES: TypeDef[] = [
   transition: all 0.18s;
 }
 .type-card:hover {
-  border-color: #94c1ff;
+  border-color: rgb(var(--primary-4));
 }
 .type-card.active {
   border-color: var(--bw-brand-primary);
-  background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
 }
 .type-card:focus-visible {
   outline: 2px solid var(--bw-brand-primary);
@@ -93,12 +93,12 @@ const TYPES: TypeDef[] = [
 .label {
   font-size: 13px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 2px;
 }
 .hint {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   line-height: 1.4;
 }
 </style>

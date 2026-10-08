@@ -1,32 +1,42 @@
 /**
- * 全局设计 tokens v2 —— 油宝品牌视觉系统
- * 「全亮色高级感 + 科技细节点缀」
+ * 全局设计 tokens —— 油宝品牌视觉系统
+ * 参考产品配色：森林绿 + 暖白 + 金黄
  *
  * 新变量前缀 `--yb-*` (Youbao)
  * 旧 `--bw-*` 变量作 alias 保留（避免破坏其他 40+ 页）
  */
 
-:root {
+:root,
+body {
   /* ==================== 基础层 (Layer 0-2) ==================== */
-  --yb-bg:            #FAFAF7;   /* 象牙白 页面 background */
+  --yb-bg:            #F7F4ED;   /* 暖白 页面 background */
   --yb-surface:       #FFFFFF;   /* 卡片 surface */
   --yb-elevated:      #FFFFFF;   /* 浮层 (带 backdrop-blur) */
-  --yb-hairline:      #EDECE6;   /* 细线 border */
-  --yb-hairline-2:    #E4E2DA;   /* 稍深的细线 */
+  --yb-hairline:      #E6E5DC;   /* 细线 border */
+  --yb-hairline-2:    #D7DCD2;   /* 稍深的细线 */
+  --yb-fill:          #F0F2EB;   /* 输入框、分组、图片占位背景 */
+  --yb-sage:          #D4DFCE;   /* 鼠尾草绿 专题底色 */
 
   /* ==================== 文字层 ==================== */
-  --yb-ink:           #0F111A;   /* 主标题 / 强调 CTA */
-  --yb-ink-2:         #1D2129;   /* 正文 */
-  --yb-muted:         #6B7385;   /* 二级文字 */
-  --yb-faint:         #A8ADB8;   /* placeholder / 三级文字 */
+  --yb-ink:           #20382E;   /* 主标题 */
+  --yb-ink-2:         #2F4238;   /* 正文 */
+  --yb-muted:         #667068;   /* 二级文字 */
+  --yb-faint:         #788078;   /* placeholder / 三级文字 */
 
   /* ==================== 品牌 accent ==================== */
-  --yb-primary:       #5B5CE7;   /* 电光紫 (科技 accent / 链接 / 焦点) */
-  --yb-primary-2:     #7C5CFC;   /* 紫 gradient 终点 */
-  --yb-primary-soft:  rgba(91, 92, 231, 0.08);
-  --yb-gold:          #B8935A;   /* 低饱和金 (VIP / luxury) */
-  --yb-gold-2:        #D4A574;
-  --yb-champagne:     #F6EFE4;   /* 香槟浅金背景 */
+  --yb-brand-primary: #295D49;   /* 森林绿 主操作 / 链接 / 焦点 */
+  --yb-brand-hover:   #193F32;
+  --yb-primary-rgb:   41, 93, 73;
+  --yb-primary:       var(--yb-brand-primary);
+  --yb-primary-2:     #35705A;   /* 绿色渐变终点 */
+  --yb-primary-soft:  #EAF1E9;
+  --yb-accent:        #EEB84F;   /* 金黄 背景 / 活动引导，搭配深色字 */
+  --yb-accent-ink:    #193F32;
+  --yb-gold:          #946516;   /* 深金 小字 / 链接 / 现有金色按钮 */
+  --yb-gold-2:        var(--yb-accent);
+  --yb-gold-rgb:      238, 184, 79;
+  --yb-champagne:     #FFF4DE;   /* 浅金背景 */
+  --yb-apricot:       #FADDA3;   /* 活动底色 */
 
   /* ==================== 语义色（低饱和，克制）==================== */
   --yb-success:       #00A88A;
@@ -34,16 +44,16 @@
   --yb-danger:        #E74C3C;
   --yb-danger-soft:   rgba(231, 76, 60, 0.08);
   --yb-warning:       #D4A574;
-  --yb-info:          #5B5CE7;
+  --yb-info:          #37689E;
 
-  /* ==================== 品牌粉（Apple Music 深粉）—— 全站主 CTA 背景 ==================== */
-  --yb-brand-pink:      #FA243C;
-  --yb-brand-pink-2:    #E01F35;   /* hover 深一档 */
-  --yb-brand-pink-soft: rgba(250, 36, 60, 0.08);
+  /* ==================== 旧品牌变量兼容别名 ==================== */
+  --yb-brand-pink:      var(--yb-brand-primary);
+  --yb-brand-pink-2:    var(--yb-brand-hover);
+  --yb-brand-pink-soft: var(--yb-primary-soft);
 
   /* ==================== 深色 accent（仅 dashboard hero 用）==================== */
-  --yb-deep:          #0F1B36;   /* 深墨蓝 */
-  --yb-deep-2:        #1E1F3A;
+  --yb-deep:          #193F32;   /* 深森林绿 */
+  --yb-deep-2:        #245440;
 
   /* ==================== Radius ==================== */
   --yb-radius-card:   20px;
@@ -52,9 +62,9 @@
   --yb-radius-pill:   999px;
 
   /* ==================== Shadow (light theme) ==================== */
-  --yb-shadow-1: 0 1px 3px rgba(15, 17, 26, 0.04), 0 8px 24px rgba(15, 17, 26, 0.04);
-  --yb-shadow-2: 0 4px 12px rgba(15, 17, 26, 0.06), 0 24px 48px rgba(15, 17, 26, 0.08);
-  --yb-shadow-glow: 0 0 40px rgba(91, 92, 231, 0.10), 0 24px 48px rgba(15, 17, 26, 0.08);
+  --yb-shadow-1: 0 1px 3px rgba(32, 56, 46, 0.04), 0 8px 24px rgba(32, 56, 46, 0.04);
+  --yb-shadow-2: 0 4px 12px rgba(32, 56, 46, 0.06), 0 24px 48px rgba(32, 56, 46, 0.08);
+  --yb-shadow-glow: 0 0 40px rgba(var(--yb-primary-rgb), 0.10), 0 24px 48px rgba(32, 56, 46, 0.08);
   --yb-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
   /* ==================== Typography ==================== */
@@ -67,7 +77,7 @@
   --yb-page-padding:   16px;
 
   /* ==================== 旧变量 alias (向后兼容) ==================== */
-  --bw-brand-primary:  var(--yb-brand-pink);   /* 主 CTA 由深墨 → 品牌粉 */
+  --bw-brand-primary:  var(--yb-brand-primary);
   --bw-brand-success:  var(--yb-success);
   --bw-brand-warning:  var(--yb-warning);
   --bw-brand-danger:   var(--yb-danger);
@@ -76,27 +86,46 @@
   --bw-page-padding:   var(--yb-page-padding);
 
   /* ==================== Arco Design 主色完整覆盖 (10 shades) ==================== */
-  --primary-1: 254, 233, 236;
-  --primary-2: 253, 199, 208;
-  --primary-3: 252, 165, 179;
-  --primary-4: 251, 130, 150;
-  --primary-5: 251, 89, 116;
-  --primary-6: 250, 36, 60;       /* main #FA243C */
-  --primary-7: 218, 20, 43;
-  --primary-8: 187, 8, 28;
-  --primary-9: 156, 0, 17;
-  --primary-10: 125, 0, 12;
+  --primary-1: 234, 241, 233;
+  --primary-2: 218, 232, 223;
+  --primary-3: 194, 217, 202;
+  --primary-4: 156, 190, 168;
+  --primary-5: 61, 117, 88;
+  --primary-6: var(--yb-primary-rgb);
+  --primary-7: 33, 78, 61;
+  --primary-8: 25, 63, 50;
+  --primary-9: 18, 48, 38;
+  --primary-10: 12, 34, 27;
   /* 少量组件用 arcoblue-* 命名 */
-  --arcoblue-1: 254, 233, 236;
-  --arcoblue-2: 253, 199, 208;
-  --arcoblue-3: 252, 165, 179;
-  --arcoblue-4: 251, 130, 150;
-  --arcoblue-5: 251, 89, 116;
-  --arcoblue-6: 250, 36, 60;
-  --arcoblue-7: 218, 20, 43;
-  --arcoblue-8: 187, 8, 28;
-  --arcoblue-9: 156, 0, 17;
-  --arcoblue-10: 125, 0, 12;
+  --arcoblue-1: var(--primary-1);
+  --arcoblue-2: var(--primary-2);
+  --arcoblue-3: var(--primary-3);
+  --arcoblue-4: var(--primary-4);
+  --arcoblue-5: var(--primary-5);
+  --arcoblue-6: var(--primary-6);
+  --arcoblue-7: var(--primary-7);
+  --arcoblue-8: var(--primary-8);
+  --arcoblue-9: var(--primary-9);
+  --arcoblue-10: var(--primary-10);
+
+  /* Arco 中性色与页面主题一致；语义状态色保留组件原有配置。 */
+  --color-bg-1: var(--yb-bg);
+  --color-bg-2: var(--yb-surface);
+  --color-bg-3: var(--yb-elevated);
+  --color-bg-4: var(--yb-elevated);
+  --color-bg-5: var(--yb-elevated);
+  --color-text-1: var(--yb-ink);
+  --color-text-2: var(--yb-ink-2);
+  --color-text-3: var(--yb-muted);
+  --color-text-4: var(--yb-faint);
+  --color-fill-1: var(--yb-bg);
+  --color-fill-2: var(--yb-fill);
+  --color-fill-3: var(--yb-hairline);
+  --color-fill-4: var(--yb-hairline-2);
+  --color-border-1: var(--yb-hairline);
+  --color-border-2: var(--yb-hairline);
+  --color-border-3: var(--yb-hairline-2);
+  --color-border-4: var(--yb-hairline-2);
 }
 
 /* ==================== base reset ==================== */
@@ -150,12 +179,6 @@ a {
 .arco-btn {
   border-radius: var(--yb-radius-md);
   font-weight: 500;
-}
-.arco-btn-primary {
-  background: var(--yb-ink) !important;
-}
-.arco-btn-primary:hover {
-  background: var(--yb-ink-2) !important;
 }
 .arco-card {
   border-radius: var(--yb-radius-card);

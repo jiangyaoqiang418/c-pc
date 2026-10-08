@@ -255,7 +255,7 @@ const activeCat = computed(() => hoveredCat.value ?? categories.value[0] ?? null
   top: 48px;
   background: var(--yb-surface);
   border-top: 1px solid var(--yb-hairline);
-  box-shadow: 0 12px 28px rgba(15, 17, 26, 0.08);
+  box-shadow: 0 12px 28px rgba(32, 56, 46, 0.08);
   z-index: 50;
 }
 .mega-inner {

@@ -64,7 +64,7 @@ function inducePurchase() {
 .loading {
   text-align: center;
   padding: 64px 0;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .spinner {
   font-size: 40px;
@@ -80,7 +80,7 @@ function inducePurchase() {
   to { transform: rotate(360deg); }
 }
 .induce {
-  background: linear-gradient(135deg, #fff7e6 0%, #f5e8ff 100%);
+  background: linear-gradient(135deg, #fff7e6 0%, var(--yb-primary-soft) 100%);
   border-radius: 12px;
   padding: 20px 28px;
   margin-bottom: 24px;
@@ -99,11 +99,11 @@ function inducePurchase() {
 .induce-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .induce-sub {
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   margin-top: 4px;
 }
 .grid {

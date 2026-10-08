@@ -138,10 +138,10 @@ function sumOrderCounts(...statuses: string[]) {
 const pendingOrderCount = computed(() => sumOrderCounts('PROCURING', 'PROCURED', 'IN_TRANSIT'));
 const completedOrderCount = computed(() => orderCount('COMPLETED'));
 const kpis = computed(() => [
-  { label: '待发货', value: orderCount('PROCURED'), icon: 'lucide:package', color: '#B8935A' },
-  { label: '采购中', value: orderCount('PROCURING'), icon: 'lucide:shopping-cart', color: '#5B5CE7' },
-  { label: '运输中', value: orderCount('IN_TRANSIT'), icon: 'lucide:truck', color: '#7C5CFC' },
-  { label: '已完成', value: completedOrderCount.value, icon: 'lucide:badge-check', color: '#00A88A' }
+  { label: '待发货', value: orderCount('PROCURED'), icon: 'lucide:package', color: 'var(--yb-gold)' },
+  { label: '采购中', value: orderCount('PROCURING'), icon: 'lucide:shopping-cart', color: 'var(--yb-primary)' },
+  { label: '运输中', value: orderCount('IN_TRANSIT'), icon: 'lucide:truck', color: 'var(--yb-primary-2)' },
+  { label: '已完成', value: completedOrderCount.value, icon: 'lucide:badge-check', color: 'var(--yb-success)' }
 ]);
 
 </script>
@@ -324,7 +324,7 @@ const kpis = computed(() => [
 /* ========== Hero (dark accent) ========== */
 .hero {
   position: relative;
-  background: linear-gradient(135deg, #0F1B36 0%, #1E1F3A 60%, #5B5CE7 100%);
+  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-deep-2) 60%, var(--yb-primary) 100%);
   color: #fff;
   border-radius: var(--yb-radius-card);
   padding: 36px 40px;
@@ -341,7 +341,7 @@ const kpis = computed(() => [
   right: -10%;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(184, 147, 90, 0.25) 0%, transparent 60%);
+  background: radial-gradient(circle, rgba(var(--yb-gold-rgb), 0.25) 0%, transparent 60%);
   pointer-events: none;
 }
 .hero-left {
@@ -362,7 +362,7 @@ const kpis = computed(() => [
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.16em;
-  color: var(--yb-gold);
+  color: var(--yb-accent);
   margin-bottom: 6px;
 }
 .welcome-row {
@@ -573,7 +573,7 @@ const kpis = computed(() => [
   align-items: center;
   justify-content: center;
   position: relative;
-  box-shadow: 0 0 40px rgba(184, 147, 90, 0.15);
+  box-shadow: 0 0 40px rgba(var(--yb-gold-rgb), 0.15);
 }
 .donut::after {
   content: '';
@@ -665,13 +665,13 @@ const kpis = computed(() => [
 }
 .btn.sm { padding: 8px 14px; font-size: 12px; }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(91, 92, 231, 0.28);
+  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.28);
 }
 .btn.ghost {
   background: var(--yb-bg);

@@ -64,7 +64,7 @@ defineEmits<{ (e: 'action'): void }>();
 .action {
   margin-top: 16px;
   padding: 10px 20px;
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
   border: none;
   border-radius: var(--yb-radius-pill);
@@ -77,7 +77,7 @@ defineEmits<{ (e: 'action'): void }>();
   transition: background 0.2s, transform 0.15s;
 }
 .action:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
 }
 </style>

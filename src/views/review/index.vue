@@ -463,14 +463,14 @@ onBeforeUnmount(() => {
 .filters :deep(.arco-select) { width: 160px; }
 .list-wrap { margin-top: 16px; }
 .notification-review-alert { margin-bottom: 12px; }
-.notification-review-title { margin: 0 0 8px; color: #4e5969; font-size: 13px; }
+.notification-review-title { margin: 0 0 8px; color: var(--yb-ink-2); font-size: 13px; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
-.appeal-card { margin-bottom: 12px; border: 1px solid #f2f3f5; }
+.appeal-card { margin-bottom: 12px; border: 1px solid var(--yb-hairline); }
 .appeal-head { display: flex; justify-content: space-between; gap: 12px; }
-.appeal-title { color: #1d2129; font-weight: 600; }
-.appeal-time { display: block; color: #86909c; font-size: 12px; margin-top: 4px; }
-.appeal-reason, .appeal-review, .appeal-result { margin-top: 12px; color: #4e5969; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
-.appeal-review { padding: 8px 10px; background: #f7f8fa; }
+.appeal-title { color: var(--yb-ink); font-weight: 600; }
+.appeal-time { display: block; color: var(--yb-muted); font-size: 12px; margin-top: 4px; }
+.appeal-reason, .appeal-review, .appeal-result { margin-top: 12px; color: var(--yb-ink-2); font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.appeal-review { padding: 8px 10px; background: var(--yb-fill); }
 .appeal-result { color: #00b42a; }
 .appeal-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 @media (max-width: 640px) {

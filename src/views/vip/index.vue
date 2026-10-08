@@ -193,7 +193,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
   padding-top: 16px;
 }
 .hero-card {
-  background: linear-gradient(135deg, #722ed1 0%, #165dff 100%);
+  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-brand-primary) 100%);
   color: #fff;
   border-radius: var(--bw-card-radius);
   margin-bottom: 16px;
@@ -259,7 +259,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
 }
 .tier-mini.active {
   background: #fff;
-  color: #722ed1;
+  color: var(--yb-brand-primary);
   border-color: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   transform: scale(1.06);
@@ -276,11 +276,11 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
   flex-wrap: wrap;
 }
 .switch-row .lbl {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
 }
 .switch-row .hint {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 12px;
 }
 .table-block {
@@ -293,7 +293,7 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 12px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
@@ -305,14 +305,14 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
 }
 .rule-cell {
   padding: 14px 16px;
-  background: #f7faff;
+  background: var(--yb-primary-soft);
   border-radius: 6px;
   border-left: 3px solid var(--bw-brand-primary);
 }
 .rule-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .rule-meta {
   margin-top: 6px;
@@ -326,10 +326,10 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
   font-size: 13px;
 }
 .reward.minus {
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .cap {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 11px;
 }
 .rules-foot {

@@ -306,17 +306,17 @@ function cancel() {
 .code {
   font-family: ui-monospace, monospace;
   font-size: 13px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .hero-title {
   font-size: 22px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 4px;
 }
 .hero-cat {
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .hero-right {
   display: flex;
@@ -328,7 +328,7 @@ function cancel() {
 }
 .budget-block .lbl {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .budget {
   font-size: 32px;
@@ -349,7 +349,7 @@ function cancel() {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin: 16px 0 12px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
@@ -358,7 +358,7 @@ function cancel() {
   margin-top: 0;
 }
 .desc {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   line-height: 1.7;
   margin-bottom: 8px;
@@ -380,7 +380,7 @@ function cancel() {
   font-size: 14px;
 }
 .order-link {
-  color: #86909c;
+  color: var(--yb-muted);
   font-family: ui-monospace, monospace;
   margin-left: 4px;
 }

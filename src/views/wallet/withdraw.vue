@@ -445,14 +445,14 @@ watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; }
 <style scoped>
 .withdraw-page { padding-top: 16px; max-width: 880px; margin: 0 auto; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0; }
-.hint { color: #86909c; font-size: 13px; margin: 0 0 16px; }
+.hint { color: var(--yb-muted); font-size: 13px; margin: 0 0 16px; }
 .kyc-alert, .form-card, .result-card { margin-bottom: 16px; }
 .form-card, .result-card, .records-card { background: #fff; border-radius: var(--bw-card-radius); }
 .balance-row { display: flex; justify-content: space-between; align-items: baseline; }
-.balance-label { color: #4e5969; }
+.balance-label { color: var(--yb-ink-2); }
 .balance-amount { font-size: 22px; font-weight: 700; color: var(--bw-brand-primary); font-family: ui-monospace, monospace; }
 .err { color: #f53f3f; font-size: 12px; margin-bottom: 8px; }
-.section-title { font-size: 14px; font-weight: 600; color: #1d2129; margin-bottom: 14px; padding-left: 8px; border-left: 3px solid var(--bw-brand-primary); }
+.section-title { font-size: 14px; font-weight: 600; color: var(--yb-ink); margin-bottom: 14px; padding-left: 8px; border-left: 3px solid var(--bw-brand-primary); }
 .records-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
 .confirm-alert { margin-bottom: 16px; }

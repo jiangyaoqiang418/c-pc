@@ -335,7 +335,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 12px;
   padding-left: 8px;
   border-left: 3px solid #ff7d00;
@@ -347,13 +347,13 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 }
 .stat-label {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .stat-val {
   font-size: 22px;
   font-weight: 700;
   font-family: ui-monospace, monospace;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-top: 4px;
 }
 .alert {

@@ -52,12 +52,12 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
   padding: 16px 20px;
   margin-bottom: 10px;
   cursor: pointer;
-  border-left: 3px solid #f2f3f5;
+  border-left: 3px solid var(--yb-hairline);
   transition: all 0.15s;
 }
 .ann-card:hover {
   border-left-color: var(--bw-brand-primary);
-  box-shadow: 0 4px 12px rgba(22, 93, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(var(--yb-primary-rgb), 0.08);
 }
 .ann-card:focus-visible {
   outline: 2px solid var(--bw-brand-primary);
@@ -80,10 +80,10 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .summary {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   line-height: 1.5;
   margin-bottom: 8px;
@@ -94,7 +94,7 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
 }
 .meta {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   display: flex;
   gap: 4px;
   align-items: center;

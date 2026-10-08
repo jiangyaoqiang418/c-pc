@@ -102,7 +102,7 @@ function onMove(e: MouseEvent) {
   width: 480px;
   height: 480px;
   background: #fff;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   border-radius: 6px;
   overflow: hidden;
   cursor: crosshair;
@@ -117,8 +117,8 @@ function onMove(e: MouseEvent) {
   position: absolute;
   width: 200px;
   height: 200px;
-  background: rgba(22, 93, 255, 0.12);
-  border: 1px solid rgba(22, 93, 255, 0.6);
+  background: rgba(var(--yb-primary-rgb), 0.12);
+  border: 1px solid rgba(var(--yb-primary-rgb), 0.6);
   pointer-events: none;
   transform: translate(-50%, -50%);
 }
@@ -130,7 +130,7 @@ function onMove(e: MouseEvent) {
   height: 480px;
   background-size: 240%;
   background-repeat: no-repeat;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   border-radius: 6px;
   background-color: #fff;
   z-index: 5;
@@ -143,7 +143,7 @@ function onMove(e: MouseEvent) {
 .thumb {
   width: 64px;
   height: 64px;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;

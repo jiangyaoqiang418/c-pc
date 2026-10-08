@@ -67,22 +67,22 @@ const appealMeta = computed(() => {
   align-items: center;
   gap: 16px;
   padding: 12px 16px;
-  border-bottom: 1px solid #f7f8fa;
+  border-bottom: 1px solid var(--yb-fill);
   transition: background 0.15s;
 }
 .point-log-row:hover {
-  background: #f7faff;
+  background: var(--yb-primary-soft);
 }
 .desc {
   font-size: 13px;
-  color: #1d2129;
+  color: var(--yb-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .time {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-top: 2px;
 }
 .right {
@@ -95,14 +95,14 @@ const appealMeta = computed(() => {
 }
 .balance {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-top: 2px;
 }
 .action {
   text-align: right;
 }
 .no-action {
-  color: #c9cdd4;
+  color: var(--yb-hairline-2);
   font-size: 12px;
 }
 </style>

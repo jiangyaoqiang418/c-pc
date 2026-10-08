@@ -16,8 +16,8 @@ interface Props {
 }
 const props = withDefaults(defineProps<Props>(), { size: 180 });
 
-// 4 级灰度 + 电光紫 accent（BiyaPay/ether.fi 风）
-const GRAY_SCALE = ['#0F111A', '#4E5969', '#8A93A6', '#C9CDD4', '#EDECE6'];
+// 图形与图例共用主题色阶，保持各资产分类的配色一致。
+const THEME_SCALE = ['var(--yb-deep)', 'var(--yb-primary)', 'var(--yb-primary-2)', 'var(--yb-sage)', 'var(--yb-accent)'];
 
 function normalizedPct(value: number) {
   const parsed = Number(value);
@@ -31,7 +31,7 @@ const conicGradient = computed(() => {
     const start = acc * 100;
     acc += normalizedPct(s.pct);
     const end = acc * 100;
-    return `${GRAY_SCALE[i % GRAY_SCALE.length]} ${start}% ${end}%`;
+    return `${THEME_SCALE[i % THEME_SCALE.length]} ${start}% ${end}%`;
   });
   return `conic-gradient(${parts.join(', ')})`;
 });
@@ -62,7 +62,7 @@ const holeStyle = computed(() => {
     </div>
     <div class="legend">
       <div v-for="(s, i) in breakdown" :key="s.label" class="legend-row">
-        <span class="dot" :style="{ background: GRAY_SCALE[i % GRAY_SCALE.length] }" />
+        <span class="dot" :style="{ background: THEME_SCALE[i % THEME_SCALE.length] }" />
         <span class="lbl">{{ s.label }}</span>
         <span class="pct">{{ (normalizedPct(s.pct) * 100).toFixed(1) }}%</span>
         <span class="val">U {{ formatAmount(s.value) }}</span>

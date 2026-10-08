@@ -21,17 +21,24 @@ const router = useRouter();
 <style scoped>
 .layout-auth {
   min-height: 100vh;
-  background-color: #f8f8f8;
-  background-image: url('../assets/images/bg-login-commerce-red.png');
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: cover;
+  background-color: var(--yb-bg);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 32px;
   position: relative;
+  isolation: isolate;
+}
+.layout-auth::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: url('../assets/images/bg-login-commerce-red.png') center / cover no-repeat;
+  filter: hue-rotate(110deg) saturate(0.35);
+  opacity: 0.7;
+  pointer-events: none;
 }
 .logo {
   position: absolute;
@@ -41,10 +48,10 @@ const router = useRouter();
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  color: #c91820;
+  color: var(--yb-brand-primary);
 }
 .logo:focus-visible {
-  outline: 2px solid #c91820;
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -65,12 +72,12 @@ const router = useRouter();
   background: #fff;
   border-radius: 12px;
   padding: 40px 48px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--yb-shadow-2);
 }
 .auth-footer {
   position: absolute;
   bottom: 24px;
-  color: rgba(70, 70, 70, 0.72);
+  color: var(--yb-muted);
   font-size: 12px;
 }
 </style>

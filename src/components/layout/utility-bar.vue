@@ -39,10 +39,10 @@ function go(name: string) {
 <style scoped>
 .utility-bar {
   height: 32px;
-  background: var(--yb-bg);
-  border-bottom: 1px solid var(--yb-hairline);
+  background: var(--yb-brand-primary);
+  border-bottom: 1px solid var(--yb-brand-hover);
   font-size: 12px;
-  color: var(--yb-muted);
+  color: #fff;
 }
 .ub-inner {
   height: 100%;
@@ -62,13 +62,13 @@ function go(name: string) {
 }
 .ub-region {
   font-weight: 600;
-  color: var(--yb-ink-2);
+  color: #fff;
 }
 .ub-welcome {
-  color: var(--yb-muted);
+  color: #fff;
 }
 .ub-sep {
-  color: var(--yb-hairline-2);
+  color: rgba(255, 255, 255, 0.45);
 }
 .ub-link {
   padding: 0;
@@ -76,11 +76,11 @@ function go(name: string) {
   background: transparent;
   font: inherit;
   cursor: pointer;
-  color: var(--yb-muted);
+  color: #fff;
   transition: color 0.15s;
 }
 .ub-link:hover {
-  color: var(--yb-ink);
+  color: var(--yb-apricot);
 }
 .badge-link { display: inline-flex; align-items: center; gap: 4px; }
 .badge { min-width: 16px; height: 16px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #f53f3f; color: #fff; font-size: 9px; line-height: 1; }

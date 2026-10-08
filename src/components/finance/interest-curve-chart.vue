@@ -108,19 +108,19 @@ const xTicks = computed(() => {
       </g>
       <!-- Area + line -->
       <path :d="areaPath" fill="url(#curveGradient)" stroke="none" />
-      <path :d="path" stroke="#722ed1" stroke-width="2" fill="none" />
+      <path :d="path" stroke="var(--yb-brand-primary)" stroke-width="2" fill="none" />
       <!-- Current point -->
       <g v-if="currentPoint">
-        <circle :cx="currentPoint.x" :cy="currentPoint.y" r="5" fill="#722ed1" />
-        <line :x1="currentPoint.x" :y1="padT" :x2="currentPoint.x" :y2="padT + innerH" stroke="#722ed1" stroke-dasharray="3 3" stroke-width="1" opacity="0.6" />
-        <text :x="currentPoint.labelX" :y="currentPoint.labelY" :text-anchor="currentPoint.labelOnLeft ? 'end' : 'start'" class="current-label" fill="#722ed1">
+        <circle :cx="currentPoint.x" :cy="currentPoint.y" r="5" fill="var(--yb-brand-primary)" />
+        <line :x1="currentPoint.x" :y1="padT" :x2="currentPoint.x" :y2="padT + innerH" stroke="var(--yb-brand-primary)" stroke-dasharray="3 3" stroke-width="1" opacity="0.6" />
+        <text :x="currentPoint.labelX" :y="currentPoint.labelY" :text-anchor="currentPoint.labelOnLeft ? 'end' : 'start'" class="current-label" fill="var(--yb-brand-primary)">
           {{ markerLabel }} U {{ formatAmount(accruedInterest) }}
         </text>
       </g>
       <defs>
         <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#722ed1" stop-opacity="0.35" />
-          <stop offset="100%" stop-color="#722ed1" stop-opacity="0" />
+          <stop offset="0%" stop-color="var(--yb-brand-primary)" stop-opacity="0.35" />
+          <stop offset="100%" stop-color="var(--yb-brand-primary)" stop-opacity="0" />
         </linearGradient>
       </defs>
     </svg>
@@ -136,12 +136,12 @@ const xTicks = computed(() => {
   width: 100%;
 }
 .grid line {
-  stroke: #f2f3f5;
+  stroke: var(--yb-hairline);
   stroke-width: 1;
 }
 .y-labels text,
 .x-labels text {
-  fill: #86909c;
+  fill: var(--yb-muted);
   font-size: 11px;
   font-family: ui-monospace, monospace;
 }
@@ -152,7 +152,7 @@ const xTicks = computed(() => {
 .legend {
   margin-top: 4px;
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -161,7 +161,7 @@ const xTicks = computed(() => {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-  background: #722ed1;
+  background: var(--yb-brand-primary);
   display: inline-block;
 }
 </style>

@@ -274,7 +274,7 @@ watch(() => userStore.currentUser?.id, () => {
 .page { padding-top: 16px; }
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .page-head h1 { margin: 0 0 6px; font-size: 20px; }
-.page-head p { margin: 0; color: #86909c; font-size: 13px; }
+.page-head p { margin: 0; color: var(--yb-muted); font-size: 13px; }
 .filter-card { margin-bottom: 12px; }
 .pagination { display: flex; justify-content: center; margin-top: 16px; }
 </style>

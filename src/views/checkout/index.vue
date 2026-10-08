@@ -1039,7 +1039,7 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 .step-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 16px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
@@ -1064,19 +1064,19 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px dashed #f2f3f5;
+  border-bottom: 1px dashed var(--yb-hairline);
 }
 .cover {
   width: 60px;
   height: 60px;
   object-fit: cover;
   border-radius: 4px;
-  background: #f7f8fa;
+  background: var(--yb-fill);
 }
 .title {
   font-size: 13px;
   font-weight: 500;
-  color: #1d2129;
+  color: var(--yb-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -1091,11 +1091,11 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 }
 .seller {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .qty {
   text-align: center;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .amount {
   text-align: right;
@@ -1173,14 +1173,14 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 }
 .pay-methods { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .pending-methods { margin: 16px 0; }
-.wallet-pay-hint { margin: 0; font-size: 12px; color: #86909c; }
+.wallet-pay-hint { margin: 0; font-size: 12px; color: var(--yb-muted); }
 .pay-name {
   font-weight: 500;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .pay-meta {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .self-purchase-alert {
   margin-top: 12px;
@@ -1224,7 +1224,7 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
   margin-left: 4px;
 }
 .muted {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
 }
 </style>

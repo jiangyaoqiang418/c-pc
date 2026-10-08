@@ -60,7 +60,7 @@ function submit() {
 
 <style scoped>
 .hint {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   margin-bottom: 12px;
 }

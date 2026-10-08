@@ -265,8 +265,8 @@ function goProfile() { router.push({ name: 'profile' }); }
   border: 1px solid transparent;
   transition: all 0.15s;
 }
-.btn.primary { background: var(--yb-brand-pink); color: #fff; }
-.btn.primary:hover { background: var(--yb-brand-pink-2); }
+.btn.primary { background: var(--yb-brand-primary); color: #fff; }
+.btn.primary:hover { background: var(--yb-brand-hover); }
 .btn.ghost { background: transparent; color: var(--yb-ink); border-color: var(--yb-hairline-2); }
 .btn.ghost:hover { border-color: var(--yb-ink); }
 
@@ -281,10 +281,10 @@ function goProfile() { router.push({ name: 'profile' }); }
   transition: background 0.15s;
 }
 .user-row:hover {
-  background: rgba(15, 17, 26, 0.04);
+  background: rgba(32, 56, 46, 0.04);
 }
 .user-row:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .avatar {
@@ -322,11 +322,11 @@ function goProfile() { router.push({ name: 'profile' }); }
 .orders-card:hover {
   border-color: var(--yb-ink);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(15, 17, 26, 0.06);
+  box-shadow: 0 6px 16px rgba(32, 56, 46, 0.06);
 }
 .orders-card:focus-visible,
 .mini-cell:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .orders-head {
@@ -418,7 +418,7 @@ function goProfile() { router.push({ name: 'profile' }); }
 
 /* Buyer hero */
 .buyer-hero {
-  background: linear-gradient(135deg, var(--yb-brand-pink) 0%, #C81736 100%);
+  background: linear-gradient(135deg, var(--yb-brand-primary) 0%, var(--yb-brand-hover) 100%);
   color: #fff;
   border-color: transparent;
 }

@@ -96,7 +96,7 @@ const cartCount = computed(() => cart.count);
   flex-shrink: 0;
 }
 .logo:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -107,7 +107,7 @@ const cartCount = computed(() => cart.count);
 .logo-mark {
   width: 44px;
   height: 44px;
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
   border-radius: 10px;
   display: flex;
@@ -116,7 +116,7 @@ const cartCount = computed(() => cart.count);
   font-weight: 800;
   font-size: 15px;
   letter-spacing: 0.5px;
-  box-shadow: 0 2px 8px rgba(250, 36, 60, 0.20);
+  box-shadow: 0 2px 8px rgba(var(--yb-primary-rgb), 0.20);
 }
 .logo-text {
   display: flex;
@@ -157,7 +157,7 @@ const cartCount = computed(() => cart.count);
   min-width: 140px;
   height: 44px;
   padding: 0 24px;
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
   border: none;
   border-radius: 999px;
@@ -170,12 +170,12 @@ const cartCount = computed(() => cart.count);
   gap: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 4px 12px rgba(250, 36, 60, 0.24);
+  box-shadow: 0 4px 12px rgba(var(--yb-primary-rgb), 0.24);
 }
 .cart-cta:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(250, 36, 60, 0.32);
+  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.32);
 }
 .cart-badge {
   min-width: 22px;

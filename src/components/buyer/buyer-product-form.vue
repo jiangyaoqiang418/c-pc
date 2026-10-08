@@ -224,7 +224,7 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
 <style scoped>
 .hint {
   margin-left: 8px;
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 12px;
 }
 .category-picker-row {

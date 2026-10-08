@@ -129,13 +129,13 @@ watch(
 
 <style scoped>
 .preview-card {
-  background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
   border-radius: var(--bw-card-radius);
 }
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 14px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
@@ -148,14 +148,14 @@ watch(
 }
 .lbl {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .amount-input {
   flex: 1;
 }
 .suffix {
   font-size: 14px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-weight: 600;
 }
 .err {
@@ -177,7 +177,7 @@ watch(
 }
 .val {
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-family: ui-monospace, monospace;
 }
 .val.rate {
@@ -187,7 +187,7 @@ watch(
 .bonus {
   display: block;
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   font-weight: 400;
   font-family: inherit;
   margin-top: 2px;
@@ -202,7 +202,7 @@ watch(
 .hint {
   margin-top: 10px;
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   text-align: center;
 }
 </style>

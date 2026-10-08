@@ -26,8 +26,8 @@ const ringSize = computed(() => (props.size === 'lg' ? 200 : 120));
 const ringHole = computed(() => ringSize.value - 50);
 
 const conicGradient = computed(() => {
-  if (!total.value || guaranteedPct.value === undefined) return '#f2f3f5';
-  return `conic-gradient(#86909c 0% ${guaranteedPct.value * 100}%, #0fc6c2 ${guaranteedPct.value * 100}% 100%)`;
+  if (!total.value || guaranteedPct.value === undefined) return 'var(--yb-hairline)';
+  return `conic-gradient(var(--yb-muted) 0% ${guaranteedPct.value * 100}%, var(--yb-primary) ${guaranteedPct.value * 100}% 100%)`;
 });
 
 const ringStyle = computed(() => ({
@@ -94,12 +94,12 @@ const holeStyle = computed(() => ({
 }
 .lbl {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .total {
   font-size: 18px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-family: ui-monospace, monospace;
 }
 .legend {
@@ -122,22 +122,22 @@ const holeStyle = computed(() => ({
   display: block;
 }
 .legend-row.available .dot {
-  background: #0fc6c2;
+  background: var(--yb-primary);
 }
 .legend-row.guaranteed .dot {
-  background: #86909c;
+  background: var(--yb-muted);
 }
 .legend-row.sum {
   grid-template-columns: 1fr auto;
   padding-top: 8px;
-  border-top: 1px dashed #f2f3f5;
+  border-top: 1px dashed var(--yb-hairline);
   margin-top: 4px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .val {
   font-family: ui-monospace, monospace;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .deposit-meter.sm .total {
   font-size: 14px;

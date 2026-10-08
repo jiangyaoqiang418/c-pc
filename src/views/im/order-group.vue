@@ -497,10 +497,10 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
 
 <style scoped>
 .im-group-page { padding-top: 16px; }
-.chat-card { background: #f7f8fa; border-radius: var(--bw-card-radius); overflow: hidden; height: calc(100vh - 200px); min-height: 560px; }
+.chat-card { background: var(--yb-fill); border-radius: var(--bw-card-radius); overflow: hidden; height: calc(100vh - 200px); min-height: 560px; }
 .chat-card :deep(.arco-card-body) { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 0 !important; box-sizing: border-box; overflow: hidden; }
-.conversation-header { background: #fff; padding: 14px 20px; border-bottom: 1px solid #f2f3f5; display: flex; align-items: center; gap: 10px; }.conversation-info { min-width: 0; flex: 1; }.close-button { flex: 0 0 auto; color: #4e5969; }
-.product-image { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; }.conversation-title { color: #1d2129; font-size: 14px; font-weight: 600; }.conversation-sub { color: #86909c; font-size: 12px; margin-top: 4px; }
-.realtime-alert { width: calc(100% - 40px); margin: 10px auto 0; box-sizing: border-box; flex: 0 0 auto; }.messages { flex: 1 1 auto; min-height: 0; padding: 16px 20px; background: #f7f8fa; overflow-y: auto; overscroll-behavior: contain; }.chat-card :deep(.input-area) { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; }.load-older { text-align: center; margin-bottom: 14px; }.empty-msg { text-align: center; color: #86909c; padding: 40px 0; font-size: 13px; }
+.conversation-header { background: #fff; padding: 14px 20px; border-bottom: 1px solid var(--yb-hairline); display: flex; align-items: center; gap: 10px; }.conversation-info { min-width: 0; flex: 1; }.close-button { flex: 0 0 auto; color: var(--yb-ink-2); }
+.product-image { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; }.conversation-title { color: var(--yb-ink); font-size: 14px; font-weight: 600; }.conversation-sub { color: var(--yb-muted); font-size: 12px; margin-top: 4px; }
+.realtime-alert { width: calc(100% - 40px); margin: 10px auto 0; box-sizing: border-box; flex: 0 0 auto; }.messages { flex: 1 1 auto; min-height: 0; padding: 16px 20px; background: var(--yb-fill); overflow-y: auto; overscroll-behavior: contain; }.chat-card :deep(.input-area) { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; }.load-older { text-align: center; margin-bottom: 14px; }.empty-msg { text-align: center; color: var(--yb-muted); padding: 40px 0; font-size: 13px; }
 @media (max-width: 720px) { .chat-card { height: calc(100vh - 160px); min-height: 520px; } .conversation-header { padding: 12px 16px; } .messages { padding: 12px; } .realtime-alert { width: calc(100% - 24px); margin-top: 8px; } }
 </style>

@@ -292,5 +292,5 @@ async function continuePayment() {
 .method-choices { display: flex; flex-direction: column; gap: 12px; margin: 18px 0; }
 .chain-select { width: 100%; margin-bottom: 12px; }
 .actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
-.hint { color: #86909c; font-size: 12px; }
+.hint { color: var(--yb-muted); font-size: 12px; }
 </style>

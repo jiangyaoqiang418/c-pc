@@ -606,12 +606,12 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
 .rule-name {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 4px;
 }
 .rule-desc {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   line-height: 1.5;
   margin-bottom: 8px;
   min-height: 3em;
@@ -621,7 +621,7 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
   align-items: center;
   gap: 8px;
   padding-top: 8px;
-  border-top: 1px dashed #f2f3f5;
+  border-top: 1px dashed var(--yb-hairline);
 }
 .reward {
   color: #f53f3f;
@@ -629,10 +629,10 @@ const filteredRules = computed(() => rules.value.filter(r => r.enabled));
   font-size: 13px;
 }
 .reward.minus {
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .cap {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 11px;
 }
 </style>

@@ -20,7 +20,7 @@ defineProps<Props>();
   border: 1px solid #ffd591;
   border-left: 4px solid #ff7d00;
   padding: 10px 16px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   display: flex;
   align-items: center;

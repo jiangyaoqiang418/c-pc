@@ -209,7 +209,7 @@ function handleEmptyAction() {
           <a-card class="info-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
             <div class="head">
               <h1 class="title">{{ product.name }}</h1>
-              <a-tag color="purple" size="medium">{{ product.code }}</a-tag>
+              <a-tag color="var(--yb-brand-primary)" size="medium">{{ product.code }}</a-tag>
             </div>
             <div class="big-meta">
               <div class="meta-cell">
@@ -308,12 +308,12 @@ function handleEmptyAction() {
 }
 .lbl {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .val {
   font-size: 22px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-family: ui-monospace, monospace;
   margin-top: 4px;
 }
@@ -323,19 +323,19 @@ function handleEmptyAction() {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin: 16px 0 8px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
 }
 .desc {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   line-height: 1.7;
 }
 .rules {
   padding-left: 20px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   line-height: 1.8;
 }

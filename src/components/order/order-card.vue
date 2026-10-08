@@ -293,7 +293,7 @@ function viewLogistics() {
   cursor: pointer;
 }
 .order-card:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .head {
@@ -301,22 +301,22 @@ function viewLogistics() {
   align-items: center;
   gap: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px dashed #f2f3f5;
+  border-bottom: 1px dashed var(--yb-hairline);
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .code {
   font-family: ui-monospace, monospace;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-weight: 500;
 }
 .time {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 12px;
 }
 .seller {
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .body {
   display: grid;
@@ -330,12 +330,12 @@ function viewLogistics() {
   height: 80px;
   object-fit: cover;
   border-radius: 4px;
-  background: #f7f8fa;
+  background: var(--yb-fill);
 }
 .title {
   font-size: 14px;
   font-weight: 500;
-  color: #1d2129;
+  color: var(--yb-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -344,7 +344,7 @@ function viewLogistics() {
 }
 .addr {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-top: 6px;
   overflow: hidden;
   text-overflow: ellipsis;

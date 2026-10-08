@@ -289,7 +289,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .input-area {
   padding: 12px 16px;
-  border-top: 1px solid #f2f3f5;
+  border-top: 1px solid var(--yb-hairline);
   background: #fff;
 }
 .toolbar {
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
 .tool-btn {
   background: transparent;
   border: none;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 12px;
   cursor: pointer;
   padding: 4px 8px;
@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
   transition: background 0.15s;
 }
 .tool-btn:hover:not(:disabled) {
-  background: #f7f8fa;
+  background: var(--yb-fill);
   color: var(--bw-brand-primary);
 }
 .tool-btn:focus-visible {
@@ -319,7 +319,7 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
 }
 .tool-btn:disabled {
-  color: #c9cdd4;
+  color: var(--yb-hairline-2);
   cursor: not-allowed;
 }
 .voice-btn:not(:disabled) { color: #00b42a; }
@@ -333,6 +333,6 @@ onBeforeUnmount(() => {
 }
 .hint {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 </style>

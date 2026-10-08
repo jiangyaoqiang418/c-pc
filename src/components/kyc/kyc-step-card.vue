@@ -36,13 +36,13 @@ defineProps<Props>();
 }
 .step-card.active {
   border-color: var(--bw-brand-primary);
-  background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
 }
 .badge {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #c9cdd4;
+  background: var(--yb-hairline-2);
   color: #fff;
   display: flex;
   align-items: center;
@@ -61,18 +61,18 @@ defineProps<Props>();
 }
 .step-num {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-bottom: 2px;
 }
 .title {
   font-size: 16px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 4px;
 }
 .desc {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-bottom: 12px;
 }
 .content {

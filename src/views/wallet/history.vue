@@ -298,7 +298,7 @@ function handleEmptyAction() {
   font-size: 20px;
   font-weight: 600;
   margin: 0;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .filter-card,
 .list-card {

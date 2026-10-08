@@ -335,7 +335,7 @@ async function submit() {
 }
 .load-alert { margin-top: 20px; }
 .private-previews { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
-.private-preview { display: flex; flex-direction: column; gap: 6px; color: #4e5969; font-size: 12px; }
+.private-preview { display: flex; flex-direction: column; gap: 6px; color: var(--yb-ink-2); font-size: 12px; }
 .status-head {
   display: flex;
   gap: 16px;
@@ -348,8 +348,8 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #4e5969;
-  background: #f2f3f5;
+  color: var(--yb-ink-2);
+  background: var(--yb-hairline);
   flex-shrink: 0;
 }
 .status-icon[data-status='approved'] {
@@ -370,7 +370,7 @@ async function submit() {
 }
 .status-sub {
   margin: 0;
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
 }
 .actions {

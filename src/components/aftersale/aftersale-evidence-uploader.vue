@@ -130,7 +130,7 @@ function remove(i: number) {
   height: 96px;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
 }
 .cell img {
   width: 100%;
@@ -159,10 +159,10 @@ function remove(i: number) {
 .add {
   width: 96px;
   height: 96px;
-  background: #f7f8fa;
-  border: 1.5px dashed #c9cdd4;
+  background: var(--yb-fill);
+  border: 1.5px dashed var(--yb-hairline-2);
   border-radius: 6px;
-  color: #86909c;
+  color: var(--yb-muted);
   cursor: pointer;
   font-size: 12px;
 }
@@ -174,6 +174,6 @@ function remove(i: number) {
   flex-basis: 100%;
   margin-top: 4px;
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 </style>

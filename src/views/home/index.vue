@@ -393,7 +393,7 @@ function goProductList(sort: realProductApi.StorefrontSort = 'DEFAULT') {
   cursor: pointer;
 }
 .hero-single:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 3px;
 }
 .hero-unavailable {
@@ -412,7 +412,7 @@ function goProductList(sort: realProductApi.StorefrontSort = 'DEFAULT') {
 .hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(110deg, rgba(15, 17, 26, 0.72) 0%, rgba(15, 17, 26, 0.35) 50%, transparent 100%);
+  background: linear-gradient(110deg, rgba(32, 56, 46, 0.72) 0%, rgba(32, 56, 46, 0.35) 50%, transparent 100%);
 }
 .hero-content {
   position: relative;
@@ -574,8 +574,8 @@ function goProductList(sort: realProductApi.StorefrontSort = 'DEFAULT') {
   padding: 28px;
 }
 .channel-card.bg-champagne { background: var(--yb-champagne); }
-.channel-card.bg-cream { background: #FBF7F0; }
-.channel-card.bg-purple { background: rgba(91, 92, 231, 0.08); }
+.channel-card.bg-cream { background: var(--yb-champagne); }
+.channel-card.bg-purple { background: rgba(var(--yb-primary-rgb), 0.08); }
 .ch-content {
   display: flex;
   flex-direction: column;

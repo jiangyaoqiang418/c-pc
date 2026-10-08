@@ -368,7 +368,7 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
 .wallet-install { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .wallet-install-link { color: rgb(var(--primary-6)); text-decoration: underline; }
 .hash-input { width: 360px; max-width: 100%; }
-.muted { color: #697586; }
+.muted { color: var(--yb-muted); }
 .restart { margin-top: 20px; }
 .actions { margin-top: 24px; }
 </style>

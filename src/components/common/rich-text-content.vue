@@ -13,8 +13,8 @@ const html = computed(() => sanitizeRichText(props.content) || `<p>${props.empty
 .rich-text-content :deep(p), .rich-text-content :deep(h2), .rich-text-content :deep(h3), .rich-text-content :deep(blockquote) { margin: 0 0 12px; }
 .rich-text-content :deep(ul), .rich-text-content :deep(ol) { margin: 0 0 12px; padding-left: 24px; }
 .rich-text-content :deep(img) { display: block; max-width: 100%; height: auto; margin: 12px auto; border-radius: 6px; }
-.rich-text-content :deep(a) { color: #165dff; text-decoration: underline; }
-.rich-text-content :deep(blockquote) { padding-left: 12px; border-left: 3px solid #c9cdd4; color: #4e5969; }
+.rich-text-content :deep(a) { color: var(--yb-brand-primary); text-decoration: underline; }
+.rich-text-content :deep(blockquote) { padding-left: 12px; border-left: 3px solid var(--yb-hairline-2); color: var(--yb-ink-2); }
 .rich-text-content :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
-.rich-text-content :deep(th), .rich-text-content :deep(td) { padding: 7px; border: 1px solid #c9cdd4; text-align: left; }
+.rich-text-content :deep(th), .rich-text-content :deep(td) { padding: 7px; border: 1px solid var(--yb-hairline-2); text-align: left; }
 </style>

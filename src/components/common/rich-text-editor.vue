@@ -81,15 +81,15 @@ async function uploadImage(event: Event) {
 </template>
 
 <style scoped>
-.rich-editor { width: 100%; border: 1px solid #c9cdd4; border-radius: 4px; background: #fff; overflow: hidden; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-bottom: 1px solid #e5e6eb; background: #f7f8fa; }
-.toolbar button { padding: 4px 9px; border: 1px solid #c9cdd4; border-radius: 4px; background: #fff; color: #4e5969; cursor: pointer; }
-.toolbar button.active { border-color: #165dff; color: #165dff; background: #e8f3ff; }
+.rich-editor { width: 100%; border: 1px solid var(--yb-hairline-2); border-radius: 4px; background: #fff; overflow: hidden; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-bottom: 1px solid var(--yb-hairline-2); background: var(--yb-fill); }
+.toolbar button { padding: 4px 9px; border: 1px solid var(--yb-hairline-2); border-radius: 4px; background: #fff; color: var(--yb-ink-2); cursor: pointer; }
+.toolbar button.active { border-color: var(--yb-brand-primary); color: var(--yb-brand-primary); background: var(--yb-primary-soft); }
 .toolbar button:disabled, .disabled { opacity: .65; pointer-events: none; }
 .editor-content :deep(.tiptap) { min-height: 180px; padding: 12px; outline: none; line-height: 1.7; }
 .editor-content :deep(.tiptap p) { margin: 0 0 10px; }
 .editor-content :deep(.tiptap img) { max-width: 100%; height: auto; border-radius: 6px; }
 .editor-content :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
-.editor-content :deep(th), .editor-content :deep(td) { min-width: 70px; padding: 7px; border: 1px solid #c9cdd4; vertical-align: top; }
-.editor-tip { padding: 0 12px 9px; color: #86909c; font-size: 12px; }
+.editor-content :deep(th), .editor-content :deep(td) { min-width: 70px; padding: 7px; border: 1px solid var(--yb-hairline-2); vertical-align: top; }
+.editor-tip { padding: 0 12px 9px; color: var(--yb-muted); font-size: 12px; }
 </style>

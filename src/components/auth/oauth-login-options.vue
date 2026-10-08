@@ -145,8 +145,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .oauth-section { margin-top: 22px; }
-.oauth-divider { display: flex; align-items: center; gap: 12px; color: #86909c; font-size: 12px; margin-bottom: 16px; }
-.oauth-divider::before, .oauth-divider::after { content: ''; height: 1px; flex: 1; background: #e5e6eb; }
+.oauth-divider { display: flex; align-items: center; gap: 12px; color: var(--yb-muted); font-size: 12px; margin-bottom: 16px; }
+.oauth-divider::before, .oauth-divider::after { content: ''; height: 1px; flex: 1; background: var(--yb-hairline-2); }
 .oauth-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .oauth-options--single { grid-template-columns: 1fr; }
 .oauth-options--single .oauth-option { justify-self: center; }
@@ -154,7 +154,7 @@ onBeforeUnmount(() => {
 .oauth-provider { width: 100%; min-height: 40px; display: flex; align-items: center; justify-content: center; }
 .oauth-option--disabled { opacity: .55; pointer-events: none; }
 .oauth-option--loading .oauth-provider { visibility: hidden; }
-.oauth-placeholder, .oauth-busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #dadce0; border-radius: 6px; background: #fff; color: #4e5969; font-size: 13px; }
+.oauth-placeholder, .oauth-busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #dadce0; border-radius: 6px; background: #fff; color: var(--yb-ink-2); font-size: 13px; }
 .oauth-option--telegram .oauth-placeholder, .oauth-option--telegram .oauth-busy { border-color: #8bcbed; background: #eef8fd; color: #1677a8; }
 @media (max-width: 520px) { .oauth-options { grid-template-columns: 1fr; } }
 </style>

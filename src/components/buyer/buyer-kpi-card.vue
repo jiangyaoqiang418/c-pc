@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue';
+import { computed, onMounted, shallowRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import VChart from 'vue-echarts';
 import { use } from 'echarts/core';
@@ -19,7 +19,15 @@ interface Props {
   delta?: number; // 百分比变化 +12 / -3
   sparkline?: number[];
 }
-const props = withDefaults(defineProps<Props>(), { color: '#5B5CE7' });
+const props = withDefaults(defineProps<Props>(), { color: 'var(--yb-brand-primary)' });
+
+// ECharts 渐变需要实际色值，不能给 CSS 变量直接拼接透明度后缀。
+const themeStyle = shallowRef<CSSStyleDeclaration>();
+onMounted(() => { themeStyle.value = getComputedStyle(document.documentElement); });
+const chartColor = computed(() => {
+  const token = /^var\((--[\w-]+)\)$/.exec(props.color);
+  return token ? themeStyle.value?.getPropertyValue(token[1]).trim() || '#295D49' : props.color;
+});
 
 const sparklineOption = computed(() => {
   const data = props.sparkline || genFake(props.value);
@@ -34,14 +42,14 @@ const sparklineOption = computed(() => {
         data,
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: props.color, width: 1.6 },
+        lineStyle: { color: chartColor.value, width: 1.6 },
         areaStyle: {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: `${props.color}30` },
-              { offset: 1, color: `${props.color}00` }
+              { offset: 0, color: `${chartColor.value}30` },
+              { offset: 1, color: `${chartColor.value}00` }
             ]
           }
         }

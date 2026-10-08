@@ -90,7 +90,7 @@ function goOrder() {
 .group-header {
   background: #fff;
   padding: 16px 20px;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--yb-hairline);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -107,7 +107,7 @@ function goOrder() {
   font-family: ui-monospace, monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .presale-flag {
   font-size: 11px;
@@ -115,18 +115,18 @@ function goOrder() {
 }
 .product-title {
   font-size: 14px;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 4px;
 }
 .amount-row {
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .lbl {
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .amount {
   color: #f53f3f;
@@ -158,7 +158,7 @@ function goOrder() {
   font-size: 12px;
   border: 2px solid #fff;
   margin-left: -6px;
-  box-shadow: 0 0 0 1px #f2f3f5;
+  box-shadow: 0 0 0 1px var(--yb-hairline);
 }
 .avatar:first-child {
   margin-left: 0;

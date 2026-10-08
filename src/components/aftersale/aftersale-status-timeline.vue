@@ -81,7 +81,7 @@ const steps = computed<Step[]>(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #e5e6eb;
+  background: var(--yb-hairline-2);
   color: #fff;
   display: flex;
   align-items: center;
@@ -103,11 +103,11 @@ const steps = computed<Step[]>(() => {
 .label {
   margin-top: 8px;
   font-size: 12px;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-weight: 500;
 }
 .step.wait .label {
-  color: #c9cdd4;
+  color: var(--yb-hairline-2);
 }
 .line {
   position: absolute;
@@ -115,7 +115,7 @@ const steps = computed<Step[]>(() => {
   left: 50%;
   width: 100%;
   height: 2px;
-  background: #e5e6eb;
+  background: var(--yb-hairline-2);
   z-index: 1;
 }
 .step.finish .line {

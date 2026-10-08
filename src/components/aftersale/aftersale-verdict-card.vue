@@ -52,7 +52,7 @@ const meta = computed(() => (props.caseRecord.verdict ? VERDICT_META[props.caseR
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .badge {
   color: #fff;
@@ -63,13 +63,13 @@ const meta = computed(() => (props.caseRecord.verdict ? VERDICT_META[props.caseR
 }
 .tone {
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   margin-bottom: 12px;
 }
 .note {
   margin-top: 12px;
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .lbl {
   font-weight: 600;

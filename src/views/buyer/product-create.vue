@@ -196,7 +196,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
   margin: 0;
 }
 .hint {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
   margin: 0 0 20px;
 }

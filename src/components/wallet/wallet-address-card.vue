@@ -49,7 +49,7 @@ function copy() {
 <style scoped>
 .addr-card {
   background: #fff;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   border-radius: var(--bw-card-radius);
   padding: 16px 20px;
 }
@@ -61,7 +61,7 @@ function copy() {
 }
 .name {
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .body {
   display: flex;
@@ -71,7 +71,7 @@ function copy() {
 .qr {
   width: 120px;
   height: 120px;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   border-radius: 4px;
 }
 .info {
@@ -79,15 +79,15 @@ function copy() {
 }
 .lbl {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-bottom: 4px;
 }
 .addr {
   font-family: ui-monospace, monospace;
   font-size: 13px;
-  color: #1d2129;
+  color: var(--yb-ink);
   word-break: break-all;
-  background: #f7f8fa;
+  background: var(--yb-fill);
   padding: 8px 10px;
   border-radius: 4px;
   margin-bottom: 8px;
@@ -96,7 +96,7 @@ function copy() {
   margin-top: 12px;
   background: #fff7e6;
   border-left: 3px solid #ff7d00;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 12px;
   padding: 8px 12px;
   border-radius: 0 4px 4px 0;

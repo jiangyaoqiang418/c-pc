@@ -82,7 +82,7 @@ function onSearchKeydown(event: KeyboardEvent) {
 }
 .search-box:focus-within {
   border-color: var(--yb-primary);
-  box-shadow: 0 0 0 4px rgba(91, 92, 231, 0.12);
+  box-shadow: 0 0 0 4px rgba(var(--yb-primary-rgb), 0.12);
 }
 
 .search-input {
@@ -104,7 +104,7 @@ function onSearchKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 6px;
   padding: 0 24px;
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
   border: none;
   cursor: pointer;
@@ -113,7 +113,7 @@ function onSearchKeydown(event: KeyboardEvent) {
   transition: background 0.15s;
 }
 .search-btn:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
 }
 
 .hot-words {
@@ -134,7 +134,7 @@ function onSearchKeydown(event: KeyboardEvent) {
   color: var(--yb-primary);
 }
 .hot-word:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
   border-radius: 2px;
 }

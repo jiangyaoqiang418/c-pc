@@ -64,14 +64,14 @@ const iconName = computed(() => (props.level === 'VIP2' ? 'lucide:crown' : props
 .vip-badge.level-vip1 {
   background: var(--yb-champagne);
   color: var(--yb-gold);
-  border: 1px solid rgba(184, 147, 90, 0.24);
+  border: 1px solid rgba(var(--yb-gold-rgb), 0.24);
 }
 
 /* VIP2 - 金 gradient + subtle glow */
 .vip-badge.level-vip2 {
-  background: linear-gradient(135deg, #D4A574 0%, #B8935A 50%, #8F6E3E 100%);
-  color: #FFFFFF;
-  box-shadow: 0 2px 8px rgba(184, 147, 90, 0.3);
+  background: linear-gradient(135deg, var(--yb-apricot) 0%, var(--yb-accent) 100%);
+  color: var(--yb-accent-ink);
+  box-shadow: 0 2px 8px rgba(var(--yb-gold-rgb), 0.3);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 </style>

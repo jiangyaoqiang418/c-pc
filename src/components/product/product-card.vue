@@ -80,7 +80,7 @@ function goDetail() {
   box-shadow: var(--yb-shadow-glow);
 }
 .pc-product-card:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: -2px;
 }
 .cover-wrap {
@@ -106,7 +106,7 @@ function goDetail() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: rgba(15, 17, 26, 0.72);
+  background: rgba(32, 56, 46, 0.72);
   color: #fff;
   padding: 4px 10px;
   border-radius: var(--yb-radius-pill);
@@ -114,7 +114,7 @@ function goDetail() {
   font-weight: 500;
 }
 .badge.overseas {
-  background: rgba(184, 147, 90, 0.92);
+  background: rgba(var(--yb-gold-rgb), 0.92);
 }
 .sold-out {
   position: absolute;

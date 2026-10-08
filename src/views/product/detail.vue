@@ -498,7 +498,7 @@ async function favorite() {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border: 1px solid rgba(184, 147, 90, 0.15);
+  border: 1px solid rgba(var(--yb-gold-rgb), 0.15);
 }
 .price-main {
   display: flex;
@@ -559,7 +559,7 @@ async function favorite() {
   align-items: center;
   gap: 14px;
   padding-top: 14px;
-  border-top: 1px solid rgba(184, 147, 90, 0.2);
+  border-top: 1px solid rgba(var(--yb-gold-rgb), 0.2);
   font-size: 12px;
   color: var(--yb-ink-2);
 }
@@ -579,7 +579,7 @@ async function favorite() {
 .price-detail .sep {
   width: 1px;
   height: 12px;
-  background: rgba(184, 147, 90, 0.28);
+  background: rgba(var(--yb-gold-rgb), 0.28);
 }
 
 /* Overseas warn */
@@ -683,13 +683,13 @@ async function favorite() {
   justify-content: center;
 }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover:not(:disabled) {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(250, 36, 60, 0.28);
+  box-shadow: 0 12px 32px rgba(var(--yb-primary-rgb), 0.28);
 }
 .btn.ghost {
   background: var(--yb-surface);
@@ -806,7 +806,7 @@ async function favorite() {
 }
 .tab:hover { color: var(--yb-ink); }
 .tab:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: -2px;
 }
 .tab.active {

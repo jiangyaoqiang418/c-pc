@@ -88,16 +88,16 @@ onBeforeUnmount(() => {
 }
 .version {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   display: flex;
   gap: 6px;
   align-items: center;
   padding: 0 0 12px;
-  border-bottom: 1px dashed #f2f3f5;
+  border-bottom: 1px dashed var(--yb-hairline);
   margin-bottom: 16px;
 }
 .ver {
-  background: #f3f7ff;
+  background: var(--yb-primary-soft);
   color: var(--bw-brand-primary);
   padding: 2px 8px;
   border-radius: 3px;
@@ -109,7 +109,7 @@ onBeforeUnmount(() => {
 .content {
   font-size: 13px;
   line-height: 1.7;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   white-space: pre-wrap;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
   margin: 0;

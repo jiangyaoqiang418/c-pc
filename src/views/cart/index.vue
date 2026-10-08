@@ -216,7 +216,7 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 600;
   margin: 0;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .cart-card {
   margin-bottom: 16px;
@@ -229,14 +229,14 @@ onMounted(() => {
   padding: 12px 16px;
 }
 .head-row {
-  background: #f7f8fa;
+  background: var(--yb-fill);
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-weight: 500;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--yb-hairline);
 }
 .data-row {
-  border-bottom: 1px solid #f7f8fa;
+  border-bottom: 1px solid var(--yb-fill);
 }
 .data-row.invalid {
   opacity: 0.55;
@@ -251,7 +251,7 @@ onMounted(() => {
   height: 64px;
   border-radius: 4px;
   object-fit: cover;
-  background: #f7f8fa;
+  background: var(--yb-fill);
 }
 .product-info {
   flex: 1;
@@ -260,7 +260,7 @@ onMounted(() => {
 .product-title {
   font-size: 13px;
   font-weight: 500;
-  color: #1d2129;
+  color: var(--yb-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -276,7 +276,7 @@ onMounted(() => {
 }
 .seller {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .qty-input {
   width: 100px;
@@ -382,12 +382,12 @@ onMounted(() => {
   overflow-wrap: anywhere;
 }
 .lbl {
-  color: #86909c;
+  color: var(--yb-muted);
   margin-right: 8px;
   white-space: nowrap;
 }
 .muted {
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .small {
   font-size: 12px;

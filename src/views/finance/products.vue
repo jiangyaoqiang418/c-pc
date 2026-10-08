@@ -313,9 +313,9 @@ function scrollToList() {
   gap: 6px;
 }
 .action-btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
-  border-color: var(--yb-brand-pink);
+  border-color: var(--yb-brand-primary);
 }
 .action-btn:hover {
   transform: translateY(-1px);
@@ -323,7 +323,7 @@ function scrollToList() {
 
 /* Chart card */
 .chart-card {
-  background: linear-gradient(180deg, #F0FDF7 0%, #FFFFFF 50%);
+  background: linear-gradient(180deg, var(--yb-primary-soft) 0%, #FFFFFF 50%);
   border: 1px solid var(--yb-hairline);
   border-radius: 20px;
   padding: 28px 32px;
@@ -386,7 +386,7 @@ function scrollToList() {
 .ef-card:hover {
   border-color: var(--yb-hairline-2);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(15, 17, 26, 0.06);
+  box-shadow: 0 8px 24px rgba(32, 56, 46, 0.06);
 }
 .ef-head {
   display: flex;
@@ -396,7 +396,7 @@ function scrollToList() {
   cursor: pointer;
 }
 .ef-head:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 4px;
   border-radius: 6px;
 }

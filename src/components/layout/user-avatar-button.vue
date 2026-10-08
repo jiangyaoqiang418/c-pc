@@ -85,7 +85,7 @@ function logout() {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
   display: flex;
   align-items: center;

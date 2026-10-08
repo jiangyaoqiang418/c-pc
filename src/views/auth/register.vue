@@ -75,7 +75,7 @@ async function submit() {
   margin: 0 0 6px;
 }
 .hint {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 12px;
   margin-bottom: 16px;
 }
@@ -83,6 +83,6 @@ async function submit() {
   margin-top: 16px;
   text-align: center;
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 </style>

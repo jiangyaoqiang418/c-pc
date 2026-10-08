@@ -161,13 +161,13 @@ function submit() {
 }
 .lbl {
   width: 88px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
 }
 .score-label {
   font-size: 14px;
   font-weight: 500;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   margin-left: 12px;
 }
 .photos {
@@ -210,10 +210,10 @@ function submit() {
 .add {
   width: 80px;
   height: 80px;
-  background: #f7f8fa;
-  border: 1px dashed #c9cdd4;
+  background: var(--yb-fill);
+  border: 1px dashed var(--yb-hairline-2);
   border-radius: 4px;
-  color: #86909c;
+  color: var(--yb-muted);
   cursor: pointer;
   font-size: 12px;
 }

@@ -158,8 +158,8 @@ function submit(restoring = false) {
 .aftersale-create-page { max-width: 960px; margin: 0 auto; padding-top: 16px; }
 .bread,.order-card,.step-card,.notice { margin-bottom: 12px; }
 .order-row { display:grid; grid-template-columns:80px 1fr auto; gap:16px; align-items:center; }
-.cover { width:80px; height:80px; object-fit:cover; border-radius:4px; background:#f7f8fa; }
-.meta { color:#86909c; font-size:12px; margin-top:6px; }.step-title { font-weight:600; margin-bottom:14px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }
+.cover { width:80px; height:80px; object-fit:cover; border-radius:4px; background:var(--yb-fill); }
+.meta { color:var(--yb-muted); font-size:12px; margin-top:6px; }.step-title { font-weight:600; margin-bottom:14px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }
 .aftersale-create-content { display:block; width:100%; max-width:560px; margin:0 auto; }
 .actions-card :deep(.arco-card-body) { display:flex; justify-content:center; gap:16px; }
 @media (max-width: 640px) {

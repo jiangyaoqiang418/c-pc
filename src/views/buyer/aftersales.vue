@@ -221,7 +221,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 .buyer-aftersales-page { padding-top: 16px; }
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .page-title { margin: 0; font-size: 20px; font-weight: 600; }
-.page-header p { margin: 6px 0 0; color: #86909c; font-size: 12px; }
+.page-header p { margin: 6px 0 0; color: var(--yb-muted); font-size: 12px; }
 .filter-card, .refund-card { border-radius: var(--bw-card-radius); }
 .filter-row { display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px; }
 .filter-row :deep(.arco-input-wrapper) { width: 260px; }
@@ -230,12 +230,12 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 .product-summary { display: flex; min-width: 0; gap: 12px; }
 .product-summary img { width: 52px; height: 52px; flex: 0 0 auto; border-radius: 4px; object-fit: cover; }
 .product-text { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
-.product-text strong { overflow-wrap: anywhere; color: #1d2129; font-size: 14px; }
-.product-text span, .reason, .review-remark { color: #86909c; font-size: 12px; }
-.details { margin-top: 14px; padding-top: 14px; border-top: 1px solid #f2f3f5; }
-.reason, .review-remark { margin-top: 10px; line-height: 1.65; color: #4e5969; overflow-wrap: anywhere; }
-.reason span, .review-remark span, .evidence > span { color: #86909c; }
-.evidence { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; color: #4e5969; font-size: 12px; }
+.product-text strong { overflow-wrap: anywhere; color: var(--yb-ink); font-size: 14px; }
+.product-text span, .reason, .review-remark { color: var(--yb-muted); font-size: 12px; }
+.details { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--yb-hairline); }
+.reason, .review-remark { margin-top: 10px; line-height: 1.65; color: var(--yb-ink-2); overflow-wrap: anywhere; }
+.reason span, .review-remark span, .evidence > span { color: var(--yb-muted); }
+.evidence { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; color: var(--yb-ink-2); font-size: 12px; }
 .pagination { display: flex; justify-content: center; margin: 20px 0 32px; }
 @media (max-width: 640px) {
   .page-header { align-items: flex-start; flex-direction: column; }

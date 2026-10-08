@@ -115,6 +115,6 @@ function submit() {
 </template>
 
 <style scoped>
-.hint { color: #4e5969; font-size: 13px; margin: 0 0 12px; }
+.hint { color: var(--yb-ink-2); font-size: 13px; margin: 0 0 12px; }
 .alert { margin-bottom: 16px; }
 </style>

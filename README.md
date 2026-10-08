@@ -65,6 +65,14 @@ src/
 - Notify WebSocket 的直连和 Vite 代理均已验证 `101 → READY → PING/PONG`；Chrome/Safari 双账号浏览器端的实时消息、已读、撤回与断线补偿也已完成。外部缺口为充值地址、提现真实链上回归，以及没有 C 端契约的 CMS、AI 模块。
 - 逐模块路径、字段差异及后端补充项见 [Swagger 真实接口匹配矩阵](./docs/api-swagger-match-matrix.md)。
 
+## 主题配色
+
+- 全局主题位于 `src/styles/tokens.scss`，采用森林绿、暖白和金黄；`src/styles/main.css` 将主题映射到 Tailwind。
+- 主操作和链接使用 `--yb-brand-primary`，悬停使用 `--yb-brand-hover`，选中底色使用 `--yb-primary-soft`。
+- 活动背景使用 `--yb-accent` 并搭配 `--yb-accent-ink`；白底上的金色小字使用更深的 `--yb-gold`。
+- 旧 `--yb-brand-pink*`、`--yb-primary*` 和 `--bw-*` 保留兼容映射。Arco 主色色阶和中性色在 `body` 上同步覆盖，保留组件的状态色和禁用样式。
+- 页面样式优先引用主题变量；ECharts 渐变使用解析后的实际色值，SVG 和 CSS 图表可以直接引用主题变量。业务状态、角色标识和第三方品牌色保持各自语义。
+
 ## 开发边界
 
 - 保留现有页面流程、筛选、分页、弹窗、路由 query、空态和权限跳转。

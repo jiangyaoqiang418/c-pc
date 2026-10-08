@@ -60,6 +60,6 @@ watch(() => route.query.agreement, openAgreementFromQuery);
 .help-page { padding-top: 16px; }
 .page-title { font-size: 20px; font-weight: 600; margin: 0; }
 .agreements { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
-.agreements button { border: none; background: transparent; color: #4e5969; cursor: pointer; }
-.agreements button:hover { color: var(--yb-brand-pink); }
+.agreements button { border: none; background: transparent; color: var(--yb-ink-2); cursor: pointer; }
+.agreements button:hover { color: var(--yb-brand-primary); }
 </style>

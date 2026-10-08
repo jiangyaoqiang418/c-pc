@@ -25,8 +25,8 @@ const meta = computed(() => ({
 </template>
 
 <style scoped>
-.realtime-status { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; color: #86909c; font-size: 12px; white-space: nowrap; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #c9cdd4; }
+.realtime-status { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; color: var(--yb-muted); font-size: 12px; white-space: nowrap; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yb-hairline-2); }
 .is-open { color: #00a870; }.is-open .status-dot { background: #00b42a; }
 .is-connecting { color: #165dff; }.is-connecting .status-dot { background: #165dff; animation: pulse 1.4s ease-in-out infinite; }
 .is-closed { color: #d25f00; }.is-closed .status-dot { background: #f77234; }

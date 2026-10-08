@@ -97,15 +97,15 @@ function onChange(v: 'customer' | 'buyer') {
   color: var(--yb-ink);
 }
 .seg.active {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(250, 36, 60, 0.20);
+  box-shadow: 0 2px 8px rgba(var(--yb-primary-rgb), 0.20);
 }
 .seg.active:hover {
   color: #fff;
 }
 .seg:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 </style>

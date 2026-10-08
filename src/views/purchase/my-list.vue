@@ -328,13 +328,13 @@ function onCancel(req: Api.RealPurchase.Record) {
   white-space: nowrap;
 }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(91, 92, 231, 0.24);
+  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.24);
 }
 .btn.ghost {
   background: transparent;
@@ -378,11 +378,11 @@ function onCancel(req: Api.RealPurchase.Record) {
   color: var(--yb-ink);
 }
 .tab-pill:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .tab-pill.active {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
   font-weight: 700;
 }

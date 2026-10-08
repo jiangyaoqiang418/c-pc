@@ -191,18 +191,18 @@ async function submit(params: Api.RealAddress.AddressSaveParams) {
   display: flex;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #e5e6eb;
+  border: 1px solid var(--yb-hairline-2);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
 }
 .address-row:hover {
-  border-color: #94c1ff;
-  background: #f7faff;
+  border-color: rgb(var(--primary-4));
+  background: var(--yb-primary-soft);
 }
 .address-row.active {
   border-color: var(--bw-brand-primary);
-  background: #f3f7ff;
+  background: var(--yb-primary-soft);
 }
 .row-radio {
   display: flex;
@@ -212,7 +212,7 @@ async function submit(params: Api.RealAddress.AddressSaveParams) {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 1.5px solid #c9cdd4;
+  border: 1.5px solid var(--yb-hairline-2);
   display: inline-block;
   position: relative;
 }
@@ -236,14 +236,14 @@ async function submit(params: Api.RealAddress.AddressSaveParams) {
 }
 .receiver {
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .phone {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
 }
 .row-detail {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
   margin-top: 4px;
 }

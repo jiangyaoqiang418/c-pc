@@ -570,7 +570,7 @@ function contactShopper() {
   padding-top: 16px;
 }
 .hero-card {
-  background: linear-gradient(135deg, #fff 0%, #f7faff 100%);
+  background: linear-gradient(135deg, #fff 0%, var(--yb-primary-soft) 100%);
   border-radius: var(--bw-card-radius);
   margin-bottom: 16px;
 }
@@ -589,7 +589,7 @@ function contactShopper() {
 }
 .hero-meta {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-top: 4px;
 }
 .step-card {
@@ -600,7 +600,7 @@ function contactShopper() {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 12px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
@@ -625,7 +625,7 @@ function contactShopper() {
 .title {
   font-size: 14px;
   font-weight: 500;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .title[role="link"] {
   cursor: pointer;

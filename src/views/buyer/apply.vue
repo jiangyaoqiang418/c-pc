@@ -205,7 +205,7 @@ watch(() => userStore.currentUser?.id, () => {
 .hint {
   text-align: center;
   margin: 0 0 16px;
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
 }
 .status-card,
@@ -220,23 +220,23 @@ watch(() => userStore.currentUser?.id, () => {
   margin-bottom: 16px;
 }
 .status-time {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
 }
 .status-text {
   margin: 0 0 20px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .reason-block {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid #f2f3f5;
-  color: #4e5969;
+  border-top: 1px solid var(--yb-hairline);
+  color: var(--yb-ink-2);
   font-size: 13px;
 }
 .reason-block p {
   margin: 8px 0 0;
-  color: #1d2129;
+  color: var(--yb-ink);
   white-space: pre-wrap;
 }
 .reject-alert {

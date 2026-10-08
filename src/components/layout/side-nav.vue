@@ -189,7 +189,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 .cat-row:focus-visible,
 .mega-sub-title:focus-visible,
 .mega-brand:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: -2px;
 }
 .cat-num {
@@ -232,7 +232,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
   overflow-y: auto;
   background: var(--yb-surface);
   border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(15, 17, 26, 0.10);
+  box-shadow: 0 12px 28px rgba(32, 56, 46, 0.10);
   border: 1px solid var(--yb-hairline);
   padding: 20px 24px;
   z-index: 200;

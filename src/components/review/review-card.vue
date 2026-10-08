@@ -81,10 +81,10 @@ function goOrder() {
   background: #fff;
   border-radius: var(--bw-card-radius);
   margin-bottom: 12px;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
 }
 .review-card.hidden {
-  background: #f7f8fa;
+  background: var(--yb-fill);
 }
 .head {
   display: flex;
@@ -106,13 +106,13 @@ function goOrder() {
   gap: 12px;
 }
 .time {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 12px;
 }
 .content {
   font-size: 14px;
   line-height: 1.6;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 8px;
   white-space: pre-wrap;
 }
@@ -136,12 +136,12 @@ function goOrder() {
 }
 .meta {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .from {
   font-style: italic;
 }
-.reply { margin: 10px 0; padding: 8px 10px; border-radius: 4px; background: #f7f8fa; color: #4e5969; font-size: 13px; }
+.reply { margin: 10px 0; padding: 8px 10px; border-radius: 4px; background: var(--yb-fill); color: var(--yb-ink-2); font-size: 13px; }
 .hidden-overlay {
   padding: 20px 0;
   color: #ff7d00;
@@ -156,7 +156,7 @@ function goOrder() {
   margin-left: 12px;
 }
 .appeal-pending {
-  color: #165dff;
+  color: var(--yb-brand-primary);
   font-size: 12px;
 }
 .actions {

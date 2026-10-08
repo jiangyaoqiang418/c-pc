@@ -113,6 +113,6 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 </style>

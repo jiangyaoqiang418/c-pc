@@ -467,13 +467,13 @@ function changePage(page: number) {
 }
 .btn.sm { padding: 8px 16px; font-size: 12px; }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(91, 92, 231, 0.24);
+  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.24);
 }
 .btn.ghost {
   background: transparent;
@@ -530,7 +530,7 @@ function changePage(page: number) {
 /* ========== Notice ========== */
 .notice {
   background: var(--yb-champagne);
-  border: 1px solid rgba(184, 147, 90, 0.24);
+  border: 1px solid rgba(var(--yb-gold-rgb), 0.24);
   border-radius: 14px;
   padding: 14px 20px;
   margin-bottom: 16px;
@@ -542,7 +542,7 @@ function changePage(page: number) {
   width: 32px;
   height: 32px;
   border-radius: 999px;
-  background: rgba(184, 147, 90, 0.16);
+  background: rgba(var(--yb-gold-rgb), 0.16);
   color: var(--yb-gold);
   display: flex;
   align-items: center;
@@ -578,7 +578,7 @@ function changePage(page: number) {
   white-space: nowrap;
 }
 .notice-cta:hover {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
 }
 
 /* ========== Decorative title ========== */

@@ -92,7 +92,7 @@ const relativeTime = computed(() => {
   background: var(--yb-bg);
 }
 .txn-row:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: -2px;
 }
 .txn-row.compact {

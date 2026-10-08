@@ -290,11 +290,11 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
   white-space: nowrap;
 }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
 }
 .btn.ghost {

@@ -274,7 +274,7 @@ function handleEmptyAction() {
   margin-bottom: 12px;
 }
 .hero-card {
-  background: linear-gradient(135deg, #f5e8ff 0%, #fff 60%);
+  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
   border-radius: var(--bw-card-radius);
   margin-bottom: 16px;
 }
@@ -291,7 +291,7 @@ function handleEmptyAction() {
 .hero-code {
   font-size: 16px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-family: ui-monospace, monospace;
 }
 .layout-2col {
@@ -310,7 +310,7 @@ function handleEmptyAction() {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 12px;
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
@@ -320,7 +320,7 @@ function handleEmptyAction() {
   align-items: center;
   justify-content: space-around;
   padding: 16px 0;
-  background: #faf5ff;
+  background: var(--yb-primary-soft);
   border-radius: 4px;
 }
 .rate-cell {
@@ -328,17 +328,17 @@ function handleEmptyAction() {
 }
 .rate-cell .lbl {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .rate-cell .val {
   font-size: 22px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-family: ui-monospace, monospace;
   margin-top: 4px;
 }
 .rate-cell .val.accent {
-  color: #722ed1;
+  color: var(--yb-brand-primary);
 }
 .rate-cell.highlight {
   background: #fff;
@@ -347,7 +347,7 @@ function handleEmptyAction() {
 }
 .op {
   font-size: 20px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .vip-row {
   margin-top: 16px;
@@ -357,7 +357,7 @@ function handleEmptyAction() {
 }
 .vip-row .lbl {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .chart-card {
   margin-bottom: 16px;
@@ -366,7 +366,7 @@ function handleEmptyAction() {
   margin-top: 8px;
   text-align: center;
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .txn-card {
   margin-bottom: 16px;

@@ -333,13 +333,13 @@ watch(() => userStore.currentUser?.id, () => {
 .page { padding-top: 16px; }
 .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .page-head h1 { margin: 0 0 6px; font-size: 20px; }
-.page-head p { margin: 0; color: #86909c; font-size: 13px; }
+.page-head p { margin: 0; color: var(--yb-muted); font-size: 13px; }
 .session-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
-.session-card { border: 1px solid #f2f3f5; }
+.session-card { border: 1px solid var(--yb-hairline); }
 .session-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-.session-time, .session-meta { color: #86909c; font-size: 12px; margin-bottom: 10px; }
+.session-time, .session-meta { color: var(--yb-muted); font-size: 12px; margin-bottom: 10px; }
 .table-card { margin-top: 16px; }
 .product-cell { display: flex; align-items: center; gap: 10px; }
 .product-cell img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; }
-.form-hint { margin-top: 6px; color: #86909c; font-size: 12px; }
+.form-hint { margin-top: 6px; color: var(--yb-muted); font-size: 12px; }
 </style>

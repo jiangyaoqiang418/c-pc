@@ -240,12 +240,12 @@ async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
   background: #fff;
   border-radius: var(--bw-card-radius);
   padding: 16px 20px;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   transition: all 0.15s;
 }
 .addr-card.default {
   border-color: var(--bw-brand-primary);
-  background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
 }
 .addr-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -264,15 +264,15 @@ async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
 .name {
   font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .phone {
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .detail {
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   line-height: 1.6;
   margin-bottom: 12px;
   min-height: 2.5em;
@@ -282,6 +282,6 @@ async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
   gap: 6px;
   justify-content: flex-end;
   padding-top: 8px;
-  border-top: 1px dashed #f2f3f5;
+  border-top: 1px dashed var(--yb-hairline);
 }
 </style>

@@ -130,7 +130,7 @@ function goDetail() {
   overflow: hidden;
 }
 .pr-card:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .pr-card:hover {
@@ -241,7 +241,7 @@ function goDetail() {
   position: relative;
   padding: 16px 24px;
   background: linear-gradient(135deg, var(--yb-primary-soft) 0%, transparent 100%);
-  border: 1px solid rgba(91, 92, 231, 0.12);
+  border: 1px solid rgba(var(--yb-primary-rgb), 0.12);
   border-radius: var(--yb-radius-md);
   text-align: right;
   min-width: 140px;
@@ -279,7 +279,7 @@ function goDetail() {
   transform: translateY(-50%);
   width: 60px;
   height: 60px;
-  background: radial-gradient(circle, rgba(91, 92, 231, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--yb-primary-rgb), 0.15) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -331,13 +331,13 @@ function goDetail() {
   border-color: var(--yb-ink);
 }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(91, 92, 231, 0.24);
+  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.24);
 }
 .btn.danger {
   background: transparent;

@@ -36,11 +36,11 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
 <style scoped>
 .layout-checkout {
   min-height: 100vh;
-  background: #f7f8fa;
+  background: var(--yb-fill);
 }
 .header {
   background: #fff;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--yb-hairline);
 }
 .header-inner {
   max-width: 1320px;
@@ -57,7 +57,7 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
   cursor: pointer;
 }
 .logo:focus-visible {
-  outline: 2px solid var(--bw-brand-primary, #165dff);
+  outline: 2px solid var(--bw-brand-primary);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -77,15 +77,15 @@ const currentStep = computed(() => (route.name === 'checkout-success' ? 2 : 0));
 }
 .logo-name {
   font-weight: 700;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-size: 16px;
 }
 .divider {
-  color: #c9cdd4;
+  color: var(--yb-hairline-2);
   font-size: 14px;
 }
 .phase-label {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 14px;
 }
 .steps {

@@ -219,7 +219,7 @@ onBeforeUnmount(() => {
 .side-title {
   font-size: 13px;
   font-weight: 600;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   margin-bottom: 8px;
 }
 .content {
@@ -233,15 +233,15 @@ onBeforeUnmount(() => {
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #f2f3f5;
+  border-bottom: 1px solid var(--yb-hairline);
 }
 .content-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .content-meta {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 </style>

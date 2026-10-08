@@ -239,12 +239,12 @@ function handleEmptyAction() {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 4px;
 }
 .meta {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 @media (max-width: 640px) {
   .review-write-page { margin: 0; }

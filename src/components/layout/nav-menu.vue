@@ -157,7 +157,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 }
 .nav-item {
   font-size: 14px;
-  color: #1d2129;
+  color: var(--yb-ink);
   cursor: pointer;
   padding: 8px 0;
   font-weight: 500;
@@ -195,7 +195,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 }
 .col-root {
   width: 200px;
-  border-right: 1px solid #f2f3f5;
+  border-right: 1px solid var(--yb-hairline);
   list-style: none;
   margin: 0;
 }
@@ -206,12 +206,12 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
 }
 .root-row:hover,
 .root-row.active {
-  background: #f3f7ff;
+  background: var(--yb-primary-soft);
   color: var(--bw-brand-primary);
 }
 .arrow {
@@ -229,11 +229,11 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 .sub-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 6px;
   cursor: pointer;
   padding-bottom: 4px;
-  border-bottom: 1px solid #f7f8fa;
+  border-bottom: 1px solid var(--yb-fill);
 }
 .sub-title:hover {
   color: var(--bw-brand-primary);
@@ -245,7 +245,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 }
 .brand-link {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   cursor: pointer;
   padding: 2px 0;
 }

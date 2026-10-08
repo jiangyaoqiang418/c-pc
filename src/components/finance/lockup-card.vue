@@ -99,7 +99,7 @@ function goDetail() {
         :percent="progressPct"
         :show-text="false"
         size="small"
-        :color="order.status === 'SETTLED' ? '#00b42a' : '#722ed1'"
+        :color="order.status === 'SETTLED' ? '#00b42a' : 'var(--yb-brand-primary)'"
       />
       <div class="progress-text">
         已过 {{ daysPassed }} / {{ lockDaysLabel }} 天
@@ -128,7 +128,7 @@ function goDetail() {
   cursor: pointer;
 }
 .lockup-card:focus-visible {
-  outline: 2px solid var(--yb-brand-pink);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
 .head {
@@ -137,7 +137,7 @@ function goDetail() {
   justify-content: space-between;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px dashed #f2f3f5;
+  border-bottom: 1px dashed var(--yb-hairline);
 }
 .name-block {
   display: flex;
@@ -147,11 +147,11 @@ function goDetail() {
 .name {
   font-size: 16px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .code {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   font-family: ui-monospace, monospace;
 }
 .meta-row {
@@ -167,16 +167,16 @@ function goDetail() {
 }
 .lbl {
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .val {
   font-size: 15px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   font-family: ui-monospace, monospace;
 }
 .val.rate {
-  color: #722ed1;
+  color: var(--yb-brand-primary);
 }
 .val.interest {
   color: #00b42a;
@@ -186,11 +186,11 @@ function goDetail() {
 }
 .progress-text {
   font-size: 11px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   margin-top: 4px;
 }
 .muted {
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .actions {
   display: flex;

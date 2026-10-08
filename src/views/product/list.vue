@@ -275,14 +275,14 @@ function onPageChange(p: number) {
 }
 .filter-label {
   width: 64px;
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 13px;
 }
 .price-input {
   width: 120px;
 }
 .price-dash {
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .result-bar {
   background: #fff;
@@ -296,10 +296,10 @@ function onPageChange(p: number) {
 .result-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .muted {
-  color: #86909c;
+  color: var(--yb-muted);
   font-weight: 400;
   margin-left: 8px;
 }

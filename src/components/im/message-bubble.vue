@@ -123,7 +123,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .msg-row.left { align-items: flex-start; }
 .msg-row.right { align-items: flex-end; }
 .msg-row.center { align-items: center; }
-.msg-meta { display: flex; gap: 8px; font-size: 11px; color: #86909c; margin-bottom: 4px; padding: 0 4px; }
+.msg-meta { display: flex; gap: 8px; font-size: 11px; color: var(--yb-muted); margin-bottom: 4px; padding: 0 4px; }
 .msg-row.right .msg-meta { flex-direction: row-reverse; }
 .sender-name { font-weight: 500; }
 .role-tag { padding: 0 5px; border-radius: 8px; font-size: 10px; }
@@ -131,11 +131,11 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .role-tag.seller { background: #f5e8ff; color: #722ed1; }
 .role-tag.admin { background: #fff3e8; color: #d46b08; }
 .bubble { max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-break: break-word; }
-.bubble.text.left { background: #fff; color: #1d2129; border: 1px solid #f2f3f5; }
+.bubble.text.left { background: #fff; color: var(--yb-ink); border: 1px solid var(--yb-hairline); }
 .bubble.text.right { background: var(--bw-brand-primary); color: #fff; }
-.bubble.system { background: #f2f3f5; color: #86909c; font-size: 12px; padding: 4px 12px; border-radius: 4px; border: none; }
-.bubble.media { padding: 4px; background: #fff; border: 1px solid #f2f3f5; }
-.bubble.media.right { background: #f3f7ff; }
+.bubble.system { background: var(--yb-hairline); color: var(--yb-muted); font-size: 12px; padding: 4px 12px; border-radius: 4px; border: none; }
+.bubble.media { padding: 4px; background: #fff; border: 1px solid var(--yb-hairline); }
+.bubble.media.right { background: var(--yb-primary-soft); }
 .media-image-button { display: block; padding: 0; border: 0; border-radius: 8px; background: transparent; cursor: zoom-in; }
 .media-img { max-width: 240px; max-height: 240px; border-radius: 8px; display: block; }
 .voice { display: flex; align-items: center; gap: 8px; }
@@ -143,14 +143,14 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .video { position: relative; }
 .video video, .video-placeholder { width: 280px; max-width: 65vw; aspect-ratio: 16 / 9; border-radius: 8px; background: linear-gradient(135deg, #252a34, #111827); color: #fff; display: flex; align-items: center; justify-content: center; }
 .video-duration { position: absolute; right: 9px; bottom: 8px; padding: 1px 5px; border-radius: 4px; background: rgba(0,0,0,.65); color: #fff; font-size: 10px; pointer-events: none; }
-.message-status { display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px; color: #86909c; font-size: 10px; }
+.message-status { display: flex; align-items: center; gap: 8px; margin-top: 3px; padding: 0 4px; color: var(--yb-muted); font-size: 10px; }
 .failed { color: #f53f3f; }
 .recall-btn { border: 0; padding: 0; background: transparent; color: #165dff; cursor: pointer; font-size: 10px; }
-.order-card { width: 360px; max-width: 80%; padding: 0; overflow: hidden; display: flex; text-align: left; background: #fff; border: 1px solid #e5e6eb; border-radius: 10px; cursor: pointer; }
+.order-card { width: 360px; max-width: 80%; padding: 0; overflow: hidden; display: flex; text-align: left; background: #fff; border: 1px solid var(--yb-hairline-2); border-radius: 10px; cursor: pointer; }
 .order-cover { width: 88px; height: 88px; object-fit: cover; flex-shrink: 0; }
 .order-card-body { min-width: 0; flex: 1; padding: 12px; }
-.order-title { color: #1d2129; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.order-meta { margin-top: 5px; color: #86909c; font-size: 11px; }
-.order-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; color: #4e5969; font-size: 11px; }
+.order-title { color: var(--yb-ink); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-meta { margin-top: 5px; color: var(--yb-muted); font-size: 11px; }
+.order-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--yb-ink-2); font-size: 11px; }
 .order-footer strong { color: #f53f3f; }
 </style>

@@ -10,12 +10,18 @@
   --color-yb-bg: var(--yb-bg);
   --color-yb-surface: var(--yb-surface);
   --color-yb-hairline: var(--yb-hairline);
+  --color-yb-fill: var(--yb-fill);
+  --color-yb-sage: var(--yb-sage);
   --color-yb-ink: var(--yb-ink);
   --color-yb-ink-2: var(--yb-ink-2);
   --color-yb-muted: var(--yb-muted);
   --color-yb-faint: var(--yb-faint);
   --color-yb-primary: var(--yb-primary);
   --color-yb-primary-2: var(--yb-primary-2);
+  --color-yb-brand-primary: var(--yb-brand-primary);
+  --color-yb-brand-hover: var(--yb-brand-hover);
+  --color-yb-accent: var(--yb-accent);
+  --color-yb-accent-ink: var(--yb-accent-ink);
   --color-yb-gold: var(--yb-gold);
   --color-yb-gold-2: var(--yb-gold-2);
   --color-yb-champagne: var(--yb-champagne);
@@ -32,9 +38,9 @@
   --radius-pill: 999px;
 
   /* shadow */
-  --shadow-1: 0 1px 3px rgba(15, 17, 26, 0.04), 0 8px 24px rgba(15, 17, 26, 0.04);
-  --shadow-2: 0 4px 12px rgba(15, 17, 26, 0.06), 0 24px 48px rgba(15, 17, 26, 0.08);
-  --shadow-glow: 0 0 40px rgba(91, 92, 231, 0.10), 0 24px 48px rgba(15, 17, 26, 0.08);
+  --shadow-1: var(--yb-shadow-1);
+  --shadow-2: var(--yb-shadow-2);
+  --shadow-glow: var(--yb-shadow-glow);
 
   /* font */
   --font-display: 'Inter', 'PingFang SC', ui-sans-serif;

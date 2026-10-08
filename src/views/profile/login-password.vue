@@ -150,7 +150,7 @@ async function submit() {
 .security-page { padding-top: 24px; }
 .card { max-width: 560px; margin: auto; }
 .content { display: block; min-height: 240px; }
-.description { margin: 0 0 20px; color: #4e5969; line-height: 1.7; }
+.description { margin: 0 0 20px; color: var(--yb-ink-2); line-height: 1.7; }
 .alert { margin-bottom: 16px; }
 .actions { display: flex; justify-content: flex-end; gap: 12px; }
 </style>

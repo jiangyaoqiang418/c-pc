@@ -76,7 +76,7 @@ const rows = computed<RowItem[]>(() => {
   background: #fff;
   border-radius: var(--bw-card-radius);
   overflow: hidden;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
 }
 .benefits-table {
   width: 100%;
@@ -89,17 +89,17 @@ const rows = computed<RowItem[]>(() => {
   font-size: 13px;
 }
 .benefits-table th {
-  background: #f7f8fa;
-  color: #4e5969;
+  background: var(--yb-fill);
+  color: var(--yb-ink-2);
   font-weight: 500;
   font-size: 12px;
 }
 .benefits-table tbody tr {
-  border-top: 1px solid #f2f3f5;
+  border-top: 1px solid var(--yb-hairline);
   transition: background 0.15s;
 }
 .benefits-table tbody tr.current {
-  background: linear-gradient(90deg, #f5e8ff 0%, #f3f7ff 100%);
+  background: linear-gradient(90deg, var(--yb-primary-soft) 0%, var(--yb-primary-soft) 100%);
   font-weight: 600;
 }
 .col-level {
@@ -115,14 +115,14 @@ const rows = computed<RowItem[]>(() => {
 }
 .you {
   font-size: 10px;
-  color: #722ed1;
+  color: var(--yb-brand-primary);
   background: #fff;
   padding: 1px 6px;
   border-radius: 4px;
-  border: 1px solid #722ed1;
+  border: 1px solid var(--yb-brand-primary);
 }
 .unit {
-  color: #86909c;
+  color: var(--yb-muted);
   font-weight: 400;
 }
 </style>

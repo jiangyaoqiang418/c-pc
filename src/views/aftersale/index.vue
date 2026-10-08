@@ -150,6 +150,6 @@ function cancel(row: Api.RealRefund.RefundDTO) {
 </template>
 
 <style scoped>
-.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0; }.case-card { margin-top:12px; cursor:pointer; }.case-card:focus-visible { outline:2px solid var(--bw-brand-primary); outline-offset:2px; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:#86909c; margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:#4e5969; }.actions { justify-content:flex-end; }
+.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0; }.case-card { margin-top:12px; cursor:pointer; }.case-card:focus-visible { outline:2px solid var(--bw-brand-primary); outline-offset:2px; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:var(--yb-muted); margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:var(--yb-ink-2); }.actions { justify-content:flex-end; }
 @media (max-width: 640px) { .aftersale-list-page { padding-top: 10px; } .head { align-items:flex-start; } .head strong,.meta { overflow-wrap:anywhere; } }
 </style>

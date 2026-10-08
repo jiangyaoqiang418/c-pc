@@ -237,7 +237,7 @@ const orderTabsMeta = computed(() => [
                   type="line"
                   size="small"
                   :show-text="false"
-                  color="#722ed1"
+                  color="var(--yb-brand-primary)"
                 />
               </div>
             </div>
@@ -328,7 +328,7 @@ const orderTabsMeta = computed(() => [
   gap: 16px;
 }
 .user-card {
-  background: linear-gradient(135deg, #f3f7ff 0%, #fff 60%);
+  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
   border-radius: var(--bw-card-radius);
 }
 .user-head {
@@ -361,10 +361,10 @@ const orderTabsMeta = computed(() => [
 .name {
   font-size: 20px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .meta {
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 13px;
 }
 .edit-profile {
@@ -373,12 +373,12 @@ const orderTabsMeta = computed(() => [
 }
 .dot {
   margin: 0 8px;
-  color: #c9cdd4;
+  color: var(--yb-hairline-2);
 }
 .vip-progress {
   margin-top: 10px;
   width: min(100%, 360px);
-  color: #4e5969;
+  color: var(--yb-ink-2);
   font-size: 12px;
   display: flex;
   flex-direction: column;
@@ -389,7 +389,7 @@ const orderTabsMeta = computed(() => [
   overflow-wrap: anywhere;
 }
 .vip-progress-label strong {
-  color: #722ed1;
+  color: var(--yb-brand-primary);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   margin: 0 3px;
@@ -409,7 +409,7 @@ const orderTabsMeta = computed(() => [
 .card-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   padding-left: 8px;
   border-left: 3px solid var(--bw-brand-primary);
   margin-bottom: 14px;
@@ -430,7 +430,7 @@ const orderTabsMeta = computed(() => [
   transition: background 0.15s;
 }
 .stat:hover {
-  background: #f3f7ff;
+  background: var(--yb-primary-soft);
 }
 .stat:focus-visible,
 .quick-cell:focus-visible {
@@ -440,11 +440,11 @@ const orderTabsMeta = computed(() => [
 .stat-num {
   font-size: 20px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--yb-ink);
 }
 .stat-label {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
   margin-top: 4px;
 }
 .quick-grid {
@@ -461,7 +461,7 @@ const orderTabsMeta = computed(() => [
   transition: background 0.15s;
 }
 .quick-cell:hover {
-  background: #f3f7ff;
+  background: var(--yb-primary-soft);
 }
 .quick-cell.disabled {
   opacity: 0.7;
@@ -473,14 +473,14 @@ const orderTabsMeta = computed(() => [
 }
 .quick-cell .label {
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
 }
 .phase-chip {
   position: absolute;
   top: 6px;
   right: 6px;
-  background: #f7f8fa;
-  color: #86909c;
+  background: var(--yb-fill);
+  color: var(--yb-muted);
   font-size: 10px;
   padding: 1px 4px;
   border-radius: 2px;
@@ -488,12 +488,12 @@ const orderTabsMeta = computed(() => [
 .asset-amount {
   font-size: 28px;
   font-weight: 700;
-  color: #722ed1;
+  color: var(--yb-brand-primary);
   font-family: ui-monospace, monospace;
 }
 .asset-sub {
   font-size: 12px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   line-height: 1.6;
   margin-top: 4px;
 }
@@ -502,12 +502,12 @@ const orderTabsMeta = computed(() => [
 }
 /* 兜底：Arco primary → 品牌粉（token 覆盖若未生效由此保底） */
 .asset-btn.arco-btn-primary {
-  background-color: var(--yb-brand-pink) !important;
-  border-color: var(--yb-brand-pink) !important;
+  background-color: var(--yb-brand-primary) !important;
+  border-color: var(--yb-brand-primary) !important;
   color: #fff !important;
 }
 .asset-btn.arco-btn-primary:hover {
-  background-color: var(--yb-brand-pink-2) !important;
-  border-color: var(--yb-brand-pink-2) !important;
+  background-color: var(--yb-brand-hover) !important;
+  border-color: var(--yb-brand-hover) !important;
 }
 </style>

@@ -113,7 +113,7 @@ function go() {
 }
 .bucket-row:focus-visible,
 .bucket-card:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: -2px;
 }
 .row-left {

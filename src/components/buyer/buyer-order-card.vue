@@ -170,7 +170,7 @@ function goIm() {
 }
 .cover-wrap:focus-visible,
 .title:focus-visible {
-  outline: 2px solid var(--yb-brand-primary, #165dff);
+  outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -269,11 +269,11 @@ function goIm() {
   border-color: var(--yb-ink);
 }
 .btn.primary {
-  background: var(--yb-brand-pink);
+  background: var(--yb-brand-primary);
   color: #fff;
 }
 .btn.primary:hover {
-  background: var(--yb-brand-pink-2);
+  background: var(--yb-brand-hover);
   transform: translateY(-1px);
 }
 .btn:disabled {

@@ -109,11 +109,11 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
   font-size: 22px;
   font-weight: 700;
   margin: 0 0 6px;
-  color: #1d2129;
+  color: var(--yb-ink);
   text-align: center;
 }
 .hint {
-  color: #86909c;
+  color: var(--yb-muted);
   font-size: 12px;
   margin-bottom: 20px;
   text-align: center;
@@ -124,7 +124,7 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
 .bottom {
   margin-top: 24px;
   font-size: 13px;
-  color: #4e5969;
+  color: var(--yb-ink-2);
   text-align: center;
 }
 </style>

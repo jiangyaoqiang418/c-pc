@@ -132,7 +132,7 @@ function toggleShelf() {
 .bp-card {
   background: #fff;
   border-radius: var(--bw-card-radius);
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--yb-hairline);
   overflow: hidden;
   transition: all 0.18s;
 }
@@ -142,7 +142,7 @@ function toggleShelf() {
 .cover-wrap {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: #f7f8fa;
+  background: var(--yb-fill);
 }
 .cover {
   width: 100%;
@@ -166,7 +166,7 @@ function toggleShelf() {
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--yb-ink);
   margin-bottom: 8px;
   overflow: hidden;
   display: -webkit-box;
@@ -197,15 +197,15 @@ function toggleShelf() {
 }
 .stock {
   font-size: 12px;
-  color: #86909c;
+  color: var(--yb-muted);
 }
 .stats {
   display: flex;
   gap: 12px;
   font-size: 11px;
-  color: #86909c;
+  color: var(--yb-muted);
   padding: 6px 0;
-  border-top: 1px dashed #f2f3f5;
+  border-top: 1px dashed var(--yb-hairline);
   margin-bottom: 8px;
 }
 .actions {
