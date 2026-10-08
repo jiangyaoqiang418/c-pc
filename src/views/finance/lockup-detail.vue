@@ -34,12 +34,49 @@ const meta = computed(() => (order.value ? ({
   REDEEMED: { label: '已赎回', color: 'orange' }, CANCELED: { label: '已取消', color: 'red' }
 }[order.value.status] || { label: order.value.statusText || order.value.status, color: 'gray' }) : undefined));
 
-const daysPassed = computed(() => {
-  if (!order.value) return 0;
-  const start = parseDateValue(order.value.startAt);
-  if (start === undefined) return 0;
-  const now = Math.min(Date.now(), parseDateValue(order.value.maturityAt) ?? Date.now());
-  return Math.max(0, Math.floor((now - start) / 86400_000));
+function knownAmount(value: unknown): value is string | number {
+  return (typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))
+    && Number.isFinite(Number(value)) && Number(value) >= 0;
+}
+
+const daysPassed = computed<number | undefined>(() => {
+  const current = order.value;
+  if (!current) return undefined;
+  if (typeof current.heldDays === 'number' && Number.isSafeInteger(current.heldDays) && current.heldDays >= 0) {
+    return current.heldDays;
+  }
+  const start = parseDateValue(current.startAt);
+  if (start === undefined) return undefined;
+  const maturity = parseDateValue(current.maturityAt);
+  let end: number | undefined;
+  if (current.status === 'HOLDING') end = Math.min(Date.now(), maturity ?? Date.now());
+  else if (current.status === 'REDEEMED') end = parseDateValue(current.redeemedAt);
+  else if (current.status === 'SETTLED') end = maturity ?? parseDateValue(current.settledAt);
+  // 已结束但缺少结束时间时不使用当前时间，避免继续累积。
+  if (end === undefined || end < start) return undefined;
+  return Math.floor((end - start) / 86400_000);
+});
+
+const actualInterest = computed(() => {
+  const current = order.value;
+  if (!current || current.status === 'CANCELED') return undefined;
+  const value = current.status === 'HOLDING'
+    ? current.accruedInterest
+    : current.settledInterest ?? current.accruedInterest;
+  return knownAmount(value) ? value : undefined;
+});
+const interestLabel = computed(() => order.value?.status === 'HOLDING' ? '已累积利息' : '实际结算利息');
+const actualInterestText = computed(() => actualInterest.value === undefined
+  ? (order.value?.status === 'CANCELED' ? '已取消，不再计息' : '待确认')
+  : 'U ' + formatAmount(actualInterest.value));
+const chartHint = computed(() => {
+  if (order.value?.status === 'CANCELED') return '订单已取消，不展示实际计息点；曲线仅作理论收益参考。';
+  if (daysPassed.value === undefined || actualInterest.value === undefined) {
+    return '实际持有天数或利息待确认，不展示估算的实际收益点。曲线仅作理论参考，不是每日收益流水。';
+  }
+  return order.value?.status === 'HOLDING'
+    ? '实际点采用后台返回的累计利息；曲线仅作理论参考，不是每日收益流水。'
+    : '实际点采用后台返回的结算利息及持有天数，订单结束后不再随当前时间增长；曲线仅作理论参考。';
 });
 
 async function load() {
@@ -182,9 +219,9 @@ function handleEmptyAction() {
             <a-descriptions :column="2" :data="[
               { label: '本金', value: 'U ' + formatAmount(order.principal) },
               { label: '预期利息', value: 'U ' + formatAmount(order.expectedInterest) },
-              { label: '已累积利息', value: 'U ' + formatAmount(order.accruedInterest) },
+              { label: interestLabel, value: actualInterestText },
               { label: '提前赎回违约费', value: order.redeemFee === undefined || order.redeemFee === null ? '待确认' : 'U ' + formatAmount(order.redeemFee) },
-              { label: '锁定天数 / 已过', value: order.lockDays + ' / ' + daysPassed + ' 天' },
+              { label: '锁定天数 / 已持有', value: order.lockDays + ' / ' + (daysPassed === undefined ? '待确认' : daysPassed + ' 天') },
               { label: '起息时间', value: formatDateValue(order.startAt) },
               { label: '到期时间', value: formatDateValue(order.maturityAt) },
               { label: '结算/赎回时间', value: formatDateValue(order.settledAt || order.redeemedAt) },
@@ -194,16 +231,18 @@ function handleEmptyAction() {
         </div>
 
         <a-card class="chart-card" :body-style="{ padding: '20px 24px 24px' }" :bordered="false">
-          <div class="section-title">利息累积曲线</div>
+          <div class="section-title">理论收益参考</div>
           <InterestCurveChart
             :lockup-days="order.lockDays"
             :effective-rate-pct="Number(order.annualRate) * 100"
             :principal="String(order.principal)"
             :accrued-days="daysPassed"
+            :accrued-interest="actualInterest"
+            :marker-label="interestLabel"
             :width="720"
             :height="220"
           />
-          <div class="chart-hint">{{ formatRate(Number(order.annualRate)) }} 年化 · 本金 U {{ formatAmount(order.principal) }}</div>
+          <div class="chart-hint">{{ chartHint }}</div>
         </a-card>
 
       </template>

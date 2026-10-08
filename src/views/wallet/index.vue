@@ -83,7 +83,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
       <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
     </a-alert>
     <a-alert v-if="walletStore.partialData" type="warning" :closable="false" class="load-error">
-      部分钱包金额尚未取得，已知金额继续显示；“—”不代表零余额。
+      钱包总额或今日收支尚未取得，请重新加载。
       <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
     </a-alert>
     <!-- ============ Hero (白底 · BiyaPay 风) ============ -->

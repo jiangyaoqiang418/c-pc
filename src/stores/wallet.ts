@@ -102,15 +102,16 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     return list;
   });
 
-  const compositionReady = computed(() => !!account.value && totalAssets.value !== undefined
-    && bucketsArray.value.every(bucket => bucket.value !== undefined));
-  const partialData = computed(() => !!account.value && (!compositionReady.value
+  const compositionReady = computed(() => !!account.value && totalAssets.value !== undefined);
+  const partialData = computed(() => !!account.value && (totalAssets.value === undefined
     || today.value?.depositIn === undefined || today.value?.withdrawOut === undefined));
   const bucketsWithPct = computed(() => bucketsArray.value.map(bucket => ({
     ...bucket,
-    pct: bucket.value === undefined || totalAssets.value === undefined ? undefined
-      : Number(totalAssets.value) > 0 ? Number(bucket.value) / Number(totalAssets.value) * 100
-        : Number(bucket.value) === 0 ? 0 : undefined
+    // 缺失金额仅在资产分布展示中按零处理，不修改原始账户余额。
+    value: bucket.value ?? '0',
+    pct: totalAssets.value === undefined ? undefined
+      : Number(totalAssets.value) > 0 ? Number(bucket.value ?? '0') / Number(totalAssets.value) * 100
+        : Number(bucket.value ?? '0') === 0 ? 0 : undefined
   })));
 
   const compositionBreakdown = computed(() => {

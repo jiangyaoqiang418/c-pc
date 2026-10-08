@@ -904,17 +904,18 @@ describe('登录失效跳转边界', () => {
     expect(assign).toHaveBeenCalledWith(`/auth/login?redirect=${encodeURIComponent('/order?view=sell&page=2#qa-target')}`);
   });
 
-  it('部分余额保持未知，不显示虚假占比，重新读取可恢复完整分布', async () => {
+  it('缺失余额仅在资产分布按零展示，原始余额保持未知', async () => {
     const { user, wallet } = setupUser();
     const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({ total: '100', todayIn: 0, todayOut: 0,
       distribution: [{ type: 'AVAILABLE', amount: '100' }] });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(wallet.totalAssets).toBe('100');
-    expect(wallet.partialData).toBe(true);
-    expect(wallet.compositionReady).toBe(false);
+    expect(wallet.account?.frozenOrder).toBeUndefined();
+    expect(wallet.partialData).toBe(false);
+    expect(wallet.compositionReady).toBe(true);
     expect(wallet.bucketsWithPct.find(b => b.key === 'available')?.pct).toBe(100);
-    expect(wallet.bucketsWithPct.find(b => b.key === 'frozenOrder')?.pct).toBeUndefined();
-    expect(wallet.compositionBreakdown).toEqual([]);
+    expect(wallet.bucketsWithPct.find(b => b.key === 'frozenOrder')).toMatchObject({ value: '0', pct: 0 });
+    expect(wallet.compositionBreakdown).toMatchObject([{ value: '100', pct: 1 }]);
     get.mockResolvedValue({ total: 0, todayIn: 0, todayOut: 0, distribution:
       ['AVAILABLE', 'NON_WITHDRAWABLE', 'FINANCE_LOCKED', 'ORDER_FROZEN', 'RISK_FROZEN'].map(type => ({ type, amount: 0 })) });
     await wallet.fetchWallet(user.currentUser!.id);
