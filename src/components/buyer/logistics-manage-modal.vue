@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import DateTimeInput from '@/components/common/date-time-input.vue';
 import { reactive, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 
@@ -76,45 +83,25 @@ function submit() {
   else submitException();
   return false;
 }
+
+function selectTab(value: unknown) {
+  if (!props.submitting && (value === 'track' || value === 'exception')) activeTab.value = value;
+}
+function selectStatus(value: unknown) {
+  const status = TRACK_STATUSES.find(item => item.value === value);
+  if (status) track.status = status.value;
+}
 </script>
 
 <template>
-  <a-modal
-    :visible="visible"
-    title="物流管理"
-    :ok-loading="submitting"
-    :ok-text="activeTab === 'track' ? '登记轨迹' : '标记异常'"
-    @update:visible="value => emit('update:visible', value)"
-    :on-before-ok="submit"
-  >
-    <template v-if="order">
-      <p class="hint">订单 {{ order.code }} · 请仅登记已实际发生的物流信息。</p>
-      <a-tabs v-model:active-key="activeTab">
-        <a-tab-pane key="track" title="登记轨迹" :disabled="submitting">
-          <a-form :model="track" layout="vertical" :disabled="submitting">
-            <a-form-item label="物流状态" required>
-              <a-select v-model="track.status" placeholder="请选择物流状态">
-                <a-option v-for="item in TRACK_STATUSES" :key="item.value" :value="item.value">{{ item.label }}</a-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item label="轨迹说明" required><a-textarea v-model="track.description" :max-length="200" show-word-limit placeholder="请输入物流轨迹说明" /></a-form-item>
-            <a-form-item label="地点"><a-input v-model="track.location" placeholder="可选" /></a-form-item>
-            <a-form-item label="发生时间"><a-date-picker v-model="track.occurredAt" show-time value-format="x" placeholder="请选择发生时间" style="width: 100%" /></a-form-item>
-          </a-form>
-        </a-tab-pane>
-        <a-tab-pane key="exception" title="标记异常" :disabled="submitting">
-          <a-alert type="warning" class="alert" title="标记异常后，后续非异常轨迹会自动清空异常摘要。" />
-          <a-form :model="exception" layout="vertical" :disabled="submitting">
-            <a-form-item label="异常说明" required><a-textarea v-model="exception.description" :max-length="200" show-word-limit placeholder="请说明物流异常情况" /></a-form-item>
-            <a-form-item label="地点"><a-input v-model="exception.location" placeholder="可选" /></a-form-item>
-          </a-form>
-        </a-tab-pane>
-      </a-tabs>
+  <a-modal :visible="visible" title="物流管理" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :ok-text="activeTab === 'track' ? '登记轨迹' : '标记异常'" @update:visible="value => emit('update:visible', value)" :on-before-ok="submit">
+    <template v-if="order"><p class="order-hint">订单 {{ order.code }} · 请仅登记已实际发生的物流信息。</p><Tabs :model-value="activeTab" @update:model-value="selectTab"><TabsList class="logistics-tabs"><TabsTrigger value="track" :disabled="submitting">登记轨迹</TabsTrigger><TabsTrigger value="exception" :disabled="submitting">标记异常</TabsTrigger></TabsList></Tabs>
+      <div v-if="activeTab === 'track'" class="logistics-form"><div class="field"><Label for="logistics-status">物流状态 <span>*</span></Label><Select :model-value="track.status" :disabled="submitting" @update:model-value="selectStatus"><SelectTrigger id="logistics-status" class="full"><SelectValue placeholder="请选择物流状态" /></SelectTrigger><SelectContent><SelectItem v-for="item in TRACK_STATUSES" :key="item.value" :value="item.value">{{ item.label }}</SelectItem></SelectContent></Select></div><div class="field"><Label for="logistics-description">轨迹说明 <span>*</span></Label><Textarea id="logistics-description" v-model="track.description" :disabled="submitting" maxlength="200" :rows="4" placeholder="请输入物流轨迹说明" /><small class="counter">{{ track.description.length }}/200</small></div><div class="field"><Label for="logistics-location">地点</Label><Input id="logistics-location" v-model="track.location" :disabled="submitting" placeholder="可选" /></div><div class="field"><Label for="logistics-occurred-at">发生时间</Label><DateTimeInput id="logistics-occurred-at" v-model="track.occurredAt" :disabled="submitting" /></div></div>
+      <div v-else class="logistics-form"><Alert><AlertDescription>标记异常后，后续非异常轨迹会自动清空异常摘要。</AlertDescription></Alert><div class="field"><Label for="logistics-exception">异常说明 <span>*</span></Label><Textarea id="logistics-exception" v-model="exception.description" :disabled="submitting" maxlength="200" :rows="4" placeholder="请说明物流异常情况" /><small class="counter">{{ exception.description.length }}/200</small></div><div class="field"><Label for="logistics-exception-location">地点</Label><Input id="logistics-exception-location" v-model="exception.location" :disabled="submitting" placeholder="可选" /></div></div>
     </template>
   </a-modal>
 </template>
 
 <style scoped>
-.hint { color: var(--yb-ink-2); font-size: 13px; margin: 0 0 12px; }
-.alert { margin-bottom: 16px; }
+.order-hint { font-size:13px; color:var(--yb-muted); margin:0 0 20px; overflow-wrap:anywhere; }.logistics-tabs { width:100%; justify-content:flex-start; margin-bottom:24px; }.logistics-form { display:grid; gap:22px; }.field { display:grid; gap:10px; }.field label>span { color:var(--yb-danger); }.full { width:100%; }.counter { color:var(--yb-muted); font-size:12px; text-align:right; }
 </style>

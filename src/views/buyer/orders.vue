@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Icon } from '@iconify/vue';
+import AmountInput from '@/components/common/amount-input.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -9,7 +17,6 @@ import LogisticsManageModal from '@/components/buyer/logistics-manage-modal.vue'
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
-import { enums } from '@shared';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
@@ -309,92 +316,29 @@ async function changePrice() {
     if (operation === priceWriteVersion) priceSubmitting.value = false;
   }
 }
+
+function selectTab(value: unknown) {
+  if (typeof value === 'string' && TABS.some(tab => tab.key === value)) {
+    activeKey.value = value;
+    onTabChange();
+  }
+}
 </script>
 
 <template>
   <div class="buyer-orders-page shop-container">
-    <h1 class="page-title">买手订单</h1>
-
-    <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs v-model:active-key="activeKey" lazy-load @change="onTabChange">
-        <a-tab-pane v-for="t in TABS" :key="t.key" :title="t.label" />
-      </a-tabs>
-    </a-card>
-
-    <div class="list-wrap">
-      <a-spin :loading="loading" style="width: 100%">
-        <template v-if="orders.length">
-          <BuyerOrderCard
-            v-for="o in orders"
-            :key="o.id"
-            :order="o"
-            @change-price="openPriceModal"
-            @upload-shipping="onUploadShipping"
-            @manage-logistics="manageLogistics"
-          />
-        </template>
-        <EmptyState
-          v-else
-          :title="loadError || '该状态下没有订单'"
-          :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'"
-          :action-text="loadError ? '重新加载' : undefined"
-          @action="load"
-        />
-      </a-spin>
-    </div>
-
-    <div v-if="total > size" class="pagination">
-      <a-pagination
-        :total="total"
-        :current="current"
-        :page-size="size"
-        show-total
-        @change="changePage"
-      />
-    </div>
-
-    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :on-before-ok="changePrice">
-      <a-form :model="{ priceAmount }" layout="vertical">
-        <a-form-item label="订单">
-          <a-input :model-value="priceOrder?.code" disabled />
-        </a-form-item>
-        <a-form-item label="订单金额 (USDT)" required>
-          <a-input-number v-model="priceAmount" :min="0.01" :precision="2" placeholder="请输入调整后的金额" style="width: 100%" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <ShippingUploadModal
-      v-model:visible="shippingModalOpen"
-      :order="shippingOrder"
-      :submitting="shippingSubmitting"
-      @confirm="shipOrder"
-    />
-    <LogisticsManageModal
-      v-model:visible="logisticsModalOpen"
-      :order="logisticsOrder"
-      :submitting="logisticsSubmitting"
-      @create-track="createLogisticsTrack"
-      @mark-exception="markLogisticsException"
-    />
+    <header class="page-heading"><div><span class="eyebrow">UMAOMAO / FULFILLMENT</span><h1>买手订单</h1><p>从采购到交付，清晰掌握每一步。</p></div><Button variant="outline" :disabled="loading" @click="load"><Icon icon="lucide:refresh-cw" />刷新</Button></header>
+    <Tabs :model-value="activeKey" @update:model-value="selectTab"><TabsList class="order-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key">{{ tab.label }}</TabsTrigger></TabsList></Tabs>
+    <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @manage-logistics="manageLogistics" /></div>
+    <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取买手订单"><Skeleton v-for="n in 3" :key="n" class="order-skeleton" /></div>
+    <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
+    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
+    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :closable="!priceSubmitting" :mask-closable="!priceSubmitting" :esc-to-close="!priceSubmitting" :on-before-cancel="() => !priceSubmitting" :on-before-ok="changePrice"><div class="price-form"><div class="field"><Label for="buyer-order-code">订单号</Label><Input id="buyer-order-code" :model-value="priceOrder?.code" disabled /></div><div class="field"><Label for="buyer-order-amount">订单金额（USDT）<span>*</span></Label><AmountInput id="buyer-order-amount" v-model="priceAmount" :disabled="priceSubmitting" :min="0.01" :precision="2" placeholder="请输入调整后的金额" /></div></div></a-modal>
+    <ShippingUploadModal v-model:visible="shippingModalOpen" :order="shippingOrder" :submitting="shippingSubmitting" @confirm="shipOrder" />
+    <LogisticsManageModal v-model:visible="logisticsModalOpen" :order="logisticsOrder" :submitting="logisticsSubmitting" @create-track="createLogisticsTrack" @mark-exception="markLogisticsException" />
   </div>
 </template>
 
 <style scoped>
-.buyer-orders-page {
-  padding-top: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.list-wrap {
-  margin-top: 16px;
-}
-.pagination {
-  display: flex;
-  justify-content: center;
-  margin: 20px 0 32px;
-}
+.buyer-orders-page { display:grid; gap:24px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.order-tabs { width:100%; justify-content:flex-start; height:auto; padding:6px; gap:5px; overflow-x:auto; }.order-tabs :deep(button) { flex-shrink:0; padding:10px 16px; }.order-list,.loading-list { display:grid; gap:20px; }.order-list :deep(.buyer-order-card) { margin-bottom:0; }.order-skeleton { height:235px; }.price-form { display:grid; gap:22px; }.field { display:grid; gap:10px; }.field label>span { color:var(--yb-danger); }
 </style>

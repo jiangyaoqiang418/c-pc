@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import DateTimeInput from '@/components/common/date-time-input.vue';
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { fetchCarriers } from '@/service/api/order';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -98,53 +105,22 @@ function submit() {
   // 成功后由父页面关闭；校验失败或接口失败保留当前表单。
   return false;
 }
+
+
 </script>
 
 <template>
-  <a-modal
-    :visible="visible"
-    title="上传发货信息"
-    :ok-loading="props.submitting"
-    :ok-button-props="{ disabled: uploading || carrierLoading || !!carrierError || !selectedCarrier }"
-    ok-text="确认发货"
-    @update:visible="(v) => $emit('update:visible', v)"
-    :on-before-ok="submit"
-  >
-    <template v-if="order">
-      <div class="hint">订单 {{ order.code }} · {{ order.productTitle }}</div>
-      <a-alert type="info" class="alert">
-        填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹
-      </a-alert>
-      <a-form :model="form" layout="vertical" :disabled="submitting">
-        <a-alert v-if="carrierError" type="warning">{{ carrierError }}<template #action><a-button :loading="carrierLoading" @click="loadCarriers">重新加载</a-button></template></a-alert>
-        <a-form-item label="物流公司" required>
-          <a-radio-group v-model="form.carrier" :disabled="carrierLoading">
-            <a-radio v-for="c in carriers" :key="c.code" :value="c.code">
-              {{ c.name }}
-            </a-radio>
-          </a-radio-group>
-        </a-form-item>
-        <a-form-item label="运单号" required>
-          <a-input v-model="form.trackingNumber" placeholder="请输入运单号" />
-        </a-form-item>
-        <a-form-item v-if="selectedCarrier?.customNameRequired" label="承运商名称" required><a-input v-model="form.carrierName" placeholder="请输入承运商名称" /></a-form-item>
-        <a-form-item label="预计送达时间"><a-date-picker v-model="form.eta" show-time value-format="x" placeholder="请选择预计送达时间" style="width: 100%" /></a-form-item>
-        <a-form-item label="采购单号"><a-input v-model="form.purchaseNo" placeholder="可选，用于采购核对" /></a-form-item>
-        <a-form-item label="采购凭证"><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></a-form-item>
-        <a-form-item label="发货凭证"><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.shipping = $event" /></a-form-item>
-        <a-form-item label="发货备注"><a-textarea v-model="form.remark" :max-length="500" show-word-limit placeholder="选填，请填写发货备注" /></a-form-item>
-      </a-form>
+  <a-modal :visible="visible" title="填写发货信息" :width="740" :ok-loading="props.submitting" :ok-button-props="{ disabled: uploading || carrierLoading || !!carrierError || !selectedCarrier }" :closable="!submitting && !uploading" :mask-closable="!submitting && !uploading" :esc-to-close="!submitting && !uploading" :on-before-cancel="() => !submitting && !uploading" ok-text="确认发货" @update:visible="value => emit('update:visible', value)" :on-before-ok="submit">
+    <template v-if="order"><p class="order-hint">订单 {{ order.code }} · {{ order.productTitle }}</p><Alert class="shipping-note"><AlertDescription>填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹。</AlertDescription></Alert>
+      <div class="shipping-form"><Alert v-if="carrierError" variant="destructive"><AlertDescription class="error-row"><span>{{ carrierError }}</span><Button type="button" variant="outline" size="sm" :disabled="carrierLoading || submitting" @click="loadCarriers">重新加载</Button></AlertDescription></Alert>
+        <fieldset class="carrier-field" :disabled="submitting || carrierLoading"><legend>物流公司 <span>*</span></legend><Skeleton v-if="carrierLoading" class="carrier-skeleton" /><div v-else class="carrier-options"><label v-for="carrier in carriers" :key="carrier.code" :class="{ selected: form.carrier === carrier.code }"><input v-model="form.carrier" type="radio" :name="'shipping-carrier-' + String(order.id)" :value="carrier.code" /><span>{{ carrier.name }}</span></label></div></fieldset>
+        <div class="field-grid"><div class="field"><Label for="shipping-tracking">运单号 <span>*</span></Label><Input id="shipping-tracking" v-model="form.trackingNumber" :disabled="submitting" placeholder="请输入运单号" /></div><div v-if="selectedCarrier?.customNameRequired" class="field"><Label for="shipping-carrier-name">承运商名称 <span>*</span></Label><Input id="shipping-carrier-name" v-model="form.carrierName" :disabled="submitting" placeholder="请输入承运商名称" /></div><div class="field"><Label for="shipping-eta">预计送达时间</Label><DateTimeInput id="shipping-eta" v-model="form.eta" :disabled="submitting" /></div><div class="field"><Label for="shipping-purchase-no">采购单号</Label><Input id="shipping-purchase-no" v-model="form.purchaseNo" :disabled="submitting" placeholder="可选，用于采购核对" /></div></div>
+        <div class="field"><Label>采购凭证</Label><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></div><div class="field"><Label>发货凭证</Label><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.shipping = $event" /></div><div class="field"><Label for="shipping-remark">发货备注</Label><Textarea id="shipping-remark" v-model="form.remark" :disabled="submitting" maxlength="500" :rows="3" placeholder="选填，请填写发货备注" /><small class="counter">{{ form.remark.length }}/500</small></div>
+      </div>
     </template>
   </a-modal>
 </template>
 
 <style scoped>
-.hint {
-  color: var(--yb-ink-2);
-  font-size: 13px;
-  margin-bottom: 12px;
-}
-.alert {
-  margin-bottom: 16px;
-}
+.order-hint { margin:0 0 18px; color:var(--yb-muted); font-size:13px; overflow-wrap:anywhere; }.shipping-note { margin-bottom:24px; }.shipping-form { display:grid; gap:24px; }.carrier-field { margin:0; padding:0; border:0; min-width:0; }.carrier-field legend { font-size:14px; font-weight:500; margin-bottom:12px; }.carrier-field legend>span,.field label>span { color:var(--yb-danger); }.carrier-options { display:flex; flex-wrap:wrap; gap:10px; }.carrier-options label { display:flex; align-items:center; gap:8px; padding:11px 14px; border:1px solid var(--yb-hairline); border-radius:7px; font-size:13px; cursor:pointer; }.carrier-options label.selected { background:var(--yb-primary-soft); border-color:var(--yb-primary); color:var(--yb-primary); }.carrier-options input { accent-color:var(--yb-primary); }.carrier-field:disabled label { opacity:.55; cursor:not-allowed; }.field-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }.field { display:grid; gap:10px; min-width:0; }.counter { font-size:12px; color:var(--yb-muted); text-align:right; }.error-row { display:flex; justify-content:space-between; gap:15px; align-items:center; }.carrier-skeleton { height:45px; }@media(max-width:700px) { .field-grid { grid-template-columns:1fr; } }
 </style>

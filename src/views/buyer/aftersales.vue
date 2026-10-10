@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Icon } from '@iconify/vue';
+import DescriptionList from '@/components/common/description-list.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
+import ImagePreview from '@/components/common/image-preview.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -29,7 +38,6 @@ const statusDefs = [
   { key: 'REJECTED', label: '已驳回' },
   { key: 'CANCELED', label: '已撤销' }
 ];
-const statusColor: Record<string, string> = { APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
 const activeStatus = computed(() => activeKey.value === 'all' ? undefined : activeKey.value as Api.RealRefund.RefundStatus);
 
 function readQuery() {
@@ -143,108 +151,34 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   loadError.value = '';
   syncQuery(true);
 });
+
+const previewOpen = ref(false);
+const previewImages = ref<string[]>([]);
+const previewIndex = ref(0);
+function openEvidence(images: string[], index: number) {
+  previewImages.value = [...images];
+  previewIndex.value = index;
+  previewOpen.value = true;
+}
+watch(() => userStore.currentUser?.id, () => {
+  previewOpen.value = false;
+  previewImages.value = [];
+});
 </script>
 
 <template>
   <div class="buyer-aftersales-page shop-container">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">卖出商品售后</h1>
-        <p>平台负责审核与退款处理，买手可在此查看申请原因、凭证和审核结果。</p>
-      </div>
-      <a-button @click="router.push('/buyer/orders')">返回买手订单</a-button>
-    </div>
-
-    <a-card :bordered="false" class="filter-card">
-      <a-tabs v-model:active-key="activeKey">
-        <a-tab-pane v-for="item in statusDefs" :key="item.key" :title="item.label" />
-      </a-tabs>
-      <div class="filter-row">
-        <a-input v-model="orderNo" allow-clear placeholder="按订单号精确查询" @press-enter="search" />
-        <a-space>
-          <a-button type="primary" @click="search">查询</a-button>
-          <a-button @click="reset">重置</a-button>
-        </a-space>
-      </div>
-    </a-card>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <div v-if="refunds.length" class="refund-list">
-        <a-card v-for="row in refunds" :key="row.refundId" :bordered="false" class="refund-card">
-          <div class="card-head">
-            <div class="product-summary">
-              <img v-if="row.productImage" :src="row.productImage" :alt="row.productTitle || '商品图片'" @error="setImageFallback" />
-              <div class="product-text">
-                <strong>{{ row.productTitle || '仅退款申请' }}</strong>
-                <span>订单号：{{ row.orderNo || '—' }}</span>
-              </div>
-            </div>
-            <a-tag :color="statusColor[String(row.status)]">{{ statusLabel(row) }}</a-tag>
-          </div>
-
-          <a-descriptions
-            class="details"
-            :column="2"
-            :data="[
-              { label: '买家', value: row.buyerName || (row.buyerId ? String(row.buyerId) : '—') },
-              { label: '退款金额', value: 'U ' + (row.amount ?? '—') },
-              { label: '申请时间', value: formatTime(row.appliedAt || row.createdAt) },
-              { label: '审核时间', value: formatTime(row.reviewedAt) }
-            ]"
-          />
-          <div class="reason"><span>申请原因：</span>{{ row.reason || '—' }}</div>
-          <div v-if="row.evidenceImages?.length" class="evidence">
-            <span>凭证：</span>
-            <a-image-preview-group>
-              <a-image v-for="url in row.evidenceImages" :key="url" :src="url" width="72" height="72" fit="cover" />
-            </a-image-preview-group>
-          </div>
-          <div v-if="row.reviewRemark" class="review-remark"><span>平台审核说明：</span>{{ row.reviewRemark }}</div>
-        </a-card>
-      </div>
-      <EmptyState
-        v-else-if="!loading"
-        :title="loadError || '暂无卖出商品售后'"
-        :description="loadError ? '请稍后重试。' : '买家提交仅退款申请后，会在这里显示平台审核进度。'"
-        :action-text="loadError ? '重新加载' : undefined"
-        @action="load"
-      />
-    </a-spin>
-
-    <div v-if="total > pageSize" class="pagination">
-      <a-pagination :current="current" :total="total" :page-size="pageSize" @change="(page: number) => { current = page; syncQuery(); }" />
-    </div>
+    <header class="page-heading"><div><span class="eyebrow">UMAOMAO / AFTERSALES</span><h1>卖出商品售后</h1><p>平台负责审核与退款处理，买手可查看申请进度。</p></div><Button variant="outline" @click="router.push('/buyer/orders')"><Icon icon="lucide:arrow-left" />返回买手订单</Button></header>
+    <Alert><AlertDescription>买手可查看申请原因、凭证和审核结果；退款决定与资金处理由平台完成。</AlertDescription></Alert>
+    <Tabs v-model="activeKey"><TabsList class="status-tabs"><TabsTrigger v-for="item in statusDefs" :key="item.key" :value="item.key">{{ item.label }}</TabsTrigger></TabsList></Tabs>
+    <form class="filter-row" @submit.prevent="search"><Input v-model="orderNo" aria-label="按订单号精确查询" placeholder="按订单号精确查询" /><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="reset">重置</Button></form>
+    <div v-if="refunds.length" class="refund-list"><article v-for="row in refunds" :key="row.refundId" class="refund-card"><header class="card-head"><div class="product-summary"><img v-if="row.productImage" :src="row.productImage" :alt="row.productTitle || '商品图片'" @error="setImageFallback" /><div class="product-text"><h2>{{ row.productTitle || '仅退款申请' }}</h2><span>订单号：{{ row.orderNo || '—' }}</span></div></div><span class="refund-status" :class="String(row.status)">{{ statusLabel(row) }}</span></header><DescriptionList :columns="2" :items="[{ label: '买家', value: row.buyerName || (row.buyerId ? String(row.buyerId) : '—') },{ label: '退款金额', value: 'U ' + (row.amount ?? '—') },{ label: '申请时间', value: formatTime(row.appliedAt || row.createdAt) },{ label: '审核时间', value: formatTime(row.reviewedAt) }]" /><div class="reason"><h3>申请原因</h3><p>{{ row.reason || '—' }}</p></div><div v-if="row.evidenceImages?.length" class="evidence"><h3>申请凭证</h3><div><button v-for="(url,index) in row.evidenceImages" :key="url" type="button" :aria-label="'查看第 ' + (index + 1) + ' 张申请凭证'" @click="openEvidence(row.evidenceImages!, index)"><img :src="url" alt="申请凭证" @error="setImageFallback" /></button></div></div><div v-if="row.reviewRemark" class="review-remark"><h3>平台审核说明</h3><p>{{ row.reviewRemark }}</p></div></article></div>
+    <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取卖出商品售后"><Skeleton v-for="n in 3" :key="n" class="refund-skeleton" /></div>
+    <EmptyState v-else :title="loadError || '暂无卖出商品售后'" :description="loadError ? '请稍后重试。' : '买家提交仅退款申请后，会在这里显示平台审核进度。'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
+    <BusinessPagination v-if="total > pageSize" :current="current" :total="total" :page-size="pageSize" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" /><ImagePreview v-model="previewOpen" :images="previewImages" :start-index="previewIndex" title="退款申请凭证" />
   </div>
 </template>
 
 <style scoped>
-.buyer-aftersales-page { padding-top: 16px; }
-.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.page-title { margin: 0; font-size: 20px; font-weight: 600; }
-.page-header p { margin: 6px 0 0; color: var(--yb-muted); font-size: 12px; }
-.filter-card, .refund-card { border-radius: var(--bw-card-radius); }
-.filter-row { display: flex; justify-content: flex-end; gap: 12px; padding-top: 8px; }
-.filter-row :deep(.arco-input-wrapper) { width: 260px; }
-.refund-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
-.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.product-summary { display: flex; min-width: 0; gap: 12px; }
-.product-summary img { width: 52px; height: 52px; flex: 0 0 auto; border-radius: 4px; object-fit: cover; }
-.product-text { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
-.product-text strong { overflow-wrap: anywhere; color: var(--yb-ink); font-size: 14px; }
-.product-text span, .reason, .review-remark { color: var(--yb-muted); font-size: 12px; }
-.details { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--yb-hairline); }
-.reason, .review-remark { margin-top: 10px; line-height: 1.65; color: var(--yb-ink-2); overflow-wrap: anywhere; }
-.reason span, .review-remark span, .evidence > span { color: var(--yb-muted); }
-.evidence { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; color: var(--yb-ink-2); font-size: 12px; }
-.pagination { display: flex; justify-content: center; margin: 20px 0 32px; }
-@media (max-width: 640px) {
-  .page-header { align-items: flex-start; flex-direction: column; }
-  .filter-row { align-items: stretch; flex-direction: column; }
-  .filter-row :deep(.arco-input-wrapper) { width: 100%; }
-  .filter-row :deep(.arco-space) { display: flex; }
-  .filter-row :deep(.arco-space-item) { flex: 1; }
-  .filter-row :deep(.arco-btn) { width: 100%; }
-  .card-head { gap: 10px; }
-  .details :deep(.arco-descriptions-item) { min-width: 100%; }
-}
+.buyer-aftersales-page { display:grid; gap:24px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.status-tabs { display:flex; width:100%; justify-content:flex-start; height:auto; padding:6px; gap:4px; overflow-x:auto; }.status-tabs :deep(button) { padding:10px 14px; flex-shrink:0; }.filter-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:12px; background:var(--yb-surface); padding:20px; border:1px solid var(--yb-hairline); border-radius:10px; }.refund-list,.loading-list { display:grid; gap:20px; }.refund-card { padding:28px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:12px; }.card-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:18px; }.product-summary { display:flex; align-items:center; gap:16px; min-width:0; }.product-summary img { width:72px; height:72px; border-radius:6px; object-fit:cover; flex-shrink:0; }.product-text { display:grid; gap:9px; min-width:0; }.product-text h2 { font-size:17px; font-weight:600; margin:0; overflow-wrap:anywhere; }.product-text span { color:var(--yb-muted); font-size:12px; overflow-wrap:anywhere; }.refund-status { color:var(--yb-gold); background:var(--yb-champagne); padding:5px 9px; border-radius:5px; font-size:12px; white-space:nowrap; flex-shrink:0; }.refund-status.AGREED { color:var(--yb-success); background:var(--yb-success-soft); }.refund-status.REJECTED { color:var(--yb-danger); background:var(--yb-danger-soft); }.refund-status.CANCELED { color:var(--yb-muted); background:var(--yb-fill); }.reason,.evidence,.review-remark { margin-top:24px; }h3 { font-size:13px; font-weight:500; color:var(--yb-muted); margin:0 0 10px; }.reason p,.review-remark p { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.9; }.evidence>div { display:flex; gap:12px; flex-wrap:wrap; }.evidence button { border:0; background:var(--yb-fill); border-radius:6px; padding:0; overflow:hidden; cursor:pointer; }.evidence img { width:86px; height:86px; object-fit:cover; }.review-remark { padding:18px; background:var(--yb-fill); border-radius:7px; }.refund-skeleton { height:330px; }@media(max-width:900px) { .page-heading { flex-wrap:wrap; }.card-head { align-items:flex-start; }.refund-card { padding:22px; } }
 </style>
