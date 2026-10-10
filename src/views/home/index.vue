@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { bannerImage } from '@shared/utils/image';
 import ProductCard from '@/components/product/product-card.vue';
 import SideNav from '@/components/layout/side-nav.vue';

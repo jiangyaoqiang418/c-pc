@@ -30,10 +30,12 @@ function onSearchKeydown(event: KeyboardEvent) {
 <template>
   <div class="search-wrap">
     <div class="search-box">
+      <Icon icon="lucide:search" class="search-leading" aria-hidden="true" />
       <input
         v-model="kw"
         class="search-input"
         placeholder="搜索商品 / 品牌 / 买手"
+        aria-label="搜索商品、品牌或买手"
         @compositionstart="composing = true"
         @compositionend="composing = false"
         @keydown.enter="onSearchKeydown"
@@ -73,24 +75,25 @@ function onSearchKeydown(event: KeyboardEvent) {
 .search-box {
   display: flex;
   align-items: stretch;
-  height: 40px;
-  border: 2px solid var(--yb-ink);
-  border-radius: 999px;
-  background: var(--yb-surface);
+  height: 44px;
+  border: 1px solid var(--yb-hairline-2);
+  border-radius: 6px;
+  background: var(--yb-fill);
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .search-box:focus-within {
   border-color: var(--yb-primary);
-  box-shadow: 0 0 0 4px rgba(var(--yb-primary-rgb), 0.12);
+  box-shadow: 0 0 0 3px rgba(var(--yb-primary-rgb), 0.08);
 }
 
 .search-input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
-  padding: 0 20px;
-  font-size: 14px;
+  padding: 0 12px;
+  font-size: 15px;
   background: transparent;
   color: var(--yb-ink);
   font-family: var(--yb-font-body);
@@ -119,13 +122,13 @@ function onSearchKeydown(event: KeyboardEvent) {
 .hot-words {
   display: flex;
   gap: 12px;
-  padding: 0 20px;
-  height: 16px;
+  padding: 0 4px;
+  height: 18px;
   overflow: hidden;
 }
 .hot-word {
-  font-size: 11px;
-  color: var(--yb-gold);
+  font-size: 12px;
+  color: var(--yb-muted);
   cursor: pointer;
   transition: color 0.15s;
   white-space: nowrap;
@@ -138,4 +141,5 @@ function onSearchKeydown(event: KeyboardEvent) {
   outline-offset: 2px;
   border-radius: 2px;
 }
+.search-leading { align-self: center; flex: none; width: 17px; height: 17px; margin-left: 14px; color: var(--yb-muted); }
 </style>

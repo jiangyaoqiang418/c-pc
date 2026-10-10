@@ -1,112 +1,57 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { Message } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
+import { Message } from '@/lib/feedback';
 import { useUserStore } from '@/stores';
 import VipBadge from '@/components/common/vip-badge.vue';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 const router = useRouter();
 const userStore = useUserStore();
-
 const avatarInitial = computed(() => userStore.displayName.slice(0, 1).toUpperCase() || '?');
-
-function goLogin() {
-  router.push({ name: 'login' });
-}
-function goRegister() {
-  router.push({ name: 'register' });
-}
-function goProfile() {
-  router.push({ name: 'profile' });
-}
 function logout() {
   userStore.logout();
   Message.success('已退出登录');
-  router.push({ name: 'login' });
+  void router.push({ name: 'login' });
 }
 </script>
 
 <template>
-  <div class="user-avatar-btn">
-    <template v-if="userStore.isLoggedIn">
-      <a-dropdown position="br" trigger="click">
-        <div class="trigger">
-          <div class="avatar">{{ avatarInitial }}</div>
-          <div class="meta">
-            <a-tooltip :content="userStore.displayName" position="bottom">
-              <div class="name">{{ userStore.displayName }}</div>
-            </a-tooltip>
+  <div class="account-menu">
+    <DropdownMenu v-if="userStore.isLoggedIn">
+      <DropdownMenuTrigger as-child>
+        <button type="button" class="account-trigger" aria-label="打开账户菜单">
+          <span class="avatar">{{ avatarInitial }}</span>
+          <span class="meta"><TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="name">{{ userStore.displayName }}</span></TooltipTrigger><TooltipContent>{{ userStore.displayName }}</TooltipContent></Tooltip></TooltipProvider>
             <VipBadge v-if="userStore.currentUser" :level="userStore.currentUser.vipLevel" size="sm" />
-            <span v-if="userStore.currentUser?.accountInfoUnavailable">会员资料未更新</span>
-          </div>
-        </div>
-        <template #content>
-          <a-doption @click="goProfile">
-            <template #icon><Icon icon="lucide:user" width="14" /></template>
-            个人中心
-          </a-doption>
-          <a-doption @click="logout">
-            <template #icon><Icon icon="lucide:log-out" width="14" /></template>
-            退出登录
-          </a-doption>
-        </template>
-      </a-dropdown>
-    </template>
-    <template v-else>
-      <a-space>
-        <a-button type="text" size="small" @click="goLogin">登录</a-button>
-        <a-button type="outline" size="small" @click="goRegister">注册</a-button>
-      </a-space>
-    </template>
+            <span v-if="userStore.currentUser?.accountInfoUnavailable" class="account-warning">会员资料未更新</span>
+          </span><Icon icon="lucide:chevron-down" class="account-chevron" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" class="w-48">
+        <DropdownMenuLabel>我的账户</DropdownMenuLabel>
+        <DropdownMenuItem @select="router.push({ name: 'profile' })"><Icon icon="lucide:user" class="mr-2 size-4" />个人中心</DropdownMenuItem>
+        <DropdownMenuItem @select="router.push({ name: 'order-list' })"><Icon icon="lucide:package" class="mr-2 size-4" />我的订单</DropdownMenuItem>
+        <DropdownMenuItem @select="router.push('/wallet')"><Icon icon="lucide:wallet" class="mr-2 size-4" />我的钱包</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem @select="logout"><Icon icon="lucide:log-out" class="mr-2 size-4" />退出登录</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+    <div v-else class="guest-actions"><Button variant="ghost" size="sm" @click="router.push({ name: 'login' })">登录</Button><Button variant="outline" size="sm" @click="router.push({ name: 'register' })">注册</Button></div>
   </div>
 </template>
 
 <style scoped>
-.user-avatar-btn {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.trigger {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s;
-  min-width: 0;
-}
-.trigger:hover {
-  background: var(--yb-bg);
-}
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--yb-brand-primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-}
-.meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  line-height: 1.2;
-  min-width: 0;
-}
-.name {
-  max-width: 76px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
+.account-menu { min-width: 0; }
+.account-trigger { display: flex; align-items: center; gap: 8px; padding: 6px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; transition: background 150ms; }
+.account-trigger:hover { background: var(--yb-fill); }
+.avatar { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--yb-primary); color: white; font-weight: 600; }
+.meta { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 0; }
+.name { max-width: 76px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-size: 13px; font-weight: 600; color: var(--yb-ink); }
+.account-warning { max-width: 90px; font-size: 10px; color: var(--yb-muted); }
+.account-chevron { width: 12px; color: var(--yb-muted); }
+.guest-actions { display: flex; align-items: center; gap: 6px; }
 </style>

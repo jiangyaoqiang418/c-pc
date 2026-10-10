@@ -17,7 +17,7 @@ function go(name: string) {
       <div class="ub-left">
         <span class="ub-region">中国大陆</span>
         <span class="ub-sep">·</span>
-        <span class="ub-welcome">欢迎来到油宝</span>
+        <span class="ub-welcome">欢迎来到 Umaomao</span>
       </div>
       <div class="ub-right">
         <template v-if="userStore.isLoggedIn">
@@ -46,10 +46,10 @@ function go(name: string) {
 }
 .ub-inner {
   height: 100%;
-  max-width: 1440px;
-  width: 100%;
+  max-width: 1320px;
+  width: calc(100% - 96px);
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -83,5 +83,6 @@ function go(name: string) {
   color: var(--yb-apricot);
 }
 .badge-link { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 1100px) { .ub-inner { width: calc(100% - 48px); } }
 .badge { min-width: 16px; height: 16px; padding: 0 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background: #f53f3f; color: #fff; font-size: 9px; line-height: 1; }
 </style>

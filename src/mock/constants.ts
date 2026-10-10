@@ -25,10 +25,10 @@ export const MOCK_USERS: MockUserOption[] = [
 export const DEFAULT_MOCK_USER_ID = MOCK_USERS[0].userId;
 
 export const BRAND = {
-  name: '油宝',
-  fullName: '油宝 · Web3 USDT 跨境代购',
+  name: 'Umaomao',
+  fullName: 'Umaomao · USDT 跨境代购',
   slogan: '链上撮合 · USDT 结算 · 全球代购',
-  copyright: '© 2026 油宝 · 原型演示'
+  copyright: '© 2026 Umaomao'
 };
 
 export const THEME = {

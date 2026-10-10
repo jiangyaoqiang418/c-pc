@@ -5,6 +5,12 @@ import { Message } from '@/lib/feedback';
 import { useUserStore } from '@/stores';
 import OAuthLoginOptions from '@/components/auth/oauth-login-options.vue';
 import { RequestError } from '@/service/request';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import PasswordInput from '@/components/common/password-input.vue';
+import { Icon } from '@iconify/vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -78,25 +84,19 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
     <h2 class="title">登录</h2>
     <p class="hint">使用平台账号和邮箱密码登录。</p>
 
-    <a-alert v-if="oauthConflictMessage" type="warning" class="oauth-conflict" :closable="false">
-      {{ oauthConflictMessage }}
-    </a-alert>
+    <Alert v-if="oauthConflictMessage" class="oauth-conflict"><AlertDescription>{{ oauthConflictMessage }}</AlertDescription></Alert>
 
-    <a-form :model="form" layout="vertical" @submit-success="submit">
-      <a-form-item label="邮箱">
-        <a-input ref="emailInput" v-model="form.email" placeholder="请输入注册邮箱" size="large" />
-      </a-form-item>
-      <a-form-item label="密码">
-        <a-input-password v-model="form.password" placeholder="请输入登录密码" size="large" />
-      </a-form-item>
-      <a-button type="primary" html-type="submit" long :loading="submitting" size="large">登 录</a-button>
-    </a-form>
+    <form novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
+      <div class="um-field"><Label for="login-email">邮箱</Label><Input id="login-email" ref="emailInput" v-model="form.email" autocomplete="username" inputmode="email" placeholder="请输入注册邮箱" /></div>
+      <div class="um-field"><Label for="login-password">密码</Label><PasswordInput id="login-password" v-model="form.password" autocomplete="current-password" placeholder="请输入登录密码" /></div>
+      <Button type="submit" size="lg" class="w-full" :disabled="submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" />{{ submitting ? '正在登录' : '登录' }}</Button>
+    </form>
 
     <OAuthLoginOptions :disabled="submitting" :busy-provider="oauthProvider" @login="submitOAuth" />
 
     <div class="bottom">
       还没有账号？
-      <a-link role="link" tabindex="0" @click="goRegister" @keydown.enter="goRegister" @keydown.space.prevent="goRegister">立即注册</a-link>
+      <button type="button" class="auth-link" @click="goRegister">立即注册</button>
     </div>
   </div>
 </template>
@@ -106,16 +106,16 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
   text-align: left;
 }
 .title {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 28px;
+  font-weight: 600;
   margin: 0 0 6px;
   color: var(--yb-ink);
   text-align: center;
 }
 .hint {
   color: var(--yb-muted);
-  font-size: 12px;
-  margin-bottom: 20px;
+  font-size: 13px;
+  margin-bottom: 28px;
   text-align: center;
 }
 .oauth-conflict {
@@ -127,4 +127,5 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
   color: var(--yb-ink-2);
   text-align: center;
 }
+.auth-link { border: 0; background: none; color: var(--yb-primary); font: inherit; padding: 0 4px; }
 </style>

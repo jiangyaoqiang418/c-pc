@@ -281,6 +281,6 @@ router.beforeEach(async to => {
 
 router.afterEach((to, _from, failure) => {
   if (!failure && to.meta.title) {
-    document.title = `${to.meta.title} · 油宝`;
+    document.title = `${to.meta.title} · Umaomao`;
   }
 });

@@ -4,6 +4,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import { useUserStore } from '@/stores';
 import { prepareRegistration } from '@/service/api/auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import PasswordInput from '@/components/common/password-input.vue';
+import { Icon } from '@iconify/vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -44,40 +49,33 @@ async function submit() {
     <h2 class="title">注册</h2>
     <p class="hint">使用邮箱注册平台账号，注册后返回登录页完成登录。</p>
 
-    <a-form :model="form" layout="vertical" @submit-success="submit">
-      <a-form-item label="邮箱">
-        <a-input v-model="form.email" placeholder="请输入邮箱，如 name@example.com" size="large" />
-      </a-form-item>
-      <a-form-item label="昵称">
-        <a-input v-model="form.nickname" placeholder="请输入昵称" size="large" />
-      </a-form-item>
-      <a-form-item label="密码">
-        <a-input-password v-model="form.password" placeholder="请输入 6-64 位密码" size="large" />
-      </a-form-item>
-      <a-form-item label="确认密码">
-        <a-input-password v-model="form.confirm" placeholder="请再次输入密码" size="large" />
-      </a-form-item>
-      <a-button type="primary" long :loading="submitting" size="large" @click="submit">
-        注 册
-      </a-button>
-    </a-form>
+    <form novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
+      <div class="um-field"><Label for="register-email">邮箱</Label><Input id="register-email" v-model="form.email" autocomplete="username" inputmode="email" placeholder="请输入邮箱，如 name@example.com" /></div>
+      <div class="um-field"><Label for="register-nickname">昵称</Label><Input id="register-nickname" v-model="form.nickname" autocomplete="nickname" placeholder="请输入昵称" /></div>
+      <div class="um-field"><Label for="register-password">密码</Label><PasswordInput id="register-password" v-model="form.password" autocomplete="new-password" placeholder="请输入 6-64 位密码" /></div>
+      <div class="um-field"><Label for="register-confirm">确认密码</Label><PasswordInput id="register-confirm" v-model="form.confirm" autocomplete="new-password" placeholder="请再次输入密码" /></div>
+      <Button type="submit" size="lg" class="w-full" :disabled="submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" />{{ submitting ? '正在注册' : '注册' }}</Button>
+    </form>
 
     <div class="bottom">
       已有账号？
-      <a-link role="link" tabindex="0" @click="goLogin" @keydown.enter="goLogin" @keydown.space.prevent="goLogin">返回登录</a-link>
+      <button type="button" class="auth-link" @click="goLogin">返回登录</button>
     </div>
   </div>
 </template>
 
 <style scoped>
 .title {
-  font-size: 22px;
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
   margin: 0 0 6px;
 }
 .hint {
   color: var(--yb-muted);
-  font-size: 12px;
-  margin-bottom: 16px;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 28px;
 }
 .bottom {
   margin-top: 16px;
@@ -85,4 +83,5 @@ async function submit() {
   font-size: 13px;
   color: var(--yb-ink-2);
 }
+.auth-link { border: 0; background: none; color: var(--yb-primary); font: inherit; padding: 0 4px; }
 </style>
