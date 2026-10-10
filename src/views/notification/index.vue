@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -294,55 +299,27 @@ function changePage(page: number) {
   pageNo.value = page;
   syncQuery();
 }
+
+
+const notificationFilter = computed({
+  get: () => unreadOnly.value ? 'unread' : 'all',
+  set: (value: string) => { unreadOnly.value = value === 'unread'; changeUnreadFilter(); }
+});
 </script>
 
 <template>
   <div class="notification-page shop-container">
-    <div class="page-header">
-      <div><h1>站内通知</h1><p>订单状态、退款和资金结算等平台提醒</p></div>
-      <a-space>
-        <a-button :disabled="!hasUnread" :loading="readingAll" @click="readAll">全部已读</a-button>
-        <a-button status="danger" :disabled="!records.length" :loading="clearing || clearConfirmationOpen" @click="clearAll">清空通知</a-button>
-      </a-space>
-    </div>
-
-    <a-card :bordered="false" class="notification-card">
-      <div class="filter-row">
-        <a-radio-group v-model="unreadOnly" type="button" @change="changeUnreadFilter">
-          <a-radio :value="false">全部</a-radio><a-radio :value="true">仅未读</a-radio>
-        </a-radio-group>
-        <span class="count">共 {{ total }} 条</span>
-      </div>
-
-      <a-spin :loading="loading" style="width: 100%">
-        <div v-if="records.length" class="notification-list">
-          <div v-for="notification in records" :key="notification.id" class="notification-row" :class="{ unread: !notification.readFlag }">
-            <div class="notification-icon"><Icon :icon="iconFor(notification)" width="20" /></div>
-            <button class="notification-main" @click="openNotification(notification)">
-              <div class="title-row"><strong>{{ notification.title || '平台通知' }}</strong><a-tag :color="categoryFor(notification).color" size="small">{{ categoryFor(notification).label }}</a-tag><span v-if="!notification.readFlag" class="unread-dot"></span></div>
-              <p>{{ notification.content || '—' }}</p>
-              <time>{{ formatTime(notification.createdAt) }}</time>
-            </button>
-            <a-button type="text" status="danger" size="small" :loading="sameBusinessId(deletingId, notification.id)" @click="remove(notification)">删除</a-button>
-          </div>
-        </div>
-        <EmptyState
-          v-else-if="!loading"
-          :title="loadError || '暂无站内通知'"
-          :description="loadError ? '请稍后重试。' : '订单和退款状态变化后会在这里提醒你'"
-          :action-text="loadError ? '重新加载' : undefined"
-          @action="load"
-        />
-      </a-spin>
-
-      <div v-if="total > pageSize" class="pagination">
-        <a-pagination :current="pageNo" :total="total" :page-size="pageSize" @change="changePage" />
-      </div>
-    </a-card>
+    <header class="page-header"><div><span class="eyebrow">NOTIFICATIONS</span><h1>站内通知</h1><p>订单状态、退款和资金结算等平台提醒</p></div><div class="header-actions"><Tooltip><TooltipTrigger as-child><span tabindex="0"><Button variant="outline" :disabled="!hasUnread || readingAll || clearing" @click="readAll"><Icon icon="lucide:check-check" width="16" />{{ readingAll ? '正在标记…' : '全部已读' }}</Button></span></TooltipTrigger><TooltipContent v-if="!hasUnread">没有待处理的未读通知</TooltipContent></Tooltip><Button variant="outline" class="danger-button" :disabled="!records.length || clearing || clearConfirmationOpen" @click="clearAll"><Icon icon="lucide:trash-2" width="16" />{{ clearing ? '正在清空…' : '清空通知' }}</Button></div></header>
+    <section class="notification-card" :aria-busy="loading">
+      <header class="filter-row"><Tabs v-model="notificationFilter"><TabsList><TabsTrigger value="all">全部通知</TabsTrigger><TabsTrigger value="unread">仅未读</TabsTrigger></TabsList></Tabs><span v-if="!loading && !loadError" class="count">共 {{ total }} 条</span></header>
+      <div v-if="loading && !records.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-28" /></div>
+      <div v-else-if="records.length" class="notification-list" :class="{ refreshing: loading }"><article v-for="notification in records" :key="notification.id" class="notification-row" :class="{ unread: !notification.readFlag }"><div class="notification-icon"><Icon :icon="iconFor(notification)" width="22" /></div><button type="button" class="notification-main" @click="openNotification(notification)"><span class="title-row"><strong>{{ notification.title || '平台通知' }}</strong><span class="category-tag" :class="categoryFor(notification).color">{{ categoryFor(notification).label }}</span><span v-if="!notification.readFlag" class="unread-dot" aria-label="未读"></span></span><span class="notification-content">{{ notification.content || '—' }}</span><time>{{ formatTime(notification.createdAt) }}</time></button><Button type="button" variant="ghost" size="sm" class="delete-button" :disabled="deletingId !== undefined || clearing" @click="remove(notification)"><Icon :icon="sameBusinessId(deletingId, notification.id) ? 'lucide:loader-circle' : 'lucide:trash-2'" width="15" />{{ sameBusinessId(deletingId, notification.id) ? '删除中…' : '删除' }}</Button></article></div>
+      <EmptyState v-else :title="loadError || '暂无站内通知'" :description="loadError ? '请稍后重试。' : '订单和退款状态变化后会在这里提醒你'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
+      <BusinessPagination v-if="total > pageSize" :current="pageNo" :total="total" :page-size="pageSize" :loading="loading" @change="changePage" />
+    </section>
   </div>
 </template>
 
 <style scoped>
-.notification-page { padding-top: 16px; }.page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }.page-header h1 { margin: 0; font-size: 20px; }.page-header p { margin: 6px 0 0; color: var(--yb-muted); font-size: 12px; }.notification-card { border-radius: var(--bw-card-radius); }.filter-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; border-bottom: 1px solid var(--yb-hairline); }.count { color: var(--yb-muted); font-size: 12px; }.notification-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 4px; border-bottom: 1px solid var(--yb-hairline); }.notification-row.unread { background: var(--yb-primary-soft); }.notification-icon { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--yb-primary-soft); color: var(--yb-brand-primary); }.notification-main { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; cursor: pointer; }.title-row { display: flex; align-items: center; gap: 8px; color: var(--yb-ink); font-size: 14px; }.unread-dot { width: 7px; height: 7px; border-radius: 50%; background: #f53f3f; }.notification-main p { margin: 6px 0; color: var(--yb-ink-2); font-size: 13px; line-height: 1.6; }.notification-main time { color: var(--yb-muted); font-size: 11px; }.pagination { display: flex; justify-content: flex-end; margin-top: 18px; }
-@media (max-width: 720px) { .page-header { align-items: flex-start; flex-direction: column; gap: 12px; } .filter-row { align-items: flex-start; flex-direction: column; gap: 10px; } .notification-row { gap: 10px; } .title-row { flex-wrap: wrap; } .notification-row :deep(.arco-btn) { flex-shrink: 0; } .pagination { justify-content: center; } }
+.notification-page { padding-top:32px; padding-bottom:48px; }.page-header { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 10px; font-size:28px; font-weight:650; }.page-header p { color:var(--yb-muted); font-size:14px; margin:0; }.header-actions { display:flex; gap:12px; }.danger-button,.delete-button { color:var(--yb-danger); }.notification-card { padding:0 26px 26px; border:1px solid var(--yb-hairline); background:var(--yb-paper); border-radius:10px; }.filter-row { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:0 0 14px; border-bottom:1px solid var(--yb-hairline); }.count { color:var(--yb-muted); font-size:13px; }.skeletons { display:grid; gap:20px; padding-top:24px; }.refreshing { opacity:.65; }.notification-row { display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:start; gap:20px; padding:28px 10px; border-bottom:1px solid var(--yb-hairline); transition:background .15s; }.notification-row:last-child { border-bottom:0; }.notification-row:hover { background:var(--yb-primary-soft); }.notification-icon { display:grid; place-items:center; width:44px; height:44px; border-radius:8px; background:var(--yb-fill); color:var(--yb-muted); }.unread .notification-icon { background:var(--yb-primary-soft); color:var(--yb-brand-primary); }.notification-main { display:block; min-width:0; width:100%; padding:0; text-align:left; border:0; background:transparent; cursor:pointer; color:inherit; }.notification-main:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:5px; border-radius:4px; }.title-row { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }.title-row strong { font-size:16px; font-weight:550; }.unread .title-row strong { font-weight:650; }.category-tag { display:inline-flex; padding:3px 8px; background:var(--yb-fill); color:var(--yb-muted); font-size:12px; border-radius:4px; }.purple { color:#704a8d; background:#f2ebf7; }.orange { color:#9a5709; background:#fff3df; }.orangered { color:#ad453e; background:#fcecea; }.arcoblue,.blue { color:#315a96; background:#edf3fc; }.green { color:#326b43; background:#e9f3eb; }.unread-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--yb-brand-primary); flex-shrink:0; }.notification-content { display:block; margin:12px 0; line-height:1.8; color:var(--yb-muted); font-size:14px; overflow-wrap:anywhere; white-space:pre-wrap; }time { color:var(--yb-muted); font-size:12px; }.delete-button { margin-top:2px; }@media(max-width:700px) { .page-header { flex-direction:column; align-items:start; }.notification-card { padding:0 16px 20px; }.notification-row { grid-template-columns:36px minmax(0,1fr); gap:14px; }.notification-icon { width:36px; height:36px; }.delete-button { grid-column:2; justify-self:end; padding-right:0; } }@media(prefers-reduced-motion:reduce) { .notification-row { transition:none; } }
 </style>

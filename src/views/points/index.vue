@@ -1,4 +1,16 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import BusinessPagination from '@/components/common/business-pagination.vue';
+import { parseDateValue } from '@/utils/date-range';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -26,6 +38,8 @@ const loading = ref(false);
 const logLoadError = ref('');
 const rules = ref<Api.RealPoint.Rule[]>([]);
 const rulesLoadError = ref('');
+const rulesLoading = ref(false);
+const rulesReadComplete = ref(false);
 const vipStatus = ref<Api.RealVip.Status>();
 const appeals = ref<Api.RealPoint.PointAppealDTO[]>([]);
 const appealTotal = ref(0);
@@ -154,6 +168,7 @@ async function loadLogs() {
 async function loadRules() {
   if (disposed) return;
   const isCurrent = rulesGuard.begin();
+  rulesLoading.value = true;
   rulesLoadError.value = '';
   try {
     const result = await pointApi.fetchPointRules({ signal: isCurrent.signal });
@@ -163,6 +178,11 @@ async function loadRules() {
     if (!isCurrent()) return;
     rules.value = [];
     rulesLoadError.value = '积分规则加载失败，请检查网络后重试。';
+  } finally {
+    if (isCurrent()) {
+      rulesLoading.value = false;
+      rulesReadComplete.value = true;
+    }
   }
 }
 
@@ -350,289 +370,62 @@ function appealStatusColor(status: Api.RealPoint.PointAppealStatus) {
 }
 
 const filteredRules = computed(() => rules.value.filter(r => r.enabled));
+
+const appealStatusFilter = computed({
+  get: () => appealFilter.status || 'all',
+  set: (value: string) => { appealFilter.status = value === 'all' ? undefined : value as Api.RealPoint.PointAppealStatus; }
+});
+function setBehavior(behavior: Api.Point.BehaviorCode, selected: boolean | 'indeterminate') {
+  filter.behaviors = selected === true ? [...filter.behaviors.filter(value => value !== behavior), behavior] : filter.behaviors.filter(value => value !== behavior);
+}
+function dateInputValue(value?: string) {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const timestamp = parseDateValue(value);
+  if (timestamp === undefined) return '';
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+const fromDate = computed({
+  get: () => dateInputValue(filter.dateRange?.[0]),
+  set: (value: string) => { filter.dateRange = value || filter.dateRange?.[1] ? [value, filter.dateRange?.[1] || ''] : undefined; }
+});
+const toDate = computed({
+  get: () => dateInputValue(filter.dateRange?.[1]),
+  set: (value: string) => { filter.dateRange = value || filter.dateRange?.[0] ? [filter.dateRange?.[0] || '', value] : undefined; }
+});
 </script>
 
 <template>
   <div class="points-page shop-container">
-    <a-card v-if="user && vipStatus" class="hero-card" :body-style="{ padding: '24px 28px' }" :bordered="false">
-      <div class="hero-row">
-        <div class="hero-left">
-          <div class="user-meta">
-            <span class="user-name">{{ user.nickname }}</span>
-            <VipBadge :level="user.vipLevel" />
-          </div>
-          <div class="points-block">
-            <span class="points">{{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
-            <span class="unit">积分</span>
-          </div>
-          <div v-if="vipStatus.nextThreshold" class="progress-block">
-            距 {{ vipStatus.vipLevel === 'VIP0' ? 'VIP1' : 'VIP2' }} 还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 分
-            <a-progress :percent="progressPct" :show-text="false" size="small" color="#fff" style="margin-top: 6px" />
-          </div>
-        </div>
-      </div>
-    </a-card>
-
-    <a-card :bordered="false" :body-style="{ padding: 0 }" class="tab-card">
-      <a-tabs v-model:active-key="activeTab">
-        <a-tab-pane key="logs" title="积分流水" />
-        <a-tab-pane key="appeals" title="申诉记录" />
-        <a-tab-pane key="rules" title="积分规则" />
-      </a-tabs>
-    </a-card>
-
+    <header class="page-head"><div><span class="eyebrow">MEMBERSHIP POINTS</span><h1>我的积分</h1><p>查看积分变动、申诉记录和当前积分规则。</p></div><Button variant="outline" @click="router.push('/vip')">查看 VIP 权益</Button></header>
+    <section v-if="user && vipStatus" class="points-hero"><div class="user-meta"><span :title="user.nickname">{{ user.nickname }}</span><VipBadge :level="user.vipLevel" /></div><div class="points-block"><strong>{{ user.points === undefined ? '—' : formatPoints(user.points) }}</strong><span>积分</span></div><div v-if="vipStatus.nextThreshold" class="progress-block">距 {{ vipStatus.vipLevel === 'VIP0' ? 'VIP1' : 'VIP2' }} 还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 分<Progress :model-value="progressPct" class="points-progress" /></div></section>
+    <Tabs v-model="activeTab" class="tabs-panel"><TabsList><TabsTrigger value="logs">积分流水</TabsTrigger><TabsTrigger value="appeals">申诉记录</TabsTrigger><TabsTrigger value="rules">积分规则</TabsTrigger></TabsList></Tabs>
     <template v-if="activeTab === 'logs'">
-      <p v-if="!loading && !logLoadError">共 {{ total }} 条积分流水</p>
-      <a-card class="filter-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
-        <a-form :model="filter" layout="inline">
-          <a-form-item label="行为">
-            <a-select
-              v-model="filter.behaviors"
-              placeholder="全部"
-              multiple
-              allow-clear
-              style="min-width: 280px"
-            >
-              <a-option v-for="b in ALL_BEHAVIORS" :key="b" :value="b"><PointBehaviorTag :behavior="b" /></a-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="日期范围">
-            <a-range-picker v-model="filter.dateRange" :placeholder="['开始日期', '结束日期']" />
-          </a-form-item>
-          <a-button type="primary" @click="(() => { current = 1; syncQuery(); })()">查询</a-button>
-          <a-button class="filter-reset" @click="reset">重置</a-button>
-        </a-form>
-      </a-card>
-
-      <a-card :bordered="false" :body-style="{ padding: 0 }" class="list-card">
-        <a-spin :loading="loading" style="width: 100%">
-          <template v-if="logs.length">
-            <PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="openAppeal" />
-          </template>
-          <EmptyState
-            v-else
-            :title="logLoadError || '暂无匹配的积分流水'"
-            :description="logLoadError ? '请稍后重试。' : '完成订单 / 评价 / KYC 等可获得积分'"
-            :action-text="logLoadError ? '重新加载' : undefined"
-            @action="loadLogs"
-          />
-        </a-spin>
-      </a-card>
-
-      <div v-if="total > size" class="pagination-bar">
-        <a-pagination
-          :total="total"
-          :current="current"
-          :page-size="size"
-          show-total
-          @change="(p: number) => { current = p; syncQuery(); }"
-        />
-      </div>
+      <form class="panel filter-panel" novalidate @submit.prevent="current = 1; syncQuery()" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
+        <div class="field"><span class="field-label">行为</span><DropdownMenu><DropdownMenuTrigger as-child><Button type="button" variant="outline" class="behavior-trigger">{{ filter.behaviors.length ? '已选 ' + filter.behaviors.length + ' 种行为' : '全部行为' }}<Icon icon="lucide:chevron-down" width="15" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" class="behavior-menu"><DropdownMenuItem @select="filter.behaviors = []">不限 · 清除全部行为</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuCheckboxItem v-for="b in ALL_BEHAVIORS" :key="b" :model-value="filter.behaviors.includes(b)" @update:model-value="setBehavior(b, $event)" @select.prevent><PointBehaviorTag :behavior="b" /></DropdownMenuCheckboxItem></DropdownMenuContent></DropdownMenu></div>
+        <div class="field date-field"><span class="field-label">日期范围</span><div class="date-range"><Input v-model="fromDate" type="date" aria-label="开始日期" :max="toDate || undefined" /><span>—</span><Input v-model="toDate" type="date" aria-label="结束日期" :min="fromDate || undefined" /></div></div>
+        <div class="filter-actions"><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" :disabled="loading" @click="reset">重置</Button></div>
+      </form>
+      <p v-if="!loading && !logLoadError" class="record-count">共 {{ total }} 条积分流水</p>
+      <section class="panel list-panel" :aria-busy="loading"><div v-if="loading && !logs.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-20" /></div><div v-else-if="logs.length" :class="{ refreshing: loading }"><PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="openAppeal" /></div><EmptyState v-else :title="logLoadError || '暂无匹配的积分流水'" :description="logLoadError ? '请稍后重试。' : '完成订单 / 评价 / KYC 等可获得积分'" :action-text="logLoadError ? '重新加载' : undefined" @action="loadLogs" /></section>
+      <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(p: number) => { current = p; syncQuery(); }" />
     </template>
-
     <template v-else-if="activeTab === 'appeals'">
-      <a-card class="filter-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
-        <a-form :model="appealFilter" layout="inline">
-          <a-form-item label="关键词">
-            <a-input v-model="appealFilter.keyword" allow-clear placeholder="行为或申诉原因" style="width: 220px" />
-          </a-form-item>
-          <a-form-item label="状态">
-            <a-select v-model="appealFilter.status" allow-clear placeholder="全部" style="width: 140px">
-              <a-option value="PENDING">待审核</a-option>
-              <a-option value="APPROVED">已通过</a-option>
-              <a-option value="REJECTED">已驳回</a-option>
-            </a-select>
-          </a-form-item>
-          <a-button type="primary" @click="(() => { appealCurrent = 1; syncQuery(); })()">查询</a-button>
-          <a-button class="filter-reset" @click="resetAppeals">重置</a-button>
-        </a-form>
-      </a-card>
-
-      <a-card :bordered="false" :body-style="{ padding: 0 }" class="list-card">
-        <a-table :data="appeals" :loading="appealLoading" :pagination="false" row-key="id">
-          <template #columns>
-            <a-table-column title="行为" :width="160">
-              <template #cell="{ record }"><PointBehaviorTag :behavior="record.behaviorCode || ''" :label="record.behaviorName" /></template>
-            </a-table-column>
-            <a-table-column title="原积分" data-index="originalScore" :width="100" />
-            <a-table-column title="申诉原因" data-index="reason" />
-            <a-table-column title="状态" :width="100">
-              <template #cell="{ record }">
-                <a-tag :color="appealStatusColor(record.status)">{{ appealStatusText(record.status) }}</a-tag>
-              </template>
-            </a-table-column>
-            <a-table-column title="审核意见" :width="200">
-              <template #cell="{ record }">{{ record.reviewComment || record.decision || '-' }}</template>
-            </a-table-column>
-            <a-table-column title="提交时间" data-index="createdAt" :width="180" />
-          </template>
-          <template #empty>
-            <EmptyState
-              :title="appealLoadError || '暂无申诉记录'"
-              :description="appealLoadError ? '请稍后重试。' : undefined"
-              :action-text="appealLoadError ? '重新加载' : undefined"
-              @action="loadAppeals"
-            />
-          </template>
-        </a-table>
-      </a-card>
-
-      <div v-if="appealTotal > appealSize" class="pagination-bar">
-        <a-pagination
-          :total="appealTotal"
-          :current="appealCurrent"
-          :page-size="appealSize"
-          show-total
-          @change="(p: number) => { appealCurrent = p; syncQuery(); }"
-        />
-      </div>
+      <form class="panel filter-panel appeals-filter" novalidate @submit.prevent="appealCurrent = 1; syncQuery()" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }"><div class="field"><Label for="point-appeal-keyword">关键词</Label><Input id="point-appeal-keyword" v-model="appealFilter.keyword" placeholder="行为或申诉原因" /></div><div class="field"><Label for="point-appeal-status">状态</Label><Select v-model="appealStatusFilter"><SelectTrigger id="point-appeal-status"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="PENDING">待审核</SelectItem><SelectItem value="APPROVED">已通过</SelectItem><SelectItem value="REJECTED">已驳回</SelectItem></SelectContent></Select></div><div class="filter-actions"><Button type="submit" :disabled="appealLoading">查询</Button><Button type="button" variant="outline" :disabled="appealLoading" @click="resetAppeals">重置</Button></div></form>
+      <section class="panel list-panel" :aria-busy="appealLoading"><div v-if="appealLoading && !appeals.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-16" /></div><div v-else-if="appeals.length" class="table-scroll" :class="{ refreshing: appealLoading }"><table><thead><tr><th scope="col">行为</th><th scope="col">原积分</th><th scope="col">申诉原因</th><th scope="col">状态</th><th scope="col">审核意见</th><th scope="col">提交时间</th></tr></thead><tbody><tr v-for="record in appeals" :key="record.id"><td><PointBehaviorTag :behavior="record.behaviorCode || ''" :label="record.behaviorName" /></td><td>{{ record.originalScore }}</td><td class="long-text">{{ record.reason }}</td><td><span class="status" :class="appealStatusColor(record.status)">{{ appealStatusText(record.status) }}</span></td><td class="long-text">{{ record.reviewComment || record.decision || '—' }}</td><td>{{ record.createdAt }}</td></tr></tbody></table></div><EmptyState v-else :title="appealLoadError || '暂无申诉记录'" :description="appealLoadError ? '请稍后重试。' : undefined" :action-text="appealLoadError ? '重新加载' : undefined" @action="loadAppeals" /></section>
+      <BusinessPagination v-if="appealTotal > appealSize" :total="appealTotal" :current="appealCurrent" :page-size="appealSize" :loading="appealLoading" @change="(p: number) => { appealCurrent = p; syncQuery(); }" />
     </template>
-
     <template v-else>
-      <EmptyState
-        v-if="rulesLoadError"
-        :title="rulesLoadError"
-        description="请稍后重试。"
-        action-text="重新加载"
-        @action="loadRules"
-      />
-      <div v-else class="rules-grid">
-        <a-card
-          v-for="r in filteredRules"
-          :key="r.code"
-          class="rule-card"
-          :body-style="{ padding: '16px 20px' }"
-          :bordered="false"
-        >
-          <div class="rule-head">
-            <PointBehaviorTag :behavior="r.code" />
-            <a-tag size="small">{{ r.audience === 'all' ? '通用' : r.audience === 'buyer' ? '买手' : '顾客' }}</a-tag>
-          </div>
-          <div class="rule-name">{{ r.label }}</div>
-          <div class="rule-desc">{{ r.description }}</div>
-          <div class="rule-reward">
-            <span class="reward" :class="{ minus: r.pointsPerUnit < 0 }">
-              {{ r.pointsPerUnit > 0 ? '+' : '' }}{{ r.pointsPerUnit }} 分 / {{ r.unitLabel || '次' }}
-            </span>
-            <span v-if="r.capDaily" class="cap">每日上限 {{ r.capDaily }}</span>
-          </div>
-        </a-card>
-      </div>
+      <EmptyState v-if="rulesLoadError" :title="rulesLoadError" description="请稍后重试。" action-text="重新加载" @action="loadRules" />
+      <div v-else-if="rulesLoading || !rulesReadComplete" class="rules-grid"><Skeleton v-for="n in 3" :key="n" class="h-48" /></div>
+      <div v-else-if="filteredRules.length" class="rules-grid"><article v-for="r in filteredRules" :key="r.code" class="panel rule-card"><header><PointBehaviorTag :behavior="r.code" /><span class="audience-label">{{ r.audience === 'all' ? '通用' : r.audience === 'buyer' ? '买手' : '顾客' }}</span></header><h2>{{ r.label }}</h2><p>{{ r.description }}</p><footer><strong :class="{ minus: r.pointsPerUnit < 0 }">{{ r.pointsPerUnit > 0 ? '+' : '' }}{{ r.pointsPerUnit }} 分 / {{ r.unitLabel || '次' }}</strong><span v-if="r.capDaily">每日上限 {{ r.capDaily }}</span></footer></article></div>
+      <EmptyState v-else title="暂无可用积分规则" action-text="重新读取" @action="loadRules" />
     </template>
-
-    <a-modal v-model:visible="appealModalOpen" title="积分申诉" :ok-loading="appealSubmitting" :on-before-ok="() => { void submitAppeal(); return false; }">
-      <a-form :model="appealForm" layout="vertical">
-        <a-form-item label="申诉原因" required>
-          <a-textarea v-model="appealForm.reason" :max-length="500" :auto-size="{ minRows: 4, maxRows: 8 }" placeholder="请说明申诉原因，至少 10 个字" show-word-limit />
-        </a-form-item>
-      </a-form>
-    </a-modal>
+    <a-modal v-model:visible="appealModalOpen" title="积分申诉" :ok-loading="appealSubmitting" :mask-closable="!appealSubmitting" :esc-to-close="!appealSubmitting" :closable="!appealSubmitting" :on-before-ok="() => { void submitAppeal(); return false; }"><div class="field"><Label for="point-appeal-reason">申诉原因 <span class="required">*</span></Label><Textarea id="point-appeal-reason" v-model="appealForm.reason" :disabled="appealSubmitting" :maxlength="500" :rows="5" placeholder="请说明申诉原因，至少 10 个字" /><span class="counter">{{ appealForm.reason.length }}/500</span></div></a-modal>
   </div>
 </template>
 
 <style scoped>
-.points-page {
-  padding-top: 16px;
-}
-.hero-card {
-  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-deep-2) 60%, var(--yb-primary) 100%);
-  color: #fff;
-  border-radius: var(--yb-radius-card);
-  margin-bottom: 16px;
-}
-.hero-card :deep(.arco-card-body) {
-  color: #fff;
-}
-.user-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.user-name {
-  font-size: 18px;
-  font-weight: 700;
-}
-.points-block {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 10px 0;
-}
-.points {
-  font-size: 40px;
-  font-weight: 700;
-  font-family: ui-monospace, monospace;
-}
-.unit {
-  font-size: 13px;
-  opacity: 0.78;
-}
-.progress-block {
-  font-size: 12px;
-  opacity: 0.92;
-  width: 320px;
-}
-.tab-card,
-.filter-card,
-.list-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 12px;
-}
-.filter-reset {
-  margin-left: 12px;
-}
-.pagination-bar {
-  display: flex;
-  justify-content: center;
-  margin-top: 12px;
-}
-.rules-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.rule-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.rule-head {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 10px;
-  align-items: center;
-}
-.rule-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 4px;
-}
-.rule-desc {
-  font-size: 12px;
-  color: var(--yb-muted);
-  line-height: 1.5;
-  margin-bottom: 8px;
-  min-height: 3em;
-}
-.rule-reward {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--yb-hairline);
-}
-.reward {
-  color: #f53f3f;
-  font-weight: 600;
-  font-size: 13px;
-}
-.reward.minus {
-  color: var(--yb-ink-2);
-}
-.cap {
-  color: var(--yb-muted);
-  font-size: 11px;
-}
+.points-page { padding-top:32px; padding-bottom:48px; }.page-head { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:26px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 10px; font-size:28px; font-weight:650; }.page-head p { color:var(--yb-muted); margin:0; font-size:14px; }.points-hero { padding:32px; border-radius:10px; background:var(--yb-brand-primary); color:#fff; margin-bottom:26px; }.user-meta { display:flex; align-items:center; gap:16px; }.user-meta>span { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:17px; }.points-block { display:flex; align-items:baseline; gap:12px; margin:22px 0; }.points-block strong { font-size:42px; font-weight:600; font-variant-numeric:tabular-nums; }.points-block>span { opacity:.75; font-size:14px; }.progress-block { font-size:13px; max-width:420px; }.points-progress { margin-top:12px; background:rgb(255 255 255 / 20%); height:4px; }.points-progress :deep(div) { background:var(--yb-accent); }.tabs-panel { margin-bottom:26px; padding:0 24px; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; }.panel { background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; padding:24px; }.filter-panel { display:grid; grid-template-columns:minmax(200px,1fr) minmax(300px,1.6fr) auto; gap:24px; align-items:end; margin-bottom:20px; }.field { display:grid; gap:10px; }.field-label { font-size:14px; font-weight:500; }.behavior-trigger { justify-content:space-between; }.behavior-menu { max-height:min(420px,70dvh); min-width:240px; overflow-y:auto; }.date-range { display:flex; align-items:center; gap:8px; }.date-range input { min-width:0; }.date-range>span { color:var(--yb-muted); }.filter-actions { display:flex; gap:12px; }.record-count { color:var(--yb-muted); font-size:13px; margin:18px 0; }.list-panel { padding:10px 16px; }.skeletons { display:grid; gap:16px; padding:16px 0; }.refreshing { opacity:.65; }.table-scroll { overflow-x:auto; }table { border-collapse:collapse; min-width:850px; width:100%; text-align:left; }th { padding:14px 16px; font-size:13px; font-weight:500; background:var(--yb-fill); color:var(--yb-muted); }td { padding:20px 16px; border-bottom:1px solid var(--yb-hairline); font-size:14px; vertical-align:top; }.long-text { max-width:300px; overflow-wrap:anywhere; white-space:pre-wrap; }.status,.audience-label { display:inline-flex; padding:4px 9px; border-radius:4px; font-size:12px; white-space:nowrap; }.orange { color:#9a5709; background:#fff3df; }.green { color:#326b43; background:#e9f3eb; }.red { color:#ad453e; background:#fcecea; }.rules-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }.rule-card header,.rule-card footer { display:flex; align-items:center; justify-content:space-between; gap:12px; }.audience-label { color:var(--yb-muted); background:var(--yb-fill); }.rule-card h2 { font-size:18px; font-weight:600; margin:22px 0 10px; }.rule-card p { color:var(--yb-muted); font-size:14px; line-height:1.8; min-height:50px; }.rule-card footer { padding-top:20px; border-top:1px solid var(--yb-hairline); }.rule-card footer strong { color:var(--yb-success); font-size:15px; font-weight:600; }.rule-card footer .minus { color:var(--yb-danger); }.rule-card footer>span { color:var(--yb-muted); font-size:12px; }.required { color:var(--yb-danger); }.counter { color:var(--yb-muted); text-align:right; font-size:12px; }@media(max-width:1100px) { .filter-panel { grid-template-columns:1fr 1.5fr; }.filter-actions { grid-column:1/-1; }.appeals-filter { grid-template-columns:1fr 1fr; }.rules-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }@media(max-width:700px) { .filter-panel,.rules-grid { grid-template-columns:1fr; }.page-head { flex-direction:column; align-items:start; } }
 </style>

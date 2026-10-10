@@ -25,10 +25,10 @@ const iconName = computed(() => (props.level === 'VIP2' ? 'lucide:crown' : props
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  border-radius: var(--yb-radius-pill);
+  border-radius: 4px;
   font-family: var(--yb-font-mono);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.02em;
   line-height: 1;
   white-space: nowrap;
@@ -36,7 +36,7 @@ const iconName = computed(() => (props.level === 'VIP2' ? 'lucide:crown' : props
 }
 .vip-badge.sm {
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: 11px;
   gap: 3px;
 }
 .vip-badge.lg {

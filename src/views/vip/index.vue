@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EmptyState from '@/components/common/empty-state.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatPoints } from '@shared';
@@ -96,244 +103,26 @@ const audienceTabs: { value: Api.Vip.Audience; label: string }[] = [
   { value: 'customer', label: '顾客特权' },
   { value: 'buyer', label: '买手特权' }
 ];
+
+
 </script>
 
 <template>
   <div class="vip-page shop-container">
-    <a-alert v-if="vipLoadError" type="error" :closable="false" class="load-alert">
-      {{ vipLoadError }}
-      <template #action><a-button size="mini" :loading="loading" @click="load">重新加载</a-button></template>
-    </a-alert>
-    <a-spin :loading="loading" style="width: 100%">
-      <template v-if="configs.length || pointRules.length">
-        <!-- Hero -->
-        <a-card v-if="user && vipStatus" class="hero-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
-          <div class="hero-row">
-            <div class="hero-left">
-              <div class="hero-meta">
-                <VipBadge :level="user.vipLevel" />
-                <span class="user-name">{{ user.nickname }}</span>
-                <span class="user-audience">{{ user.isBuyer ? '买手' : '顾客' }}视角</span>
-              </div>
-              <div class="hero-points">
-                <span class="points">{{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
-                <span class="unit">积分</span>
-              </div>
-              <div class="hero-progress">
-                <template v-if="vipStatus.nextThreshold">
-                  距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 分
-                  <a-progress :percent="progressPct" :show-text="false" size="small" color="#fff" style="margin-top: 6px" />
-                </template>
-                <template v-else>已是最高等级 🎉</template>
-              </div>
-            </div>
-            <div class="hero-right">
-              <div class="hero-tier-cards">
-                <div v-for="level in ['VIP0', 'VIP1', 'VIP2']" :key="level" class="tier-mini" :class="{ active: user.vipLevel === level }">
-                  {{ level }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </a-card>
-        <a-card v-else class="hero-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
-          <div class="hero-row">
-            <div class="hero-left">
-              <div class="hero-meta"><span class="user-name">VIP 等级与权益</span></div>
-              <div class="hero-progress">登录后可查看当前积分、等级与升级进度。</div>
-            </div>
-            <a-button type="outline" @click="router.push({ name: 'login' })">登录查看我的等级</a-button>
-          </div>
-        </a-card>
-
-        <!-- Audience Switch -->
-        <a-card class="switch-card" :body-style="{ padding: '14px 24px' }" :bordered="false">
-          <div class="switch-row">
-            <span class="lbl">查看视角</span>
-            <a-radio-group v-model="audience" type="button" size="medium">
-              <a-radio v-for="t in audienceTabs" :key="t.value" :value="t.value">{{ t.label }}</a-radio>
-            </a-radio-group>
-            <span v-if="audience === 'buyer' && !user?.isBuyer" class="hint">
-              （您当前为顾客身份，仅供查看；如需享受买手特权请先完成 KYC 并申请买手）
-            </span>
-          </div>
-        </a-card>
-
-        <!-- Benefits Table -->
-        <div class="table-block">
-          <VipBenefitsTable :audience="audience" :current-level="vipStatus?.vipLevel" :configs="configs" />
-        </div>
-
-        <!-- How to upgrade -->
-        <a-card class="rules-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-          <div class="section-title">如何升级</div>
-          <div class="rules-grid">
-            <div v-for="r in filteredRules" :key="r.code" class="rule-cell">
-              <div class="rule-name">{{ r.label }}</div>
-              <div class="rule-meta">
-                <span class="reward" :class="{ minus: r.pointsPerUnit < 0 }">
-                  {{ r.pointsPerUnit > 0 ? '+' : '' }}{{ r.pointsPerUnit }} 分 / {{ r.unitLabel || '次' }}
-                </span>
-                <span v-if="r.capDaily" class="cap">每日上限 {{ r.capDaily }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="rules-foot">
-            <a-link role="link" tabindex="0" @click="router.push(user ? '/points' : { name: 'login' })" @keydown.enter="router.push(user ? '/points' : { name: 'login' })" @keydown.space.prevent="router.push(user ? '/points' : { name: 'login' })">{{ user ? '查看积分明细' : '登录后查看积分明细' }}</a-link>
-          </div>
-        </a-card>
-      </template>
-      <a-result v-else-if="!loading" status="warning" title="VIP 配置暂不可用" subtitle="请稍后刷新重试" />
-    </a-spin>
+    <header class="page-head"><span class="eyebrow">MEMBERSHIP BENEFITS</span><h1>VIP 等级与权益</h1><p>等级、权益和升级条件以平台当前配置为准。</p></header>
+    <Alert v-if="vipLoadError" variant="destructive" class="load-alert"><Icon icon="lucide:circle-alert" /><AlertDescription>{{ vipLoadError }}<div class="alert-actions"><Button variant="outline" :disabled="loading" @click="load">重新加载</Button></div></AlertDescription></Alert>
+    <div v-if="loading && !configs.length && !pointRules.length" class="loading-grid"><Skeleton class="h-56" /><Skeleton class="h-72" /></div>
+    <template v-else-if="configs.length || pointRules.length">
+      <section v-if="user && vipStatus" class="hero-card"><div class="hero-main"><div class="hero-meta"><VipBadge :level="user.vipLevel" /><span class="user-name" :title="user.nickname">{{ user.nickname }}</span><span class="user-audience">{{ user.isBuyer ? '买手' : '顾客' }}视角</span></div><div class="hero-points"><strong>{{ user.points === undefined ? '—' : formatPoints(user.points) }}</strong><span>积分</span></div><div v-if="vipStatus.nextThreshold" class="hero-progress">距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 分<Progress :model-value="progressPct" class="vip-progress" /></div><div v-else class="hero-progress"><Icon icon="lucide:crown" width="16" />已是最高等级</div></div><div class="hero-tiers"><div v-for="level in ['VIP0', 'VIP1', 'VIP2']" :key="level" class="tier-mini" :class="{ active: user.vipLevel === level }"><Icon :icon="level === 'VIP2' ? 'lucide:crown' : level === 'VIP1' ? 'lucide:star' : 'lucide:circle-user'" width="20" /><span>{{ level }}</span></div></div></section>
+      <section v-else class="hero-card"><div class="hero-main"><h2>{{ user ? '当前等级暂未取得' : '开启您的会员权益' }}</h2><p>{{ user ? '请重新读取账号等级，不会将读取失败显示为 VIP0。' : '登录后可查看当前积分、等级与升级进度。' }}</p></div><Button v-if="user" variant="outline" class="hero-button" :disabled="loading" @click="load">重新读取等级</Button><Button v-else variant="outline" class="hero-button" @click="router.push({ name: 'login' })">登录查看我的等级</Button></section>
+      <section class="audience-panel"><span class="audience-label">查看视角</span><Tabs v-model="audience"><TabsList><TabsTrigger v-for="t in audienceTabs" :key="t.value" :value="t.value">{{ t.label }}</TabsTrigger></TabsList></Tabs><span v-if="audience === 'buyer' && !user?.isBuyer" class="audience-hint">您当前为顾客身份，仅供查看；如需享受买手特权请先完成 KYC 并申请买手。</span></section>
+      <VipBenefitsTable :audience="audience" :current-level="vipStatus?.vipLevel" :configs="configs" />
+      <section class="rules-panel"><header><h2>如何升级</h2><Button variant="link" @click="router.push(user ? '/points' : { name: 'login' })">{{ user ? '查看积分明细' : '登录后查看积分明细' }}<Icon icon="lucide:arrow-right" width="15" /></Button></header><div v-if="filteredRules.length" class="rules-grid"><article v-for="r in filteredRules" :key="r.code" class="rule-cell"><h3>{{ r.label }}</h3><strong :class="{ minus: r.pointsPerUnit < 0 }">{{ r.pointsPerUnit > 0 ? '+' : '' }}{{ r.pointsPerUnit }} 分 / {{ r.unitLabel || '次' }}</strong><span v-if="r.capDaily">每日上限 {{ r.capDaily }}</span></article></div><EmptyState v-else title="当前视角暂无可用积分规则" /></section>
+    </template>
+    <EmptyState v-else title="VIP 配置暂不可用" description="请稍后刷新重试" action-text="重新加载" @action="load" />
   </div>
 </template>
 
 <style scoped>
-.vip-page {
-  padding-top: 16px;
-}
-.hero-card {
-  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-brand-primary) 100%);
-  color: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.hero-card :deep(.arco-card-body) {
-  color: #fff;
-}
-.hero-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.hero-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.user-name {
-  font-size: 18px;
-  font-weight: 700;
-}
-.user-audience {
-  font-size: 12px;
-  opacity: 0.78;
-  background: rgba(255, 255, 255, 0.16);
-  padding: 2px 8px;
-  border-radius: 3px;
-}
-.hero-points {
-  margin: 12px 0 8px;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.points {
-  font-size: 40px;
-  font-weight: 700;
-  font-family: ui-monospace, monospace;
-}
-.unit {
-  font-size: 13px;
-  opacity: 0.78;
-}
-.hero-progress {
-  font-size: 13px;
-  width: 320px;
-}
-.hero-tier-cards {
-  display: flex;
-  gap: 8px;
-}
-.tier-mini {
-  width: 56px;
-  height: 56px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.7);
-  border: 2px solid transparent;
-}
-.tier-mini.active {
-  background: #fff;
-  color: var(--yb-brand-primary);
-  border-color: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  transform: scale(1.06);
-}
-.switch-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.switch-row {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.switch-row .lbl {
-  color: var(--yb-muted);
-  font-size: 13px;
-}
-.switch-row .hint {
-  color: var(--yb-muted);
-  font-size: 12px;
-}
-.table-block {
-  margin-bottom: 16px;
-}
-.rules-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 12px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.rules-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.rule-cell {
-  padding: 14px 16px;
-  background: var(--yb-primary-soft);
-  border-radius: 6px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.rule-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.rule-meta {
-  margin-top: 6px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.reward {
-  color: #f53f3f;
-  font-weight: 600;
-  font-size: 13px;
-}
-.reward.minus {
-  color: var(--yb-ink-2);
-}
-.cap {
-  color: var(--yb-muted);
-  font-size: 11px;
-}
-.rules-foot {
-  margin-top: 12px;
-  text-align: right;
-}
+.vip-page { padding-top:32px; padding-bottom:48px; }.page-head { margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { font-size:28px; font-weight:650; margin:5px 0 10px; }.page-head p { margin:0; font-size:14px; color:var(--yb-muted); }.load-alert { margin-bottom:24px; }.alert-actions { margin-top:14px; }.loading-grid { display:grid; gap:24px; }.hero-card { display:flex; align-items:center; justify-content:space-between; gap:32px; padding:40px; background:var(--yb-brand-primary); color:#fff; border-radius:10px; margin-bottom:26px; }.hero-main { min-width:0; }.hero-meta { display:flex; flex-wrap:wrap; align-items:center; gap:14px; }.user-name { max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:18px; font-weight:600; }.user-audience { font-size:12px; padding:4px 9px; border-radius:4px; background:rgb(255 255 255 / 12%); color:rgb(255 255 255 / 80%); }.hero-points { display:flex; align-items:baseline; gap:12px; margin:22px 0; }.hero-points strong { font-size:44px; font-weight:600; font-variant-numeric:tabular-nums; }.hero-points>span { color:rgb(255 255 255 / 75%); font-size:14px; }.hero-progress { font-size:13px; max-width:400px; }.hero-progress>svg { display:inline; margin-right:8px; }.vip-progress { height:4px; margin-top:12px; background:rgb(255 255 255 / 20%); }.vip-progress :deep(div) { background:var(--yb-accent); }.hero-tiers { display:flex; gap:16px; flex-shrink:0; }.tier-mini { display:grid; place-items:center; gap:10px; width:92px; height:106px; border-radius:8px; background:rgb(255 255 255 / 7%); color:rgb(255 255 255 / 60%); border:1px solid rgb(255 255 255 / 12%); font-size:14px; padding:20px; }.tier-mini.active { color:var(--yb-accent); border-color:var(--yb-accent); background:rgb(255 255 255 / 12%); }.hero-card h2 { font-size:23px; font-weight:600; margin:0 0 12px; }.hero-card p { color:rgb(255 255 255 / 80%); font-size:14px; margin:0; }.hero-button { background:transparent; border-color:rgb(255 255 255 / 40%); color:#fff; }.hero-button:hover { background:rgb(255 255 255 / 10%); }.audience-panel { display:flex; align-items:center; gap:24px; padding:12px 24px; border:1px solid var(--yb-hairline); background:var(--yb-paper); border-radius:10px; margin-bottom:26px; }.audience-label { color:var(--yb-muted); font-size:14px; }.audience-hint { font-size:13px; line-height:1.7; color:var(--yb-muted); }.rules-panel { padding:28px; margin-top:28px; border:1px solid var(--yb-hairline); background:var(--yb-paper); border-radius:10px; }.rules-panel header { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px; }.rules-panel h2 { margin:0; font-size:22px; font-weight:600; }.rules-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }.rule-cell { padding:24px; background:var(--yb-fill); border-radius:6px; }.rule-cell h3 { margin:0 0 16px; font-size:16px; font-weight:600; }.rule-cell strong { display:block; color:var(--yb-success); font-size:16px; font-weight:600; }.rule-cell strong.minus { color:var(--yb-danger); }.rule-cell>span { display:block; margin-top:10px; color:var(--yb-muted); font-size:12px; }@media(max-width:1100px) { .hero-tiers { gap:10px; }.tier-mini { width:72px; }.audience-panel { flex-wrap:wrap; }.rules-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }@media(max-width:700px) { .hero-card { padding:28px; flex-direction:column; align-items:start; }.rules-grid { grid-template-columns:1fr; } }
 </style>

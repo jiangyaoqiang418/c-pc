@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { computed } from 'vue';
 import { enums } from '@shared';
 
@@ -18,7 +19,7 @@ const columns = computed(() =>
 interface RowItem {
   level: Api.User.VipLevel;
   label: string;
-  threshold: number;
+  threshold?: number;
   meta: (typeof enums.VIP_META)[Api.User.VipLevel];
   values: { key: string; label: string; unit: string; value: string }[];
 }
@@ -29,7 +30,7 @@ const rows = computed<RowItem[]>(() => {
     return {
       level,
       label: enums.VIP_META[level].label,
-      threshold: cfg?.threshold || 0,
+      threshold: cfg?.threshold,
       meta: enums.VIP_META[level],
       values: columns.value.map(col => {
         const raw = cfg
@@ -43,86 +44,16 @@ const rows = computed<RowItem[]>(() => {
     };
   });
 });
+
+
 </script>
 
 <template>
   <div class="table-wrap">
-    <table class="benefits-table">
-      <thead>
-        <tr>
-          <th class="col-level">等级</th>
-          <th class="col-threshold">积分阈值</th>
-          <th v-for="col in columns" :key="col.key">{{ col.label }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in rows" :key="row.level" :class="{ current: row.level === currentLevel }">
-          <td class="col-level">
-            <span class="level-badge" :style="{ color: row.meta.color, background: row.meta.bg }">{{ row.label }}</span>
-            <span v-if="row.level === currentLevel" class="you">当前</span>
-          </td>
-          <td class="col-threshold">{{ row.threshold.toLocaleString() }} 分</td>
-          <td v-for="v in row.values" :key="v.key">
-            {{ v.value }}<span class="unit">{{ v.value === '—' ? '' : ' ' + v.unit }}</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <table class="benefits-table"><caption class="sr-only">{{ audience === 'buyer' ? '买手' : '顾客' }} VIP 等级权益对比</caption><thead><tr><th scope="col">等级</th><th scope="col">积分阈值</th><th v-for="col in columns" :key="col.key" scope="col">{{ col.label }}</th></tr></thead><tbody><tr v-for="row in rows" :key="row.level" :class="{ current: row.level === currentLevel }"><th scope="row"><span class="level-label"><span class="level-badge" :style="{ color: row.meta.color, background: row.meta.bg }">{{ row.label }}</span><span v-if="row.level === currentLevel" class="you">当前</span></span></th><td>{{ row.threshold === undefined ? '—' : row.threshold.toLocaleString() + ' 分' }}</td><td v-for="v in row.values" :key="v.key">{{ v.value }}<span class="unit">{{ v.value === '—' ? '' : ' ' + v.unit }}</span></td></tr></tbody></table>
   </div>
 </template>
 
 <style scoped>
-.table-wrap {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  overflow: hidden;
-  border: 1px solid var(--yb-hairline);
-}
-.benefits-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.benefits-table th,
-.benefits-table td {
-  padding: 14px 16px;
-  text-align: center;
-  font-size: 13px;
-}
-.benefits-table th {
-  background: var(--yb-fill);
-  color: var(--yb-ink-2);
-  font-weight: 500;
-  font-size: 12px;
-}
-.benefits-table tbody tr {
-  border-top: 1px solid var(--yb-hairline);
-  transition: background 0.15s;
-}
-.benefits-table tbody tr.current {
-  background: linear-gradient(90deg, var(--yb-primary-soft) 0%, var(--yb-primary-soft) 100%);
-  font-weight: 600;
-}
-.col-level {
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.level-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-.you {
-  font-size: 10px;
-  color: var(--yb-brand-primary);
-  background: #fff;
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--yb-brand-primary);
-}
-.unit {
-  color: var(--yb-muted);
-  font-weight: 400;
-}
+.table-wrap { border:1px solid var(--yb-hairline); border-radius:10px; overflow-x:auto; background:var(--yb-paper); }.benefits-table { border-collapse:collapse; min-width:850px; width:100%; }.benefits-table th,.benefits-table td { padding:22px 20px; text-align:center; font-size:14px; }.benefits-table thead th { padding:18px 20px; background:var(--yb-fill); color:var(--yb-muted); font-size:13px; font-weight:500; }.benefits-table tbody th { font-weight:500; }.benefits-table tbody tr { border-top:1px solid var(--yb-hairline); }.benefits-table tbody tr.current { background:var(--yb-primary-soft); font-weight:600; }.level-label { display:flex; align-items:center; justify-content:center; gap:10px; }.level-badge { padding:4px 9px; border-radius:4px; font-weight:600; white-space:nowrap; }.you { padding:3px 8px; font-size:11px; color:var(--yb-brand-primary); background:var(--yb-paper); border:1px solid var(--yb-hairline-2); border-radius:4px; white-space:nowrap; }.unit { color:var(--yb-muted); font-weight:400; }
 </style>

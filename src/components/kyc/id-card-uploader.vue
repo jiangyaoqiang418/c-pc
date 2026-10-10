@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
 import { onBeforeUnmount, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import { uploadKycFile } from '@/service/api/kyc';
@@ -94,55 +96,21 @@ onBeforeUnmount(() => {
   uploadVersion += 1;
   if (uploading.value) emit('uploading', false);
 });
+
+
 </script>
 
 <template>
-  <div class="id-uploader" :class="{ uploaded: !!modelValue, face: side === 'face' }">
+  <div class="id-uploader" :class="{ uploaded: !!modelValue }">
     <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled || uploading" @change="onFileChange" />
-    <div
-      class="preview"
-      role="button"
-      :tabindex="disabled || uploading ? -1 : 0"
-      :aria-label="`上传${label || sideLabel[side]}`"
-      :aria-disabled="disabled || uploading ? 'true' : undefined"
-      @click="pickFile"
-      @keydown.enter="pickFile"
-      @keydown.space.prevent="pickFile"
-    >
-      <img v-if="previewUrl" :src="previewUrl" :alt="label || sideLabel[side]" class="img" />
-      <div v-else class="placeholder">
-        <span>{{ uploading ? '上传中…' : `点击上传${label || sideLabel[side]}` }}</span>
-        <small>JPG / PNG / WebP，≤ 10 MB</small>
-      </div>
-      <div v-if="uploading" class="overlay">上传中…</div>
-    </div>
-    <div class="meta">
-      <span class="title">{{ label || sideLabel[side] }}</span>
-      <a-link v-if="modelValue" role="button" :tabindex="disabled ? -1 : 0" :disabled="disabled" status="danger" @click="clearFromUser" @keydown.enter="clearFromUser" @keydown.space.prevent="clearFromUser">重新上传</a-link>
-      <span v-else class="hint">上传真实证件资料</span>
-    </div>
+    <button type="button" class="preview" :disabled="disabled || uploading" :aria-label="`上传${label || sideLabel[side]}`" @click="pickFile">
+      <img v-if="previewUrl" :src="previewUrl" :alt="label || sideLabel[side]" class="img" @error="previewUrl = ''" />
+      <span v-else class="placeholder"><Icon :icon="uploading ? 'lucide:loader-circle' : modelValue ? 'lucide:badge-check' : 'lucide:image-plus'" width="26" :class="{ spinning: uploading }" /><span>{{ uploading ? '上传中…' : modelValue ? '证件已上传，暂无可用预览' : `点击上传${label || sideLabel[side]}` }}</span><small>JPG / PNG / WebP，≤ 10 MB</small></span><span v-if="uploading && previewUrl" class="overlay">上传中…</span>
+    </button>
+    <div class="meta"><span class="title">{{ label || sideLabel[side] }}</span><Button v-if="modelValue" type="button" variant="link" size="sm" class="reset-button" :disabled="disabled || uploading" @click="clearFromUser">重新上传</Button><span v-else class="hint">上传真实证件资料</span></div>
   </div>
 </template>
 
 <style scoped>
-.file-input { display: none; }
-.id-uploader { display: flex; flex-direction: column; gap: 8px; align-items: center; }
-.id-uploader.face { width: 220px; }
-.id-uploader:not(.face) { width: 360px; }
-.preview {
-  position: relative; width: 100%; border-radius: 6px; overflow: hidden; cursor: pointer;
-  border: 2px dashed var(--yb-hairline-2); background: var(--yb-fill); transition: border-color 0.15s;
-}
-.id-uploader:not(.face) .preview { aspect-ratio: 360 / 220; }
-.id-uploader.face .preview { aspect-ratio: 1; border-radius: 50%; }
-.id-uploader.uploaded .preview { border-color: var(--bw-brand-primary); border-style: solid; }
-.preview:hover { border-color: var(--bw-brand-primary); }
-.preview:focus-visible { outline: 2px solid var(--bw-brand-primary); outline-offset: 3px; }
-.img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.placeholder { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--yb-ink-2); font-size: 13px; }
-.placeholder small { color: var(--yb-muted); font-size: 11px; }
-.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 13px; }
-.meta { display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 12px; }
-.title { color: var(--yb-ink); font-weight: 500; }
-.hint { color: var(--yb-muted); }
+.file-input { display:none; }.id-uploader { display:grid; gap:12px; min-width:0; }.preview { position:relative; width:100%; aspect-ratio:1.6; border:1px dashed var(--yb-hairline-2); border-radius:8px; overflow:hidden; background:var(--yb-fill); padding:0; cursor:pointer; transition:background .15s,border-color .15s; }.preview:not(:disabled):hover { background:var(--yb-primary-soft); border-color:var(--yb-brand-primary); }.preview:disabled { cursor:not-allowed; opacity:.65; }.preview:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.uploaded .preview { border-style:solid; border-color:var(--yb-hairline-2); }.img { width:100%; height:100%; object-fit:cover; display:block; }.placeholder { height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--yb-muted); font-size:13px; padding:16px; }.placeholder svg { color:var(--yb-brand-primary); }.placeholder small { font-size:12px; color:var(--yb-muted); }.overlay { position:absolute; inset:0; display:grid; place-items:center; background:rgb(0 0 0 / 45%); color:#fff; font-size:14px; }.meta { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; }.title { color:var(--yb-ink); font-weight:500; }.hint { color:var(--yb-muted); }.reset-button { padding:0; height:auto; color:var(--yb-danger); }.spinning { animation:spin 1s linear infinite; }@keyframes spin { to { transform:rotate(360deg); } }@media(prefers-reduced-motion:reduce) { .preview { transition:none; }.spinning { animation:none; } }
 </style>
