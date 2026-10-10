@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Icon } from '@iconify/vue';
+import CategoryPicker from '@/components/common/category-picker.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -295,129 +303,23 @@ async function savePrice() {
   }
 }
 
+
+
 </script>
 
 <template>
   <div class="bp-page shop-container">
-    <div class="page-head">
-      <h1 class="page-title">商品管理</h1>
-      <a-space>
-        <a-button @click="router.push('/buyer/categories/apply')">分类申请</a-button>
-        <a-button @click="router.push('/buyer/flash-sales')">秒杀报名</a-button>
-        <a-button type="primary" @click="router.push('/buyer/products/create')">+ 上架新商品</a-button>
-      </a-space>
-    </div>
-
-    <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs v-model:active-key="activeKey" lazy-load>
-        <a-tab-pane v-for="t in TABS" :key="t.key" :title="t.label" />
-      </a-tabs>
-    </a-card>
-
-    <a-card class="filter-card" :bordered="false">
-      <a-space wrap>
-        <a-input v-model="keyword" placeholder="搜索商品名称" allow-clear style="width: 240px" @press-enter="queryProducts" />
-        <a-cascader
-          v-model="categoryId"
-          :options="categoryOptions"
-          placeholder="选择商品分类"
-          allow-clear
-          check-strictly
-          style="width: 240px"
-        />
-        <a-button type="primary" @click="queryProducts">查询</a-button>
-        <a-button @click="resetFilters">重置</a-button>
-      </a-space>
-    </a-card>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <div v-if="products.length" class="grid">
-        <BuyerProductCard
-          v-for="p in products"
-          :key="p.id"
-          :class="{ 'focused-product': focusedProductId && String(p.id) === focusedProductId }"
-          :product="p"
-          :shelving="shelvingId === p.id"
-          :deleting="deletingId === p.id"
-          :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined"
-          @edit="router.push({ name: 'buyer-product-edit', params: { id: String(p.id) } })"
-          @price="openPrice(p)"
-          @toggle-shelf="toggleShelf"
-          @delete="deleteProduct"
-        />
-      </div>
-      <EmptyState
-        v-else
-        :title="loadError ? '商品列表加载失败' : '该状态下没有商品'"
-        :description="loadError || '点击右上角「上架新商品」开始售卖'"
-        :action-text="loadError ? '重新加载' : '上架新商品'"
-        @action="loadError ? load() : router.push('/buyer/products/create')"
-      />
-    </a-spin>
-
-    <a-modal v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving">
-      <p>{{ priceProduct?.title }}</p>
-      <a-form layout="vertical" :model="{ price: newPrice }">
-        <a-form-item label="售价（USDT）" required><a-input v-model="newPrice" :disabled="priceSaving" placeholder="请输入新的商品售价" @press-enter="savePrice" /></a-form-item>
-      </a-form>
-      <p>改价立即生效，已下单订单的价格不受影响。</p>
-      <div style="display:flex;justify-content:flex-end;gap:12px">
-        <a-button :disabled="priceSaving" @click="priceVisible = false">取消</a-button>
-        <a-button type="primary" :loading="priceSaving" @click="savePrice">确认改价</a-button>
-      </div>
-    </a-modal>
-    <div v-if="total > size" class="pagination">
-      <a-pagination
-        :total="total"
-        :current="current"
-        :page-size="size"
-        show-total
-        @change="(page: number) => { current = page; syncQuery(); }"
-      />
-    </div>
+    <header class="page-head"><div><span class="eyebrow">UMAOMAO / PRODUCTS</span><h1>商品管理</h1><p>认真完善每一件商品，让好物被看见。</p></div><div class="head-actions"><Button variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button @click="router.push('/buyer/products/create')"><Icon icon="lucide:plus" />发布商品</Button></div></header>
+    <Tabs v-model="activeKey"><TabsList class="product-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key">{{ tab.label }}</TabsTrigger></TabsList></Tabs>
+    <form class="filter-card" @submit.prevent="queryProducts"><Input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /><CategoryPicker v-model="categoryId" :options="categoryOptions" /><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="resetFilters">重置</Button></form>
+    <div v-if="products.length" class="grid"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>
+    <div v-else-if="loading" class="grid" aria-busy="true" aria-label="正在读取商品列表"><Skeleton v-for="n in 6" :key="n" class="product-skeleton" /></div>
+    <EmptyState v-else :title="loadError ? '商品列表加载失败' : '该状态下没有商品'" :description="loadError || '点击右上角「发布商品」开始售卖'" :action-text="loadError ? '重新加载' : '发布商品'" @action="loadError ? load() : router.push('/buyer/products/create')" />
+    <a-modal v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving"><form class="price-form" @submit.prevent="savePrice"><p class="product-name">{{ priceProduct?.title }}</p><Label for="quick-product-price">售价（USDT）<span>*</span></Label><Input id="quick-product-price" v-model="newPrice" inputmode="decimal" :disabled="priceSaving" placeholder="请输入新的商品售价" /><p class="hint">改价立即生效，已下单订单的价格不受影响。最多 8 位小数。</p><div class="modal-actions"><Button type="button" variant="outline" :disabled="priceSaving" @click="priceVisible = false">取消</Button><Button type="submit" :disabled="priceSaving">{{ priceSaving ? '正在提交…' : '确认改价' }}</Button></div></form></a-modal>
+    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" />
   </div>
 </template>
 
 <style scoped>
-.bp-page {
-  padding-top: 16px;
-}
-.focused-product {
-  outline: 2px solid rgb(var(--primary-6));
-  outline-offset: 2px;
-  box-shadow: 0 0 0 6px rgb(var(--primary-1));
-}
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-top: 16px;
-}
-.filter-card {
-  margin-top: 16px;
-}
-.pagination {
-  display: flex;
-  justify-content: center;
-  margin: 20px 0 32px;
-}
-@media (max-width: 960px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 640px) {
-  .page-head { align-items: flex-start; flex-direction: column; }
-  .page-head :deep(.arco-space) { flex-wrap: wrap; }
-  .filter-card :deep(.arco-space) { width: 100%; }
-  .filter-card :deep(.arco-input-wrapper), .filter-card :deep(.arco-cascader) { width: 100% !important; }
-  .grid { grid-template-columns: 1fr; }
-}
+.bp-page { display:grid; gap:24px; }.page-head { display:flex; justify-content:space-between; align-items:center; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-head h1 { font-size:28px; margin:8px 0; font-weight:650; }.page-head p { font-size:13px; color:var(--yb-muted); margin:0; }.head-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; }.product-tabs { display:flex; width:100%; justify-content:flex-start; overflow-x:auto; height:auto; padding:6px; gap:4px; }.product-tabs :deep(button) { flex-shrink:0; padding:10px 13px; }.filter-card { display:grid; grid-template-columns:minmax(140px,1fr) minmax(160px,1fr) auto auto; gap:12px; padding:20px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:10px; }.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }.focused-product { outline:2px solid var(--yb-primary); outline-offset:3px; }.product-skeleton { height:490px; }.price-form { display:grid; gap:12px; }.price-form label>span { color:var(--yb-danger); }.product-name { margin:0 0 10px; font-size:16px; font-weight:600; overflow-wrap:anywhere; }.hint { color:var(--yb-muted); font-size:12px; line-height:1.8; margin:0; }.modal-actions { display:flex; justify-content:flex-end; gap:16px; margin-top:12px; }@media(max-width:1150px) { .page-head { flex-wrap:wrap; }.head-actions { justify-content:flex-start; }.filter-card { grid-template-columns:minmax(140px,1fr) minmax(160px,1fr); } }@media(max-width:700px) { .grid { grid-template-columns:1fr; } }
 </style>

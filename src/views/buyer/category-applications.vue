@@ -1,4 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import CategoryPicker from '@/components/common/category-picker.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
@@ -155,10 +165,6 @@ function statusText(status: Api.RealCategory.CategoryApplyStatus) {
   return { PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }[status];
 }
 
-function statusColor(status: Api.RealCategory.CategoryApplyStatus) {
-  return { PENDING: 'orange', APPROVED: 'green', REJECTED: 'red' }[status];
-}
-
 function formatTime(value?: string | number) {
   if (!value) return '—';
   const raw = String(value);
@@ -189,92 +195,23 @@ watch(() => userStore.currentUser?.id, () => {
   void load();
   void loadCategories();
 });
+
+const filterStatus = computed({
+  get: () => filter.status || 'all',
+  set: (value: string) => { filter.status = value === 'all' ? undefined : value as Api.RealCategory.CategoryApplyStatus; }
+});
 </script>
 
 <template>
-  <div class="page shop-container">
-    <div class="page-head">
-      <div>
-        <h1>分类申请</h1>
-        <p>现有分类无法满足商品发布时，可提交新增分类申请。</p>
-      </div>
-      <a-button type="primary" @click="openSubmit">提交申请</a-button>
-    </div>
-
-    <a-card :bordered="false" class="filter-card">
-      <a-form :model="filter" layout="inline">
-        <a-form-item label="关键词">
-          <a-input v-model="filter.keyword" allow-clear placeholder="分类名称或申请理由" style="width: 220px" />
-        </a-form-item>
-        <a-form-item label="状态">
-          <a-select v-model="filter.status" allow-clear placeholder="全部" style="width: 140px">
-            <a-option value="PENDING">待审核</a-option>
-            <a-option value="APPROVED">已通过</a-option>
-            <a-option value="REJECTED">已驳回</a-option>
-          </a-select>
-        </a-form-item>
-        <a-button type="primary" @click="(() => { current = 1; load(); })()">查询</a-button>
-        <a-button @click="reset">重置</a-button>
-      </a-form>
-    </a-card>
-
-    <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <EmptyState v-if="loadError" :title="loadError" action-text="重新加载" @action="load" />
-      <a-table v-else :data="records" :loading="loading" :pagination="false" row-key="id">
-        <template #columns>
-          <a-table-column title="申请分类" data-index="newName" :width="180" />
-          <a-table-column title="上级分类" :width="220">
-            <template #cell="{ record }">{{ record.parentPath || '顶级分类' }}</template>
-          </a-table-column>
-          <a-table-column title="申请理由" data-index="reason" />
-          <a-table-column title="状态" :width="100">
-            <template #cell="{ record }"><a-tag :color="statusColor(record.status)">{{ statusText(record.status) }}</a-tag></template>
-          </a-table-column>
-          <a-table-column title="审核意见" :width="220">
-            <template #cell="{ record }">{{ record.reviewComment || '-' }}</template>
-          </a-table-column>
-          <a-table-column title="申请时间" :width="180">
-            <template #cell="{ record }">{{ formatTime(record.createdAt) }}</template>
-          </a-table-column>
-          <a-table-column title="审核时间" :width="180">
-            <template #cell="{ record }">{{ formatTime(record.reviewedAt) }}</template>
-          </a-table-column>
-        </template>
-      </a-table>
-    </a-card>
-
-    <div v-if="total > size" class="pagination">
-      <a-pagination :total="total" :current="current" :page-size="size" show-total @change="(p: number) => { current = p; load(); }" />
-    </div>
-
-    <a-modal v-model:visible="modalOpen" title="提交分类申请" :ok-loading="submitting" :on-before-ok="() => { void submit(); return false; }">
-      <a-form :model="form" layout="vertical">
-        <a-form-item label="上级分类">
-          <a-cascader
-            v-model="form.parentId"
-            :options="categoryOptions"
-            placeholder="不选择则申请顶级分类"
-            check-strictly
-            allow-clear
-          />
-          <div v-if="categoryLoadError" class="form-hint">{{ categoryLoadError }} <a-link role="button" tabindex="0" @click="loadCategories" @keydown.enter="loadCategories" @keydown.space.prevent="loadCategories">重新加载</a-link></div>
-        </a-form-item>
-        <a-form-item label="新分类名称" required>
-          <a-input v-model="form.newName" :max-length="50" placeholder="请输入分类名称" />
-        </a-form-item>
-        <a-form-item label="申请理由" required>
-          <a-textarea v-model="form.reason" :max-length="500" :rows="4" show-word-limit placeholder="请说明分类申请理由" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
+  <div class="category-page shop-container">
+    <header class="page-head"><div><span class="eyebrow">UMAOMAO / CATEGORY REQUESTS</span><h1>分类申请</h1><p>现有分类无法满足商品发布时，可提交新增分类申请。</p></div><Button @click="openSubmit">提交申请</Button></header>
+    <form class="filter-bar" @submit.prevent="current = 1; load()"><Input v-model="filter.keyword" aria-label="分类名称或申请理由" placeholder="分类名称或申请理由" /><Select v-model="filterStatus"><SelectTrigger class="status-filter" aria-label="申请状态"><SelectValue placeholder="全部状态" /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="PENDING">待审核</SelectItem><SelectItem value="APPROVED">已通过</SelectItem><SelectItem value="REJECTED">已驳回</SelectItem></SelectContent></Select><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="reset">重置</Button></form>
+    <section class="paper"><div v-if="loading && !records.length" class="loading-list" aria-busy="true"><Skeleton v-for="n in 4" :key="n" class="row-skeleton" /></div><EmptyState v-else-if="loadError" :title="loadError" action-text="重新加载" @action="load" /><div v-else-if="records.length" class="table-scroll"><table><thead><tr><th>申请分类</th><th>上级分类</th><th>申请理由</th><th>状态</th><th>审核意见</th><th>申请时间</th><th>审核时间</th></tr></thead><tbody><tr v-for="record in records" :key="record.id"><td class="name">{{ record.newName }}</td><td>{{ record.parentPath || '顶级分类' }}</td><td class="long-text">{{ record.reason }}</td><td><span class="status-tag" :class="record.status">{{ statusText(record.status) }}</span></td><td class="long-text">{{ record.reviewComment || '—' }}</td><td>{{ formatTime(record.createdAt) }}</td><td>{{ formatTime(record.reviewedAt) }}</td></tr></tbody></table></div><EmptyState v-else title="暂无分类申请" description="需要新增分类时，可提交申请。" action-text="提交申请" @action="openSubmit" /></section>
+    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; load(); }" />
+    <a-modal v-model:visible="modalOpen" :key="modalVersion" title="提交分类申请" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="application-form"><div class="field"><Label for="category-parent">上级分类</Label><CategoryPicker id="category-parent" :model-value="form.parentId" :options="categoryOptions" :disabled="submitting" placeholder="不选择则申请顶级分类" @update:model-value="form.parentId = $event === undefined ? undefined : String($event)" /><Alert v-if="categoryLoadError"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="submitting" @click="loadCategories">重新加载</Button></AlertDescription></Alert></div><div class="field"><Label for="category-new-name">新分类名称 <span>*</span></Label><Input id="category-new-name" v-model="form.newName" :disabled="submitting" maxlength="50" placeholder="请输入分类名称" /></div><div class="field"><Label for="category-reason">申请理由 <span>*</span></Label><Textarea id="category-reason" v-model="form.reason" :disabled="submitting" maxlength="500" :rows="5" placeholder="请说明分类申请理由" /><small class="counter">{{ form.reason.length }}/500</small></div></div></a-modal>
   </div>
 </template>
 
 <style scoped>
-.page { padding-top: 16px; }
-.page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.page-head h1 { margin: 0 0 6px; font-size: 20px; }
-.page-head p { margin: 0; color: var(--yb-muted); font-size: 13px; }
-.filter-card { margin-bottom: 12px; }
-.pagination { display: flex; justify-content: center; margin-top: 16px; }
+.category-page { display:grid; gap:24px; }.page-head { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-head h1 { font-size:28px; margin:8px 0; font-weight:650; }.page-head p { font-size:13px; color:var(--yb-muted); margin:0; }.filter-bar { display:grid; grid-template-columns:minmax(180px,1fr) 160px auto auto; gap:12px; padding:20px; border:1px solid var(--yb-hairline); background:var(--yb-surface); border-radius:10px; }.status-filter { width:100%; }.paper { border:1px solid var(--yb-hairline); border-radius:12px; background:var(--yb-surface); overflow:hidden; }.table-scroll { overflow-x:auto; }table { width:100%; min-width:1000px; border-collapse:collapse; text-align:left; font-size:13px; }th { color:var(--yb-muted); background:var(--yb-fill); padding:16px; font-size:12px; font-weight:500; }td { padding:20px 16px; border-top:1px solid var(--yb-hairline); line-height:1.8; min-width:120px; }.name { font-weight:600; }.long-text { min-width:180px; max-width:260px; white-space:pre-wrap; overflow-wrap:anywhere; }tbody tr { transition:background 150ms var(--um-ease); }tbody tr:hover { background:color-mix(in srgb,var(--yb-fill) 50%,var(--yb-surface)); }.status-tag { padding:4px 8px; background:var(--yb-champagne); color:var(--yb-gold); border-radius:5px; white-space:nowrap; font-size:12px; }.status-tag.APPROVED { color:var(--yb-success); background:var(--yb-success-soft); }.status-tag.REJECTED { color:var(--yb-danger); background:var(--yb-danger-soft); }.application-form { display:grid; gap:22px; }.field { display:grid; gap:10px; }.field label>span { color:var(--yb-danger); }.counter { font-size:12px; color:var(--yb-muted); text-align:right; }.loading-list { padding:22px; display:grid; gap:16px; }.row-skeleton { height:70px; }@media(max-width:1150px) { .filter-bar { grid-template-columns:minmax(180px,1fr) 160px; } }@media(prefers-reduced-motion:reduce) { tbody tr { transition:none; } }
 </style>

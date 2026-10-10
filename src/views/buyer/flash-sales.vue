@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Icon } from '@iconify/vue';
+import EmptyState from '@/components/common/empty-state.vue';
+import AmountInput from '@/components/common/amount-input.vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message, Modal } from '@/lib/feedback';
 import { formatAmount } from '@shared';
@@ -239,107 +248,28 @@ watch(() => userStore.currentUser?.id, () => {
   modalOpen.value = false;
   void load();
 });
+
+function selectTab(value: unknown) {
+  if (value === 'sessions' || value === 'mine') activeTab.value = value;
+}
+function selectProduct(value: unknown) {
+  if (typeof value === 'string' && products.value.some(item => String(item.id) === value)) form.productId = value;
+}
 </script>
 
 <template>
-  <div class="page shop-container">
-    <div class="page-head">
-      <div>
-        <h1>秒杀报名</h1>
-        <p>为在售商品选择可报名场次，可按需设置秒杀价和秒杀库存。</p>
-      </div>
-      <a-button @click="load">刷新</a-button>
-    </div>
-
-    <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs v-model:active-key="activeTab">
-        <a-tab-pane key="sessions" title="可报名场次" />
-        <a-tab-pane key="mine" title="我的报名" />
-      </a-tabs>
-    </a-card>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <a-result v-if="loadError" status="error" title="秒杀数据加载失败" :subtitle="loadError">
-        <template #extra><a-button type="primary" @click="loadSection(activeTab === 'sessions' ? 'sessions' : 'enrollments')">重新加载</a-button></template>
-      </a-result>
-      <div v-else-if="activeTab === 'sessions'" class="session-grid">
-        <a-card v-for="session in sessions" :key="session.id" :bordered="false" class="session-card">
-          <div class="session-title">{{ session.name }}</div>
-          <div class="session-time">{{ formatTime(session.startTime) }} 至 {{ formatTime(session.endTime) }}</div>
-          <div class="session-meta">已报名商品 {{ session.itemCount || 0 }} 件</div>
-          <a-button type="primary" long :disabled="sectionLoading.products || !!sectionErrors.products" @click="openEnroll(session)">选择商品报名</a-button>
-        </a-card>
-        <a-empty v-if="!sessions.length" description="暂无可报名场次" />
-      </div>
-
-      <a-card v-else :bordered="false" :body-style="{ padding: 0 }" class="table-card">
-        <a-table :data="enrollments.map(item => ({ ...item, rowKey: JSON.stringify([item.sessionId, item.productId]) }))" :pagination="false" row-key="rowKey">
-          <template #columns>
-            <a-table-column title="商品" :width="260">
-              <template #cell="{ record }">
-                <div class="product-cell">
-                  <img v-if="record.image" :src="record.image" :alt="record.title || '秒杀商品'" @error="setImageFallback" />
-                  <span>{{ record.title }}</span>
-                </div>
-              </template>
-            </a-table-column>
-            <a-table-column title="场次" :width="180">
-              <template #cell="{ record }">{{ sessionName(record.sessionId) }}</template>
-            </a-table-column>
-            <a-table-column title="原价" :width="120">
-              <template #cell="{ record }">U {{ formatAmount(record.price || 0) }}</template>
-            </a-table-column>
-            <a-table-column title="秒杀价" :width="120">
-              <template #cell="{ record }">U {{ formatAmount(record.flashPrice || record.price || 0) }}</template>
-            </a-table-column>
-            <a-table-column title="秒杀库存" data-index="flashStock" :width="120" />
-            <a-table-column title="结束时间" :width="180"><template #cell="{ record }">{{ formatTime(record.sessionEndTime) }}</template></a-table-column>
-            <a-table-column title="操作" :width="100">
-              <template #cell="{ record }"><a-button type="text" status="danger" :loading="cancelingEnrollmentKey === `${record.sessionId}:${record.productId}`" @click="cancel(record)">取消报名</a-button></template>
-            </a-table-column>
-          </template>
-        </a-table>
-      </a-card>
-    </a-spin>
-
-    <a-alert v-if="sectionErrors.products" type="warning">
-      {{ sectionErrors.products }}，已有报名与场次仍可查看。
-      <template #action><a-button :loading="sectionLoading.products" @click="loadSection('products')">重试商品读取</a-button></template>
-    </a-alert>
-
-    <a-modal v-model:visible="modalOpen" title="报名秒杀场次" :ok-loading="submitting" :on-before-ok="() => { void submit(); return false; }">
-      <a-form :model="form" layout="vertical">
-        <a-form-item label="报名商品" required>
-          <a-select v-model="form.productId" placeholder="请选择在售商品">
-            <a-option v-for="product in products" :key="String(product.id)" :value="String(product.id)">
-              {{ product.title }}（U {{ formatAmount(product.price) }} / 库存 {{ product.stock }}）
-            </a-option>
-          </a-select>
-          <a-button v-if="productLoadedCount < productTotal" :loading="loadingMoreProducts" @click="loadMoreProducts">加载更多商品（已读取 {{ productLoadedCount }} / {{ productTotal }}，可报名 {{ products.length }}）</a-button>
-        </a-form-item>
-        <a-form-item label="秒杀价">
-          <a-input-number v-model="form.flashPrice" :min="0.01" :precision="2" placeholder="选填" />
-          <div v-if="selectedProduct" class="form-hint">商品原价 U {{ formatAmount(selectedProduct.price) }}</div>
-        </a-form-item>
-        <a-form-item label="秒杀库存">
-          <a-input-number v-model="form.flashStock" :min="1" :max="selectedProduct?.stock" placeholder="选填" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
+  <div class="flash-page shop-container">
+    <header class="page-head"><div><span class="eyebrow">UMAOMAO / FLASH EVENTS</span><h1>秒杀报名</h1><p>为在售商品选择可报名场次，可按需设置秒杀价和秒杀库存。</p></div><Button variant="outline" :disabled="loading" @click="load"><Icon icon="lucide:refresh-cw" />刷新</Button></header>
+    <Tabs :model-value="activeTab" @update:model-value="selectTab"><TabsList><TabsTrigger value="sessions">可报名场次</TabsTrigger><TabsTrigger value="mine">我的报名</TabsTrigger></TabsList></Tabs>
+    <EmptyState v-if="loadError" title="秒杀数据加载失败" :description="loadError" action-text="重新加载" @action="loadSection(activeTab === 'sessions' ? 'sessions' : 'enrollments')" />
+    <div v-else-if="loading" class="loading-grid" aria-busy="true"><Skeleton v-for="n in 2" :key="n" class="session-skeleton" /></div>
+    <template v-else-if="activeTab === 'sessions'"><div v-if="sessions.length" class="session-grid"><article v-for="session in sessions" :key="session.id" class="session-card"><span class="eyebrow">FLASH SESSION</span><Icon icon="lucide:zap" class="session-icon" /><h2>{{ session.name }}</h2><div class="session-times"><div><small>开始时间</small><time>{{ formatTime(session.startTime) }}</time></div><div><small>结束时间</small><time>{{ formatTime(session.endTime) }}</time></div></div><p>已报名商品 {{ session.itemCount ?? '—' }} 件</p><Button :disabled="sectionLoading.products || !!sectionErrors.products" @click="openEnroll(session)">{{ sectionLoading.products ? '正在读取商品…' : '选择商品报名' }}<Icon icon="lucide:arrow-right" /></Button></article></div><EmptyState v-else icon="lucide:zap" title="暂无可报名场次" description="可报名场次开放后会展示在这里。" /></template>
+    <template v-else><div v-if="enrollments.length" class="enrollment-list"><article v-for="item in enrollments" :key="JSON.stringify([item.sessionId, item.productId])" class="enrollment-card"><div class="product-cell"><img v-if="item.image" :src="item.image" :alt="item.title || '秒杀商品'" @error="setImageFallback" /><div><h2>{{ item.title }}</h2><p>{{ sessionName(item.sessionId) }}</p><small>结束时间：{{ formatTime(item.sessionEndTime) }}</small></div></div><dl><div><dt>原价</dt><dd>U {{ item.price === undefined || item.price === null ? '—' : formatAmount(item.price) }}</dd></div><div><dt>秒杀价</dt><dd>U {{ item.flashPrice === undefined || item.flashPrice === null ? item.price === undefined || item.price === null ? '—' : formatAmount(item.price) : formatAmount(item.flashPrice) }}</dd></div><div><dt>秒杀库存</dt><dd>{{ item.flashStock ?? '—' }}</dd></div></dl><Button variant="ghost" class="cancel-enrollment" :disabled="!!cancelingEnrollmentKey" @click="cancel(item)">{{ cancelingEnrollmentKey === item.sessionId + ':' + item.productId ? '处理中…' : '取消报名' }}</Button></article></div><EmptyState v-else title="暂无报名记录" action-text="查看可报名场次" @action="activeTab = 'sessions'" /></template>
+    <Alert v-if="sectionErrors.products"><AlertDescription class="error-row"><span>{{ sectionErrors.products }}，已有报名与场次仍可查看。</span><Button variant="outline" size="sm" :disabled="sectionLoading.products" @click="loadSection('products')">重试商品读取</Button></AlertDescription></Alert>
+    <a-modal v-model:visible="modalOpen" :key="modalVersion" title="报名秒杀场次" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="enroll-form"><div class="field"><Label for="flash-product">报名商品 <span>*</span></Label><Select :model-value="form.productId || undefined" :disabled="submitting" @update:model-value="selectProduct"><SelectTrigger id="flash-product" class="full"><SelectValue placeholder="请选择在售商品" /></SelectTrigger><SelectContent><SelectItem v-for="product in products" :key="String(product.id)" :value="String(product.id)">{{ product.title }}（U {{ formatAmount(product.price) }} / 库存 {{ product.stock }}）</SelectItem><p v-if="!products.length" class="select-empty">暂无可报名商品</p></SelectContent></Select><Button v-if="productLoadedCount < productTotal" type="button" variant="outline" :disabled="loadingMoreProducts || submitting" @click="loadMoreProducts">{{ loadingMoreProducts ? '正在读取…' : '加载更多商品' }}（已读取 {{ productLoadedCount }} / {{ productTotal }}，可报名 {{ products.length }}）</Button></div><div class="field"><Label for="flash-price">秒杀价（USDT）</Label><AmountInput id="flash-price" v-model="form.flashPrice" :disabled="submitting" :min="0.01" :precision="2" placeholder="选填" /><p v-if="selectedProduct" class="helper">商品原价 U {{ formatAmount(selectedProduct.price) }}</p></div><div class="field"><Label for="flash-stock">秒杀库存</Label><AmountInput id="flash-stock" v-model="form.flashStock" :disabled="submitting" :min="1" :max="selectedProduct?.stock" :precision="0" placeholder="选填" /></div></div></a-modal>
   </div>
 </template>
 
 <style scoped>
-.page { padding-top: 16px; }
-.page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.page-head h1 { margin: 0 0 6px; font-size: 20px; }
-.page-head p { margin: 0; color: var(--yb-muted); font-size: 13px; }
-.session-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
-.session-card { border: 1px solid var(--yb-hairline); }
-.session-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-.session-time, .session-meta { color: var(--yb-muted); font-size: 12px; margin-bottom: 10px; }
-.table-card { margin-top: 16px; }
-.product-cell { display: flex; align-items: center; gap: 10px; }
-.product-cell img { width: 44px; height: 44px; border-radius: 6px; object-fit: cover; }
-.form-hint { margin-top: 6px; color: var(--yb-muted); font-size: 12px; }
+.flash-page { display:grid; gap:24px; }.page-head,.error-row { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-head h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-head p { color:var(--yb-muted); font-size:13px; margin:0; }.session-grid,.loading-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; }.session-card { position:relative; background:var(--yb-primary-soft); border:1px solid var(--yb-hairline); padding:28px; border-radius:12px; overflow:hidden; }.session-icon { position:absolute; right:25px; top:25px; width:38px; height:38px; color:var(--yb-primary); opacity:.3; }.session-card h2 { font-size:24px; margin:36px 0 24px; font-weight:600; }.session-times { display:grid; gap:16px; }.session-times small { display:block; color:var(--yb-muted); font-size:12px; }.session-times time { display:block; font-size:14px; margin-top:5px; }.session-card p { color:var(--yb-muted); font-size:12px; margin:24px 0; }.session-card>button { width:100%; }.enrollment-list { display:grid; gap:18px; }.enrollment-card { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px,.8fr) auto; align-items:center; gap:24px; padding:25px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:12px; }.product-cell { display:flex; align-items:center; gap:16px; min-width:0; }.product-cell img { width:72px; height:72px; object-fit:cover; border-radius:6px; }.product-cell>div { min-width:0; }.product-cell h2 { font-size:16px; font-weight:600; margin:0; overflow-wrap:anywhere; }.product-cell p { margin:8px 0; font-size:12px; color:var(--yb-primary); }.product-cell small { font-size:12px; color:var(--yb-muted); }.enrollment-card dl { margin:0; display:grid; gap:8px; }.enrollment-card dl>div { display:flex; gap:20px; justify-content:space-between; }.enrollment-card dt { color:var(--yb-muted); font-size:12px; }.enrollment-card dd { font-size:13px; margin:0; font-family:var(--yb-font-mono); }.cancel-enrollment { color:var(--yb-danger); }.enroll-form { display:grid; gap:24px; }.field { display:grid; gap:10px; }.field label>span { color:var(--yb-danger); }.full { width:100%; }.helper,.select-empty { font-size:12px; color:var(--yb-muted); margin:0; }.select-empty { padding:16px; }.session-skeleton { height:300px; }@media(max-width:1150px) { .enrollment-card { grid-template-columns:1fr auto; }.product-cell { grid-column:1/-1; } }@media(max-width:700px) { .session-grid,.loading-grid { grid-template-columns:1fr; }.page-head { flex-wrap:wrap; } }
 </style>

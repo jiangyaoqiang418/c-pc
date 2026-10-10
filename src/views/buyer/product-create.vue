@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Icon } from '@iconify/vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -158,46 +162,20 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
   submitting.value = false;
   confirmationOpen.value = false;
 });
+
+
 </script>
 
 <template>
   <div class="bp-create-page shop-container">
-    <a-breadcrumb class="bread">
-      <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/buyer/products')" @keydown.enter="router.push('/buyer/products')" @keydown.space.prevent="router.push('/buyer/products')">商品管理</a-breadcrumb-item>
-      <a-breadcrumb-item>{{ editing ? '编辑商品' : '创建商品' }}</a-breadcrumb-item>
-    </a-breadcrumb>
-
-    <a-card class="form-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
-      <h2 class="page-title">{{ editing ? '编辑商品' : '创建商品' }}</h2>
-      <p class="hint">填写商品信息，提交后平台审核通过即可上架销售。</p>
-      <a-alert v-if="detailError" type="error">{{ detailError }} <a-button type="text" @click="loadDetail">重新加载</a-button></a-alert>
-      <a-spin v-if="detailLoading" />
-      <a-alert v-if="initialProduct?.draftAuditOpinion" type="warning">驳回原因：{{ initialProduct.draftAuditOpinion }}</a-alert>
-      <BuyerProductForm v-if="!editing || initialProduct" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${String(initialProduct?.id)}`" :initial-product="initialProduct" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
-    </a-card>
+    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/buyer/products">商品管理</RouterLink><span>/</span><span>{{ editing ? '编辑商品' : '创建商品' }}</span></nav><header class="page-heading"><div><span class="eyebrow">UMAOMAO / PRODUCT EDITOR</span><h1>{{ editing ? '编辑商品' : '创建商品' }}</h1><p>完善商品资料，提交平台审核后即可上架销售。</p></div><Button variant="outline" @click="router.push('/buyer/products')"><Icon icon="lucide:arrow-left" />返回商品管理</Button></header>
+    <Alert v-if="detailError" variant="destructive"><AlertDescription class="alert-row"><span>{{ detailError }}</span><Button variant="outline" size="sm" :disabled="detailLoading" @click="loadDetail">重新加载</Button></AlertDescription></Alert>
+    <div v-if="detailLoading" class="loading-form" aria-busy="true" aria-label="正在读取当前商品信息"><Skeleton v-for="n in 3" :key="n" class="form-skeleton" /></div>
+    <Alert v-if="initialProduct?.draftAuditOpinion"><AlertDescription>驳回原因：{{ initialProduct.draftAuditOpinion }}</AlertDescription></Alert>
+    <BuyerProductForm v-if="!editing || initialProduct" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${String(initialProduct?.id)}`" :initial-product="initialProduct" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
   </div>
 </template>
 
 <style scoped>
-.bp-create-page {
-  padding-top: 16px;
-  max-width: 960px;
-  margin: 0 auto;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.form-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.page-title {
-  font-size: 22px;
-  margin: 0;
-}
-.hint {
-  color: var(--yb-muted);
-  font-size: 13px;
-  margin: 0 0 20px;
-}
+.bp-create-page { display:grid; gap:24px; }.breadcrumb { display:flex; gap:12px; font-size:13px; color:var(--yb-muted); }.breadcrumb a:hover { color:var(--yb-primary); }.breadcrumb>span:last-child { color:var(--yb-ink); }.page-heading,.alert-row { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { font-size:13px; color:var(--yb-muted); margin:0; }.loading-form { display:grid; gap:24px; }.form-skeleton { height:240px; }@media(max-width:900px) { .page-heading { flex-wrap:wrap; } }
 </style>

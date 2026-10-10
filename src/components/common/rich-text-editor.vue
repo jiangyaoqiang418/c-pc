@@ -6,6 +6,8 @@ import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import { TableKit } from '@tiptap/extension-table';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Message } from '@/lib/feedback';
 import { uploadFile } from '@/service/api/product';
 import { sanitizeRichText } from '@/utils/rich-text';
@@ -14,6 +16,8 @@ const props = withDefaults(defineProps<{ modelValue: string; disabled?: boolean 
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'uploading', value: boolean): void }>();
 const fileInput = ref<HTMLInputElement>();
 const uploading = ref(false);
+const linkOpen = ref(false);
+const linkDraft = ref('');
 
 const editor = new Editor({
   content: sanitizeRichText(props.modelValue),
@@ -30,12 +34,22 @@ watch(() => props.modelValue, value => {
 onBeforeUnmount(() => editor.destroy());
 
 function setLink() {
-  const previous = editor.getAttributes('link').href || '';
-  const href = window.prompt('请输入链接地址（仅支持 http/https）', previous)?.trim();
-  if (href === undefined) return;
-  if (!href) return void editor.chain().focus().unsetLink().run();
-  if (!/^https?:\/\//i.test(href)) return Message.warning('链接必须以 http:// 或 https:// 开头');
-  editor.chain().focus().extendMarkRange('link').setLink({ href, target: '_blank', rel: 'noopener noreferrer' }).run();
+  if (props.disabled) return;
+  linkDraft.value = editor.getAttributes('link').href || '';
+  linkOpen.value = true;
+}
+
+function saveLink() {
+  if (props.disabled) return false;
+  const href = linkDraft.value.trim();
+  if (href && !/^https?:\/\//i.test(href)) {
+    Message.warning('链接必须以 http:// 或 https:// 开头');
+    return false;
+  }
+  if (!href) editor.chain().focus().unsetLink().run();
+  else editor.chain().focus().extendMarkRange('link').setLink({ href, target: '_blank', rel: 'noopener noreferrer' }).run();
+  linkOpen.value = false;
+  return true;
 }
 
 async function uploadImage(event: Event) {
@@ -58,7 +72,7 @@ async function uploadImage(event: Event) {
 
 <template>
   <div class="rich-editor" :class="{ disabled }">
-    <div class="toolbar">
+    <fieldset class="toolbar" :disabled="disabled" aria-label="富文本工具栏">
       <button type="button" :class="{ active: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()">加粗</button>
       <button type="button" :class="{ active: editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()">斜体</button>
       <button type="button" :class="{ active: editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()">下划线</button>
@@ -74,22 +88,13 @@ async function uploadImage(event: Event) {
       <button type="button" @click="editor.chain().focus().undo().run()">撤销</button>
       <button type="button" @click="editor.chain().focus().redo().run()">重做</button>
       <input ref="fileInput" hidden type="file" accept="image/jpeg,image/png,image/webp" @change="uploadImage">
-    </div>
+    </fieldset>
     <EditorContent :editor="editor" class="editor-content" />
     <div class="editor-tip">支持标题、列表、链接和图片；图片会先上传后插入，最多 30 张。</div>
+    <a-modal v-model:visible="linkOpen" title="编辑链接" :on-before-ok="saveLink"><div class="link-field"><Label for="rich-editor-link">链接地址</Label><Input id="rich-editor-link" v-model="linkDraft" placeholder="https://" :disabled="disabled" @keydown.enter.prevent="!$event.isComposing && saveLink()" /><p>仅支持 http / https；清空地址可移除当前链接。</p></div></a-modal>
   </div>
 </template>
 
 <style scoped>
-.rich-editor { width: 100%; border: 1px solid var(--yb-hairline-2); border-radius: 4px; background: #fff; overflow: hidden; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-bottom: 1px solid var(--yb-hairline-2); background: var(--yb-fill); }
-.toolbar button { padding: 4px 9px; border: 1px solid var(--yb-hairline-2); border-radius: 4px; background: #fff; color: var(--yb-ink-2); cursor: pointer; }
-.toolbar button.active { border-color: var(--yb-brand-primary); color: var(--yb-brand-primary); background: var(--yb-primary-soft); }
-.toolbar button:disabled, .disabled { opacity: .65; pointer-events: none; }
-.editor-content :deep(.tiptap) { min-height: 180px; padding: 12px; outline: none; line-height: 1.7; }
-.editor-content :deep(.tiptap p) { margin: 0 0 10px; }
-.editor-content :deep(.tiptap img) { max-width: 100%; height: auto; border-radius: 6px; }
-.editor-content :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
-.editor-content :deep(th), .editor-content :deep(td) { min-width: 70px; padding: 7px; border: 1px solid var(--yb-hairline-2); vertical-align: top; }
-.editor-tip { padding: 0 12px 9px; color: var(--yb-muted); font-size: 12px; }
+.rich-editor { width:100%; border:1px solid var(--yb-hairline-2); border-radius:8px; background:var(--yb-surface); overflow:hidden; }.toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:10px; min-width:0; border:0; border-bottom:1px solid var(--yb-hairline); background:var(--yb-fill); }.toolbar button { padding:6px 9px; border:1px solid transparent; border-radius:5px; background:var(--yb-surface); color:var(--yb-ink); cursor:pointer; font-size:12px; transition:background 150ms var(--um-ease),color 150ms var(--um-ease); }.toolbar button:hover,.toolbar button.active { border-color:var(--yb-primary); color:var(--yb-primary); background:var(--yb-primary-soft); }.toolbar button:disabled { opacity:.5; cursor:not-allowed; }.editor-content :deep(.tiptap) { min-height:200px; padding:18px; line-height:1.8; }.editor-content :deep(.tiptap:focus-visible) { outline:2px solid var(--yb-primary); outline-offset:-2px; }.editor-content :deep(.tiptap p) { margin:0 0 12px; }.editor-content :deep(.tiptap img) { max-width:100%; height:auto; border-radius:7px; }.editor-content :deep(table) { width:100%; border-collapse:collapse; margin:14px 0; }.editor-content :deep(th),.editor-content :deep(td) { min-width:70px; padding:8px; border:1px solid var(--yb-hairline-2); vertical-align:top; }.editor-tip { padding:0 18px 13px; color:var(--yb-muted); font-size:12px; }.link-field { display:grid; gap:12px; }.link-field p { font-size:12px; color:var(--yb-muted); margin:0; }@media(prefers-reduced-motion:reduce) { .toolbar button { transition:none; } }
 </style>
