@@ -11,13 +11,16 @@ const props = withDefaults(defineProps<{
   startIndex?: number;
   title?: string;
 }>(), { startIndex: 0, title: '图片预览' });
-const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
+const emit = defineEmits<{ 'update:modelValue': [value: boolean]; 'update:current': [value: number] }>();
 const current = ref(0);
 watch([() => props.modelValue, () => props.startIndex, () => props.images], () => {
   if (props.modelValue) current.value = Math.max(0, Math.min(props.images.length - 1, props.startIndex));
 }, { immediate: true });
 function move(direction: number) {
-  if (props.images.length) current.value = (current.value + direction + props.images.length) % props.images.length;
+  if (props.images.length) {
+    current.value = (current.value + direction + props.images.length) % props.images.length;
+    emit('update:current', current.value);
+  }
 }
 </script>
 

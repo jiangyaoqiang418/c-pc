@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Message, Modal } from '@/lib/feedback';
 import { uploadImFile } from '@/service/api/notify';
@@ -249,90 +253,45 @@ onBeforeUnmount(() => {
   clearRecordingTimer();
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
 });
+
+
 </script>
 
 <template>
+
   <div class="input-area">
     <div class="toolbar">
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
       <input ref="videoInputRef" class="file-input" type="file" accept="video/mp4,video/webm,video/quicktime" @change="onVideoSelected" />
-      <button class="tool-btn" type="button" title="上传聊天图片" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage">
-        {{ uploading ? '图片上传中…' : '🖼 图片' }}
-      </button>
-      <button class="tool-btn" type="button" title="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo">🎬 视频</button>
-      <button
-        class="tool-btn voice-btn"
-        type="button"
-        :title="recording ? '结束录音' : '录制语音'"
-        :aria-label="recording ? '结束录音' : '录制语音'"
-        :disabled="disabled || submitting || uploading || startingRecording || !canRecord"
-        @click="recording ? stopRecording() : startRecording()"
-      >
-        {{ recording ? `■ 结束录音 ${recordingSeconds}s` : uploading ? '语音上传中…' : '🎙 语音' }}
-      </button>
+      <Button type="button" variant="ghost" size="sm" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage"><Icon icon="lucide:image-plus" width="17" />图片</Button>
+      <Button type="button" variant="ghost" size="sm" aria-label="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo"><Icon icon="lucide:video" width="17" />视频</Button>
+      <Tooltip>
+        <TooltipTrigger as-child><span class="voice-trigger" tabindex="0">
+          <Button type="button" variant="ghost" size="sm" :class="{ 'is-recording': recording }" :aria-label="recording ? '结束录音并发送' : '录制语音'" :disabled="disabled || submitting || uploading || startingRecording || !canRecord" @click="recording ? stopRecording() : startRecording()">
+            <Icon :icon="recording ? 'lucide:square' : 'lucide:mic'" width="17" />{{ recording ? '结束录音 ' + recordingSeconds + 's' : startingRecording ? '正在开启麦克风' : '语音' }}
+          </Button>
+        </span></TooltipTrigger>
+        <TooltipContent>{{ !canRecord ? '当前浏览器不支持语音录制，请使用支持麦克风录音的浏览器' : recording ? '结束录音后发送语音' : '需要允许浏览器使用麦克风' }}</TooltipContent>
+      </Tooltip>
+      <span v-if="uploading" class="media-state" role="status"><Icon icon="lucide:loader-circle" width="15" class="animate-spin" />媒体上传中…</span>
+      <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音</span>
     </div>
-    <a-textarea
-      v-model="text"
-      :placeholder="disabled ? disabledText : placeholder"
-      :auto-size="{ minRows: 2, maxRows: 5 }"
-      :disabled="disabled || submitting"
-      class="textarea"
-      @keydown="onKeydown"
-    />
+    <Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="disabled || submitting" rows="3" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
     <div class="footer">
       <span class="hint">Enter 发送 · Shift+Enter 换行</span>
-      <a-button type="primary" :disabled="disabled || submitting || mediaBusy || !text.trim()" :loading="sending || submitting" @click="send">发送</a-button>
+      <Button type="button" size="sm" :disabled="disabled || submitting || mediaBusy || !text.trim()" @click="send"><Icon :icon="sending || submitting ? 'lucide:loader-circle' : 'lucide:send'" :class="{ 'animate-spin': sending || submitting }" width="16" />{{ sending || submitting ? '发送中' : '发送' }}</Button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.input-area {
-  padding: 12px 16px;
-  border-top: 1px solid var(--yb-hairline);
-  background: #fff;
-}
-.toolbar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.file-input {
-  display: none;
-}
-.tool-btn {
-  background: transparent;
-  border: none;
-  color: var(--yb-ink-2);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.15s;
-}
-.tool-btn:hover:not(:disabled) {
-  background: var(--yb-fill);
-  color: var(--bw-brand-primary);
-}
-.tool-btn:focus-visible {
-  outline: 2px solid var(--bw-brand-primary);
-  outline-offset: 2px;
-}
-.tool-btn:disabled {
-  color: var(--yb-hairline-2);
-  cursor: not-allowed;
-}
-.voice-btn:not(:disabled) { color: #00b42a; }
-.textarea {
-  margin-bottom: 8px;
-}
-.footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.hint {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
+
+.input-area { flex-shrink: 0; padding: 14px 22px 16px; border-top: 1px solid var(--yb-hairline); background: var(--yb-surface); }
+.toolbar { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; min-height: 32px; flex-wrap: wrap; }
+.file-input { display: none; }.voice-trigger { display: inline-flex; border-radius: 6px; }.voice-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.textarea { min-height: 78px; max-height: 150px; resize: vertical; background: var(--yb-bg); }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; }
+.hint, .media-state { color: var(--yb-muted); font-size: 12px; }.media-state { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.is-recording, .recording-state { color: var(--yb-danger); }.recording-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
 </style>

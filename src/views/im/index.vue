@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import ImagePreview from '@/components/common/image-preview.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -834,122 +840,74 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   readConversationTarget();
   if (next !== undefined) void init();
 });
+
+
 </script>
 
 <template>
-  <div class="im-page shop-container">
-    <h1 class="page-title">消息中心</h1>
-    <a-card class="chat-card" :body-style="{ padding: 0 }" :bordered="false">
-      <div class="layout">
-        <aside class="sidebar">
-          <a-alert v-if="targetMessage" type="warning" :show-icon="false">{{ targetMessage }}</a-alert>
-          <a-alert v-if="conversationLoadError" type="error" :show-icon="false" class="load-error">
-            {{ conversationLoadError }}
-            <template #action><a-link role="button" tabindex="0" @click="retryConversationLoad" @keydown.enter="retryConversationLoad" @keydown.space.prevent="retryConversationLoad">重新加载</a-link></template>
-          </a-alert>
-          <div class="sync-bar">
-            <span>{{ lastSyncText() }}</span>
-            <a-space><a-button type="text" size="mini" :loading="supportLoading" @click="openSupportConversation">联系客服</a-button><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">刷新会话</a-button></a-space>
-          </div>
-          <a-tabs v-model:active-key="activeTab" class="sidebar-tabs">
-            <a-tab-pane key="group" :title="`三方群 (${groups.length})`">
-              <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
-              <div v-else-if="groups.length" class="conv-list chat-scroll">
-                <div v-for="conversation in groups" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" role="button" tabindex="0" :aria-current="sameBusinessId(selectedConversationId, conversation.id) ? 'page' : undefined" @click="selectConversation(conversation)" @keydown.enter="selectConversation(conversation)" @keydown.space.prevent="selectConversation(conversation)">
-                  <img v-if="conversation.peerAvatar" :src="conversation.peerAvatar" :alt="conversation.peerName || '会话头像'" class="avatar image" />
-                  <div v-else class="avatar group">{{ (conversation.peerName || conversation.title || '订').slice(0, 1) }}</div>
-                  <div class="info">
-                    <div class="conv-title-row">
-                      <div class="conv-name">{{ conversation.peerName || conversation.title || '订单会话' }}</div>
-                      <span v-if="conversation.unreadCount" class="unread-badge">{{ conversation.unreadCount > 99 ? '99+' : conversation.unreadCount }}</span>
-                    </div>
-                    <div class="conv-meta"><span class="preview">{{ lastPreview(conversation) }}</span></div>
-                    <div class="conv-time">{{ conversation.orderNo ? `最近订单 ${conversation.orderNo}` : '暂无活跃订单' }} · {{ previewTime(conversation) }}</div>
-                  </div>
-                </div>
-              </div>
-              <EmptyState v-else title="暂无三方群" description="下单后会自动创建订单三方群" />
-            </a-tab-pane>
-            <a-tab-pane key="cs" title="平台客服">
-              <div v-if="conversationLoading" class="sidebar-loading"><a-spin :loading="true" /><span>正在同步会话</span></div>
-              <div v-else-if="csSessions.length" class="conv-list chat-scroll">
-                <div v-for="conversation in csSessions" :key="conversation.id" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, conversation.id) }" role="button" tabindex="0" :aria-current="sameBusinessId(selectedConversationId, conversation.id) ? 'page' : undefined" @click="selectConversation(conversation)" @keydown.enter="selectConversation(conversation)" @keydown.space.prevent="selectConversation(conversation)">
-                  <div class="avatar cs">客</div><div class="info"><div class="conv-name">{{ conversation.title || '油宝在线客服' }}</div><div class="conv-meta">{{ lastPreview(conversation) }}</div></div>
-                </div>
-              </div>
-              <EmptyState v-else title="暂无客服会话" />
-            </a-tab-pane>
-          </a-tabs>
-          <div class="sidebar-loading">
-            <span>已加载 {{ conversations.length }} / {{ conversationTotal }} 个会话</span>
-            <a-button v-if="conversations.length < conversationTotal" :loading="loadingMoreConversations" @click="loadMoreConversations">加载更多会话</a-button>
-          </div>
-        </aside>
 
-        <section class="chat-pane">
-          <a-spin class="chat-spin" :loading="loading">
-          <div v-if="selectedConversation" class="conversation">
-              <div class="conversation-header">
-                <div class="header-product">
-                  <img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" />
-                  <div><div class="cs-title">{{ selectedConversation.peerName || selectedConversation.title || '会话' }}</div><div class="cs-sub">{{ selectedConversation.type === 'SUPPORT' ? '平台客服' : `进行中订单 ${selectedConversation.activeOrderCount || 0} 笔` }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</div></div>
-                </div>
-                <div class="header-actions"><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><a-button v-if="selectedConversation.type === 'ORDER_GROUP'" size="mini" :loading="interventionLoading" :disabled="selectedConversation.interveneStatus !== 'NONE'" @click="requestIntervention">{{ selectedConversation.interveneStatus === 'REQUESTED' ? '等待客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '客服处理中' : '申请平台介入' }}</a-button><a-button type="text" size="mini" :loading="restSyncing" @click="refreshRestData">同步消息</a-button><a-link v-if="selectedConversation.orderId" role="link" tabindex="0" @click="openOrderGroup" @keydown.enter="openOrderGroup" @keydown.space.prevent="openOrderGroup">独立窗口打开</a-link><a-link role="button" tabindex="0" status="danger" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation" @keydown.enter="deleteSelectedConversation" @keydown.space.prevent="deleteSelectedConversation">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</a-link></div>
+  <div class="im-page shop-container">
+    <header class="page-heading"><div><p class="eyebrow">MESSAGES</p><h1>消息中心</h1><p>订单沟通与平台客服</p></div><Button type="button" variant="outline" :disabled="supportLoading" @click="openSupportConversation"><Icon :icon="supportLoading ? 'lucide:loader-circle' : 'lucide:headphones'" :class="{ 'animate-spin': supportLoading }" width="17" />联系客服</Button></header>
+    <div class="chat-card layout">
+      <aside class="sidebar" aria-label="会话列表">
+        <div v-if="targetMessage" class="sidebar-alert warning" role="status">{{ targetMessage }}</div>
+        <div v-if="conversationLoadError" class="sidebar-alert error" role="alert"><span>{{ conversationLoadError }}</span><Button type="button" variant="link" size="sm" @click="retryConversationLoad">重新加载</Button></div>
+        <div class="sync-bar"><span>{{ lastSyncText() }}</span><Button type="button" variant="ghost" size="icon" aria-label="刷新会话" :disabled="restSyncing" @click="refreshRestData"><Icon icon="lucide:refresh-cw" :class="{ 'animate-spin': restSyncing }" width="16" /></Button></div>
+        <Tabs v-model="activeTab" class="sidebar-tabs">
+          <TabsList class="tab-list"><TabsTrigger value="group">三方群 <span>{{ groups.length }}</span></TabsTrigger><TabsTrigger value="cs">平台客服</TabsTrigger></TabsList>
+          <div v-if="conversationLoading" class="sidebar-loading" role="status"><Skeleton v-for="n in 4" :key="n" class="conversation-skeleton" /><span>正在同步会话</span></div>
+          <div v-else-if="currentCandidates().length" class="conv-list chat-scroll">
+            <button v-for="item in currentCandidates()" :key="item.id" type="button" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, item.id) }" :aria-current="sameBusinessId(selectedConversationId, item.id) ? 'page' : undefined" @click="selectConversation(item)">
+              <img v-if="activeTab === 'group' && item.peerAvatar" :src="item.peerAvatar" :alt="item.peerName || '会话头像'" class="avatar" />
+              <span v-else class="avatar" :class="activeTab">{{ activeTab === 'cs' ? '客' : (item.peerName || item.title || '订').slice(0, 1) }}</span>
+              <span class="info">
+                <span class="conv-title-row"><span class="conv-name" :title="activeTab === 'cs' ? item.title || '平台客服' : item.peerName || item.title || '订单会话'">{{ activeTab === 'cs' ? item.title || '平台客服' : item.peerName || item.title || '订单会话' }}</span><span v-if="item.unreadCount" class="unread-badge">{{ item.unreadCount > 99 ? '99+' : item.unreadCount }}</span></span>
+                <span class="preview" :title="lastPreview(item)">{{ lastPreview(item) }}</span>
+                <span class="conv-time">{{ activeTab === 'group' ? (item.orderNo ? '最近订单 ' + item.orderNo + ' · ' : '暂无活跃订单 · ') : '' }}{{ previewTime(item) }}</span>
+              </span>
+            </button>
+          </div>
+          <EmptyState v-else :title="activeTab === 'group' ? '暂无三方群' : '暂无客服会话'" :description="activeTab === 'group' ? '下单后会自动创建订单三方群' : undefined" />
+        </Tabs>
+        <div class="sidebar-footer"><span>已加载 {{ conversations.length }} / {{ conversationLoading || conversationLoadError ? '—' : conversationTotal }} 个会话</span><Button v-if="conversations.length < conversationTotal" type="button" variant="outline" size="sm" :disabled="loadingMoreConversations" @click="loadMoreConversations"><Icon v-if="loadingMoreConversations" icon="lucide:loader-circle" class="animate-spin" width="14" />加载更多</Button></div>
+      </aside>
+      <section class="chat-pane" :aria-busy="loading" aria-label="当前会话">
+        <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载消息</span></div>
+        <div v-if="selectedConversation" class="conversation">
+          <header class="conversation-header">
+            <div class="header-main"><div class="header-product"><img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" /><div><h2 :title="selectedConversation.peerName || selectedConversation.title || '会话'">{{ selectedConversation.peerName || selectedConversation.title || '会话' }}</h2><p>{{ selectedConversation.type === 'SUPPORT' ? '平台客服' : '进行中订单 ' + (selectedConversation.activeOrderCount ?? '—') + ' 笔' }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /></div>
+            <div class="header-actions">
+              <Tooltip v-if="selectedConversation.type === 'ORDER_GROUP'"><TooltipTrigger as-child><span tabindex="0" class="action-trigger"><Button type="button" variant="outline" size="sm" :disabled="interventionLoading || selectedConversation.interveneStatus !== 'NONE'" @click="requestIntervention"><Icon v-if="interventionLoading" icon="lucide:loader-circle" class="animate-spin" width="14" />{{ selectedConversation.interveneStatus === 'REQUESTED' ? '等待客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '客服处理中' : '申请平台介入' }}</Button></span></TooltipTrigger><TooltipContent>{{ selectedConversation.interveneStatus === 'REQUESTED' ? '已申请介入，请等待平台客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '平台客服正在处理此会话' : selectedConversation.interveneStatus === 'NONE' ? '申请平台客服协助处理订单' : '当前介入状态不支持重复申请' }}</TooltipContent></Tooltip>
+              <Button type="button" variant="ghost" size="sm" :disabled="restSyncing" @click="refreshRestData"><Icon icon="lucide:refresh-cw" :class="{ 'animate-spin': restSyncing }" width="14" />同步消息</Button>
+              <Button v-if="selectedConversation.orderId" type="button" variant="ghost" size="sm" @click="openOrderGroup"><Icon icon="lucide:expand" width="14" />独立会话</Button>
+              <Button type="button" variant="ghost" size="sm" class="delete-action" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation"><Icon icon="lucide:trash-2" width="14" />{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</Button>
             </div>
-            <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="order-strip">
-              <a-spin :loading="ordersLoading"><a-space wrap><a-tag v-for="item in conversationOrders" :key="item.orderId" checkable @check="openOrder(item.orderId)">{{ item.orderNo || item.orderId }} · {{ item.orderStatusText || item.orderStatus }}</a-tag><a-button type="text" size="mini" @click="toggleHistoryOrders">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</a-button></a-space></a-spin>
-            </div>
-            <a-alert v-if="notifyStore.socketState === 'closed'" type="warning" :show-icon="false" class="realtime-alert">
-              实时连接暂不可用，消息仍可发送；刷新页面或恢复连接后会自动同步。
-              <template #action><a-space size="small"><a-link role="button" tabindex="0" @click="notifyStore.connect" @keydown.enter="notifyStore.connect" @keydown.space.prevent="notifyStore.connect">立即重连</a-link><a-link role="button" tabindex="0" :loading="restSyncing" @click="refreshRestData" @keydown.enter="refreshRestData" @keydown.space.prevent="refreshRestData">刷新数据</a-link></a-space></template>
-            </a-alert>
-            <a-alert v-if="syncIncomplete || messageSyncError" type="warning">{{ messageSyncError || '还有历史增量消息待同步' }}<template #action><a-button :loading="restSyncing" @click="refreshRestData">继续同步</a-button></template></a-alert>
-            <div ref="scrollRef" class="messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
-                <div v-if="hasOlder" class="load-older"><a-link role="button" tabindex="0" :loading="loadingOlder" @click="loadOlderMessages" @keydown.enter="loadOlderMessages" @keydown.space.prevent="loadOlderMessages">加载更早消息</a-link></div>
-                <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
-                <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" />
-                <div v-else-if="!messages.length" class="empty-msg">该群暂无消息</div>
-              </div>
-              <a-button v-if="newMessagesAvailable" @click="scrollToBottom">有新消息，查看最新消息</a-button>
-              <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
-              <a-image-preview-group :src-list="imageUrls" :visible="imagePreviewVisible" :current="imagePreviewCurrent" @update:visible="imagePreviewVisible = $event" @update:current="imagePreviewCurrent = $event" />
-            </div>
-            <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '请稍后重试。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
-          </a-spin>
-        </section>
-      </div>
-    </a-card>
+          </header>
+          <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="order-strip" :aria-busy="ordersLoading"><Icon v-if="ordersLoading" icon="lucide:loader-circle" class="animate-spin" width="16" /><Button v-for="item in conversationOrders" :key="item.orderId" type="button" variant="outline" size="sm" class="order-chip" @click="openOrder(item.orderId)">{{ item.orderNo || item.orderId }} · {{ item.orderStatusText || item.orderStatus }}</Button><Button type="button" variant="link" size="sm" @click="toggleHistoryOrders">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</Button></div>
+          <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><Button type="button" variant="link" size="sm" @click="notifyStore.connect">立即重连</Button><Button type="button" variant="link" size="sm" :disabled="restSyncing" @click="refreshRestData">刷新数据</Button></div>
+          <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><Button type="button" variant="link" size="sm" :disabled="restSyncing" @click="refreshRestData">继续同步</Button></div>
+          <div ref="scrollRef" class="messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
+            <div v-if="hasOlder" class="load-older"><Button type="button" variant="ghost" size="sm" :disabled="loadingOlder" @click="loadOlderMessages"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</Button></div>
+            <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
+            <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" /><div v-else-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
+          </div>
+          <div v-if="newMessagesAvailable" class="new-message-bar"><Button type="button" variant="outline" size="sm" @click="scrollToBottom"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</Button></div>
+          <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
+          <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
+        </div>
+        <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '请稍后重试。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.im-page { padding-top: 16px; }
-.page-title { font-size: 20px; font-weight: 600; margin: 0; }
-.chat-card { background: #fff; border-radius: var(--bw-card-radius); overflow: hidden; }
-.chat-card :deep(.arco-card-body) { height: 100%; min-height: 0; padding: 0 !important; overflow: hidden; }
-.layout { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 200px); min-height: 600px; overflow: hidden; }
-.sidebar { background: var(--yb-bg); border-right: 1px solid var(--yb-hairline); display: flex; flex-direction: column; min-height: 0; }
-.load-error { margin: 8px 8px 0; }
-.sync-bar { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 0 8px 0 14px; color: var(--yb-faint); font-size: 11px; border-bottom: 1px solid var(--yb-hairline); }
-.sidebar-loading { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 16px; color: var(--yb-muted); font-size: 12px; }
-.sidebar-tabs { flex: 1; min-height: 0; }
-.sidebar-tabs :deep(.arco-tabs-content) { height: calc(100% - 46px); }
-.sidebar-tabs :deep(.arco-tabs-content-list), .sidebar-tabs :deep(.arco-tabs-pane) { height: 100%; }
-.conv-list { overflow-y: auto; height: 100%; }
-.conv-row { display: flex; gap: 10px; padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--yb-fill); transition: background .15s; }
-.conv-row:hover, .conv-row.active { background: var(--yb-primary-soft); }
-.conv-row.active { border-left: 3px solid var(--bw-brand-primary); }
-.conv-row:focus-visible { outline: 2px solid var(--bw-brand-primary); outline-offset: -2px; }
-.avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; flex-shrink: 0; object-fit: cover; }
-.avatar.group { background: #165dff; }.avatar.cs { background: #00b42a; }.avatar.presale { background: #ff7d00; }
-.info { flex: 1; min-width: 0; }.conv-title-row { display: flex; align-items: center; gap: 8px; }
-.conv-name { min-width: 0; flex: 1; font-size: 13px; font-weight: 500; color: var(--yb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.unread-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #f53f3f; color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
-.conv-meta { font-size: 11px; color: var(--yb-muted); margin-top: 2px; }.preview { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conv-time { font-size: 10px; color: var(--yb-hairline-2); margin-top: 2px; }
-.chat-pane { display: flex; flex-direction: column; background: var(--yb-fill); min-width: 0; min-height: 0; }.chat-spin { flex: 1; min-height: 0; }.chat-spin :deep(.arco-spin) { height: 100%; min-height: 0; }
-.conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }.conversation-header { background: #fff; padding: 12px 20px; border-bottom: 1px solid var(--yb-hairline); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.header-product { display: flex; align-items: center; gap: 10px; min-width: 0; }.header-product img { width: 42px; height: 42px; object-fit: cover; border-radius: 6px; }.cs-title { font-weight: 600; font-size: 14px; }.cs-sub { margin-top: 3px; font-size: 12px; color: var(--yb-muted); }.header-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
-.order-strip { padding: 8px 20px; background: #fff; border-bottom: 1px solid var(--yb-hairline); }.realtime-alert { width: calc(100% - 40px); margin: 10px auto 0; box-sizing: border-box; flex: 0 0 auto; }.messages { flex: 1 1 auto; min-height: 0; padding: 16px 20px; overflow-y: auto; overscroll-behavior: contain; }.conversation :deep(.input-area) { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; }.load-older { text-align: center; margin-bottom: 14px; }.empty-msg { text-align: center; color: var(--yb-muted); padding: 40px 0; font-size: 13px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }
-@media (max-width: 960px) { .layout { grid-template-columns: 260px minmax(0, 1fr); } .conversation-header { padding: 12px 16px; } .messages { padding: 14px 16px; } .realtime-alert { width: calc(100% - 32px); } }
-@media (max-width: 720px) { .layout { grid-template-columns: minmax(0, 1fr); height: calc(100vh - 160px); min-height: 560px; } .sidebar { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--yb-hairline); } .header-actions { gap: 10px; } .conversation-header { align-items: flex-start; } .messages { padding: 12px; } .realtime-alert { width: calc(100% - 24px); margin-top: 8px; } }
+
+.im-page { padding-top: 28px; padding-bottom: 36px; }.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }.eyebrow { font-size: 11px; letter-spacing: .16em; font-weight: 600; color: var(--yb-primary); margin: 0 0 6px; }.page-heading h1 { margin: 0; color: var(--yb-ink); font-size: 26px; font-weight: 650; }.page-heading p:not(.eyebrow) { margin: 5px 0 0; color: var(--yb-muted); font-size: 13px; }
+.chat-card { background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 14px; overflow: hidden; box-shadow: var(--yb-shadow-1); }.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: calc(100dvh - 280px); min-height: 620px; }.sidebar { display: flex; flex-direction: column; min-height: 0; background: var(--yb-surface); border-right: 1px solid var(--yb-hairline); }.sidebar-alert { padding: 10px 12px; margin: 12px 12px 0; border-radius: 6px; font-size: 12px; }.sidebar-alert.error { display: flex; flex-direction: column; align-items: flex-start; color: var(--yb-danger); background: var(--yb-danger-soft); }.sync-bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; color: var(--yb-muted); font-size: 12px; }.sidebar-tabs { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 0; }.tab-list { width: calc(100% - 24px); margin: 0 12px 12px; }.tab-list > button { flex: 1; gap: 5px; }.tab-list span { font-size: 11px; font-family: var(--font-mono); }.conv-list { overflow-y: auto; flex: 1; min-height: 0; padding: 0 8px; }.conv-row { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left; padding: 14px 10px; margin-bottom: 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; transition: background 150ms, border-color 150ms; }.conv-row:hover { background: var(--yb-fill); }.conv-row.active { background: var(--yb-primary-soft); border-color: color-mix(in srgb, var(--yb-primary) 18%, transparent); }.conv-row:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: -2px; }.avatar { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; object-fit: cover; font-weight: 650; background: var(--yb-primary); color: var(--primary-foreground); }.avatar.cs { background: var(--yb-fill); color: var(--yb-primary); }.info { flex: 1; min-width: 0; display: block; }.conv-title-row { display: flex; align-items: center; gap: 8px; }.conv-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--yb-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.unread-badge { min-width: 18px; padding: 1px 5px; border-radius: 999px; background: var(--yb-danger); color: var(--primary-foreground); font-size: 11px; text-align: center; }.preview { display: block; margin-top: 5px; font-size: 12px; color: var(--yb-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.conv-time { display: block; margin-top: 5px; font-size: 11px; color: var(--yb-muted); overflow-wrap: anywhere; }.sidebar-loading { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 12px 16px; color: var(--yb-muted); font-size: 12px; }.conversation-skeleton { width: 100%; height: 72px; border-radius: 8px; }.sidebar-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-top: 1px solid var(--yb-hairline); font-size: 11px; color: var(--yb-muted); }
+
+.chat-pane { position: relative; min-width: 0; min-height: 0; background: var(--yb-bg); }.conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }.conversation-header { flex-shrink: 0; padding: 18px 24px 12px; border-bottom: 1px solid var(--yb-hairline); background: var(--yb-surface); }.header-main { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.header-product { display: flex; align-items: center; gap: 12px; min-width: 0; }.header-product > div { min-width: 0; }.header-product img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }.header-product h2 { font-size: 17px; font-weight: 650; color: var(--yb-ink); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.header-product p { margin: 3px 0 0; color: var(--yb-muted); font-size: 12px; }.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 12px; flex-wrap: wrap; }.action-trigger { display: inline-flex; border-radius: 6px; }.action-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }.delete-action { color: var(--yb-danger); }.order-strip { display: flex; align-items: center; gap: 8px; padding: 10px 24px; flex-shrink: 0; background: var(--yb-surface); border-bottom: 1px solid var(--yb-hairline); overflow-x: auto; }.order-chip { white-space: nowrap; font-size: 12px; }.notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin: 10px 20px 0; flex-shrink: 0; border-radius: 8px; font-size: 12px; }.notice > span { flex: 1; min-width: 0; }.notice > svg { flex-shrink: 0; }.warning { background: color-mix(in srgb, var(--yb-warning) 10%, var(--yb-surface)); color: var(--yb-warning); }.messages { flex: 1 1 auto; min-height: 0; padding: 24px; overflow-y: auto; overscroll-behavior: contain; }.load-older { text-align: center; margin-bottom: 20px; }.empty-msg { text-align: center; color: var(--yb-muted); padding: 60px 0; font-size: 14px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }.new-message-bar { display: flex; justify-content: center; padding: 8px 16px; }.chat-loading { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--yb-primary); background: color-mix(in srgb, var(--yb-surface) 85%, transparent); font-size: 13px; }
+
+@media (max-width: 1150px) { .layout { grid-template-columns: 270px minmax(0, 1fr); }.conversation-header { padding-inline: 18px; }.header-main { align-items: flex-start; flex-wrap: wrap; }.messages { padding: 20px; }.order-strip { padding-inline: 18px; } }
+
 </style>
