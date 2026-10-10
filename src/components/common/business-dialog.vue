@@ -89,8 +89,8 @@ async function confirm() {
 </template>
 
 <style>
-.um-dialog-mask { position: fixed; inset: 0; z-index: 1100; background: rgb(15 24 20 / .35); backdrop-filter: blur(2px); }
-.um-dialog { position: fixed; top: 50%; left: 50%; z-index: 1100; transform: translate(-50%, -50%); max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow-y: auto; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 24px 80px rgb(15 24 20 / .18); outline: none; }
+.um-dialog-mask { position: fixed; inset: 0; z-index: 1000; background: rgb(15 24 20 / .35); backdrop-filter: blur(2px); }
+.um-dialog { position: fixed; top: 50%; left: 50%; z-index: 1000; transform: translate(-50%, -50%); max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow-y: auto; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 24px 80px rgb(15 24 20 / .18); outline: none; }
 .um-dialog-mask[data-state="open"], .um-dialog[data-state="open"] { animation: um-dialog-enter 200ms ease-out; }
 .um-dialog-header { display: flex; align-items: center; justify-content: space-between; padding: 24px 24px 16px; gap: 16px; }
 .um-dialog-title { margin: 0; font-size: 20px; font-weight: 650; }

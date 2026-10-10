@@ -8,6 +8,14 @@ import { formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import ProductImageGallery from '@/components/product/product-image-gallery.vue';
 import ReviewStars from '@/components/common/review-stars.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import QuantityStepper from '@/components/common/quantity-stepper.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
+import ImagePreview from '@/components/common/image-preview.vue';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import RichTextContent from '@/components/common/rich-text-content.vue';
 import * as productApi from '@/service/api/product';
@@ -17,6 +25,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
 import { createCheckoutIntent } from '@/utils/checkout';
 import { resolvePageSize } from '@/service/api/page';
+import { setImageFallback } from '@/utils/image-placeholder';
 
 const route = useRoute();
 const router = useRouter();
@@ -196,698 +205,192 @@ async function favorite() {
     if (operation === writeVersion) favoriting.value = false;
   }
 }
+
+const buyDisabledReason = computed(() => {
+  if (loading.value) return '商品信息正在刷新，请稍候';
+  if (isOwnProduct.value) return '不能购买本人出售的商品';
+  if (!product.value || product.value.status !== 'NORMAL') return '当前商品状态不可购买';
+  if (product.value.shelfStatus !== 'on-shelf') return '商品已下架';
+  if (product.value.stock <= 0) return '商品已售罄';
+  return '';
+});
+const previewVisible = ref(false);
+const previewImages = ref<string[]>([]);
+const previewIndex = ref(0);
+function openPreview(images: string[], index: number) {
+  previewImages.value = [...images];
+  previewIndex.value = index;
+  previewVisible.value = true;
+}
+function setTab(value: string | number) {
+  if (value === 'desc' || value === 'spec' || value === 'review') activeTab.value = value;
+}
 </script>
 
 <template>
-  <div class="detail-page shop-container">
+  <div class="detail-page shop-container" :aria-busy="loading">
     <template v-if="product">
-      <!-- Breadcrumb -->
-      <nav class="bread">
-        <span
-          role="link"
-          tabindex="0"
-          @click="router.push('/')"
-          @keydown.enter="router.push('/')"
-          @keydown.space.prevent="router.push('/')"
-        >首页</span>
-        <Icon icon="lucide:chevron-right" width="12" />
-        <span
-          role="link"
-          tabindex="0"
-          @click="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })"
-          @keydown.enter="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })"
-          @keydown.space.prevent="router.push({ name: 'product-list', query: { categoryId: String(product.categoryId) } })"
-        >
-          {{ product.categoryPath }}
-        </span>
-        <Icon icon="lucide:chevron-right" width="12" />
-        <span class="current">{{ product.title }}</span>
+      <nav class="bread" aria-label="当前位置">
+        <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" />
+        <RouterLink :to="{ name: 'product-list', query: { categoryId: String(product.categoryId) } }">{{ product.categoryPath || '商品列表' }}</RouterLink>
+        <Icon icon="lucide:chevron-right" width="14" /><span aria-current="page">{{ product.title }}</span>
       </nav>
 
-      <!-- Hero: 图库 + 商品信息 -->
       <div class="hero-grid">
-        <div class="gallery-wrap" v-motion :initial="{ opacity: 0, x: -20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 500 } }">
-          <ProductImageGallery :images="product.images" :fallback-seed="product.id" />
-        </div>
-        <div class="meta" v-motion :initial="{ opacity: 0, x: 20 }" :enter="{ opacity: 1, x: 0, transition: { duration: 500, delay: 100 } }">
-          <div class="brand-label">
-            <Icon icon="lucide:folder" width="12" />
-            {{ product.categoryPath }}
-          </div>
-          <h1 class="title">{{ product.title }}</h1>
-          <div class="summary">{{ product.summary }}</div>
-
-          <div v-if="sellerScore" class="seller-summary">
-            <ReviewStars :score="Number(sellerScore.averageScore)" size="sm" show-score />
-            <span class="rev-count">· {{ sellerScore.totalCount }} 条评价</span>
+        <div class="gallery-wrap"><ProductImageGallery :images="product.images" :fallback-seed="product.id" /></div>
+        <section class="meta" aria-label="商品信息与购买">
+          <span v-if="product.categoryPath" class="brand-label">{{ product.categoryPath }}</span>
+          <h1>{{ product.title }}</h1>
+          <p v-if="product.summary" class="summary">{{ product.summary }}</p>
+          <div v-if="reviewSummary || sellerScore" class="rating-summary">
+            <ReviewStars :score="Number(reviewSummary?.averageScore ?? sellerScore?.averageScore)" show-score />
+            <span>{{ reviewSummary?.totalCount ?? sellerScore?.totalCount }} 条评价</span>
           </div>
 
-          <!-- 价格块 (USDT 主 / CNY 副 / 汇率 / 税费 ⓘ) -->
           <div class="price-block">
-            <div class="price-main">
-              <span class="usdt-value">{{ priceSet(product.price).usdt }}</span>
-              <span class="tag-live">
-                <Icon icon="lucide:zap" width="11" /> USDT
-              </span>
-            </div>
-            <div class="price-sub">
-              <span class="approx">≈</span>
-              <span class="cny-value yb-mono">{{ priceSet(product.price).cny }}</span>
-            </div>
-            <div class="price-rate">
-              {{ priceSet(product.price).rateLabel }}
-            </div>
+            <div class="price-main"><strong>{{ priceSet(product.price).usdt }}</strong><span class="currency-label">USDT</span></div>
+            <span class="reference-price">≈ {{ priceSet(product.price).cny }}</span>
+            <span class="price-rate">{{ priceSet(product.price).rateLabel }}</span>
             <div class="price-detail">
-              <div class="pd-item">
-                <span class="lbl">运费</span>
-                <span class="v yb-mono">{{ formatUsdt(product.shippingFee) }}</span>
-              </div>
-              <div class="sep"></div>
-              <div class="pd-item">
-                <span class="lbl">税费</span>
-                <span class="v yb-mono">{{ formatUsdt(product.tax) }}</span>
-                <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="12" />
-              </div>
-              <div class="sep"></div>
-              <div class="pd-item">
-                <span class="lbl">库存</span>
-                <span class="v yb-mono">{{ product.stock }} 件</span>
-              </div>
+              <span>运费 <b>{{ formatUsdt(product.shippingFee) }}</b></span>
+              <span>税费 <b>{{ formatUsdt(product.tax) }}</b><InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="14" /></span>
+              <span>库存 <b>{{ product.stock }} 件</b></span>
             </div>
           </div>
 
-          <div v-if="product.overseasCustoms" class="overseas-warn">
-            <Icon icon="lucide:globe" width="16" />
-            <div>
-              <div class="warn-title">海外直邮商品</div>
-              <div class="warn-sub">过关后不可退货退款，请认真挑选</div>
-            </div>
-          </div>
-
-          <!-- Tags 组 -->
+          <Alert v-if="product.overseasCustoms" class="overseas-warn">
+            <Icon icon="lucide:globe" width="18" /><AlertDescription><strong>海外直邮商品</strong><p>过关后不可退货退款，请认真挑选</p></AlertDescription>
+          </Alert>
           <div class="tag-group">
-            <span v-if="aftersaleMeta" class="tag-pill">
-              <Icon icon="lucide:shield-check" width="12" /> {{ aftersaleMeta.label }}
-            </span>
-            <span class="tag-pill">
-              <Icon icon="lucide:package" width="12" /> 库存 {{ product.stock }}
-            </span>
-            <span class="tag-pill">
-              <Icon icon="lucide:trending-up" width="12" /> 销量 {{ product.salesCount || 0 }}
-            </span>
-            <span class="tag-pill">
-              <Icon icon="lucide:bookmark" width="12" /> 收藏 {{ favoriteCountError ? '待刷新' : (product.favoriteCount || 0) }}
-            </span>
+            <span v-if="aftersaleMeta" class="tag-pill"><Icon icon="lucide:shield-check" width="14" />{{ aftersaleMeta.label }}</span>
+            <span class="tag-pill"><Icon icon="lucide:trending-up" width="14" />销量 {{ product.salesCount || 0 }}</span>
+            <span class="tag-pill"><Icon icon="lucide:bookmark" width="14" />收藏 {{ favoriteCountError ? '待刷新' : (product.favoriteCount || 0) }}</span>
+          </div>
+          <div class="qty-row"><span>数量</span><QuantityStepper v-model="qty" :max="product.stock" :disabled="!canBuy" label="购买数量" /></div>
+          <Alert v-if="isOwnProduct"><Icon icon="lucide:info" width="18" /><AlertDescription>这是您本人出售的商品，不可购买或加入购物车。</AlertDescription></Alert>
+
+          <div class="purchase-actions">
+            <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child>
+              <span class="action-wrap" :tabindex="!canBuy ? 0 : undefined">
+                <Button class="purchase-button" :disabled="!canBuy" @click="buyNow"><Icon icon="lucide:credit-card" width="17" />立即购买</Button>
+              </span>
+            </TooltipTrigger><TooltipContent v-if="buyDisabledReason">{{ buyDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child>
+              <span class="action-wrap" :tabindex="!canBuy || cart.mutating ? 0 : undefined">
+                <Button variant="outline" class="purchase-button" :disabled="!canBuy || cart.mutating" @click="addToCart"><Icon :icon="cart.mutating ? 'lucide:loader-circle' : 'lucide:shopping-cart'" :class="{ 'animate-spin': cart.mutating }" width="17" />加入购物车</Button>
+              </span>
+            </TooltipTrigger><TooltipContent v-if="buyDisabledReason || cart.mutating">{{ buyDisabledReason || '购物车正在同步，请稍候' }}</TooltipContent></Tooltip></TooltipProvider>
+          </div>
+          <div class="secondary-actions">
+            <Button variant="ghost" @click="startPurchase"><Icon icon="lucide:search" width="16" />发起求购</Button>
+            <Button variant="ghost" :disabled="favoriting" @click="favorite"><Icon :icon="favoriting ? 'lucide:loader-circle' : 'lucide:heart'" :class="{ 'animate-spin': favoriting }" width="16" />{{ favoriting ? '正在更新' : '收藏商品' }}</Button>
           </div>
 
-          <!-- 数量 + 操作 -->
-          <div class="qty-row">
-            <span class="lbl">数量</span>
-            <div class="qty-stepper">
-              <button class="stp" :disabled="qty <= 1" @click="qty = Math.max(1, qty - 1)">
-                <Icon icon="lucide:minus" width="14" />
-              </button>
-              <span class="qty-val yb-mono">{{ qty }}</span>
-              <button class="stp" :disabled="qty >= product.stock" @click="qty = Math.min(product.stock, qty + 1)">
-                <Icon icon="lucide:plus" width="14" />
-              </button>
-            </div>
-          </div>
-
-          <a-alert v-if="isOwnProduct" type="info">这是您本人出售的商品，不可购买或加入购物车。</a-alert>
-          <div class="actions">
-            <button class="btn primary" :disabled="!canBuy" @click="buyNow">
-              <Icon icon="lucide:credit-card" width="16" /> 立即购买
-            </button>
-            <button class="btn ghost" :disabled="!canBuy" @click="addToCart">
-              <Icon icon="lucide:shopping-cart" width="16" /> 加入购物车
-            </button>
-            <button class="btn outline" @click="startPurchase">
-              <Icon icon="lucide:sparkles" width="16" /> 发起求购
-            </button>
-            <button class="btn ghost" :disabled="favoriting" @click="favorite">
-              <Icon icon="lucide:bookmark-plus" width="16" /> 收藏
-            </button>
-          </div>
-
-          <!-- Seller Profile 大卡 -->
           <div class="seller-card">
-            <img :src="sellerAvatar" :alt="product.sellerName" class="seller-avatar" />
-            <div class="seller-info">
-              <div class="seller-top">
-                <span class="seller-name">{{ product.sellerName }}</span>
-                <span class="verified"><Icon icon="lucide:badge-check" width="14" /> 认证买手</span>
-              </div>
-              <div class="seller-stats">
-                <span v-if="sellerScore">
-                  <Icon icon="lucide:star" width="12" />
-                  <span class="yb-mono">{{ sellerScore.averageScore }}</span>
-                  · {{ sellerScore.totalCount }} 评价
-                </span>
-                <span v-else class="muted">{{ sellerScoreError ? '买手评分读取失败' : '该买手暂无评价' }}</span>
-              </div>
+            <img :src="sellerAvatar" :alt="product.sellerName" />
+            <div class="seller-info"><span class="seller-name" :title="product.sellerName">{{ product.sellerName }}</span><span class="seller-label">商品卖家</span>
+              <p v-if="sellerScore">买手评分 {{ sellerScore.averageScore }} · {{ sellerScore.totalCount }} 条评价</p>
+              <p v-else>{{ sellerScoreError ? '买手评分读取失败' : '该买手暂无评价' }}</p>
             </div>
           </div>
-        </div>
+        </section>
       </div>
 
-      <!-- Tabs -->
-      <div class="tab-card">
-        <div class="tab-bar" role="tablist" aria-label="商品信息">
-          <button
-            v-for="t in [{key:'desc',label:'商品详情'},{key:'spec',label:'规格参数'},{key:'review',label:`用户评价 (${reviewSummary?.totalCount ?? reviews.length})`}]"
-            :key="t.key"
-            type="button"
-            class="tab"
-            :class="{ active: activeTab === t.key }"
-            :id="`product-tab-${t.key}`"
-            role="tab"
-            :aria-selected="activeTab === t.key"
-            @click="activeTab = t.key as any"
-          >{{ t.label }}</button>
-        </div>
-        <div class="tab-body" role="tabpanel" :aria-labelledby="`product-tab-${activeTab}`">
-          <RichTextContent v-if="activeTab === 'desc'" class="desc-block" :content="product.description" />
-          <div v-else-if="activeTab === 'spec'" class="spec-list">
-            <div class="spec-row"><span class="k">商品编号</span><span class="v yb-mono">{{ product.code }}</span></div>
-            <div class="spec-row"><span class="k">所属分类</span><span class="v">{{ product.categoryPath }}</span></div>
-            <div class="spec-row"><span class="k">海外过关</span><span class="v">{{ product.overseasCustoms ? '是' : '否' }}</span></div>
-            <div class="spec-row"><span class="k">售后类型</span><span class="v">{{ aftersaleMeta?.label || '—' }}</span></div>
-            <div class="spec-row"><span class="k">上架时间</span><span class="v">{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</span></div>
-          </div>
-          <div v-else-if="activeTab === 'review'">
-            <a-spin v-if="reviewLoading" :loading="true" />
-            <EmptyState v-else-if="reviewError" :title="reviewError" action-text="重新加载" @action="loadReviews(reviewPage)" />
-            <div v-else-if="reviews.length" class="review-list">
-              <div v-for="r in reviews" :key="r.reviewId" class="review-row">
-                <img :src="avatarUrl(0)" :alt="r.userName" class="rev-avatar" />
-                <div class="rev-body">
-                  <div class="rev-head">
-                    <span class="rev-user">{{ r.userName || '匿名用户' }}</span>
-                    <ReviewStars :score="r.productScore" size="sm" />
-                    <span class="rev-time yb-mono">{{ formatDateValue(r.createdAt, true) }}</span>
-                  </div>
-                  <div class="rev-text">{{ r.content }}</div>
+      <Tabs :model-value="activeTab" @update:model-value="setTab" class="detail-tabs">
+        <TabsList class="detail-tab-list">
+          <TabsTrigger value="desc" class="detail-tab">商品详情</TabsTrigger>
+          <TabsTrigger value="spec" class="detail-tab">规格参数</TabsTrigger>
+          <TabsTrigger value="review" class="detail-tab">用户评价 ({{ reviewSummary?.totalCount ?? reviewTotal }})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="desc" class="tab-body">
+          <RichTextContent :content="product.description" />
+        </TabsContent>
+        <TabsContent value="spec" class="tab-body">
+          <dl class="spec-list">
+            <div><dt>商品编号</dt><dd>{{ product.code }}</dd></div>
+            <div><dt>所属分类</dt><dd>{{ product.categoryPath }}</dd></div>
+            <div><dt>海外过关</dt><dd>{{ product.overseasCustoms ? '是' : '否' }}</dd></div>
+            <div><dt>售后类型</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd></div>
+            <div><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd></div>
+          </dl>
+        </TabsContent>
+        <TabsContent value="review" class="tab-body" :aria-busy="reviewLoading">
+          <div v-if="reviewLoading" class="review-skeleton" role="status"><span class="sr-only">正在加载评价</span><Skeleton v-for="index in 3" :key="index" class="h-24 w-full" /></div>
+          <EmptyState v-else-if="reviewError" :title="reviewError" action-text="重新加载" @action="loadReviews(reviewPage)" />
+          <div v-else-if="reviews.length" class="review-list">
+            <article v-for="review in reviews" :key="review.reviewId" class="review-row">
+              <img :src="avatarUrl(0)" alt="" class="review-avatar" />
+              <div class="review-body">
+                <header class="review-head"><span class="review-user">{{ review.anonymous ? '匿名用户' : (review.userName || '匿名用户') }}</span><ReviewStars :score="review.productScore" /><time>{{ formatDateValue(review.createdAt, true) }}</time></header>
+                <p class="review-text">{{ review.content }}</p>
+                <div v-if="review.images?.length" class="review-images">
+                  <button v-for="(image, index) in review.images" :key="`${image}-${index}`" type="button" :aria-label="`查看评价图片 ${index + 1}`" @click="openPreview(review.images!, index)"><img :src="image" alt="评价图片" loading="lazy" @error="setImageFallback" /></button>
                 </div>
+                <div v-if="review.replyContent" class="review-reply"><strong>买手回复</strong><p>{{ review.replyContent }}</p></div>
               </div>
-            </div>
-            <EmptyState v-else icon="lucide:message-square" title="暂无评价" description="尚无顾客评价，期待您成为第一位评价者" />
-            <a-pagination v-if="reviewTotal > reviewPageSize" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :disabled="reviewLoading" show-total @change="loadReviews" />
+            </article>
           </div>
-        </div>
-      </div>
+          <EmptyState v-else icon="lucide:message-square" title="暂无评价" description="尚无顾客评价，期待您成为第一位评价者" />
+          <BusinessPagination v-if="reviewTotal > reviewPageSize" class="review-pagination" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" @change="loadReviews" />
+        </TabsContent>
+      </Tabs>
     </template>
-
-    <EmptyState
-      v-else-if="!loading"
-      icon="lucide:package-x"
-      :title="loadError || '商品不存在'"
-      :description="loadError ? '请稍后重试。' : undefined"
-      :action-text="loadError ? '重新加载' : '返回首页'"
-      @action="loadError ? load() : router.push('/')"
-    />
+    <div v-else-if="loading" class="detail-skeleton" role="status"><span class="sr-only">正在加载商品详情</span><Skeleton class="aspect-square w-full" /><div><Skeleton class="h-10 w-3/4" /><Skeleton class="mt-6 h-6 w-1/2" /><Skeleton class="mt-8 h-44 w-full" /><Skeleton class="mt-8 h-12 w-full" /></div></div>
+    <EmptyState v-else icon="lucide:package-x" :title="loadError || '商品不存在'" :description="loadError ? '请稍后重试。' : undefined" :action-text="loadError ? '重新加载' : '返回首页'" @action="loadError ? load() : router.push('/')" />
+    <ImagePreview v-model="previewVisible" :images="previewImages" :start-index="previewIndex" title="评价图片" />
   </div>
 </template>
 
 <style scoped>
-.detail-page {
-  padding-top: 20px;
-  padding-bottom: 60px;
-}
-
-.bread {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-bottom: 24px;
-}
-.bread span {
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.bread span:hover { color: var(--yb-ink); }
-.bread span[role="link"]:focus-visible {
-  outline: 2px solid var(--yb-gold);
-  outline-offset: 3px;
-  border-radius: 3px;
-}
-.bread .current { color: var(--yb-ink); cursor: default; }
-.bread .current:hover { color: var(--yb-ink); }
-
-/* ========== Hero grid ========== */
-.hero-grid {
-  display: grid;
-  grid-template-columns: 52% 1fr;
-  gap: 40px;
-  margin-bottom: 32px;
-  align-items: flex-start;
-}
-.gallery-wrap {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-card);
-  padding: 24px;
-}
-.meta {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  min-width: 0;
-}
-.brand-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--yb-muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-.title {
-  font-family: var(--yb-font-display);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-  margin: 0;
-  line-height: 1.25;
-}
-.summary {
-  font-size: 14px;
-  color: var(--yb-muted);
-  line-height: 1.6;
-  margin: 0;
-}
-.seller-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.rev-count { color: var(--yb-muted); }
-
-/* Price */
-.price-block {
-  background: var(--yb-champagne);
-  border-radius: var(--yb-radius-card);
-  padding: 24px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  border: 1px solid rgba(var(--yb-gold-rgb), 0.15);
-}
-.price-main {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  color: var(--yb-ink);
-}
-.price-main .usdt-value {
-  font-family: var(--yb-font-mono);
-  font-size: 42px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--yb-ink);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-.price-sub {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--yb-font-mono);
-  font-size: 15px;
-  color: var(--yb-muted);
-  margin-top: -4px;
-}
-.price-sub .approx {
-  font-family: var(--yb-font-body);
-  color: var(--yb-faint);
-}
-.price-sub .cny-value {
-  color: var(--yb-ink-2);
-  font-weight: 600;
-}
-.price-rate {
-  font-family: var(--yb-font-mono);
-  font-size: 12px;
-  color: var(--yb-faint);
-  margin-top: -8px;
-  letter-spacing: -0.01em;
-}
-
-.tag-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px 10px;
-  background: var(--yb-ink);
-  color: var(--yb-gold);
-  border-radius: var(--yb-radius-pill);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  align-self: center;
-  margin-left: 4px;
-}
-.price-detail {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(var(--yb-gold-rgb), 0.2);
-  font-size: 12px;
-  color: var(--yb-ink-2);
-}
-.pd-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.pd-item .lbl {
-  color: var(--yb-muted);
-}
-.pd-item .v {
-  color: var(--yb-ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.price-detail .sep {
-  width: 1px;
-  height: 12px;
-  background: rgba(var(--yb-gold-rgb), 0.28);
-}
-
-/* Overseas warn */
-.overseas-warn {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px 16px;
-  background: var(--yb-danger-soft);
-  color: var(--yb-danger);
-  border-radius: var(--yb-radius-md);
-  border-left: 3px solid var(--yb-danger);
-}
-.warn-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-.warn-sub {
-  font-size: 12px;
-  opacity: 0.9;
-  margin-top: 2px;
-}
-
-/* Tag group */
-.tag-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.tag-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 12px;
-  background: var(--yb-bg);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-pill);
-  font-size: 11px;
-  color: var(--yb-ink-2);
-  font-weight: 500;
-}
-
-/* Qty */
-.qty-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.qty-row .lbl {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.qty-stepper {
-  display: inline-flex;
-  align-items: center;
-  background: var(--yb-bg);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-pill);
-  overflow: hidden;
-}
-.stp {
-  width: 36px;
-  height: 36px;
-  background: transparent;
-  border: none;
-  color: var(--yb-ink);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s;
-}
-.stp:hover:not(:disabled) { background: var(--yb-hairline); }
-.stp:disabled { opacity: 0.4; cursor: not-allowed; }
-.qty-val {
-  min-width: 44px;
-  text-align: center;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-
-/* Actions */
-.actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 22px;
-  border-radius: var(--yb-radius-pill);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-  flex: 1;
-  justify-content: center;
-}
-.btn.primary {
-  background: var(--yb-brand-primary);
-  color: #fff;
-}
-.btn.primary:hover:not(:disabled) {
-  background: var(--yb-brand-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(var(--yb-primary-rgb), 0.28);
-}
-.btn.ghost {
-  background: var(--yb-surface);
-  color: var(--yb-ink);
-  border-color: var(--yb-hairline-2);
-}
-.btn.ghost:hover:not(:disabled) {
-  border-color: var(--yb-ink);
-}
-.btn.outline {
-  background: transparent;
-  color: var(--yb-primary);
-  border-color: var(--yb-primary);
-}
-.btn.outline:hover {
-  background: var(--yb-primary-soft);
-}
-.btn.sm {
-  padding: 8px 14px;
-  font-size: 12px;
-  flex: none;
-}
-.btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* Seller card */
-.seller-card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px 24px;
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-card);
-  margin-top: 8px;
-}
-.seller-avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: var(--yb-champagne);
-  border: 2px solid var(--yb-surface);
-  box-shadow: var(--yb-shadow-1);
-  flex-shrink: 0;
-}
+.detail-page { padding-top: 24px; padding-bottom: 56px; }
+.bread { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; font-size: 13px; color: var(--yb-muted); }
+.bread a:hover { color: var(--yb-primary); }
+.bread [aria-current] { min-width: 0; color: var(--yb-ink); overflow-wrap: anywhere; }
+.hero-grid, .detail-skeleton { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-bottom: 48px; }
+.gallery-wrap { position: relative; z-index: 1; padding: 16px; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; }
+.meta { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.brand-label { font-size: 12px; letter-spacing: .06em; color: var(--yb-muted); }
+.meta h1 { margin: 0; font-size: 32px; line-height: 1.35; font-weight: 600; letter-spacing: -.6px; overflow-wrap: anywhere; }
+.summary { color: var(--yb-muted); font-size: 15px; line-height: 1.8; }
+.rating-summary { display: flex; align-items: center; gap: 10px; color: var(--yb-muted); font-size: 13px; }
+.price-block { display: flex; flex-direction: column; gap: 8px; padding: 24px; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-fill); }
+.price-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
+.price-main strong { font-size: 36px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.currency-label { color: var(--yb-muted); font-size: 12px; }
+.reference-price { color: var(--yb-muted); font-size: 14px; font-variant-numeric: tabular-nums; }
+.price-rate { color: var(--yb-muted); font-size: 12px; }
+.price-detail { display: flex; flex-wrap: wrap; gap: 16px; padding-top: 16px; margin-top: 8px; border-top: 1px solid var(--yb-hairline); color: var(--yb-muted); font-size: 13px; }
+.price-detail span { display: inline-flex; align-items: center; gap: 8px; }
+.price-detail b { color: var(--yb-ink); font-weight: 500; }
+.overseas-warn { background: var(--yb-champagne); border-color: color-mix(in srgb, var(--yb-gold), transparent 75%); color: var(--yb-ink); }
+.overseas-warn strong { font-weight: 600; }.overseas-warn p { margin-top: 4px; color: var(--yb-muted); }
+.tag-group { display: flex; flex-wrap: wrap; gap: 10px; }
+.tag-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--yb-muted); font-size: 13px; }
+.qty-row { display: flex; align-items: flex-start; gap: 24px; font-size: 14px; color: var(--yb-muted); }.qty-row > span { padding-top: 10px; }
+.purchase-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.action-wrap { display: block; min-width: 0; }.purchase-button { width: 100%; height: 46px; font-size: 15px; }
+.secondary-actions { display: flex; align-items: center; gap: 8px; margin-top: -8px; }
+.seller-card { display: flex; align-items: center; gap: 16px; border-top: 1px solid var(--yb-hairline); padding-top: 20px; }
+.seller-card > img { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; }
 .seller-info { flex: 1; min-width: 0; }
-.seller-top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.seller-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--yb-ink);
-}
-.verified {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  color: var(--yb-success);
-  padding: 2px 8px;
-  background: var(--yb-success-soft);
-  border-radius: var(--yb-radius-pill);
-  font-weight: 500;
-}
-.seller-stats {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.seller-stats span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.muted { color: var(--yb-muted); }
-
-/* ========== Tabs ========== */
-.tab-card {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-card);
-  overflow: hidden;
-}
-.tab-bar {
-  display: flex;
-  gap: 4px;
-  padding: 16px 24px 0;
-  border-bottom: 1px solid var(--yb-hairline);
-  position: sticky;
-  top: 0;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(12px);
-  z-index: 5;
-}
-.tab {
-  padding: 14px 20px;
-  background: transparent;
-  border: none;
-  color: var(--yb-muted);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
-  margin-bottom: -1px;
-}
-.tab:hover { color: var(--yb-ink); }
-.tab:focus-visible {
-  outline: 2px solid var(--yb-brand-primary);
-  outline-offset: -2px;
-}
-.tab.active {
-  color: var(--yb-ink);
-  border-bottom-color: var(--yb-ink);
-  font-weight: 700;
-}
-.tab-body {
-  padding: 28px 32px;
-}
-.desc-block {
-  font-size: 14px;
-  color: var(--yb-ink-2);
-  line-height: 1.75;
-  white-space: pre-wrap;
-}
-.spec-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.spec-row {
-  display: flex;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--yb-hairline);
-  font-size: 13px;
-}
-.spec-row:last-child { border-bottom: none; }
-.spec-row .k {
-  width: 120px;
-  color: var(--yb-muted);
-}
-.spec-row .v {
-  flex: 1;
-  color: var(--yb-ink);
-  font-weight: 500;
-}
-
-/* Review list */
-.review-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.review-row {
-  display: flex;
-  gap: 14px;
-  padding: 18px 0;
-  border-bottom: 1px solid var(--yb-hairline);
-}
-.review-row:last-child { border-bottom: none; }
-.rev-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--yb-champagne);
-  flex-shrink: 0;
-}
-.rev-body { flex: 1; }
-.rev-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-.rev-user {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.rev-time {
-  font-size: 11px;
-  color: var(--yb-faint);
-}
-.rev-text {
-  font-size: 13px;
-  color: var(--yb-ink-2);
-  line-height: 1.6;
-}
-
-@media (max-width: 1024px) {
-  .hero-grid { grid-template-columns: 1fr; }
-}
+.seller-name { display: inline-block; max-width: 200px; vertical-align: middle; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-size: 16px; font-weight: 600; }
+.seller-label { margin-left: 8px; font-size: 12px; color: var(--yb-muted); }
+.seller-info p { margin-top: 4px; font-size: 13px; color: var(--yb-muted); }
+.detail-tabs { background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; }
+.detail-tab-list { display: flex; justify-content: flex-start; gap: 16px; height: auto; width: 100%; padding: 0 24px; border-radius: 12px 12px 0 0; border-bottom: 1px solid var(--yb-hairline); background: transparent; }
+.detail-tab { height: 56px; padding: 0 12px; border-radius: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--yb-muted); box-shadow: none; font-size: 15px; }
+.detail-tab[data-state="active"] { color: var(--yb-primary); border-bottom-color: var(--yb-primary); background: transparent; box-shadow: none; }
+.tab-body { margin-top: 0; padding: 28px; }
+.spec-list { display: grid; }.spec-list > div { display: flex; gap: 24px; padding: 14px 0; border-bottom: 1px solid var(--yb-hairline); font-size: 14px; }.spec-list > div:last-child { border: 0; }
+.spec-list dt { width: 120px; flex-shrink: 0; color: var(--yb-muted); }.spec-list dd { min-width: 0; overflow-wrap: anywhere; }
+.review-skeleton { display: grid; gap: 20px; }
+.review-row { display: flex; gap: 16px; padding: 24px 0; border-bottom: 1px solid var(--yb-hairline); }.review-row:last-child { border: 0; }
+.review-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }.review-body { flex: 1; min-width: 0; }
+.review-head { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }.review-user { font-size: 14px; font-weight: 600; }.review-head time { color: var(--yb-muted); font-size: 12px; margin-left: auto; }
+.review-text { font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; }.review-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.review-images button { border: 1px solid var(--yb-hairline); border-radius: 6px; overflow: hidden; }.review-images img { width: 80px; height: 80px; object-fit: cover; }
+.review-reply { margin-top: 16px; padding: 16px; border-radius: 6px; background: var(--yb-fill); font-size: 14px; }.review-reply strong { font-weight: 600; }.review-reply p { margin-top: 8px; color: var(--yb-muted); white-space: pre-wrap; }
+.review-pagination { margin-top: 28px; }
+@media (max-width: 1100px) { .hero-grid, .detail-skeleton { gap: 28px; }.meta h1 { font-size: 28px; }.price-main strong { font-size: 32px; }.gallery-wrap { padding: 10px; } }
+@media (max-width: 900px) { .hero-grid, .detail-skeleton { grid-template-columns: minmax(0, 1fr); }.detail-tab-list { gap: 8px; padding: 0 12px; } }
 </style>
