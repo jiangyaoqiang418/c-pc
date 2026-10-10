@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import PasswordInput from '@/components/common/password-input.vue';
+import { Input } from '@/components/ui/input';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Message } from '@/lib/feedback';
 import { useRoute, useRouter } from 'vue-router';
@@ -104,53 +110,28 @@ async function submit() {
     if (operation === operationVersion) submitting.value = false;
   }
 }
+
+
 </script>
 
 <template>
-  <div class="shop-container security-page">
-    <a-card title="设置登录密码" class="card">
-      <a-spin :loading="loading" class="content">
-        <a-alert v-if="loadError" :type="saved ? 'warning' : 'error'" :closable="false" class="alert">
-          {{ loadError }}
-          <template #action><a-button size="mini" @click="loadState(saved)">重新读取</a-button></template>
-        </a-alert>
-        <template v-if="!loading && !loadError && userStore.needsLoginPassword">
-          <p class="description">设置后可使用邮箱和该密码登录，当前第三方登录方式仍可继续使用。</p>
-          <a-form :model="form" layout="vertical" @submit-success="submit">
-            <a-form-item
-              v-if="needsEmail"
-              label="登录邮箱"
-              required
-              :validate-status="emailError ? 'error' : undefined"
-              :help="emailError || '该邮箱将作为你的登录账号，本期不校验邮箱验证码。'"
-            >
-              <a-input v-model="form.email" autocomplete="email" placeholder="请输入邮箱" size="large" />
-            </a-form-item>
-            <a-form-item v-else label="登录邮箱">
-              <a-input :model-value="currentEmail || ''" readonly size="large" />
-            </a-form-item>
-            <a-form-item label="登录密码" required :validate-status="formError ? 'error' : undefined" :help="formError || '长度 6–64 位，不限字符类型。'">
-              <a-input-password v-model="form.password" autocomplete="new-password" placeholder="请输入登录密码" size="large" />
-            </a-form-item>
-            <a-form-item label="确认登录密码" required>
-              <a-input-password v-model="form.confirmPassword" autocomplete="new-password" placeholder="请再次输入" size="large" />
-            </a-form-item>
-            <div class="actions">
-              <a-button @click="router.push('/profile')">取消</a-button>
-              <a-button type="primary" html-type="submit" :disabled="!canSubmit" :loading="submitting">保存</a-button>
-            </div>
-          </a-form>
-        </template>
-      </a-spin>
-    </a-card>
-  </div>
+  <div class="shop-container security-page"><section class="card" :aria-busy="loading">
+    <nav class="bread" aria-label="面包屑"><RouterLink to="/profile">个人中心</RouterLink><span>/</span><span>账户安全</span></nav><span class="eyebrow">ACCOUNT SECURITY</span><h1>设置登录密码</h1>
+    <Alert v-if="loadError" :variant="saved ? 'default' : 'destructive'" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" size="sm" @click="loadState(saved)">重新读取</Button></Alert>
+    <div v-if="loading" class="skeletons"><Skeleton class="h-10" /><Skeleton class="h-16" /><Skeleton class="h-16" /><Skeleton class="h-16" /></div>
+    <template v-else-if="!loadError && userStore.needsLoginPassword">
+      <p class="description">设置后可使用邮箱和该密码登录，当前第三方登录方式仍可继续使用。</p>
+      <form novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
+        <div v-if="needsEmail" class="field"><Label for="set-login-email">登录邮箱 <span aria-hidden="true">*</span></Label><Input id="set-login-email" v-model="form.email" :disabled="submitting || saved" autocomplete="email" placeholder="请输入邮箱" :aria-invalid="!!emailError" aria-describedby="login-email-help" required /><p id="login-email-help" class="hint" :class="{ 'field-error': emailError }">{{ emailError || '该邮箱将作为你的登录账号，本期不校验邮箱验证码。' }}</p></div>
+        <div v-else class="field"><Label for="set-login-email">登录邮箱</Label><Input id="set-login-email" :model-value="currentEmail || ''" readonly /></div>
+        <div class="field"><Label for="set-login-password">登录密码 <span aria-hidden="true">*</span></Label><PasswordInput id="set-login-password" v-model="form.password" :disabled="submitting || saved" autocomplete="new-password" placeholder="请输入登录密码" :aria-invalid="!!formError" aria-describedby="login-password-help" required /><p id="login-password-help" class="hint" :class="{ 'field-error': formError }">{{ formError || '长度 6–64 位，不限字符类型。' }}</p></div>
+        <div class="field"><Label for="set-login-confirm">确认登录密码 <span aria-hidden="true">*</span></Label><PasswordInput id="set-login-confirm" v-model="form.confirmPassword" :disabled="submitting || saved" autocomplete="new-password" placeholder="请再次输入" required /></div>
+        <footer class="actions"><Button type="button" variant="outline" :disabled="submitting" @click="router.push('/profile')">取消</Button><Button type="submit" :disabled="!canSubmit || submitting">{{ submitting ? '保存中…' : '保存' }}</Button></footer>
+      </form>
+    </template>
+  </section></div>
 </template>
 
 <style scoped>
-.security-page { padding-top: 24px; }
-.card { max-width: 560px; margin: auto; }
-.content { display: block; min-height: 240px; }
-.description { margin: 0 0 20px; color: var(--yb-ink-2); line-height: 1.7; }
-.alert { margin-bottom: 16px; }
-.actions { display: flex; justify-content: flex-end; gap: 12px; }
+.security-page { padding-top:36px; padding-bottom:48px; }.card { max-width:600px; margin:auto; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; padding:32px; }.bread { display:flex; align-items:center; gap:12px; color:var(--yb-muted); font-size:13px; margin-bottom:26px; }.bread a:hover { color:var(--yb-brand-primary); }.eyebrow { color:var(--yb-gold); letter-spacing:2px; font-size:11px; }h1 { margin:6px 0 24px; font-size:26px; font-weight:650; }.description { margin:0 0 24px; color:var(--yb-muted); font-size:14px; line-height:1.8; }.notice { display:grid; gap:12px; margin-bottom:20px; }form { display:grid; gap:24px; }.field { display:grid; gap:10px; }.field label span { color:var(--destructive); }.hint { margin:0; font-size:12px; line-height:1.6; color:var(--yb-muted); }.field-error { color:var(--destructive); }.actions { display:flex; justify-content:flex-end; gap:16px; margin-top:4px; }.modes { margin-bottom:24px; }.modes :deep(button) { min-width:120px; }.skeletons { display:grid; gap:24px; padding:12px 0; }@media(max-width:700px) { .card { padding:24px; } }
 </style>

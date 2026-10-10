@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -114,87 +118,22 @@ watch(() => userStore.currentUser?.id, () => {
   loadError.value = '';
   void load();
 });
+
+
 </script>
 
 <template>
   <div class="favorites-page shop-container">
-    <div class="page-head">
-      <h1 class="page-title">我的收藏</h1>
-    </div>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <div v-if="list.length" class="product-grid">
-        <div v-for="p in list" :key="p.id" class="favorite-item">
-          <ProductCard :product="p" />
-          <a-button
-            class="cancel-button"
-            type="outline"
-            status="danger"
-            long
-            :loading="cancelingId === String(p.id)"
-            @click="cancelFavorite(p)"
-          >
-            取消收藏
-          </a-button>
-        </div>
-      </div>
-      <EmptyState
-        v-else
-        :title="loadError || '暂无收藏商品'"
-        :description="loadError ? '请稍后重试。' : '在商品详情页点击收藏后会出现在这里'"
-        :action-text="loadError ? '重新加载' : '去浏览商品'"
-        @action="loadError ? load() : router.push('/product/list')"
-      />
-    </a-spin>
-
-    <div v-if="total > size" class="pagination-bar">
-      <a-pagination
-        :total="total"
-        :current="current"
-        :page-size="size"
-        show-total
-        @change="(p: number) => { current = p; load(); }"
-      />
-    </div>
+    <header class="page-head"><div><span class="eyebrow">SAVED FOR LATER</span><h1>我的收藏 <small v-if="!loading">{{ total }} 件商品</small></h1></div><Button variant="outline" @click="router.push('/product/list')">浏览商品<Icon icon="lucide:arrow-up-right" width="16" /></Button></header>
+    <section :aria-busy="loading" aria-label="收藏商品列表">
+      <div v-if="loading && !list.length" class="product-grid"><Skeleton v-for="n in 4" :key="n" class="favorite-loading" /></div>
+      <div v-else-if="list.length" class="product-grid" :class="{ refreshing: loading }"><div v-for="p in list" :key="p.id" class="favorite-item"><ProductCard :product="p" /><Button class="cancel-button" size="sm" variant="ghost" :disabled="!!cancelingId || !!cancellationPendingId || loading" @click="cancelFavorite(p)"><Icon icon="lucide:heart-off" width="15" />{{ cancelingId === String(p.id) ? '取消中…' : '取消收藏' }}</Button></div></div>
+      <EmptyState v-else :title="loadError || '暂无收藏商品'" :description="loadError ? '请稍后重试。' : '在商品详情页点击收藏后会出现在这里'" :action-text="loadError ? '重新加载' : '去浏览商品'" @action="loadError ? load() : router.push('/product/list')" />
+    </section>
+    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading || !!cancellationPendingId" @change="current = $event; load()" />
   </div>
 </template>
 
 <style scoped>
-.favorites-page {
-  padding-top: 16px;
-  padding-bottom: 40px;
-}
-.page-head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--yb-ink);
-}
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-.favorite-item {
-  min-width: 0;
-}
-.cancel-button {
-  margin-top: 8px;
-}
-.pagination-bar {
-  display: flex;
-  justify-content: center;
-  margin-top: 18px;
-}
-@media (max-width: 1100px) {
-  .product-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
+.favorites-page { padding-top:32px; padding-bottom:48px; }.page-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 0; font-size:28px; font-weight:650; }h1 small { color:var(--yb-muted); font-size:13px; font-weight:400; margin-left:16px; }.product-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:24px; }.favorite-item { min-width:0; }.cancel-button { display:flex; margin:10px auto 0; color:var(--yb-muted); }.cancel-button:hover { color:var(--destructive); }.favorite-loading { height:390px; border-radius:10px; }.refreshing { opacity:.65; }@media(max-width:1100px) { .product-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }@media(max-width:800px) { .product-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 </style>

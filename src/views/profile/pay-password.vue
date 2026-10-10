@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import PasswordInput from '@/components/common/password-input.vue';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { Message } from '@/lib/feedback';
 import { useRoute, useRouter } from 'vue-router';
@@ -134,48 +140,30 @@ async function submit() {
     if (operation === operationVersion) submitting.value = false;
   }
 }
+
+
 </script>
 
 <template>
-  <div class="shop-container security-page">
-    <a-card title="支付密码" class="card">
-      <a-spin :loading="statusLoading" class="content">
-        <a-alert v-if="loadError" type="error" :closable="false" class="alert">
-          {{ loadError }}
-          <template #action><a-button size="mini" @click="load">重新读取</a-button></template>
-        </a-alert>
-        <template v-if="!statusLoading && !loadError && status">
-          <a-alert v-if="status.locked" type="warning">支付密码已锁定，可使用平台登录密码重置。</a-alert>
-          <a-radio-group v-if="status.hasSet" :model-value="mode" type="button" class="modes" @change="handleModeChange">
-            <a-radio value="update">修改密码</a-radio>
-            <a-radio value="reset">忘记密码</a-radio>
-          </a-radio-group>
-          <a-alert v-if="formError" type="error" :closable="false" class="alert">{{ formError }}</a-alert>
-          <a-form :model="form" layout="vertical" @submit-success="submit">
-            <a-form-item v-if="mode !== 'update'" label="平台登录密码" required>
-              <a-input-password v-model="form.loginPassword" autocomplete="current-password" placeholder="请输入平台登录密码" />
-            </a-form-item>
-            <a-form-item v-else label="原支付密码" required>
-              <a-input-password v-model="form.oldPayPassword" :max-length="6" placeholder="请输入原支付密码" />
-            </a-form-item>
-            <a-form-item label="新支付密码" required>
-              <a-input-password v-model="form.payPassword" :max-length="6" placeholder="6位数字，支持0开头" />
-            </a-form-item>
-            <a-form-item label="确认支付密码" required>
-              <a-input-password v-model="form.confirmPayPassword" :max-length="6" placeholder="请再次输入新支付密码" />
-            </a-form-item>
-            <a-button type="primary" html-type="submit" :disabled="!valid" :loading="submitting">保存</a-button>
-          </a-form>
-        </template>
-      </a-spin>
-    </a-card>
-  </div>
+  <div class="shop-container security-page"><section class="card" :aria-busy="statusLoading">
+    <nav class="bread" aria-label="面包屑"><RouterLink to="/profile">个人中心</RouterLink><span>/</span><span>账户安全</span></nav><span class="eyebrow">PAYMENT SECURITY</span><h1>支付密码</h1>
+    <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" size="sm" @click="load">重新读取</Button></Alert>
+    <div v-if="statusLoading" class="skeletons"><Skeleton class="h-10" /><Skeleton class="h-16" /><Skeleton class="h-16" /><Skeleton class="h-16" /></div>
+    <template v-else-if="!loadError && status">
+      <Alert v-if="status.locked" class="notice"><AlertDescription>支付密码已锁定，可使用平台登录密码重置。</AlertDescription></Alert>
+      <Tabs v-if="status.hasSet" :model-value="mode" class="modes" @update:model-value="handleModeChange"><TabsList><TabsTrigger value="update" :disabled="submitting">修改密码</TabsTrigger><TabsTrigger value="reset" :disabled="submitting">忘记密码</TabsTrigger></TabsList></Tabs>
+      <Alert v-if="formError" variant="destructive" class="notice"><AlertDescription>{{ formError }}</AlertDescription></Alert>
+      <form novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
+        <div v-if="mode !== 'update'" class="field"><Label for="security-login-password">平台登录密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-login-password" v-model="form.loginPassword" :disabled="submitting" autocomplete="current-password" placeholder="请输入平台登录密码" required /></div>
+        <div v-else class="field"><Label for="security-old-pay-password">原支付密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-old-pay-password" v-model="form.oldPayPassword" :disabled="submitting" :max-length="6" placeholder="请输入原支付密码" required /></div>
+        <div class="field"><Label for="security-new-pay-password">新支付密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-new-pay-password" v-model="form.payPassword" :disabled="submitting" :max-length="6" placeholder="6 位数字，支持 0 开头" required /><small class="hint">支付密码用于付款和确认收货，请勿与登录密码混淆。</small></div>
+        <div class="field"><Label for="security-confirm-pay-password">确认支付密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-confirm-pay-password" v-model="form.confirmPayPassword" :disabled="submitting" :max-length="6" placeholder="请再次输入新支付密码" required /></div>
+        <footer class="actions"><Button type="submit" :disabled="!valid || submitting">{{ submitting ? '保存中…' : '保存' }}</Button></footer>
+      </form>
+    </template>
+  </section></div>
 </template>
 
 <style scoped>
-.security-page { padding-top: 24px; }
-.card { max-width: 560px; margin: auto; }
-.content { display: block; min-height: 240px; }
-.modes { margin: 16px 0; }
-.alert { margin-bottom: 16px; }
+.security-page { padding-top:36px; padding-bottom:48px; }.card { max-width:600px; margin:auto; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; padding:32px; }.bread { display:flex; align-items:center; gap:12px; color:var(--yb-muted); font-size:13px; margin-bottom:26px; }.bread a:hover { color:var(--yb-brand-primary); }.eyebrow { color:var(--yb-gold); letter-spacing:2px; font-size:11px; }h1 { margin:6px 0 24px; font-size:26px; font-weight:650; }.description { margin:0 0 24px; color:var(--yb-muted); font-size:14px; line-height:1.8; }.notice { display:grid; gap:12px; margin-bottom:20px; }form { display:grid; gap:24px; }.field { display:grid; gap:10px; }.field label span { color:var(--destructive); }.hint { margin:0; font-size:12px; line-height:1.6; color:var(--yb-muted); }.field-error { color:var(--destructive); }.actions { display:flex; justify-content:flex-end; gap:16px; margin-top:4px; }.modes { margin-bottom:24px; }.modes :deep(button) { min-width:120px; }.skeletons { display:grid; gap:24px; padding:12px 0; }@media(max-width:700px) { .card { padding:24px; } }
 </style>

@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -198,316 +205,44 @@ const orderTabsMeta = computed(() => [
   { label: '已完成', count: orderCount('COMPLETED', 'WARRANTY'), tab: 'done' },
   { label: '售后中', count: orderCount('IN_AFTERSALE'), tab: 'aftersale' }
 ]);
+
+
+const entryIcons: Record<string, string> = {
+  orders: 'lucide:package', cart: 'lucide:shopping-bag', wallet: 'lucide:wallet',
+  finance: 'lucide:chart-no-axes-combined', kyc: 'lucide:badge-check', vip: 'lucide:crown',
+  address: 'lucide:map-pin', 'pay-password': 'lucide:shield-check', 'login-password': 'lucide:key-round',
+  purchase: 'lucide:search', aftersale: 'lucide:headset', review: 'lucide:message-square-text',
+  points: 'lucide:gift', buyer: 'lucide:store'
+};
+const avatarFailed = ref(false);
+watch(() => user.value?.avatar, () => { avatarFailed.value = false; });
+const vipProgressPercent = computed(() => {
+  if (!vipStatus.value?.nextThreshold) return undefined;
+  const value = vipStatus.value.points / vipStatus.value.nextThreshold * 100;
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : undefined;
+});
 </script>
 
 <template>
   <div class="profile-page shop-container">
-    <div v-if="user" class="layout">
-      <a-alert v-if="loadError" type="error" :closable="false" class="load-error">
-        {{ loadError }}
-        <template #action><a-button size="mini" :loading="loading" @click="loadProfile">重新加载</a-button></template>
-      </a-alert>
+    <header class="page-heading"><span class="eyebrow">YOUR ACCOUNT</span><h1>个人中心</h1></header>
+    <div v-if="user" class="layout" :aria-busy="loading">
+      <Alert v-if="loadError" variant="destructive" class="load-error notice"><AlertDescription>{{ loadError }}</AlertDescription><Button variant="outline" size="sm" :disabled="loading" @click="loadProfile">重新加载</Button></Alert>
       <section class="left">
-        <a-card class="user-card" :body-style="{ padding: '24px' }">
-          <div class="user-head">
-            <div class="avatar">{{ user.nickname.slice(0, 1) }}</div>
-            <div class="info">
-              <div class="name-row">
-                <span class="name">{{ user.nickname }}</span>
-                <VipBadge :level="user.vipLevel" />
-                <a-tag v-if="kycMeta" :color="kycMeta.color" size="small">KYC：{{ kycMeta.label }}</a-tag>
-                <a-tag v-if="user.isBuyer" color="orange" size="small">已是买手</a-tag>
-              </div>
-              <div class="meta">
-                <span>{{ user.email ?? '未绑定邮箱' }}</span>
-                <span class="dot">·</span>
-                <span>积分 {{ user.points === undefined ? '—' : formatPoints(user.points) }}</span>
-                <template v-if="registeredDate">
-                  <span class="dot">·</span>
-                  <span>注册于 {{ registeredDate }}</span>
-                </template>
-              </div>
-              <a-button type="text" size="mini" class="edit-profile" @click="openEditProfile">编辑资料</a-button>
-              <a-alert v-if="user.accountInfoUnavailable" type="warning">积分或等级资料未更新，已有值仅供参考。<template #action><a-button size="mini" :loading="refreshingProfile" @click="refreshSavedProfile(false)">重试会员资料</a-button></template></a-alert>
-              <a-alert v-if="profileRefreshError" type="warning">资料已保存，当前显示的资料尚未刷新。<template #action><a-button size="mini" :loading="refreshingProfile" @click="refreshSavedProfile()">重新读取</a-button></template></a-alert>
-              <div v-if="vipStatus?.nextThreshold" class="vip-progress">
-                <div class="vip-progress-label">距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分</div>
-                <a-progress
-                  :percent="Math.max(0, Math.min(1, vipStatus.points / vipStatus.nextThreshold))"
-                  type="line"
-                  size="small"
-                  :show-text="false"
-                  color="var(--yb-brand-primary)"
-                />
-              </div>
-            </div>
-          </div>
-        </a-card>
-
-        <a-card class="order-stat-card" :body-style="{ padding: '20px 24px' }">
-          <div class="card-head">
-            <div class="card-title">{{ userStore.isBuyerActive ? '卖出订单概况' : '买入订单概况' }}</div>
-            <a-link role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">查看全部 ›</a-link>
-          </div>
-          <div class="order-stats">
-            <div v-for="o in orderTabsMeta" :key="o.label" class="stat" role="button" tabindex="0" @click="router.push({ path: '/order', query: { tab: o.tab } })" @keydown.enter="router.push({ path: '/order', query: { tab: o.tab } })" @keydown.space.prevent="router.push({ path: '/order', query: { tab: o.tab } })">
-              <div class="stat-num">{{ o.count ?? (loading ? 0 : '—') }}</div>
-              <div class="stat-label">{{ o.label }}</div>
-            </div>
-          </div>
-        </a-card>
-
-        <a-card class="quick-card" :body-style="{ padding: '20px 24px' }">
-          <div class="card-title">快捷入口</div>
-          <div class="quick-grid">
-            <div
-              v-for="q in quickEntries"
-              :key="q.key"
-              class="quick-cell"
-              :class="{ disabled: q.phase }"
-              role="button"
-              tabindex="0"
-              @click="q.go()"
-              @keydown.enter="q.go()"
-              @keydown.space.prevent="q.go()"
-            >
-              <span class="emoji">{{ q.emoji }}</span>
-              <span class="label">{{ q.label }}</span>
-              <span v-if="q.phase" class="phase-chip">P{{ q.phase }}</span>
-            </div>
-          </div>
-        </a-card>
+        <article class="user-card"><div class="user-head"><div class="avatar"><img v-if="user.avatar && !avatarFailed" :src="user.avatar" :alt="user.nickname" @error="avatarFailed = true" /><span v-else>{{ user.nickname.slice(0, 1) }}</span></div><div class="info"><div class="name-row"><h2 class="name" :title="user.nickname">{{ user.nickname }}</h2><VipBadge :level="user.vipLevel" /><span v-if="kycMeta" class="status" :class="kycMeta.color">KYC：{{ kycMeta.label }}</span><span v-if="user.isBuyer" class="status orange">已是买手</span></div><div class="meta"><span>{{ user.email ?? '未绑定邮箱' }}</span><span>积分 {{ user.points === undefined ? '—' : formatPoints(user.points) }}</span><span v-if="registeredDate">注册于 {{ registeredDate }}</span></div><Button variant="link" size="sm" class="edit-profile" :disabled="savingProfile" @click="openEditProfile">编辑资料<Icon icon="lucide:arrow-up-right" width="14" /></Button>
+          <Alert v-if="user.accountInfoUnavailable" class="notice"><AlertDescription>积分或等级资料未更新，已有值仅供参考。</AlertDescription><Button variant="outline" size="sm" :disabled="refreshingProfile" @click="refreshSavedProfile(false)">重试会员资料</Button></Alert>
+          <Alert v-if="profileRefreshError" class="notice"><AlertDescription>资料已保存，当前显示的资料尚未刷新。</AlertDescription><Button variant="outline" size="sm" :disabled="refreshingProfile" @click="refreshSavedProfile()">重新读取</Button></Alert>
+          <div v-if="vipStatus?.nextThreshold" class="vip-progress"><small>距离下一等级还差 <strong>{{ formatPoints(vipStatus.pointsToNext) }}</strong> 积分</small><Progress v-if="vipProgressPercent !== undefined" :model-value="vipProgressPercent" aria-label="VIP 积分进度" class="h-1.5" /></div>
+        </div></div></article>
+        <article class="panel"><header class="card-head"><h2>{{ userStore.isBuyerActive ? '卖出订单概况' : '买入订单概况' }}</h2><RouterLink to="/order" class="view-all">查看全部 <Icon icon="lucide:arrow-up-right" width="15" /></RouterLink></header><div class="order-stats"><button v-for="o in orderTabsMeta" :key="o.label" type="button" class="stat" @click="router.push({ path: '/order', query: { tab: o.tab } })"><Skeleton v-if="loading && o.count === undefined" class="stat-loading" /><strong v-else>{{ o.count ?? '—' }}</strong><span>{{ o.label }}</span></button></div></article>
+        <article class="panel"><h2>账户服务</h2><div class="quick-grid"><button v-for="q in quickEntries" :key="q.key" type="button" class="quick-cell" @click="q.go()"><span class="entry-icon"><Icon :icon="entryIcons[q.key] || 'lucide:arrow-up-right'" width="23" /></span><span>{{ q.label }}</span><Icon icon="lucide:chevron-right" width="15" class="entry-arrow" /></button></div></article>
       </section>
-
-      <aside class="right">
-        <a-card class="asset-card" :body-style="{ padding: '20px 24px' }">
-          <div class="card-title">我的资产</div>
-          <div class="asset-amount">{{ totalAssets ? `U ${formatAmount(totalAssets.total)}` : loading ? '读取中' : '读取失败' }}</div>
-          <div v-if="totalAssets" class="asset-sub">
-            可用 U {{ formatAmount(totalAssets.account?.available) }}
-            <br />
-            锁仓 U {{ formatAmount(totalAssets.account?.lockedFinance) }}
-          </div>
-          <a-button long type="primary" class="asset-btn" @click="router.push('/wallet')">进入钱包 ›</a-button>
-        </a-card>
-
-      </aside>
+      <aside class="right"><article class="asset-card"><span class="eyebrow">WALLET OVERVIEW</span><h2>我的资产</h2><Skeleton v-if="loading && !totalAssets" class="asset-loading" /><strong v-else class="asset-amount">{{ totalAssets ? `U ${formatAmount(totalAssets.total)}` : '读取失败' }}</strong><dl v-if="totalAssets"><div><dt>可用余额</dt><dd>U {{ formatAmount(totalAssets.account?.available) }}</dd></div><div><dt>理财锁仓</dt><dd>U {{ formatAmount(totalAssets.account?.lockedFinance) }}</dd></div></dl><Button class="asset-btn" @click="router.push('/wallet')">进入钱包<Icon icon="lucide:arrow-right" width="16" /></Button></article></aside>
     </div>
-
-    <a-modal v-model:visible="editVisible" title="编辑资料" :ok-loading="savingProfile" :on-before-ok="() => { void saveProfile(); return false; }">
-      <a-form :model="editForm" layout="vertical">
-        <a-form-item label="昵称" required>
-          <a-input v-model="editForm.nickname" :max-length="64" show-word-limit placeholder="请输入昵称" />
-        </a-form-item>
-        <a-form-item label="手机号">
-          <a-input v-model="editForm.phone" :max-length="32" placeholder="请输入手机号" />
-        </a-form-item>
-        <a-form-item label="头像地址">
-          <a-input v-model="editForm.avatar" :max-length="512" placeholder="请输入头像图片 URL" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
+    <AModal v-model:visible="editVisible" title="编辑资料" :width="560" :ok-loading="savingProfile" :on-before-ok="() => { void saveProfile(); return false; }"><div class="edit-fields"><div><Label for="profile-nickname">昵称 <span aria-hidden="true">*</span></Label><Input id="profile-nickname" v-model="editForm.nickname" :disabled="savingProfile" maxlength="64" placeholder="请输入昵称" autocomplete="nickname" /></div><div><Label for="profile-phone">手机号</Label><Input id="profile-phone" v-model="editForm.phone" :disabled="savingProfile" maxlength="32" placeholder="请输入手机号" autocomplete="tel" /></div><div><Label for="profile-avatar">头像地址</Label><Input id="profile-avatar" v-model="editForm.avatar" :disabled="savingProfile" maxlength="512" placeholder="请输入头像图片 URL" /></div></div></AModal>
   </div>
 </template>
 
 <style scoped>
-.profile-page {
-  padding-top: 16px;
-}
-.load-error {
-  grid-column: 1 / -1;
-}
-.layout {
-  display: grid;
-  grid-template-columns: 8fr 4fr;
-  gap: 16px;
-}
-.left, .right {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.user-card {
-  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
-  border-radius: var(--bw-card-radius);
-}
-.user-head {
-  display: flex;
-  gap: 16px;
-}
-.avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: var(--bw-brand-primary);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.info {
-  flex: 1;
-  min-width: 0;
-}
-.name-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.name {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.meta {
-  color: var(--yb-ink-2);
-  font-size: 13px;
-}
-.edit-profile {
-  margin-top: 8px;
-  padding: 0;
-}
-.dot {
-  margin: 0 8px;
-  color: var(--yb-hairline-2);
-}
-.vip-progress {
-  margin-top: 10px;
-  width: min(100%, 360px);
-  color: var(--yb-ink-2);
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.vip-progress-label {
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-.vip-progress-label strong {
-  color: var(--yb-brand-primary);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  margin: 0 3px;
-}
-.order-stat-card,
-.quick-card,
-.asset-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.card-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-  margin-bottom: 14px;
-}
-.card-head .card-title {
-  margin: 0;
-}
-.order-stats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-}
-.stat {
-  text-align: center;
-  padding: 14px 0;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.stat:hover {
-  background: var(--yb-primary-soft);
-}
-.stat:focus-visible,
-.quick-cell:focus-visible {
-  outline: 2px solid var(--bw-brand-primary);
-  outline-offset: -2px;
-}
-.stat-num {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--yb-ink);
-}
-.stat-label {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-top: 4px;
-}
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-.quick-cell {
-  position: relative;
-  text-align: center;
-  padding: 16px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.quick-cell:hover {
-  background: var(--yb-primary-soft);
-}
-.quick-cell.disabled {
-  opacity: 0.7;
-}
-.quick-cell .emoji {
-  font-size: 24px;
-  display: block;
-  margin-bottom: 4px;
-}
-.quick-cell .label {
-  font-size: 12px;
-  color: var(--yb-ink-2);
-}
-.phase-chip {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: var(--yb-fill);
-  color: var(--yb-muted);
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 2px;
-}
-.asset-amount {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--yb-brand-primary);
-  font-family: ui-monospace, monospace;
-}
-.asset-sub {
-  font-size: 12px;
-  color: var(--yb-ink-2);
-  line-height: 1.6;
-  margin-top: 4px;
-}
-.asset-btn {
-  margin-top: 16px;
-}
-/* 兜底：Arco primary → 品牌粉（token 覆盖若未生效由此保底） */
-.asset-btn.arco-btn-primary {
-  background-color: var(--yb-brand-primary) !important;
-  border-color: var(--yb-brand-primary) !important;
-  color: #fff !important;
-}
-.asset-btn.arco-btn-primary:hover {
-  background-color: var(--yb-brand-hover) !important;
-  border-color: var(--yb-brand-hover) !important;
-}
+.profile-page { padding-top:32px; padding-bottom:48px; }.page-heading { margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 0; font-size:28px; font-weight:650; }.layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:24px; }.load-error { grid-column:1/-1; }.left,.right { min-width:0; display:flex; flex-direction:column; gap:22px; }.user-card,.panel,.asset-card { padding:28px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }.user-card { background:linear-gradient(120deg,var(--yb-primary-soft),var(--yb-paper) 70%); }.user-head { display:flex; gap:22px; }.avatar { display:grid; place-items:center; flex-shrink:0; width:76px; height:76px; border-radius:50%; overflow:hidden; background:var(--yb-brand-primary); color:var(--yb-paper); font-size:28px; font-weight:600; }.avatar img { width:100%; height:100%; object-fit:cover; }.info { flex:1; min-width:0; }.name-row { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }.name { max-width:280px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:23px; font-weight:600; margin:0; }.meta { display:flex; flex-wrap:wrap; gap:6px 16px; color:var(--yb-muted); font-size:13px; overflow-wrap:anywhere; }.edit-profile { padding-left:0; margin:8px 0; }.vip-progress { display:grid; gap:10px; margin-top:8px; max-width:370px; }.vip-progress small { font-size:12px; color:var(--yb-muted); }.vip-progress strong { color:var(--yb-brand-primary); margin:0 4px; }.panel h2,.asset-card h2 { font-size:18px; font-weight:600; margin:0 0 22px; }.card-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:20px; }.card-head h2 { margin:0; }.view-all { display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--yb-brand-primary); }.order-stats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; }.stat { display:grid; justify-items:center; gap:8px; padding:16px 6px; border:0; border-radius:6px; background:transparent; cursor:pointer; transition:background .15s; }.stat:hover { background:var(--yb-primary-soft); }.stat strong { font-size:25px; font-weight:600; }.stat span { font-size:13px; color:var(--yb-muted); }.stat-loading { width:36px; height:32px; }.stat:focus-visible,.quick-cell:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.quick-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }.quick-cell { display:flex; align-items:center; gap:12px; padding:15px 12px; border:1px solid var(--yb-hairline); border-radius:6px; background:var(--yb-paper); text-align:left; font-size:13px; cursor:pointer; transition:transform .2s,border-color .2s,background .2s; }.quick-cell:hover { transform:translateY(-2px); border-color:var(--yb-hairline-2); background:var(--yb-primary-soft); }.entry-icon { display:grid; place-items:center; color:var(--yb-brand-primary); }.entry-arrow { margin-left:auto; color:var(--yb-muted); }.asset-card { position:sticky; top:24px; background:var(--yb-primary-soft); }.asset-card h2 { margin:8px 0 24px; }.asset-amount { display:block; font-size:30px; font-weight:650; color:var(--yb-brand-primary); overflow-wrap:anywhere; }.asset-loading { width:180px; height:40px; }dl { margin:24px 0; display:grid; gap:14px; }dl>div { display:flex; justify-content:space-between; align-items:center; gap:12px; }dt { font-size:13px; color:var(--yb-muted); }dd { margin:0; font-size:14px; font-weight:500; }.asset-btn { margin-top:14px; width:100%; }.status { border-radius:4px; padding:3px 8px; background:var(--yb-fill); color:var(--yb-muted); font-size:12px; }.status.orange { background:#fff3df; color:#9a5709; }.status.green { background:#e9f3eb; color:#326b43; }.status.red { background:#fcecea; color:#ad453e; }.notice { margin:12px 0; display:grid; gap:12px; }.edit-fields,.edit-fields>div { display:grid; gap:10px; }.edit-fields { gap:22px; }.edit-fields label span { color:var(--destructive); }@media(max-width:1050px) { .layout { grid-template-columns:minmax(0,1fr) 290px; }.quick-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.user-card,.panel,.asset-card { padding:22px; } }@media(max-width:800px) { .layout { grid-template-columns:1fr; }.quick-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.user-head { flex-wrap:wrap; } }@media(prefers-reduced-motion:reduce) { .quick-cell,.stat { transition:none; }.quick-cell:hover { transform:none; } }
 </style>

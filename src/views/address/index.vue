@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message, Modal } from '@/lib/feedback';
 import * as realAddressApi from '@/service/api/address';
@@ -174,114 +177,24 @@ async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
     if (operation === submitWriteVersion) submitting.value = false;
   }
 }
+
+
 </script>
 
 <template>
   <div class="address-page shop-container">
-    <div class="page-head">
-      <h1 class="page-title">地址管理</h1>
-      <a-button type="primary" @click="openAdd">+ 新增地址</a-button>
-    </div>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <div v-if="list.length" class="grid">
-        <div v-for="a in list" :key="a.id" class="addr-card" :class="{ default: a.isDefault }">
-          <div class="head">
-            <div class="head-left">
-              <span class="name">{{ a.receiverName }}</span>
-              <span class="phone">{{ a.receiverPhone }}</span>
-            </div>
-            <a-tag v-if="a.isDefault" color="arcoblue" size="small">默认</a-tag>
-          </div>
-          <div class="detail">{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}</div>
-          <div class="actions">
-            <a-button v-if="!a.isDefault" size="small" type="outline" :loading="defaultingId === a.id" @click="setDefault(a)">设为默认</a-button>
-            <a-button size="small" type="outline" @click="openEdit(a)">编辑</a-button>
-            <a-button size="small" status="danger" type="outline" :loading="deletingId === a.id" @click="onDelete(a)">删除</a-button>
-          </div>
-        </div>
+    <header class="page-head"><div><span class="eyebrow">DELIVERY ADDRESS</span><h1>地址管理</h1></div><Button :disabled="submitting || deletionPending" @click="openAdd"><Icon icon="lucide:plus" width="18" />新增地址</Button></header>
+    <section :aria-busy="loading" aria-label="收货地址列表">
+      <div v-if="loading && !list.length" class="grid"><Skeleton v-for="n in 4" :key="n" class="address-loading" /></div>
+      <div v-else-if="list.length" class="grid" :class="{ refreshing: loading }">
+        <article v-for="a in list" :key="a.id" class="addr-card" :class="{ default: a.isDefault }"><header class="head"><div><strong>{{ a.receiverName }}</strong><span>{{ a.receiverPhone }}</span></div><small v-if="a.isDefault" class="default-tag">默认地址</small></header><p>{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}</p><footer class="actions"><Button v-if="!a.isDefault" size="sm" variant="ghost" :disabled="defaultingId !== undefined || loading" @click="setDefault(a)">{{ defaultingId === a.id ? '设置中…' : '设为默认' }}</Button><Button size="sm" variant="outline" :disabled="submitting || deletionPending" @click="openEdit(a)">编辑</Button><Button size="sm" variant="outline" class="danger" :disabled="deletingId !== undefined || deletionPending || loading" @click="onDelete(a)">{{ deletingId === a.id ? '删除中…' : '删除' }}</Button></footer></article>
       </div>
-      <EmptyState
-        v-else
-        :title="loadError || '还没有收货地址'"
-        :description="loadError ? '请稍后重试。' : '添加地址后下单更快捷'"
-        :action-text="loadError ? '重新加载' : '新增地址'"
-        @action="loadError ? load() : openAdd()"
-      />
-    </a-spin>
-
-    <a-modal v-model:visible="modalOpen" :title="editing?.id ? '编辑地址' : '新增地址'" :footer="false" width="640">
-      <AddressForm :model-value="editing" :submitting="submitting" @submit="onSubmit" />
-    </a-modal>
+      <EmptyState v-else :title="loadError || '还没有收货地址'" :description="loadError ? '请稍后重试。' : '添加地址后下单更快捷'" :action-text="loadError ? '重新加载' : '新增地址'" @action="loadError ? load() : openAdd()" />
+    </section>
+    <AModal v-model:visible="modalOpen" :title="editing?.id ? '编辑地址' : '新增地址'" :footer="false" :width="640" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting"><AddressForm :key="modalVersion" :model-value="editing" :submitting="submitting" @submit="onSubmit" /></AModal>
   </div>
 </template>
 
 <style scoped>
-.address-page {
-  padding-top: 16px;
-}
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-.addr-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  padding: 16px 20px;
-  border: 1px solid var(--yb-hairline);
-  transition: all 0.15s;
-}
-.addr-card.default {
-  border-color: var(--bw-brand-primary);
-  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
-}
-.addr-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-}
-.head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.head-left {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
-}
-.name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.phone {
-  font-size: 13px;
-  color: var(--yb-ink-2);
-}
-.detail {
-  font-size: 13px;
-  color: var(--yb-ink-2);
-  line-height: 1.6;
-  margin-bottom: 12px;
-  min-height: 2.5em;
-}
-.actions {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-  padding-top: 8px;
-  border-top: 1px dashed var(--yb-hairline);
-}
+.address-page { padding-top:32px; padding-bottom:48px; }.page-head { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 0; font-size:28px; font-weight:650; }.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }.addr-card { padding:26px; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; transition:border-color .2s,box-shadow .2s,transform .2s; }.addr-card.default { border-color:var(--yb-brand-primary); background:linear-gradient(120deg,var(--yb-primary-soft),var(--yb-paper)); }.addr-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgb(20 40 30 / 5%); }.head { display:flex; justify-content:space-between; align-items:center; gap:12px; }.head>div { display:flex; gap:16px; flex-wrap:wrap; align-items:baseline; }.head strong { font-size:17px; font-weight:600; }.head span { font-size:13px; color:var(--yb-muted); }.default-tag { background:var(--yb-brand-primary); color:var(--yb-paper); border-radius:4px; padding:3px 8px; white-space:nowrap; font-size:12px; }.addr-card p { margin:20px 0; min-height:48px; font-size:14px; line-height:1.8; color:var(--yb-ink-2); overflow-wrap:anywhere; }.actions { display:flex; justify-content:flex-end; gap:12px; padding-top:18px; border-top:1px solid var(--yb-hairline); }.danger { color:var(--destructive); }.address-loading { height:215px; border-radius:10px; }.refreshing { opacity:.65; }@media(max-width:800px) { .grid { grid-template-columns:1fr; } }@media(prefers-reduced-motion:reduce) { .addr-card { transition:none; }.addr-card:hover { transform:none; } }
 </style>
