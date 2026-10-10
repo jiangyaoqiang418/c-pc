@@ -3,7 +3,7 @@ import { resolvePageSize } from '@/service/api/page';
 import { enums } from '@shared';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';

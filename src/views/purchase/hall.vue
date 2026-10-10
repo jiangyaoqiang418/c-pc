@@ -2,7 +2,7 @@
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';

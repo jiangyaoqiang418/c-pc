@@ -6,7 +6,7 @@ import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import { TableKit } from '@tiptap/extension-table';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { uploadFile } from '@/service/api/product';
 import { sanitizeRichText } from '@/utils/rich-text';
 

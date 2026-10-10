@@ -1,5 +1,6 @@
 import { h, ref } from 'vue';
-import { InputPassword, Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
+import InputPassword from '@/components/common/password-input.vue';
 import { fetchPayPasswordStatus } from '@/service/api/pay-password';
 import { router } from '@/router';
 

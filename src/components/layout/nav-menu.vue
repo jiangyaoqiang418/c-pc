@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import * as categoryApi from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 

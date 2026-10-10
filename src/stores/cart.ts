@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { STORAGE_KEY } from '@shared';
 import * as productApi from '@/service/api/product';
 import { createLatestRequestGuard } from '@/utils/latest-request';

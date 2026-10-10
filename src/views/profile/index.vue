@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { enums, formatAmount, formatPoints } from '@shared';
 import * as vipApi from '@/service/api/vip';
 import * as realAuthApi from '@/service/api/auth';

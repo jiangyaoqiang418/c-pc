@@ -3,7 +3,7 @@ import { isDefinitiveRejection } from '@/service/request/type';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { useRoute, useRouter } from 'vue-router';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';

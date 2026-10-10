@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import * as buyerApi from '@/service/api/buyer';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';

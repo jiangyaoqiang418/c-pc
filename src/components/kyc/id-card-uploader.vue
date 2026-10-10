@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { uploadKycFile } from '@/service/api/kyc';
 import { RequestError } from '@/service/request';
 

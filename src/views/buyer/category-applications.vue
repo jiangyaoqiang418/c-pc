@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as categoryApi from '@/service/api/category';
 import { useUserStore } from '@/stores';

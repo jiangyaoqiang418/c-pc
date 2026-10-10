@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { formatAmount } from '@shared';
 import { getAftersaleMeta } from '@/service/api/product';
 import PriceTag from '@/components/product/price-tag.vue';

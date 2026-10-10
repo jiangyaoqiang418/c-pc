@@ -1,4 +1,4 @@
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
 import { clearAccessToken, getAccessToken, getAcceptedAccessToken } from './token';
 import { RequestError, responseTraceId, type RealResponse, type RequestConfig, type RequestOptions } from './type';
 import { parseJsonPreservingLong } from '@/utils/json';

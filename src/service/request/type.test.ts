@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
 import { isAuthenticationFailure, isDefinitiveRejection, RequestError } from './type';
 import { financialSubmissionIssue, financialSubmissionSnapshot, submitFinancialOperation, submitDepositOperation, withSubmissionLock, withOrderSubmissionLocks, submitRefundIntent, readRefundIntent, submitKeyedFinancialOperation } from '@/utils/financial-submission';
 import { getAccessToken, realOrderRequest, realUserRequest, setAccessToken, shouldRedirectAfterAuthenticationFailure } from '.';

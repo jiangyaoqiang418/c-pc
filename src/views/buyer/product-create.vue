@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
 import BuyerProductForm from '@/components/buyer/buyer-product-form.vue';
 import * as productApi from '@/service/api/product';
 import { fetchBuyerDepositSummary } from '@/service/api/buyer';

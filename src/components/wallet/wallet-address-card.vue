@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 
 interface Props {
   wallet: Api.Wallet.ChainWallet;

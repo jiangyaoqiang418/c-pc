@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Message, Modal, Textarea } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
+import { Textarea } from '@/components/ui/textarea';
 import { formatCny, formatUsdt } from '@shared/utils/currency';
 import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';

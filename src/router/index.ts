@@ -1,4 +1,4 @@
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useUserStore } from '@/stores';
 import { waitForScrollPosition } from '@/utils/scroll';

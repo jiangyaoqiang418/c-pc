@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { useRoute, useRouter } from 'vue-router';
 import { formatAmount } from '@shared';
 import DepositMeter from '@/components/buyer/deposit-meter.vue';

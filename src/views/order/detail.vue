@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message, Modal, Textarea } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
+import { Textarea } from '@/components/ui/textarea';
 import { enums } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import InfoTooltip from '@/components/common/info-tooltip.vue';

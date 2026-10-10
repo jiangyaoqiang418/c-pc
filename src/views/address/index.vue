@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
 import * as realAddressApi from '@/service/api/address';
 import AddressForm from '@/components/profile/address-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { fetchCountries, fetchRegionChildren, prepareAddress } from '@/service/api/address';
 
 interface Props { modelValue?: Partial<Api.RealAddress.AddressRecord>; submitting?: boolean }

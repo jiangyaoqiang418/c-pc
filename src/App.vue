@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch 
 import { useRoute, useRouter } from 'vue-router';
 import { useCartStore, useNotifyStore, useUserStore } from '@/stores';
 import { ACCESS_TOKEN_KEY } from '@/service/request/token';
+import FeedbackHost from '@/components/common/feedback-host.vue';
 
 const layouts = {
   default: defineAsyncComponent(() => import('@/layouts/default.vue')),
@@ -81,6 +82,7 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
 </script>
 
 <template>
+  <FeedbackHost />
   <div v-if="!routeReady" class="route-loading" role="status" aria-live="polite">
     <a-spin :loading="true" :size="32" />
     <span>正在加载页面</span>

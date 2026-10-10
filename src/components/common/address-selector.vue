@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import * as realAddressApi from '@/service/api/address';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { RequestError } from '@/service/request';

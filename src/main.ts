@@ -21,7 +21,6 @@ import {
   Input,
   InputNumber,
   Link,
-  Modal,
   Pagination,
   Popconfirm,
   Progress,
@@ -51,6 +50,7 @@ import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
 import '@fontsource/jetbrains-mono/700.css';
 import App from './App.vue';
+import BusinessDialog from './components/common/business-dialog.vue';
 import { router } from './router';
 import './styles/tokens.scss';
 import './styles/shop.scss';
@@ -62,9 +62,11 @@ app.use(createPinia());
 app.use(router);
 const arcoPlugins: Plugin[] = [
   Alert, Badge, Breadcrumb, Button, Card, Cascader, Checkbox, Collapse, Descriptions, Divider, Drawer, Dropdown,
-  Empty, Form, Grid, Image, Input, InputNumber, Link, Modal, Pagination, Popconfirm, Progress, Radio, DatePicker, Result, Select,
+  Empty, Form, Grid, Image, Input, InputNumber, Link, Pagination, Popconfirm, Progress, Radio, DatePicker, Result, Select,
   Space, Spin, Steps, Switch, Table, Tabs, Tag, Textarea, Timeline, Tooltip, Tree
 ];
 arcoPlugins.forEach(plugin => app.use(plugin));
+// 业务弹窗统一进入 Reka 的焦点栈；保留现有表单事件契约。
+app.component('AModal', BusinessDialog);
 app.use(MotionPlugin);
 app.mount('#app');

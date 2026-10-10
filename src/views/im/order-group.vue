@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IconClose } from '@arco-design/web-vue/es/icon';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
 import RealtimeConnectionStatus from '@/components/im/realtime-connection-status.vue';

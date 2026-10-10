@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Modal } from '@arco-design/web-vue';
+import { Modal } from '@/lib/feedback';
 import * as orderApi from '@/service/api/order';
 import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
 import { RequestError } from '@/service/request';

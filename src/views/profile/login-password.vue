@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { useRoute, useRouter } from 'vue-router';
 import { setLoginPassword } from '@/service/api/auth';
 import { RequestError } from '@/service/request';

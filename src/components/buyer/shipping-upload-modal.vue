@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { fetchCarriers } from '@/service/api/order';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 
 interface Props {

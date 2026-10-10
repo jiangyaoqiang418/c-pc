@@ -2,7 +2,7 @@
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
 import LogisticsManageModal from '@/components/buyer/logistics-manage-modal.vue';

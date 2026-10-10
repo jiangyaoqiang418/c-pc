@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { Message, Modal } from '@arco-design/web-vue';
+import { Message, Modal } from '@/lib/feedback';
 import { formatAmount } from '@shared';
 import * as flashSaleApi from '@/service/api/flash-sale';
 import * as productApi from '@/service/api/product';

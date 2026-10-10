@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { useUserStore } from '@/stores';
 import OAuthLoginOptions from '@/components/auth/oauth-login-options.vue';
 import { RequestError } from '@/service/request';

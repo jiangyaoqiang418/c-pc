@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import * as financeApi from '@/service/api/finance';
 import { requestPayPassword } from '@/utils/pay-password';
 import LockupCard from '@/components/finance/lockup-card.vue';

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import ReviewStars from '@/components/common/review-stars.vue';
 import { uploadFile } from '@/service/api/product';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { Icon } from '@iconify/vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { enums } from '@shared';
 import * as realKycApi from '@/service/api/kyc';
 import { getAccessToken } from '@/service/request';

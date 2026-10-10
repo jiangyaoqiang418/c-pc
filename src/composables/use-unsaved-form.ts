@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
-import { Modal } from '@arco-design/web-vue';
+import { Modal } from '@/lib/feedback';
 
 /** 快照只在组件内存中比较；自动回填不算用户编辑，不保存表单或证件资料。 */
 export function createUnsavedFormState<T extends object>(snapshot: () => T) {

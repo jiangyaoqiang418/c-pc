@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
 import { enums, formatAmount, shortAddress } from '@shared';
 import { formatDateValue } from '@/utils/date-range';

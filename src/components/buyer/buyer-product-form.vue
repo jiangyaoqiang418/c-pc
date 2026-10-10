@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import RichTextEditor from '@/components/common/rich-text-editor.vue';
 import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Message } from '@arco-design/web-vue';
+import { Message } from '@/lib/feedback';
 import { formatAmount, formatRate } from '@shared';
 import * as financeApi from '@/service/api/finance';
 import InterestPreview from '@/components/finance/interest-preview.vue';
