@@ -20,6 +20,9 @@ const loading = ref(false);
 const loadError = ref('');
 const categoryGuard = createLatestRequestGuard();
 let closeTimer: number | undefined;
+const nav = ref<HTMLElement>();
+let pointerInside = false;
+let focusInside = false;
 
 function cancelClose() {
   if (closeTimer === undefined) return;
@@ -34,10 +37,31 @@ function openCategory(id: string | number) {
 
 function scheduleClose() {
   cancelClose();
+  if (pointerInside || focusInside) return;
   closeTimer = window.setTimeout(() => {
     hoveredCatId.value = null;
     closeTimer = undefined;
   }, 300);
+}
+
+function pointerEnter() {
+  pointerInside = true;
+  cancelClose();
+}
+
+function pointerLeave() {
+  pointerInside = false;
+  scheduleClose();
+}
+
+function focusLeave(event: FocusEvent) {
+  focusInside = event.relatedTarget instanceof Node && !!nav.value?.contains(event.relatedTarget);
+  if (!focusInside) scheduleClose();
+}
+
+function dismissMenu() {
+  cancelClose();
+  hoveredCatId.value = null;
 }
 
 async function loadCategories() {
@@ -78,8 +102,10 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 </script>
 
 <template>
-  <aside class="side-nav">
-    <div class="cat-eyebrow">CATEGORIES · 全部分类</div>
+  <aside ref="nav" class="side-nav" aria-label="商品分类" @mouseenter="pointerEnter" @mouseleave="pointerLeave" @focusin="focusInside = true; cancelClose()" @focusout="focusLeave" @keydown.esc.stop="dismissMenu">
+    <div class="cat-eyebrow"><Icon icon="lucide:layers" width="16" /> 全部分类</div>
+    <div v-if="loading" class="cat-status" role="status">正在加载分类…</div>
+    <div v-else-if="!categories.length && !loadError" class="cat-status">暂无商品分类</div>
     <button v-if="loadError" class="cat-retry" :disabled="loading" @click="loadCategories">
       {{ loading ? '正在加载…' : `${loadError}，重新加载` }}
     </button>
@@ -92,7 +118,6 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
       tabindex="0"
       :aria-expanded="hoveredCatId === cat.id && !!cat.children?.length"
       @mouseenter="openCategory(cat.id)"
-      @mouseleave="scheduleClose"
       @click="goCategory(cat.id)"
       @focus="openCategory(cat.id)"
       @keydown.enter="goCategory(cat.id)"
@@ -102,13 +127,15 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
       <span class="cat-name">{{ cat.name }}</span>
       <Icon icon="lucide:chevron-right" class="cat-arrow" width="14" />
 
-      <!-- hover 弹二级 mega -->
+      <!-- 连续的透明连接区与弹层共同属于分类栏，跨越时不触发关闭。 -->
       <div
         v-if="hoveredCatId === cat.id && cat.children?.length"
         class="mega-menu"
-        @mouseenter="cancelClose"
-        @mouseleave="scheduleClose"
+        @click.stop
+        @keydown.enter.stop
+        @keydown.space.stop
       >
+        <div class="mega-panel">
         <div class="mega-inner" :class="{ 'single-group': cat.children.length === 1 }">
           <div v-for="sub in cat.children" :key="sub.id" class="mega-sub">
             <div
@@ -137,6 +164,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
             </div>
           </div>
         </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -155,11 +183,14 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 }
 .cat-eyebrow {
   padding: 8px 12px 12px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--yb-ink);
 }
+.cat-status { padding: 16px 12px; color: var(--yb-muted); font-size: 13px; }
 .cat-retry {
   margin: 8px 12px;
   padding: 8px;
@@ -206,7 +237,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 }
 .cat-name {
   flex: 1;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 .cat-arrow {
@@ -215,18 +246,23 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 }
 .cat-row.hovered .cat-arrow,
 .cat-row:hover .cat-arrow {
-  transform: translateX(4px);
+  transform: translateX(2px);
   color: var(--yb-primary);
 }
 
 /* Mega menu 二级弹出 */
 .mega-menu {
   position: absolute;
-  left: 100%;
+  left: calc(100% - 1px);
   top: -8px;
   width: max-content;
-  min-width: 160px;
+  min-width: 220px;
   max-width: min(720px, calc(100vw - 268px));
+  padding-left: 9px;
+  z-index: 200;
+  cursor: default;
+}
+.mega-panel {
   min-height: 320px;
   max-height: 520px;
   overflow-y: auto;
@@ -235,8 +271,7 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
   box-shadow: 0 12px 28px rgba(32, 56, 46, 0.10);
   border: 1px solid var(--yb-hairline);
   padding: 20px 24px;
-  z-index: 200;
-  cursor: default;
+  animation: menu-reveal 150ms var(--um-ease);
 }
 .mega-inner {
   display: grid;
@@ -277,5 +312,10 @@ function descendantOptions(nodes: CategoryNode[], parents: string[] = []): Categ
 .mega-brand:hover {
   color: var(--yb-primary);
   background: var(--yb-primary-soft);
+}
+@keyframes menu-reveal { from { opacity: 0; transform: translateX(-3px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .mega-panel { animation: none; }
+  .cat-row, .cat-arrow, .mega-sub-title, .mega-brand { transition: none; }
 }
 </style>

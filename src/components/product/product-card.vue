@@ -29,8 +29,8 @@ function goDetail() {
 <template>
   <div
     class="pc-product-card"
-    role="button"
-    :aria-label="demo ? `搜索真实商品：${product.title}` : undefined"
+    role="link"
+    :aria-label="demo ? `搜索真实商品：${product.title}` : `查看商品：${product.title}`"
     tabindex="0"
     @click="goDetail"
     @keydown.enter="goDetail"
@@ -46,7 +46,7 @@ function goDetail() {
       </div>
     </div>
     <div class="info">
-      <div class="brand">{{ product.categoryPath?.split('/').pop() || '油宝甄选' }}</div>
+      <div v-if="product.categoryPath" class="brand">{{ product.categoryPath.split('/').pop() }}</div>
       <div class="title" :title="product.title">{{ product.title }}</div>
       <div class="price-row">
         <span class="cny">{{ formatUsdt(product.price) }}</span>
@@ -69,14 +69,15 @@ function goDetail() {
   border-radius: var(--yb-radius-card);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s;
+  transition: transform 200ms var(--um-ease), box-shadow 200ms var(--um-ease), border-color 150ms;
   box-shadow: var(--yb-shadow-1);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--yb-hairline);
 }
 .pc-product-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
+  border-color: var(--yb-hairline-2);
   box-shadow: var(--yb-shadow-glow);
 }
 .pc-product-card:focus-visible {
@@ -94,10 +95,10 @@ function goDetail() {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 200ms var(--um-ease);
 }
 .pc-product-card:hover .cover {
-  transform: scale(1.06);
+  transform: scale(1.03);
 }
 .badge {
   position: absolute;
@@ -129,20 +130,20 @@ function goDetail() {
   letter-spacing: 2px;
 }
 .info {
-  padding: 14px 16px 18px;
+  padding: 18px 20px 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .brand {
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: 12px;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--yb-muted);
   font-weight: 500;
 }
 .title {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--yb-ink);
   line-height: 1.45;
@@ -161,8 +162,8 @@ function goDetail() {
 }
 .cny {
   font-family: var(--yb-font-mono);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 23px;
+  font-weight: 650;
   color: var(--yb-ink);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -170,7 +171,7 @@ function goDetail() {
 }
 .usdt {
   font-family: var(--yb-font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--yb-muted);
   font-weight: 500;
 }
@@ -178,8 +179,9 @@ function goDetail() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 4px;
-  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  gap: 8px;
 }
 .tag-pill {
   display: inline-flex;
@@ -189,13 +191,17 @@ function goDetail() {
   background: var(--yb-champagne);
   color: var(--yb-gold);
   border-radius: var(--yb-radius-pill);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
 }
 .sales {
-  font-size: 11px;
-  color: var(--yb-faint);
+  font-size: 12px;
+  color: var(--yb-muted);
   font-family: var(--yb-font-mono);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pc-product-card, .cover { transition: none; }
+  .pc-product-card:hover, .pc-product-card:hover .cover { transform: none; }
 }
 </style>

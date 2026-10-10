@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { TreeRoot, TreeItem } from 'reka-ui';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import * as categoryApi from '@/service/api/category';
 import * as productApi from '@/service/api/product';
 import ProductCard from '@/components/product/product-card.vue';
@@ -39,6 +43,24 @@ const productRequestGuard = createLatestRequestGuard();
 const treeRequestGuard = createLatestRequestGuard();
 
 const treeData = computed<TreeData[]>(() => mapTree(tree.value));
+const selectedTreeNode = computed(() => findTreeItem(treeData.value, selectedKeys.value[0]));
+
+function findTreeItem(nodes: TreeData[], key?: string): TreeData | undefined {
+  for (const node of nodes) {
+    if (node.key === key) return node;
+    const child = findTreeItem(node.children || [], key);
+    if (child) return child;
+  }
+  return undefined;
+}
+
+function treeKey(node: TreeData) {
+  return node.key || '';
+}
+
+function selectTreeNode(node?: TreeData) {
+  selectedKeys.value = node ? [node.key] : [];
+}
 
 function mapTree(nodes: CategoryNode[]): TreeData[] {
   return nodes.map(n => ({
@@ -152,36 +174,51 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="category-page shop-container">
-    <a-breadcrumb class="bread">
-      <a-breadcrumb-item>首页</a-breadcrumb-item>
-      <a-breadcrumb-item>全部分类</a-breadcrumb-item>
-      <a-breadcrumb-item>{{ breadcrumb }}</a-breadcrumb-item>
-    </a-breadcrumb>
+    <nav class="bread" aria-label="当前位置">
+      <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" /><span>全部分类</span><Icon icon="lucide:chevron-right" width="14" /><span aria-current="page">{{ breadcrumb }}</span>
+    </nav>
+    <header class="category-heading"><span>EXPLORE BY CATEGORY</span><h1>按分类发现好物</h1></header>
 
     <div class="layout">
       <aside class="side">
-        <div class="side-title">分类树</div>
+        <div class="side-title"><Icon icon="lucide:layers" width="18" /> 全部分类</div>
         <EmptyState v-if="treeError" :title="treeError" action-text="重新加载" @action="loadTree" />
-        <a-tree
-          v-else
-          v-model:selected-keys="selectedKeys"
-          v-model:expanded-keys="expandedKeys"
-          :data="treeData"
-          :auto-expand-parent="false"
-          block-node
-          show-line
-        />
+        <div v-else-if="treeLoading" class="tree-loading" role="status"><span class="sr-only">正在加载分类</span><Skeleton v-for="index in 6" :key="index" class="h-10 w-full" /></div>
+        <TreeRoot
+          v-else-if="treeData.length"
+          v-slot="{ flattenItems }"
+          :items="treeData"
+          :model-value="selectedTreeNode"
+          v-model:expanded="expandedKeys"
+          :get-key="treeKey"
+          selection-behavior="replace"
+          aria-label="商品分类树"
+          @update:model-value="selectTreeNode"
+        >
+          <TreeItem v-for="item in flattenItems" :key="item._id" v-slot="{ isExpanded, handleToggle }" v-bind="item.bind" class="category-node" :style="{ paddingLeft: `${12 + (item.level - 1) * 18}px` }" :title="item.value.title">
+            <button v-if="item.hasChildren" class="node-toggle" tabindex="-1" :aria-label="`${isExpanded ? '收起' : '展开'}${item.value.title}`" @click.stop="handleToggle">
+              <Icon icon="lucide:chevron-right" width="14" :class="{ expanded: isExpanded }" />
+            </button>
+            <span v-else class="node-leaf" aria-hidden="true" />
+            <span class="node-name">{{ item.value.title }}</span>
+          </TreeItem>
+        </TreeRoot>
+        <EmptyState v-else title="暂无商品分类" />
       </aside>
 
       <section class="content">
         <div class="content-bar">
           <span class="content-title">{{ breadcrumb }}</span>
           <span class="content-meta">共 {{ total }} 件商品</span>
-          <a-button v-if="selectedKeys[0] && !treeError" type="text" :disabled="loading || treeLoading || !!productLoadError"
-            @click="router.push({ name: 'product-list', query: { categoryId: selectedKeys[0] } })">查看全部</a-button>
+          <Button v-if="selectedKeys[0] && !treeError" variant="ghost" size="sm" :disabled="loading || treeLoading || !!productLoadError"
+            @click="router.push({ name: 'product-list', query: { categoryId: selectedKeys[0] } })">查看全部 <Icon icon="lucide:arrow-right" width="16" /></Button>
         </div>
-        <a-spin :loading="loading || treeLoading" style="width: 100%">
-          <div v-if="products.length" class="shop-grid-4">
+        <div :aria-busy="loading || treeLoading">
+          <span v-if="loading || treeLoading" class="sr-only" role="status">正在加载分类商品</span>
+          <div v-if="(loading || treeLoading) && !products.length" class="category-grid" aria-hidden="true">
+            <div v-for="index in 6" :key="index" class="category-skeleton"><Skeleton class="aspect-square w-full" /><Skeleton class="mt-4 h-5 w-3/4" /><Skeleton class="mt-3 h-6 w-1/2" /></div>
+          </div>
+          <div v-else-if="products.length" class="category-grid" :class="{ 'is-updating': loading }">
             <ProductCard v-for="p in products" :key="p.id" :product="p" />
           </div>
           <EmptyState
@@ -191,57 +228,39 @@ onBeforeUnmount(() => {
             :action-text="productLoadError ? '重新加载' : undefined"
             @action="selectedKeys[0] && pick(selectedKeys[0])"
           />
-        </a-spin>
+        </div>
       </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.category-page {
-  padding-top: 16px;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.layout {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 16px;
-}
-.side {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  padding: 12px;
-  max-height: 720px;
-  overflow-y: auto;
-}
-.side-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--yb-ink-2);
-  margin-bottom: 8px;
-}
-.content {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  padding: 16px;
-}
-.content-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--yb-hairline);
-}
-.content-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.content-meta {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
+.category-page { padding-top: 24px; padding-bottom: 48px; }
+.bread { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; color: var(--yb-muted); font-size: 13px; }
+.bread a:hover { color: var(--yb-primary); }
+.bread [aria-current] { color: var(--yb-ink); }
+.category-heading { margin-bottom: 28px; }
+.category-heading > span { color: var(--yb-muted); font-size: 11px; letter-spacing: .14em; }
+.category-heading h1 { margin-top: 8px; font-size: 28px; font-weight: 650; }
+.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start; }
+.side { background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; padding: 16px 10px; max-height: 720px; overflow-y: auto; }
+.side-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; padding: 0 12px 16px; margin-bottom: 8px; border-bottom: 1px solid var(--yb-hairline); }
+.tree-loading { display: grid; gap: 8px; padding: 8px; }
+.category-node { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 12px; border-radius: 6px; color: var(--yb-muted); font-size: 14px; cursor: pointer; transition: background 150ms, color 150ms; }
+.category-node:hover { background: var(--yb-fill); color: var(--yb-primary); }
+.category-node[data-selected] { background: var(--yb-primary-soft); color: var(--yb-primary); font-weight: 600; }
+.node-toggle { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 24px; }
+.node-toggle svg { transition: transform 150ms; }
+.node-toggle svg.expanded { transform: rotate(90deg); }
+.node-leaf { width: 20px; flex-shrink: 0; }
+.node-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.content { min-width: 0; }
+.content-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--yb-hairline); }
+.content-title { min-width: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 600; }
+.content-meta { color: var(--yb-muted); font-size: 13px; margin-left: auto; }
+.category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; transition: opacity 150ms; }
+.category-grid.is-updating { opacity: .55; }
+.category-skeleton { padding: 12px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); }
+@media (max-width: 1100px) { .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 20px; } .category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .category-node, .category-grid, .node-toggle svg { transition: none; } }
 </style>
