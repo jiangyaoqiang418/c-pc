@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Icon } from '@iconify/vue';
 import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AgreementViewer from '@/components/cms/agreement-viewer.vue';
@@ -37,29 +39,24 @@ function openAgreementFromQuery() {
 
 onMounted(openAgreementFromQuery);
 watch(() => route.query.agreement, openAgreementFromQuery);
+
+
 </script>
 
 <template>
-  <div class="help-page shop-container">
-    <h1 class="page-title">帮助中心</h1>
-    <EmptyState
-      title="帮助文章暂不可用"
-      action-text="返回首页"
-      @action="router.push('/')"
-    />
-    <div class="agreements">
-      <button v-for="a in AGREEMENTS" :key="a.kind" type="button" @click="openAgreement(a.kind)">
-        📄 {{ a.label }}
-      </button>
+
+  <div class="help-page">
+    <header class="page-heading"><div><span class="eyebrow">HERE TO HELP</span><h1>帮助中心</h1></div><Button variant="outline" @click="router.push('/im')"><Icon icon="lucide:headset" width="17" />联系客服</Button></header>
+    <div class="help-layout"><aside class="paper"><h2>协议与政策</h2><p>保留现有协议入口，内容以正式发布版本为准。</p><Button v-for="a in AGREEMENTS" :key="a.kind" type="button" variant="ghost" class="agreement-link" @click="openAgreement(a.kind)"><Icon icon="lucide:file-text" width="17" />{{ a.label }}<Icon icon="lucide:arrow-up-right" width="15" /></Button></aside>
+      <section class="paper"><EmptyState icon="lucide:book-open" title="帮助文章暂不可用" description="在线帮助内容尚未开放，你仍可通过消息中心联系支持。" action-text="返回首页" @action="router.push('/')" /></section>
     </div>
     <AgreementViewer v-model:visible="agreementVisible" :kind="agreementKind" />
   </div>
+
 </template>
 
 <style scoped>
-.help-page { padding-top: 16px; }
-.page-title { font-size: 20px; font-weight: 600; margin: 0; }
-.agreements { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
-.agreements button { border: none; background: transparent; color: var(--yb-ink-2); cursor: pointer; }
-.agreements button:hover { color: var(--yb-brand-primary); }
+
+.help-page { padding-bottom:32px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.eyebrow { font-size:12px; color:var(--yb-gold); letter-spacing:.12em; }.page-heading h1 { font-size:30px; font-weight:650; margin:6px 0 0; }.help-layout { display:grid; grid-template-columns:260px minmax(0,1fr); gap:24px; align-items:start; }.paper { padding:24px; border:1px solid var(--yb-hairline); border-radius:20px; background:var(--yb-surface); }.help-layout aside { position:sticky; top:190px; }.paper h2 { font-size:17px; font-weight:600; margin:0 0 10px; }.paper>p { font-size:13px; color:var(--yb-muted); margin:0 0 20px; line-height:1.7; }.agreement-link { width:100%; justify-content:flex-start; padding:12px; margin-bottom:4px; height:auto; }.agreement-link>svg:last-child { margin-left:auto; color:var(--yb-muted); }.help-layout>section { min-height:420px; display:flex; align-items:center; justify-content:center; }
+
 </style>
