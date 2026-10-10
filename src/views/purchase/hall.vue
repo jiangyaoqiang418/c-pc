@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AmountInput from '@/components/common/amount-input.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -216,414 +222,57 @@ function changePage(page: number) {
   current.value = page;
   syncQuery();
 }
+
+
+const minBudgetField = computed({
+  get: () => minBudget.value,
+  set: (value: number) => { minBudget.value = Number.isFinite(value) ? value : undefined; }
+});
+const maxBudgetField = computed({
+  get: () => maxBudget.value,
+  set: (value: number) => { maxBudget.value = Number.isFinite(value) ? value : undefined; }
+});
+function selectExpectedDays(value: unknown) {
+  expDaysFilter.value = value === '7' ? 7 : value === '15' ? 15 : value === '30' ? 30 : undefined;
+}
+
 </script>
 
 <template>
+
   <div class="hall-page">
-    <!-- ============ Hero (白底) ============ -->
-    <section class="hero">
-      <div class="hero-main">
-        <div class="hero-eyebrow">PURCHASE HALL · REAL-TIME MARKETPLACE</div>
-        <h1 class="hero-title">求购大厅</h1>
-        <p class="hero-sub">USDT 担保 · 全球买手 24h 内接单 · 三方监管</p>
-        <div class="hero-stats">
-          <div class="stat">
-            <div class="stat-label">进行中（当前筛选条件）</div>
-            <div class="stat-value">
-              <span class="num">{{ total }}</span>
-              <span class="unit">单</span>
-            </div>
-          </div>
-          <div class="stat-divider" />
-          <div class="stat">
-            <div class="stat-label">当前页悬赏总额</div>
-            <div class="stat-value">
-              <span class="unit">U</span>
-              <span class="num">{{ formatAmount(totalBudget) }}</span>
-            </div>
-          </div>
-          <div class="stat-divider" />
-          <div class="stat">
-            <div class="stat-label">当前页平均预算</div>
-            <div class="stat-value">
-              <span class="unit">U</span>
-              <span class="num">{{ formatAmount(avgBudget) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="hero-side">
-        <button class="btn primary" @click="router.push('/purchase/create')">
-          <Icon icon="lucide:plus" width="15" /> 发起求购
-        </button>
-        <button class="btn ghost" @click="router.push('/purchase')">
-          <Icon icon="lucide:list" width="15" /> 我的求购
-        </button>
-      </div>
+    <header class="page-heading">
+      <div><span class="eyebrow">FIND YOUR EVERYDAY</span><h1>求购大厅</h1><p>告诉买手你想要什么，让心仪好物有回应。</p></div>
+      <div class="button-row"><Button variant="outline" @click="router.push('/purchase')">我的求购</Button><Button @click="router.push('/purchase/create')"><Icon icon="lucide:plus" width="17" />发起求购</Button></div>
+    </header>
+    <nav class="page-links" aria-label="求购导航"><RouterLink to="/purchase/hall" aria-current="page">求购大厅</RouterLink><RouterLink to="/purchase">我的求购</RouterLink></nav>
+    <section class="paper filters">
+      <form @submit.prevent="queryRecords">
+        <div class="field keyword"><label for="demand-keyword">关键词</label><Input id="demand-keyword" v-model="keyword" placeholder="搜索商品标题" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }" /></div>
+        <div class="field budget-field"><span id="demand-budget-label">预算区间 · USDT</span><div class="range" aria-labelledby="demand-budget-label"><AmountInput v-model="minBudgetField" :min="0" :precision="8" aria-label="最低预算" placeholder="最低" /><span>—</span><AmountInput v-model="maxBudgetField" :min="0" :precision="8" aria-label="最高预算" placeholder="最高" /></div></div>
+        <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>
+        <div class="button-row"><Button type="submit"><Icon icon="lucide:search" width="16" />查询</Button><Button type="button" variant="secondary" @click="reset">重置</Button></div>
+      </form>
     </section>
-
-    <!-- ============ Filter ============ -->
-    <section class="filter">
-      <div class="filter-eyebrow">
-        <Icon icon="lucide:filter" width="12" />
-        <span>FILTER · 筛选条件</span>
-      </div>
-      <div class="filter-row">
-        <div class="fi">
-          <label class="fi-label">关键词</label>
-          <a-input v-model="keyword" placeholder="搜索商品标题" allow-clear @press-enter="queryRecords" />
-        </div>
-        <div class="fi">
-          <label class="fi-label">预算区间 (USDT)</label>
-          <div class="fi-range">
-            <a-input-number v-model="minBudget" placeholder="最低" :min="0" />
-            <span class="sep">—</span>
-            <a-input-number v-model="maxBudget" placeholder="最高" :min="0" />
-          </div>
-        </div>
-        <div class="fi">
-          <label class="fi-label">期望天数</label>
-          <a-select v-model="expDaysFilter" placeholder="不限" allow-clear>
-            <a-option :value="7">≤ 7 天</a-option>
-            <a-option :value="15">≤ 15 天</a-option>
-            <a-option :value="30">≤ 30 天</a-option>
-          </a-select>
-        </div>
-        <div class="fi-actions">
-          <button class="btn primary sm" @click="queryRecords">
-            <Icon icon="lucide:search" width="13" /> 查询
-          </button>
-          <button class="btn ghost sm" @click="reset">重置</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 非买手提示 ============ -->
     <div v-if="!canClaim && userStore.isLoggedIn" class="notice">
-      <div class="notice-icon">
-        <Icon icon="lucide:info" width="14" />
-      </div>
-      <div class="notice-text">
-        <strong>仅已审核通过的买手可接单。</strong>
-        <span class="notice-hint">
-          {{ userStore.canSwitchToBuyer ? '可切换到买手工作台接单' : '提交买手申请并等待平台审核' }}
-        </span>
-      </div>
-      <button class="notice-cta" @click="userStore.canSwitchToBuyer ? router.push('/buyer/dashboard') : router.push('/buyer/apply')">
-        {{ userStore.canSwitchToBuyer ? '进入买手工作台' : '申请成为买手' }} <Icon icon="lucide:arrow-right" width="12" />
-      </button>
+      <Icon icon="lucide:info" width="20" /><p><strong>仅已审核通过的买手可接单。</strong><span>{{ userStore.canSwitchToBuyer ? '可进入买手工作台接单' : '提交买手申请并等待平台审核' }}</span></p><Button variant="outline" @click="userStore.canSwitchToBuyer ? router.push('/buyer/dashboard') : router.push('/buyer/apply')">{{ userStore.canSwitchToBuyer ? '进入买手工作台' : '申请成为买手' }}</Button>
     </div>
-
-    <!-- ============ 求购列表分区 ============ -->
-    <div class="deco-title-wrap">
-      <div class="deco-title">
-        <span class="deco-mark">◆</span>
-        <span class="deco-line" />
-        <span class="deco-text">求购列表 · LIVE REQUESTS</span>
-        <span class="deco-line" />
-        <span class="deco-mark">◆</span>
-      </div>
-    </div>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <div v-if="list.length" class="req-grid">
-        <PurchaseRequestCard
-          v-for="r in list"
-          :key="r.id"
-          :request="r"
-          mode="hall"
-          :can-claim="canClaim"
-          :claiming="String(claimingId) === String(r.id)"
-          @claim="onClaim"
-        />
-      </div>
-      <EmptyState
-        v-else
-        icon="lucide:inbox"
-        :title="loadError || '暂无进行中的求购'"
-        :description="loadError ? '请稍后重试。' : '当前没有可接的求购任务，请稍后再来'"
-        :action-text="loadError ? '重新加载' : undefined"
-        @action="load"
-      />
-
-      <div v-if="total > size" class="pagination-bar">
-        <a-pagination
-          :total="total"
-          :current="current"
-          :page-size="size"
-          show-total
-          @change="changePage"
-        />
-      </div>
-    </a-spin>
+    <section class="market-summary" aria-label="当前筛选结果">
+      <div><small>符合当前条件</small><strong>{{ loading || loadError ? '—' : total }} <span>条求购</span></strong></div>
+      <div><small>当前页预算总额</small><strong>{{ loading || loadError ? '—' : formatAmount(totalBudget) }} <span>USDT</span></strong></div>
+      <div><small>当前页平均预算</small><strong>{{ loading || loadError ? '—' : formatAmount(avgBudget) }} <span>USDT</span></strong></div>
+    </section>
+    <div v-if="loading" class="req-grid" aria-busy="true" aria-label="正在读取求购列表"><Skeleton v-for="n in 6" :key="n" class="request-skeleton" /></div>
+    <EmptyState v-else-if="loadError" :title="loadError" description="未展示不完整的求购数据，请重新加载。" action-text="重新加载" @action="load" />
+    <div v-else-if="list.length" class="req-grid"><PurchaseRequestCard v-for="r in list" :key="r.id" :request="r" mode="hall" :can-claim="canClaim" :claiming="String(claimingId) === String(r.id)" @claim="onClaim" /></div>
+    <EmptyState v-else icon="lucide:search" title="暂无符合条件的求购" description="尝试调整筛选条件，或发起你的求购。" action-text="重置筛选" @action="reset" />
+    <BusinessPagination v-if="!loading && !loadError && total > size" :total="total" :current="current" :page-size="size" @change="changePage" />
   </div>
+
 </template>
 
 <style scoped>
-.hall-page {
-  padding: 0;
-  padding-bottom: 40px;
-}
 
-/* ========== Hero ========== */
-.hero {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 32px 40px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 40px;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.hero-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-muted);
-  margin-bottom: 8px;
-}
-.hero-title {
-  font-family: var(--yb-font-display);
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
-}
-.hero-sub {
-  font-size: 14px;
-  color: var(--yb-muted);
-  margin: 0 0 20px;
-}
+.hall-page { padding-bottom:32px; }.page-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:12px; letter-spacing:.12em; }.page-heading h1 { margin:6px 0; font-size:30px; font-weight:650; }.page-heading p { margin:0; color:var(--yb-muted); font-size:14px; }.button-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }.page-links { display:flex; gap:28px; border-bottom:1px solid var(--yb-hairline); margin-bottom:24px; }.page-links a { padding:0 0 13px; color:var(--yb-muted); font-size:14px; text-decoration:none; }.page-links [aria-current] { color:var(--yb-brand-primary); border-bottom:2px solid var(--yb-brand-primary); }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:20px; }.filters { padding:24px; }.filters form { display:grid; grid-template-columns:1.2fr 1.4fr .8fr auto; gap:20px; align-items:end; }.field { display:flex; flex-direction:column; gap:8px; min-width:0; }.field>label,.field>span { font-size:13px; color:var(--yb-muted); }.range { display:flex; gap:10px; align-items:center; }.range>*:not(span) { min-width:0; width:100%; }.range>span { color:var(--yb-muted); }.notice { margin:20px 0; padding:18px 24px; background:var(--yb-primary-soft); border-radius:16px; display:flex; gap:16px; align-items:center; }.notice>svg { color:var(--yb-brand-primary); flex:none; }.notice p { margin:0; flex:1; font-size:14px; }.notice p span { display:block; color:var(--yb-muted); font-size:13px; }.market-summary { display:flex; gap:48px; padding:24px 4px; }.market-summary div { display:flex; flex-direction:column; gap:4px; }.market-summary small { color:var(--yb-muted); font-size:12px; }.market-summary strong { font-size:23px; font-family:var(--yb-font-mono); font-weight:600; }.market-summary strong span { font-family:var(--yb-font-body); font-size:12px; font-weight:400; color:var(--yb-muted); }.req-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }.request-skeleton { height:330px; border-radius:20px; }@media(max-width:1150px) { .filters form { grid-template-columns:1fr 1fr; }.req-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
-.hero-stats {
-  display: flex;
-  align-items: flex-start;
-  gap: 24px;
-}
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.stat-label {
-  line-height: 18px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--yb-muted);
-  text-transform: uppercase;
-}
-.stat-value {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-  color: var(--yb-ink);
-  line-height: 40px;
-  white-space: nowrap;
-}
-.stat-value .unit {
-  font-family: var(--yb-font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-muted);
-}
-.stat-value .num {
-  font-family: var(--yb-font-mono);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.stat-divider {
-  width: 1px;
-  height: 40px;
-  flex-shrink: 0;
-  margin-top: 18px;
-  background: var(--yb-hairline);
-}
-.hero-side {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* ========== Buttons ========== */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 20px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  border: 1px solid transparent;
-  white-space: nowrap;
-}
-.btn.sm { padding: 8px 16px; font-size: 12px; }
-.btn.primary {
-  background: var(--yb-brand-primary);
-  color: #fff;
-}
-.btn.primary:hover {
-  background: var(--yb-brand-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.24);
-}
-.btn.ghost {
-  background: transparent;
-  color: var(--yb-ink);
-  border-color: var(--yb-hairline-2);
-}
-.btn.ghost:hover {
-  border-color: var(--yb-ink);
-  background: var(--yb-bg);
-}
-
-/* ========== Filter ========== */
-.filter {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 16px;
-  padding: 20px 24px;
-  margin-bottom: 16px;
-}
-.filter-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--yb-muted);
-  margin-bottom: 14px;
-}
-.filter-row {
-  display: grid;
-  grid-template-columns: 1.4fr 1.6fr 1fr auto;
-  gap: 16px;
-  align-items: flex-end;
-}
-.fi { display: flex; flex-direction: column; gap: 6px; }
-.fi-label {
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-weight: 500;
-}
-.fi-range {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.fi-range :deep(.arco-input-number) { flex: 1; }
-.sep { color: var(--yb-faint); font-size: 12px; }
-.fi-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* ========== Notice ========== */
-.notice {
-  background: var(--yb-champagne);
-  border: 1px solid rgba(var(--yb-gold-rgb), 0.24);
-  border-radius: 14px;
-  padding: 14px 20px;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.notice-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: rgba(var(--yb-gold-rgb), 0.16);
-  color: var(--yb-gold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.notice-text {
-  flex: 1;
-  font-size: 13px;
-  color: var(--yb-ink-2);
-}
-.notice-text strong {
-  color: var(--yb-ink);
-  font-weight: 700;
-  margin-right: 6px;
-}
-.notice-hint {
-  color: var(--yb-muted);
-}
-.notice-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 14px;
-  background: var(--yb-gold);
-  color: #fff;
-  border: none;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.notice-cta:hover {
-  background: var(--yb-brand-primary);
-}
-
-/* ========== Decorative title ========== */
-.deco-title-wrap {
-  display: flex;
-  justify-content: center;
-  margin: 24px 0 16px;
-}
-.deco-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-.deco-mark {
-  color: var(--yb-gold);
-  font-size: 11px;
-}
-.deco-line {
-  width: 32px;
-  height: 1px;
-  background: var(--yb-hairline-2);
-}
-.deco-text {
-  font-family: var(--yb-font-display);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--yb-ink);
-}
-
-/* ========== Grid ========== */
-.req-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-.pagination-bar {
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-}
-
-@media (max-width: 1200px) {
-  .hero { grid-template-columns: 1fr; }
-  .hero-stats { flex-wrap: wrap; }
-  .filter-row { grid-template-columns: 1fr 1fr; }
-}
 </style>

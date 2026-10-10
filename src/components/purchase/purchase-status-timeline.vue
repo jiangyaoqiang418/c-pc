@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { computed } from 'vue';
 import { formatDateValue } from '@/utils/date-range';
 
@@ -47,81 +48,23 @@ const steps = computed<Step[]>(() => {
     return { label, status };
   });
 });
+
+
 </script>
 
 <template>
-  <div class="timeline">
-    <div v-for="(step, i) in steps" :key="i" class="step" :class="step.status">
-      <div class="dot">{{ i + 1 }}</div>
-      <div class="label">{{ step.label }}</div>
-      <small v-if="step.description">{{ step.description }}</small>
-      <div v-if="i < steps.length - 1" class="line" />
-    </div>
-  </div>
+
+  <ol class="timeline" aria-label="求购处理进度">
+    <li v-for="(step, i) in steps" :key="i" class="step" :class="step.status">
+      <span class="dot" aria-hidden="true">{{ i + 1 }}</span>
+      <div><strong>{{ step.label }}</strong><p v-if="step.description">{{ step.description }}</p></div>
+    </li>
+  </ol>
+
 </template>
 
 <style scoped>
-.timeline {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  width: 100%;
-  padding: 12px 0;
-}
-.step {
-  position: relative;
-  flex: 1;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.dot {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--yb-hairline-2);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  z-index: 2;
-}
-.step.finish .dot {
-  background: var(--bw-brand-primary);
-}
-.step.process .dot {
-  background: #ff7d00;
-  animation: pulse 1.4s infinite;
-}
-.step.error .dot {
-  background: #f53f3f;
-}
-.label {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--yb-ink);
-  font-weight: 500;
-}
-.step.wait .label {
-  color: var(--yb-hairline-2);
-}
-.line {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  width: 100%;
-  height: 2px;
-  background: var(--yb-hairline-2);
-  z-index: 1;
-}
-.step.finish .line {
-  background: var(--bw-brand-primary);
-}
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
+
+.timeline { list-style:none; padding:0; margin:0; }.step { position:relative; display:grid; grid-template-columns:30px 1fr; gap:16px; padding:0 0 24px; min-height:52px; }.step:not(:last-child)::before { content:''; position:absolute; width:1px; background:var(--yb-hairline); top:30px; bottom:0; left:14px; }.dot { width:30px; height:30px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:12px; font-family:var(--yb-font-mono); color:var(--yb-muted); background:var(--yb-fill); }.step.finish .dot { background:var(--yb-primary-soft); color:var(--yb-brand-primary); }.step.process .dot { background:color-mix(in srgb,var(--yb-warning) 10%,var(--yb-surface)); color:var(--yb-warning); }.step.error .dot { background:var(--yb-danger-soft); color:var(--yb-danger); }.step strong { font-size:14px; font-weight:600; display:block; margin-top:3px; }.step p { font-size:13px; color:var(--yb-muted); line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; margin:6px 0 0; }.step.wait strong { color:var(--yb-muted); }.step:last-child { padding-bottom:16px; }
+
 </style>

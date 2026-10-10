@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Icon } from '@iconify/vue';
+import DescriptionList from '@/components/common/description-list.vue';
+import ImagePreview from '@/components/common/image-preview.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -165,223 +170,49 @@ function cancel() {
     }
   });
 }
+
+
+const previewOpen = ref(false);
+const previewIndex = ref(0);
+function previewEvidence(index: number) {
+  previewIndex.value = index;
+  previewOpen.value = true;
+}
+watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; });
+
 </script>
 
 <template>
-  <div class="purchase-detail-page shop-container">
-    <a-spin :loading="loading">
-      <template v-if="request">
-        <a-breadcrumb class="bread">
-          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/purchase/hall')" @keydown.enter="router.push('/purchase/hall')" @keydown.space.prevent="router.push('/purchase/hall')">求购大厅</a-breadcrumb-item>
-          <a-breadcrumb-item>{{ request.code }}</a-breadcrumb-item>
-        </a-breadcrumb>
 
-        <a-card class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
-          <div class="hero-row">
-            <div class="hero-left">
-              <div class="hero-meta">
-                <span class="code">{{ request.code }}</span>
-                <a-tag v-if="statusMeta" :color="statusMeta.color" size="large">{{ statusMeta.label }}</a-tag>
-              </div>
-              <div class="hero-title">{{ request.productTitle }}</div>
-              <div class="hero-cat">📂 {{ request.categoryPath }}</div>
-            </div>
-            <div class="hero-right">
-              <div class="budget-block">
-                <div class="lbl">预算</div>
-                <div class="budget">U {{ formatAmount(request.budgetAmount) }}</div>
-              </div>
-              <a-space direction="vertical">
-                <a-button v-if="canClaim" type="primary" size="large" :loading="claiming" @click="claim">我接此单</a-button>
-                <a-button
-                  v-if="isMyRequest && ['pending_audit', 'pushing'].includes(request.status)"
-                  status="danger"
-                  :loading="canceling"
-                  @click="cancel"
-                >
-                  撤销求购
-                </a-button>
-              </a-space>
-            </div>
-          </div>
-        </a-card>
-
-        <a-alert
-          v-if="request.status === 'rejected'"
-          type="error"
-          class="review-alert"
-          :title="request.reviewComment || '求购审核未通过'"
-        >
-          审核时间：{{ formatDateValue(request.reviewedAt) }}
-        </a-alert>
-
-        <div class="layout-2col">
-          <a-card class="info-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-            <div class="section-title">求购信息</div>
-            <a-descriptions :column="2" :data="[
-              { label: '期望发货', value: request.expectedDays + ' 天内' },
-              { label: '接单截止', value: formatDateValue(request.claimExpiresAt) },
-              { label: '海外过关', value: request.overseasCustoms ? '是' : '否' },
-              { label: '售后类型', value: aftersaleMeta?.label || '—' },
-              { label: '审核时间', value: formatDateValue(request.reviewedAt) },
-              { label: '创建时间', value: formatDateValue(request.createdAt) }
-            ]" />
-
-            <a-divider />
-
-            <div class="section-title">商品描述</div>
-            <p class="desc">{{ request.productDescription || '—' }}</p>
-
-            <div class="section-title">求购说明</div>
-            <p class="desc">"{{ request.appeal }}"</p>
-
-            <div v-if="request.evidenceUrls?.length" class="evi">
-              <img v-for="(u, index) in request.evidenceUrls" :key="u" :src="u" :alt="`求购凭证 ${index + 1}`" />
-            </div>
-          </a-card>
-
-          <a-card class="status-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-            <div class="section-title">求购进度</div>
-            <a-alert v-if="progressError" type="warning">{{ progressError }}<template #action><a-button @click="load">重新加载</a-button></template></a-alert>
-            <template v-else-if="progress">
-              <PurchaseStatusTimeline :request="request" :progress="progress" />
-              <p>推送 {{ progress.pushBatchCount }} 批 · 累计触达 {{ progress.reachedBuyerCount }} 位买手</p>
-              <p>最近推送：{{ formatDateValue(progress.lastPushedAt ?? undefined) }}</p>
-            </template>
-            <p v-else>{{ isMyRequest ? '正在读取处理进度' : '处理进度仅求购发起人可查看' }}</p>
-
-            <a-divider />
-
-            <template v-if="request.status === 'claimed'">
-              <div class="section-title">接单信息</div>
-              <p class="claimed-info">
-                ✓ 已被买手 <strong>{{ request.claimedByName }}</strong> 接单
-                <span v-if="request.assignedBy" class="order-link">· 后台指派</span>
-                <span v-if="request.relatedOrderCode" class="order-link">· 订单 {{ request.relatedOrderCode }}</span>
-              </p>
-              <a-button v-if="isMyRequest && request.relatedOrderId" type="primary" @click="router.push({ name: 'order-detail', params: { id: String(request.relatedOrderId) } })">
-                去付款
-              </a-button>
-            </template>
-          </a-card>
-        </div>
-      </template>
-
-      <EmptyState
-        v-else-if="!loading"
-        :title="loadError || '求购不存在'"
-        :description="loadError ? '不会展示不完整的求购数据。' : undefined"
-        :action-text="loadError ? '重新加载' : '返回大厅'"
-        @action="loadError ? load() : router.push('/purchase/hall')"
-      />
-    </a-spin>
+  <div class="purchase-detail-page">
+    <nav class="bread" aria-label="面包屑"><RouterLink to="/purchase/hall">求购大厅</RouterLink><span>/</span><span>{{ request?.code || '求购详情' }}</span></nav>
+    <div v-if="loading" class="loading" aria-busy="true" aria-label="正在读取求购详情"><Skeleton class="hero-skeleton" /><Skeleton class="detail-skeleton" /></div>
+    <template v-else-if="request">
+      <section class="paper hero-card">
+        <div class="hero-row"><div><span v-if="statusMeta" class="status-pill" :data-status="request.status">{{ statusMeta.label }}</span><h1>{{ request.productTitle }}</h1><p class="category">{{ request.categoryPath || '—' }}</p><small class="code">{{ request.code }}</small></div><div class="budget-block"><small>求购预算</small><strong>{{ formatAmount(request.budgetAmount) }} <span>USDT</span></strong></div></div>
+        <div v-if="canClaim || (isMyRequest && ['pending_audit', 'pushing'].includes(request.status))" class="button-row"><Button v-if="canClaim" :disabled="claiming" @click="claim"><Icon v-if="claiming" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ claiming ? '接单中…' : '我接此单' }}</Button><Button v-if="isMyRequest && ['pending_audit', 'pushing'].includes(request.status)" variant="outline" class="danger" :disabled="canceling || cancellationPending" @click="cancel">{{ canceling || cancellationPending ? '正在撤销…' : '撤销求购' }}</Button></div>
+      </section>
+      <div v-if="request.status === 'rejected'" class="review-alert" role="alert"><Icon icon="lucide:circle-alert" width="20" /><div><strong>{{ request.reviewComment || '求购审核未通过' }}</strong><p>审核时间：{{ formatDateValue(request.reviewedAt) }}</p></div></div>
+      <section class="paper"><h2>求购信息</h2><DescriptionList :columns="2" :items="[
+        { label: '期望发货', value: request.expectedDays + ' 天内' },
+        { label: '接单截止', value: formatDateValue(request.claimExpiresAt) },
+        { label: '海外过关', value: request.overseasCustoms ? '是' : '否' },
+        { label: '售后类型', value: aftersaleMeta?.label || '—' },
+        { label: '审核时间', value: formatDateValue(request.reviewedAt) },
+        { label: '创建时间', value: formatDateValue(request.createdAt) }
+      ]" /><div class="section-divider" /><h3>商品描述</h3><p class="description">{{ request.productDescription || '—' }}</p><h3>求购说明</h3><p class="description">{{ request.appeal || '—' }}</p><div v-if="request.evidenceUrls?.length" class="evidence"><button v-for="(url, index) in request.evidenceUrls" :key="url" type="button" :aria-label="`查看求购参考图片 ${index + 1}`" @click="previewEvidence(index)"><img :src="url" :alt="`求购参考图片 ${index + 1}`" /></button></div></section>
+      <section class="paper progress-card"><h2>求购进度</h2><div v-if="progressError" class="notice" role="alert"><span>{{ progressError }}</span><Button variant="outline" size="sm" @click="load">重新加载</Button></div><template v-else-if="progress"><PurchaseStatusTimeline :request="request" :progress="progress" /><div class="progress-summary"><p>推送 {{ progress.pushBatchCount }} 批 · 累计触达 {{ progress.reachedBuyerCount }} 位买手</p><p>最近推送：{{ formatDateValue(progress.lastPushedAt ?? undefined) }}</p></div></template><p v-else class="muted">{{ isMyRequest ? '正在读取处理进度' : '处理进度仅求购发起人可查看' }}</p>
+        <template v-if="request.status === 'claimed'"><div class="section-divider" /><h3>接单信息</h3><p class="claimed"><Icon icon="lucide:check-circle" width="18" />已被 {{ request.claimedByName }} 接单<span v-if="request.assignedBy">· 后台指派</span></p><p v-if="request.relatedOrderCode" class="code">关联订单 {{ request.relatedOrderCode }}</p><div v-if="isMyRequest && request.relatedOrderId" class="button-row"><Button @click="router.push({ name: 'order-detail', params: { id: String(request.relatedOrderId) } })">查看关联订单<Icon icon="lucide:arrow-right" width="16" /></Button></div></template>
+      </section>
+      <ImagePreview v-model:visible="previewOpen" :images="request.evidenceUrls || []" :start-index="previewIndex" />
+    </template>
+    <EmptyState v-else :title="loadError || '求购不存在'" :description="loadError ? '不会展示不完整的求购数据。' : undefined" :action-text="loadError ? '重新加载' : '返回大厅'" @action="loadError ? load() : router.push('/purchase/hall')" />
   </div>
+
 </template>
 
 <style scoped>
-.purchase-detail-page {
-  padding-top: 16px;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.hero-card {
-  background: linear-gradient(135deg, #fff 0%, #fff7e6 100%);
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.review-alert { margin-bottom: 16px; }
-.hero-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-.hero-meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.code {
-  font-family: ui-monospace, monospace;
-  font-size: 13px;
-  color: var(--yb-muted);
-}
-.hero-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  margin-bottom: 4px;
-}
-.hero-cat {
-  font-size: 12px;
-  color: var(--yb-ink-2);
-}
-.hero-right {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-.budget-block {
-  text-align: right;
-}
-.budget-block .lbl {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.budget {
-  font-size: 32px;
-  font-weight: 700;
-  color: #f53f3f;
-  font-family: ui-monospace, monospace;
-}
-.layout-2col {
-  display: grid;
-  grid-template-columns: 6fr 6fr;
-  gap: 16px;
-}
-.info-card,
-.status-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin: 16px 0 12px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.section-title:first-child {
-  margin-top: 0;
-}
-.desc {
-  color: var(--yb-ink-2);
-  font-size: 13px;
-  line-height: 1.7;
-  margin-bottom: 8px;
-  white-space: pre-wrap;
-}
-.evi {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.evi img {
-  width: 96px;
-  height: 96px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-.claimed-info {
-  color: #00b42a;
-  font-size: 14px;
-}
-.order-link {
-  color: var(--yb-muted);
-  font-family: ui-monospace, monospace;
-  margin-left: 4px;
-}
+
+.purchase-detail-page { max-width:800px; margin:0 auto; padding-bottom:32px; }.bread { display:flex; gap:12px; font-size:13px; color:var(--yb-muted); margin:0 0 20px; overflow-wrap:anywhere; }.bread a { color:var(--yb-muted); text-decoration:none; }.bread a:hover { color:var(--yb-brand-primary); }.paper { border:1px solid var(--yb-hairline); border-radius:20px; padding:28px 32px; margin-bottom:20px; background:var(--yb-surface); }.hero-row { display:flex; align-items:center; justify-content:space-between; gap:32px; }.hero-row>div:first-child { min-width:0; }.hero-card h1 { font-size:26px; font-weight:650; line-height:1.4; margin:12px 0 8px; overflow-wrap:anywhere; }.category { font-size:13px; color:var(--yb-muted); margin:0 0 4px; overflow-wrap:anywhere; }.code { font-size:12px; font-family:var(--yb-font-mono); color:var(--yb-muted); overflow-wrap:anywhere; }.status-pill { display:inline-flex; font-size:12px; padding:4px 12px; border-radius:999px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); }.status-pill[data-status='rejected'] { background:var(--yb-danger-soft); color:var(--yb-danger); }.status-pill[data-status='claimed'] { background:var(--yb-success-soft); color:var(--yb-success); }.status-pill[data-status='cancelled'] { background:var(--yb-fill); color:var(--yb-muted); }.budget-block { flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }.budget-block>small { color:var(--yb-muted); font-size:12px; }.budget-block strong { font-size:28px; font-weight:600; font-family:var(--yb-font-mono); color:var(--yb-brand-primary); }.budget-block strong span { font-size:12px; font-weight:400; }.button-row { display:flex; gap:16px; justify-content:flex-end; margin-top:22px; }.danger { color:var(--yb-danger); }.danger:hover { background:var(--yb-danger-soft); }.paper h2 { font-size:22px; font-weight:600; margin:0 0 22px; }.paper h3 { font-size:16px; font-weight:600; margin:22px 0 10px; }.section-divider { height:1px; margin:24px 0; background:var(--yb-hairline); }.description { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; color:var(--yb-ink-2); margin:0; line-height:1.8; }.evidence { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }.evidence button { width:104px; height:104px; border:1px solid var(--yb-hairline); padding:0; overflow:hidden; border-radius:12px; background:var(--yb-fill); cursor:zoom-in; }.evidence img { width:100%; height:100%; object-fit:cover; transition:transform .2s; }.evidence button:hover img { transform:scale(1.03); }.review-alert { display:flex; gap:14px; padding:20px 24px; border-radius:16px; margin-bottom:20px; background:var(--yb-danger-soft); color:var(--yb-danger); font-size:14px; }.review-alert p { font-size:12px; margin:6px 0 0; }.notice { display:flex; align-items:center; gap:16px; padding:16px; border-radius:12px; background:var(--yb-primary-soft); font-size:13px; }.notice span { flex:1; }.progress-summary { padding-top:18px; border-top:1px solid var(--yb-hairline); }.progress-summary p,.muted { font-size:13px; color:var(--yb-muted); }.claimed { display:flex; align-items:center; gap:8px; color:var(--yb-success); font-size:14px; flex-wrap:wrap; overflow-wrap:anywhere; }.hero-skeleton { height:190px; border-radius:20px; margin-bottom:20px; }.detail-skeleton { height:400px; border-radius:20px; }@media(prefers-reduced-motion:reduce) { .evidence img { transition:none; }.evidence button:hover img { transform:none; } }
+
 </style>

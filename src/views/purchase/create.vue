@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AmountInput from '@/components/common/amount-input.vue';
+import CategoryPicker from '@/components/common/category-picker.vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { useRoute, useRouter } from 'vue-router';
@@ -208,324 +215,45 @@ async function submit() {
     }
   });
 }
+
+
+function selectAftersale(value: unknown) {
+  if (value === 'none' || value === '7day-no-reason' || value === 'shop-warranty' || value === 'national-warranty') form.aftersaleType = value;
+}
+
 </script>
 
 <template>
+
   <div class="purchase-create-page">
-    <!-- ============ Form Header ============ -->
-    <section class="header-card">
-      <div class="header-main">
-        <div class="header-eyebrow">CREATE PURCHASE · 求购发起</div>
-        <h1 class="header-title">发起求购</h1>
-        <p class="header-sub">说清楚商品要求 · 全球买手为你匹配 · 24h 内接单</p>
-      </div>
-      <button class="back-btn" @click="router.push('/purchase/hall')">
-        <Icon icon="lucide:arrow-left" width="14" /> 返回求购大厅
-      </button>
-    </section>
-
-    <!-- ============ Form Body ============ -->
-    <a-form :model="form" layout="vertical" class="form-body" @submit.prevent @keydown.enter.capture="preventImplicitSubmit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-      <!-- ─── BASIC INFO ─── -->
-      <div class="form-block">
-        <div class="block-eyebrow">
-          <span class="block-num">01</span>
-          <span class="block-label">BASIC INFO · 基本信息</span>
-        </div>
-        <a-form-item label="商品标题" required>
-          <a-input v-model="form.productTitle" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" size="large" />
-        </a-form-item>
-        <a-form-item label="收货地址" required>
-          <AddressSelector
-            v-if="userStore.currentUser"
-            v-model="form.addressId"
-            :user-id="userStore.currentUser.id"
-            @validity="addressValid = $event"
-            @initialized="acceptAutomaticField('addressId', $event)"
-          />
-        </a-form-item>
-        <a-form-item label="商品分类" required>
-          <a-cascader
-            v-model="form.categoryId"
-            :options="cascaderOptions"
-            placeholder="选择分类（支持一至五级）"
-            expand-trigger="hover"
-            check-strictly
-            allow-clear
-          />
-          <div v-if="categoryLoadError" class="form-error">
-            {{ categoryLoadError }} <a-link role="button" tabindex="0" @click="reloadCategories" @keydown.enter="reloadCategories" @keydown.space.prevent="reloadCategories">重新加载</a-link>
-          </div>
-        </a-form-item>
-        <a-form-item label="商品描述">
-          <a-textarea v-model="form.productDescription" :rows="3" placeholder="可选，详细描述商品规格、版本、颜色等" />
-        </a-form-item>
-      </div>
-
-      <!-- ─── PRICE & TIME ─── -->
-      <div class="form-block">
-        <div class="block-eyebrow">
-          <span class="block-num">02</span>
-          <span class="block-label">PRICE &amp; TIME · 预算与期限</span>
-        </div>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="预算 (USDT)" required>
-              <div class="price-time-field">
-                <a-input-number v-model="form.budgetAmount" :min="10" :precision="2" placeholder="请输入预算金额" size="large">
-                  <template #suffix>U</template>
-                </a-input-number>
-                <div class="cny-hint">
-                  <Icon icon="lucide:calculator" width="11" />
-                  <span class="yb-mono">≈ ¥{{ budgetCny }}</span>
-                  <span class="rate">· 1 USDT = ¥{{ CNY_RATE.toFixed(2) }}</span>
-                </div>
-              </div>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="期望发货天数" required>
-              <div class="price-time-field">
-                <a-input-number v-model="form.expectedDays" :min="1" :max="60" placeholder="请输入预计交付天数" size="large">
-                  <template #suffix>天</template>
-                </a-input-number>
-                <div class="tip-line">
-                  <Icon icon="lucide:info" width="11" />
-                  <span>建议 7-30 天，超期不接单会自动作废</span>
-                </div>
-              </div>
-            </a-form-item>
-          </a-col>
-        </a-row>
-      </div>
-
-      <!-- ─── DELIVERY & AFTERSALE ─── -->
-      <div class="form-block">
-        <div class="block-eyebrow">
-          <span class="block-num">03</span>
-          <span class="block-label">DELIVERY &amp; AFTERSALE · 物流与售后</span>
-        </div>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item label="是否海外过关">
-              <a-switch v-model="form.overseasCustoms" />
-              <span class="switch-hint">海外直邮过关后不可退</span>
-            </a-form-item>
-          </a-col>
-          <a-col :span="12">
-            <a-form-item label="售后类型" required>
-              <a-select v-model="form.aftersaleType" placeholder="请选择售后类型" size="large">
-                <a-option value="none">无售后</a-option>
-                <a-option value="7day-no-reason">7 天无理由</a-option>
-                <a-option value="shop-warranty">店铺保修</a-option>
-                <a-option value="national-warranty">全国联保</a-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <a-form-item label="求购说明" required>
-          <a-textarea
-            v-model="form.appeal"
-            :rows="4"
-            :max-length="500"
-            show-word-limit
-            placeholder="说明对买手的特殊要求（≥ 10 字），如：必须正品 / 海外发货 / 含运费"
-          />
-        </a-form-item>
-        <a-form-item label="参考图片（可选）">
-          <AftersaleEvidenceUploader v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" />
-        </a-form-item>
-      </div>
-
-      <!-- ─── Actions ─── -->
-      <div class="actions">
-        <button type="button" class="btn ghost" @click="cancelCreate">
-          <Icon icon="lucide:x" width="14" /> 取消
-        </button>
-        <button type="button" class="btn primary" :disabled="submitting || confirmationOpen || uploading || !addressValid" @click="submit">
-          <Icon icon="lucide:send" width="14" />
-          {{ submitting || confirmationOpen ? '提交中…' : '立即提交求购' }}
-        </button>
-      </div>
-    </a-form>
+    <header class="page-heading"><div><span class="eyebrow">MAKE A WISH COME TRUE</span><h1>发起求购</h1><p>说清楚商品要求，让买手找到你的心仪好物。</p></div><Button type="button" variant="ghost" :disabled="submitting || confirmationOpen || uploading" @click="router.push('/purchase/hall')"><Icon icon="lucide:arrow-left" width="16" />返回大厅</Button></header>
+    <form @submit.prevent @keydown.enter.capture="preventImplicitSubmit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
+      <fieldset :disabled="submitting || confirmationOpen" class="form-fields">
+        <section class="paper"><h2><span>01</span>基本信息</h2>
+          <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen" /></div>
+          <div class="field"><span class="field-label">收货地址 <em>*</em></span><AddressSelector v-if="userStore.currentUser" v-model="form.addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @initialized="acceptAutomaticField('addressId', $event)" /></div>
+          <div class="field"><label for="request-category">商品分类 <em>*</em></label><CategoryPicker id="request-category" v-model="form.categoryId" :options="cascaderOptions" :disabled="submitting || confirmationOpen" placeholder="选择分类（支持一至五级）" /><p v-if="categoryLoadError" class="error" role="alert">{{ categoryLoadError }}<Button type="button" variant="link" size="sm" @click="reloadCategories">重新加载</Button></p></div>
+          <div class="field"><label for="request-description">商品描述 <small>可选</small></label><Textarea id="request-description" v-model="form.productDescription" :rows="3" placeholder="详细描述商品规格、版本、颜色等" /></div>
+        </section>
+        <section class="paper"><h2><span>02</span>预算与期限</h2><div class="form-grid">
+          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" :model-value="form.budgetAmount" :min="10" :precision="2" placeholder="请输入预算金额" @update:model-value="form.budgetAmount = $event ?? NaN" /><p class="hint">≈ ¥{{ budgetCny }} · 1 USDT = ¥{{ CNY_RATE.toFixed(2) }}<br>非实时参考折算，以 USDT 结算</p></div>
+          <div class="field"><label for="request-expected-days">期望发货天数 <em>*</em></label><AmountInput id="request-expected-days" :model-value="form.expectedDays" :min="1" :max="60" :precision="0" placeholder="期望发货天数" @update:model-value="form.expectedDays = $event ?? NaN" /><p class="hint">可填写 1–60 天。</p></div>
+        </div></section>
+        <section class="paper"><h2><span>03</span>物流与售后</h2>
+          <div class="field"><label for="request-aftersale">售后类型 <em>*</em></label><Select :model-value="form.aftersaleType" :disabled="submitting || confirmationOpen" @update:model-value="selectAftersale"><SelectTrigger id="request-aftersale"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">无售后</SelectItem><SelectItem value="7day-no-reason">7 天无理由</SelectItem><SelectItem value="shop-warranty">店铺保修</SelectItem><SelectItem value="national-warranty">全国联保</SelectItem></SelectContent></Select></div>
+          <div class="checkbox-field"><Checkbox id="request-overseas" :model-value="form.overseasCustoms" :disabled="submitting || confirmationOpen" @update:model-value="form.overseasCustoms = $event === true" /><label for="request-overseas">海外过关<small>海外直邮过关后不可退</small></label></div>
+          <div class="field"><label for="request-appeal">求购说明 <em>*</em></label><Textarea id="request-appeal" v-model="form.appeal" :rows="5" :maxlength="500" placeholder="至少 10 字，说明版本、颜色、采购地区等特殊要求" /><p class="counter">{{ form.appeal.length }}/500 · 至少 10 字</p></div>
+          <div class="field"><span class="field-label">参考图片 <small>可选，最多 4 张</small></span><AftersaleEvidenceUploader v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></div>
+        </section>
+      </fieldset>
+      <div class="actions"><Button type="button" variant="secondary" :disabled="submitting || confirmationOpen || uploading" @click="cancelCreate">取消</Button><Button type="button" :disabled="submitting || confirmationOpen || uploading || !addressValid" @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting || confirmationOpen ? '提交中…' : '提交求购' }}<Icon v-if="!submitting && !confirmationOpen" icon="lucide:arrow-right" width="16" /></Button></div>
+    </form>
   </div>
+
 </template>
 
 <style scoped>
-.purchase-create-page {
-  padding: 0;
-  padding-bottom: 40px;
-  max-width: 960px;
-  margin: 0 auto;
-}
 
-/* ========== Header ========== */
-.header-card {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 28px 36px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  margin-bottom: 16px;
-}
-.header-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-muted);
-  margin-bottom: 8px;
-}
-.header-title {
-  font-family: var(--yb-font-display);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-  margin: 0 0 6px;
-}
-.header-sub {
-  font-size: 13px;
-  color: var(--yb-muted);
-  margin: 0;
-}
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 14px;
-  background: var(--yb-bg);
-  color: var(--yb-ink);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 999px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.back-btn:hover {
-  border-color: var(--yb-ink);
-  background: var(--yb-surface);
-}
+.purchase-create-page { max-width:720px; margin:0 auto; padding-bottom:32px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:6px 0; }.page-heading p { font-size:14px; color:var(--yb-muted); margin:0; }.form-fields { padding:0; border:0; margin:0; min-width:0; }.paper { padding:28px 32px; margin-bottom:20px; border:1px solid var(--yb-hairline); border-radius:20px; background:var(--yb-surface); }.paper h2 { font-size:20px; font-weight:600; display:flex; align-items:center; gap:12px; margin:0 0 24px; }.paper h2 span { font-family:var(--yb-font-mono); font-size:13px; color:var(--yb-gold); }.field { display:flex; flex-direction:column; gap:8px; margin-bottom:22px; }.field:last-child { margin-bottom:0; }.field label,.field-label { font-size:14px; color:var(--yb-ink); }.field em,.field-label em { font-style:normal; color:var(--yb-danger); }.field small,.field-label small { font-size:12px; color:var(--yb-muted); margin-left:8px; }.field textarea { resize:vertical; min-height:96px; }.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }.form-grid .field { margin-bottom:0; min-width:0; }.hint,.counter { font-size:12px; color:var(--yb-muted); line-height:1.6; margin:0; }.counter { text-align:right; }.checkbox-field { display:flex; align-items:flex-start; gap:12px; margin:24px 0; }.checkbox-field>button { margin-top:4px; }.checkbox-field label { font-size:14px; cursor:pointer; }.checkbox-field small { display:block; color:var(--yb-muted); font-size:12px; }.error { margin:0; color:var(--yb-danger); font-size:13px; }.actions { display:flex; justify-content:flex-end; gap:16px; padding:6px 0; }.actions>button { min-width:100px; }
 
-/* ========== Form body ========== */
-.form-body {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.form-block {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 24px 32px 20px;
-}
-.block-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--yb-hairline);
-}
-.block-num {
-  font-family: var(--yb-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--yb-gold);
-  padding: 3px 8px;
-  background: var(--yb-champagne);
-  border-radius: 6px;
-}
-.block-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--yb-ink);
-}
-
-.price-time-field {
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.price-time-field :deep(.arco-input-number) {
-  width: 100%;
-}
-.price-time-field svg {
-  flex-shrink: 0;
-}
-.cny-hint {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--yb-muted);
-  line-height: 1.6;
-}
-.cny-hint .yb-mono,
-.cny-hint .rate { white-space: nowrap; }
-.cny-hint .rate { color: var(--yb-faint); }
-
-.tip-line {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--yb-faint);
-  line-height: 1.6;
-}
-
-.switch-hint {
-  margin-left: 8px;
-  color: var(--yb-muted);
-  font-size: 12px;
-}
-
-/* ========== Actions ========== */
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 4px;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 24px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  border: 1px solid transparent;
-}
-.btn.primary {
-  background: var(--yb-brand-primary);
-  color: #fff;
-}
-.btn.primary:hover:not(:disabled) {
-  background: var(--yb-brand-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.24);
-}
-.btn.primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn.ghost {
-  background: transparent;
-  color: var(--yb-ink);
-  border-color: var(--yb-hairline-2);
-}
-.btn.ghost:hover {
-  border-color: var(--yb-ink);
-  background: var(--yb-bg);
-}
 </style>

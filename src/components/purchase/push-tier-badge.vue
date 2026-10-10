@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { enums } from '@shared';
@@ -17,48 +18,18 @@ const iconName = computed(() => {
   };
   return map[props.level] || 'lucide:circle';
 });
+
+
 </script>
 
 <template>
-  <span class="tier-badge" :class="`tier-${level.toLowerCase()}`">
-    <Icon :icon="iconName" class="tier-icon" />
-    <span class="tier-label">{{ meta.label }}</span>
-  </span>
+
+  <span class="tier-badge" :class="`tier-${level.toLowerCase()}`"><Icon :icon="iconName" width="13" /><span>{{ meta.label }}</span></span>
+
 </template>
 
 <style scoped>
-.tier-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-family: var(--yb-font-mono);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  line-height: 1;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-.tier-icon {
-  width: 10px;
-  height: 10px;
-}
-.tier-vip2 {
-  background: linear-gradient(135deg, var(--yb-apricot) 0%, var(--yb-accent) 100%);
-  color: var(--yb-accent-ink);
-  box-shadow: 0 2px 6px rgba(var(--yb-gold-rgb), 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-.tier-vip1 {
-  background: var(--yb-champagne);
-  color: var(--yb-gold);
-  border: 1px solid rgba(var(--yb-gold-rgb), 0.28);
-}
-.tier-vip0 {
-  background: var(--yb-hairline);
-  color: var(--yb-muted);
-  border: 1px solid var(--yb-hairline-2);
-}
+
+.tier-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:500; white-space:nowrap; }.tier-vip2 { background:var(--um-gold-light); color:var(--yb-accent-ink); }.tier-vip1 { background:var(--yb-champagne); color:var(--yb-gold); }.tier-vip0 { background:var(--yb-fill); color:var(--yb-muted); }
+
 </style>
