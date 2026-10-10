@@ -6,8 +6,7 @@
  * 旧 `--bw-*` 变量作 alias 保留（避免破坏其他 40+ 页）
  */
 
-:root,
-body {
+:root {
   /* ==================== 基础层 (Layer 0-2) ==================== */
   --yb-bg:            #F7F4ED;   /* 暖白 页面 background */
   --yb-surface:       #FFFFFF;   /* 卡片 surface */

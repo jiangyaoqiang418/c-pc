@@ -4,8 +4,29 @@
  * 详见 https://tailwindcss.com/docs/v4-beta#css-first-configuration
  */
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import './umaomao.css';
 
 @theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
   /* colors */
   --color-yb-bg: var(--yb-bg);
   --color-yb-surface: var(--yb-surface);
@@ -32,9 +53,9 @@
   --color-yb-deep-2: var(--yb-deep-2);
 
   /* radius */
-  --radius-card: 20px;
-  --radius-md: 12px;
-  --radius-sm: 8px;
+  --radius-card: var(--yb-radius-card);
+  --radius-md: var(--yb-radius-md);
+  --radius-sm: var(--yb-radius-sm);
   --radius-pill: 999px;
 
   /* shadow */
@@ -43,8 +64,8 @@
   --shadow-glow: var(--yb-shadow-glow);
 
   /* font */
-  --font-display: 'Inter', 'PingFang SC', ui-sans-serif;
-  --font-body: 'Inter', 'PingFang SC', ui-sans-serif;
+  --font-display: var(--yb-font-display);
+  --font-body: var(--yb-font-body);
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
