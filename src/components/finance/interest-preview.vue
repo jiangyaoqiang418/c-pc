@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Icon } from '@iconify/vue';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import AmountInput from '@/components/common/amount-input.vue';
 import { computed, ref, watch } from 'vue';
 import { formatAmount, formatRate } from '@shared';
 import { financeSubscriptionIssue } from '@/service/api/finance';
@@ -77,132 +81,38 @@ watch(
     amount.value = Number(props.product.minAmount) || 100;
   }
 );
+
+
+function useMaximum() {
+  if (props.submitting || balance.value === undefined) return;
+  amount.value = Math.floor(Math.min(balance.value, max.value ?? balance.value) * 100) / 100;
+}
+const dailyEstimate = computed(() => expectedInterest.value === undefined || lockDays.value === undefined
+  ? undefined : (Number(expectedInterest.value) / lockDays.value).toFixed(8));
+const estimatedTotal = computed(() => expectedInterest.value === undefined || amount.value === undefined || !Number.isFinite(amount.value)
+  ? undefined : (amount.value + Number(expectedInterest.value)).toFixed(8));
+
 </script>
 
 <template>
-  <a-card class="preview-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-    <div class="card-title">利息预估</div>
-    <div class="input-row">
-      <span class="lbl">投链上充值额</span>
-      <a-input-number v-model="amount" :min="0" :precision="2" :disabled="submitting" placeholder="请输入申购金额" size="large" class="amount-input" />
-      <span class="suffix">U</span>
-    </div>
-    <div v-if="errMsg" class="err">{{ errMsg }}</div>
 
-    <a-divider />
+  <section class="preview-card">
+    <span class="eyebrow">PLAN YOUR LOCKUP</span><h2>预览这笔锁仓</h2>
+    <label for="finance-subscribe-amount">锁仓金额 <span>USDT</span></label>
+    <div class="amount-row"><AmountInput id="finance-subscribe-amount" v-model="amount" :min="0" :precision="2" :disabled="submitting" placeholder="0.00" /><Button type="button" variant="ghost" :disabled="submitting || balance === undefined" @click="useMaximum">最大</Button></div>
+    <p class="balance-hint">可用 {{ formatAmount(availableBalance) }} USDT · 最低 {{ min === undefined ? '—' : formatAmount(min) }} USDT</p>
+    <p v-if="errMsg" class="error" role="alert">{{ errMsg }}</p>
+    <div class="estimate"><small>预计到期利息</small><strong>{{ expectedInterest === undefined ? '待确认' : '+ ' + formatAmount(expectedInterest) }} <span>USDT</span></strong><small>参考年化 {{ formatRate(annualRate) }} · {{ lockDays ?? '—' }} 天</small></div>
+    <dl class="breakdown"><div><dt>每日理论利息</dt><dd>{{ formatAmount(dailyEstimate) }} USDT</dd></div><div><dt>预计到期日</dt><dd>{{ maturityDate }}</dd></div><div><dt>预计到期本息</dt><dd>{{ formatAmount(estimatedTotal) }} USDT</dd></div></dl>
+    <p class="formula">本金 × 年化 ÷ 365 × 天数<br>测算仅作参考，以申购时确认的参数为准。</p>
+    <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="submit-wrap" :tabindex="!canSubmit ? 0 : undefined"><Button type="button" class="full" :disabled="!canSubmit || submitting" @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在处理…' : '确认锁仓' }}<Icon v-if="!submitting" icon="lucide:arrow-right" width="16" /></Button></span></TooltipTrigger><TooltipContent v-if="!canSubmit || submitting" class="max-w-80">{{ submitting ? '正在处理本次申购，请勿重复提交' : errMsg }}</TooltipContent></Tooltip></TooltipProvider>
+    <p class="hint">需要支付密码确认。提前赎回以订单最新返回的可到账利息和违约费为准。</p>
+  </section>
 
-    <div class="result-row">
-      <div class="lbl">综合年化利率</div>
-      <div class="val rate">
-        {{ formatRate(annualRate) }}
-        <span class="bonus">以申购时确认的年化收益率与锁定天数计算</span>
-      </div>
-    </div>
-    <div class="result-row">
-      <div class="lbl">锁定天数</div>
-      <div class="val">{{ lockDays ?? '—' }} 天</div>
-    </div>
-    <div class="result-row">
-      <div class="lbl">预计到期日</div>
-      <div class="val">{{ maturityDate }}</div>
-    </div>
-    <div class="result-row highlight">
-      <div class="lbl">预计利息</div>
-      <div class="val interest">{{ expectedInterest === undefined ? '待确认' : '+ U ' + formatAmount(expectedInterest) }}</div>
-    </div>
-
-    <a-button
-      type="primary"
-      long
-      size="large"
-      :disabled="!canSubmit"
-      :loading="props.submitting"
-      class="submit-btn"
-      @click="submit"
-    >
-      立即订阅 U {{ formatAmount(amount) }}
-    </a-button>
-
-    <div class="hint">提前赎回以订单详情返回的可到账利息和违约费为准。</div>
-  </a-card>
 </template>
 
 <style scoped>
-.preview-card {
-  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
-  border-radius: var(--bw-card-radius);
-}
-.card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 14px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.input-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 6px;
-}
-.lbl {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.amount-input {
-  flex: 1;
-}
-.suffix {
-  font-size: 14px;
-  color: var(--yb-ink-2);
-  font-weight: 600;
-}
-.err {
-  color: #f53f3f;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-.result-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 0;
-}
-.result-row.highlight {
-  background: #fff7e6;
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin: 6px -12px;
-}
-.val {
-  font-weight: 600;
-  color: var(--yb-ink);
-  font-family: ui-monospace, monospace;
-}
-.val.rate {
-  color: #00A88A;
-  text-align: right;
-}
-.bonus {
-  display: block;
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-weight: 400;
-  font-family: inherit;
-  margin-top: 2px;
-}
-.val.interest {
-  color: #00A88A;
-  font-size: 18px;
-}
-.submit-btn {
-  margin-top: 16px;
-}
-.hint {
-  margin-top: 10px;
-  font-size: 11px;
-  color: var(--yb-muted);
-  text-align: center;
-}
+
+.preview-card { background:var(--yb-surface); padding:28px; border:1px solid var(--yb-hairline); border-radius:20px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.preview-card h2 { font-size:22px; font-weight:600; margin:6px 0 24px; }.preview-card>label { display:flex; justify-content:space-between; font-size:14px; margin-bottom:8px; }.preview-card>label span { color:var(--yb-muted); font-size:12px; }.amount-row { display:flex; align-items:center; gap:8px; }.amount-row>input { min-width:0; }.balance-hint,.hint,.formula { font-size:12px; color:var(--yb-muted); line-height:1.7; }.balance-hint { margin:8px 0 14px; }.error { font-size:13px; color:var(--yb-danger); line-height:1.7; margin:12px 0; overflow-wrap:anywhere; }.estimate { display:flex; flex-direction:column; gap:7px; padding:20px; border-radius:14px; background:var(--yb-primary-soft); margin:20px 0; }.estimate>small { font-size:12px; color:var(--yb-muted); }.estimate strong { font-size:26px; font-weight:500; font-family:var(--yb-font-mono); color:var(--yb-brand-primary); }.estimate strong span { font-size:12px; }.breakdown { margin:0; font-size:13px; }.breakdown>div { display:flex; justify-content:space-between; align-items:baseline; gap:14px; padding:8px 0; }.breakdown dt { color:var(--yb-muted); }.breakdown dd { margin:0; font-family:var(--yb-font-mono); font-size:12px; text-align:right; }.formula { padding-top:16px; border-top:1px solid var(--yb-hairline); margin:16px 0; }.full,.submit-wrap { width:100%; }.submit-wrap { display:block; }.hint { margin:14px 0 0; }
+
 </style>

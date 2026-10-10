@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Icon } from '@iconify/vue';
+import { Skeleton } from '@/components/ui/skeleton';
+import DescriptionList from '@/components/common/description-list.vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { formatAmount } from '@shared';
 import { fetchFinanceOrderDetail, financeRedemptionIssue } from '@/service/api/finance';
@@ -56,50 +60,28 @@ function submit() {
   emit('confirm', displayedOrder.value);
   return false;
 }
+
+
 </script>
 
 <template>
-  <a-modal
-    :visible="visible"
-    title="确认提前赎回"
-    :ok-loading="props.submitting"
-    :ok-text="pending ? '核实赎回结果' : '确认赎回'"
-    :ok-button-props="{ status: 'danger', disabled: reading || !!issue || !displayedOrder }"
-    :on-before-ok="submit"
-    @update:visible="(v) => $emit('update:visible', v)"
-  >
-    <a-alert v-if="issue" type="warning">{{ issue }}
-      <template #action><a-button :loading="reading" :disabled="submitting" @click="readQuote">重新读取</a-button></template>
-    </a-alert>
-    <template v-if="displayedOrder">
-      <a-alert v-if="pending" type="warning">上次赎回结果待确认，本次只读取原锁仓状态，不会重复发送赎回。</a-alert>
-      <div class="warn">
-        ⚠️ 提前赎回本金将返回可用余额，已产生利息会扣除违约费。最终到账以结算结果为准。
-      </div>
-      <a-descriptions :column="1" :data="[
-        { label: '小金库订单', value: (displayedOrder.productCode || displayedOrder.id) + ' · ' + (displayedOrder.productName || '—') },
-        { label: '本金', value: money(displayedOrder.principal) },
-        { label: '预期利息', value: money(displayedOrder.expectedInterest) },
-        { label: '已累积利息', value: money(displayedOrder.accruedInterest) },
-        { label: '违约费', value: money(displayedOrder.redeemFee) },
-        { label: '可到账利息', value: money(displayedOrder.redeemableInterest) }
-      ]" />
+
+  <AModal :visible="visible" title="确认提前赎回" :width="560" :ok-loading="props.submitting" :ok-text="pending ? '核实赎回结果' : '确认赎回'" :ok-button-props="{ status: 'danger', disabled: reading || !!issue || !displayedOrder }" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="submit" @update:visible="(v: boolean) => $emit('update:visible', v)">
+    <div v-if="issue" class="notice" role="alert"><Icon icon="lucide:circle-alert" width="20" /><span>{{ issue }}</span><Button type="button" variant="outline" size="sm" :disabled="reading || submitting" @click="readQuote">{{ reading ? '正在核对…' : '重新读取' }}</Button></div>
+    <Skeleton v-if="reading" class="quote-skeleton" aria-label="正在核对赎回费用" />
+    <template v-else-if="displayedOrder">
+      <p v-if="pending" class="pending-note" role="alert">上次赎回结果待确认，本次只读取原锁仓状态，不会重复发送赎回。</p>
+      <div class="quote-heading"><span class="asset-icon"><Icon icon="lucide:undo-2" width="28" /></span><h2>提前赎回报价</h2><p>{{ displayedOrder.productName || '—' }}</p></div>
+      <div class="principal"><small>退回本金</small><strong>{{ money(displayedOrder.principal) }}</strong></div>
+      <DescriptionList :columns="1" :items="[{ label: '小金库订单', value: String(displayedOrder.productCode || displayedOrder.id) }, { label: '预期利息', value: money(displayedOrder.expectedInterest) }, { label: '已累积利息', value: money(displayedOrder.accruedInterest) }, { label: '违约费', value: money(displayedOrder.redeemFee) }, { label: '可到账净利息', value: money(displayedOrder.redeemableInterest) }]" />
+      <p class="warn">提前赎回将停止后续计息，已产生利息会扣除违约费。确认后需输入支付密码，最终到账以结算结果为准。</p>
     </template>
-  </a-modal>
+  </AModal>
+
 </template>
 
 <style scoped>
-.warn {
-  background: #fff7e6;
-  color: #ff7d00;
-  font-size: 13px;
-  padding: 10px 14px;
-  border-radius: 4px;
-  border-left: 3px solid #ff7d00;
-  margin-bottom: 12px;
-  line-height: 1.6;
-}
-.form {
-  margin-top: 14px;
-}
+
+.notice { display:flex; align-items:center; gap:12px; padding:16px; background:var(--yb-primary-soft); border-radius:12px; font-size:13px; margin-bottom:20px; }.notice>svg { flex:none; color:var(--yb-brand-primary); }.notice>span { flex:1; }.quote-heading { text-align:center; margin:12px 0 24px; }.asset-icon { display:inline-flex; padding:18px; border-radius:18px; color:var(--yb-brand-primary); background:var(--yb-primary-soft); }.quote-heading h2 { font-size:22px; font-weight:600; margin:12px 0 4px; }.quote-heading p { font-size:13px; color:var(--yb-muted); margin:0; }.principal { display:flex; flex-direction:column; align-items:center; gap:6px; padding:20px; border-radius:16px; background:var(--yb-fill); margin-bottom:24px; }.principal small { font-size:12px; color:var(--yb-muted); }.principal strong { font-size:30px; font-family:var(--yb-font-mono); font-weight:500; }.warn,.pending-note { font-size:13px; color:var(--yb-muted); line-height:1.8; padding:16px; border-radius:12px; background:var(--yb-fill); margin:20px 0 0; }.pending-note { margin:0 0 20px; background:var(--yb-primary-soft); }.quote-skeleton { height:330px; border-radius:16px; }
+
 </style>

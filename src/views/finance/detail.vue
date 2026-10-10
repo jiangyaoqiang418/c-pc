@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Icon } from '@iconify/vue';
+import DescriptionList from '@/components/common/description-list.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -181,174 +185,34 @@ function handleEmptyAction() {
   }
   router.push('/finance');
 }
+
+
 </script>
 
 <template>
-  <div class="detail-page shop-container">
-    <a-alert v-if="submissionIssue" type="warning" :closable="false" class="wallet-alert">
-      {{ submissionIssue }}。恢复先查原单，仅明确未落地才按原键原参重试；旧无键记录不会重发。
-      <div v-if="pendingSnapshot">待核对申购：产品 {{ pendingSnapshot.productId }} · U {{ formatAmount(pendingSnapshot.amount) }}</div>
-      <template #action><a-space><a-button size="mini" :loading="subscribing" @click="restoreSubscription">恢复原申购</a-button><a-button size="mini" @click="router.push('/finance/my-lockups')">查看我的锁仓</a-button></a-space></template>
-    </a-alert>
-    <a-alert v-if="loadError && product" type="error" :closable="false" class="wallet-alert">
-      {{ loadError }} 当前展示上次读取的产品信息，已暂停申购。
-      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
-    </a-alert>
-    <a-alert v-if="walletUnavailable" type="warning" :closable="false" class="wallet-alert">
-      {{ walletLoadError || '可用余额尚未取得，已暂时禁用申购。' }} 投入金额保持不变。
-      <template #action><a-button size="mini" :loading="reloadingWallet" :disabled="loading || subscribing" @click="retryWallet">重新读取余额</a-button></template>
-    </a-alert>
-    <a-spin :loading="loading" style="width: 100%">
-      <template v-if="product">
-        <a-breadcrumb class="bread">
-          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/finance')" @keydown.enter="router.push('/finance')" @keydown.space.prevent="router.push('/finance')">小金库</a-breadcrumb-item>
-          <a-breadcrumb-item>{{ product.name }}</a-breadcrumb-item>
-        </a-breadcrumb>
 
-        <div class="layout">
-          <a-card class="info-card" :body-style="{ padding: '28px 32px' }" :bordered="false">
-            <div class="head">
-              <h1 class="title">{{ product.name }}</h1>
-              <a-tag color="var(--yb-brand-primary)" size="medium">{{ product.code }}</a-tag>
-            </div>
-            <div class="big-meta">
-              <div class="meta-cell">
-                <div class="lbl">基准年化利率</div>
-                <div class="val rate">{{ formatRate(Number(product.annualRate)) }}</div>
-              </div>
-              <div class="meta-cell">
-                <div class="lbl">锁定期</div>
-                <div class="val">{{ product.lockDays }} 天</div>
-              </div>
-              <div class="meta-cell">
-                <div class="lbl">起投金额</div>
-                <div class="val">U {{ formatAmount(product.minAmount) }}</div>
-              </div>
-              <div class="meta-cell">
-                <div class="lbl">单笔上限</div>
-                <div class="val">{{ product.maxAmount ? 'U ' + formatAmount(product.maxAmount) : '不限' }}</div>
-              </div>
-            </div>
-
-            <a-divider />
-
-            <div class="section-title">产品说明</div>
-            <p class="desc">{{ product.description || '—' }}</p>
-
-            <div class="section-title">收益规则</div>
-            <ul class="rules">
-              <li>按日单利计息，具体收益以订单详情为准。</li>
-              <li>提前赎回本金全额退回，已产生利息按产品费率扣除违约费。</li>
-              <li>到期后由系统自动结算本金与利息。</li>
-            </ul>
-          </a-card>
-
-          <div class="aside">
-            <InterestPreview
-              v-if="product && userStore.currentUser"
-              :product="product"
-              :available-balance="walletUnavailable || loadError || loading || reloadingWallet || walletStore.loading ? undefined : walletStore.account?.available"
-              :submitting="subscribing"
-              :disabled-reason="submissionIssue"
-              @subscribe="onSubscribe"
-            />
-          </div>
-        </div>
-      </template>
-
-      <EmptyState
-        v-else-if="!loading"
-        :title="loadError ? '产品加载失败' : '小金库产品不存在'"
-        :description="loadError || undefined"
-        :action-text="loadError ? '重新加载' : '返回列表'"
-        @action="handleEmptyAction"
-      />
-    </a-spin>
+  <div class="detail-page">
+    <nav class="bread" aria-label="面包屑"><RouterLink to="/finance">小金库</RouterLink><span>/</span><span>{{ product?.name || '产品详情' }}</span></nav>
+    <div v-if="submissionIssue" class="notice" role="alert"><Icon icon="lucide:circle-alert" width="20" /><div><p>{{ submissionIssue }}。恢复先查原单，仅明确未落地才按原键原参重试；旧无键记录不会重发。</p><small v-if="pendingSnapshot">待核对申购：产品 {{ pendingSnapshot.productId }} · U {{ formatAmount(pendingSnapshot.amount) }}</small><div class="button-row"><Button variant="outline" size="sm" :disabled="subscribing" @click="restoreSubscription">恢复原申购</Button><Button variant="outline" size="sm" @click="router.push('/finance/my-lockups')">查看我的锁仓</Button></div></div></div>
+    <div v-if="loadError && product" class="notice error-notice" role="alert"><span>{{ loadError }} 当前展示上次读取的产品信息，已暂停申购。</span><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">重新加载</Button></div>
+    <div v-if="walletUnavailable" class="notice" role="alert"><span>{{ walletLoadError || '可用余额尚未取得，已暂时禁用申购。' }} 投入金额保持不变。</span><Button variant="outline" size="sm" :disabled="loading || subscribing || reloadingWallet" @click="retryWallet">{{ reloadingWallet ? '正在读取…' : '重新读取余额' }}</Button></div>
+    <div v-if="loading && !product" class="layout" aria-busy="true" aria-label="正在读取理财产品"><Skeleton class="product-skeleton" /><Skeleton class="preview-skeleton" /></div>
+    <div v-else-if="product" class="layout">
+      <section class="paper product-info"><div class="product-title"><span class="asset-icon"><Icon icon="lucide:lock-keyhole" width="28" /></span><div><span class="eyebrow">USDT LOCKED VAULT</span><h1>{{ product.name }}</h1><small>{{ product.code }}</small></div></div>
+        <p class="description">{{ product.description || '—' }}</p>
+        <div class="product-rate"><small>参考年化 · 按日单利</small><strong>{{ formatRate(Number(product.annualRate)) }}</strong></div>
+        <DescriptionList :columns="2" :items="[{ label: '锁仓期限', value: product.lockDays + ' 天' }, { label: '起投金额', value: formatAmount(product.minAmount) + ' USDT' }, { label: '单笔上限', value: product.maxAmount ? formatAmount(product.maxAmount) + ' USDT' : '不限' }, { label: '提前赎回', value: product.earlyRedeemEnabled ? '以订单报价为准' : '不支持提前赎回' }]" />
+        <div class="rules"><h2>每一步，提前看清</h2><p><Icon icon="lucide:clock" width="18" />按日单利计息，具体收益以订单详情为准。</p><p><Icon icon="lucide:wallet" width="18" />锁仓期间本金不可用于购物或转出。</p><p><Icon icon="lucide:undo-2" width="18" />提前赎回是否开放、违约费及净利息，以订单最新报价为准。</p><p><Icon icon="lucide:circle-check" width="18" />到期本金与利息由系统结算，到账状态以订单为准。</p></div>
+      </section>
+      <aside><InterestPreview v-if="userStore.currentUser" :product="product" :available-balance="walletUnavailable || loadError || loading || reloadingWallet || walletStore.loading ? undefined : walletStore.account?.available" :submitting="subscribing" :disabled-reason="submissionIssue" @subscribe="onSubscribe" /></aside>
+    </div>
+    <EmptyState v-else :title="loadError ? '产品加载失败' : '小金库产品不存在'" :description="loadError || undefined" :action-text="loadError ? '重新加载' : '返回列表'" @action="handleEmptyAction" />
   </div>
+
 </template>
 
 <style scoped>
-.detail-page {
-  padding-top: 16px;
-}
-.wallet-alert {
-  margin-bottom: 12px;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.layout {
-  display: grid;
-  grid-template-columns: 7fr 5fr;
-  gap: 16px;
-  align-items: start;
-}
-.info-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.title {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0;
-}
-.big-meta {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-.meta-cell {
-  text-align: center;
-}
-.lbl {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.val {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  font-family: ui-monospace, monospace;
-  margin-top: 4px;
-}
-.val.rate {
-  color: #00A88A;
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin: 16px 0 8px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.desc {
-  color: var(--yb-ink-2);
-  font-size: 13px;
-  line-height: 1.7;
-}
-.rules {
-  padding-left: 20px;
-  color: var(--yb-ink-2);
-  font-size: 13px;
-  line-height: 1.8;
-}
-.rules li {
-  margin-bottom: 4px;
-}
-@media (max-width: 960px) {
-  .layout { grid-template-columns: 1fr; }
-}
-@media (max-width: 640px) {
-  .head { align-items: flex-start; flex-direction: column; gap: 6px; }
-  .big-meta { grid-template-columns: repeat(2, 1fr); gap: 14px 10px; }
-  .info-card :deep(.arco-card-body), .aside :deep(.arco-card-body) { padding: 20px !important; }
-  .val { font-size: 18px; }
-}
+
+.detail-page { padding-bottom:32px; }.bread { display:flex; gap:12px; font-size:13px; color:var(--yb-muted); margin-bottom:24px; }.bread a { text-decoration:none; color:var(--yb-muted); }.bread a:hover { color:var(--yb-brand-primary); }.notice { display:flex; gap:16px; align-items:flex-start; padding:20px 24px; border-radius:16px; background:var(--yb-primary-soft); margin-bottom:20px; font-size:13px; line-height:1.8; }.notice>svg { flex:none; color:var(--yb-brand-primary); margin-top:4px; }.notice>span,.notice>div { flex:1; min-width:0; }.notice p { margin:0; }.notice small { font-size:12px; overflow-wrap:anywhere; }.error-notice { background:var(--yb-danger-soft); color:var(--yb-danger); }.button-row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }.layout { display:grid; grid-template-columns:minmax(0,1fr) 370px; gap:24px; align-items:start; }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:22px; padding:36px; }.product-title { display:flex; gap:18px; align-items:center; }.asset-icon { display:inline-flex; padding:18px; border-radius:20px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); flex:none; }.eyebrow { font-size:12px; letter-spacing:.1em; color:var(--yb-gold); }.product-title h1 { font-size:28px; font-weight:650; margin:6px 0 4px; overflow-wrap:anywhere; }.product-title small { color:var(--yb-muted); font-size:12px; font-family:var(--yb-font-mono); }.description { font-size:14px; color:var(--yb-muted); line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; margin:24px 0; }.product-rate { display:flex; flex-direction:column; gap:4px; margin:28px 0; padding:24px 0; border-top:1px solid var(--yb-hairline); border-bottom:1px solid var(--yb-hairline); }.product-rate small { font-size:13px; color:var(--yb-muted); }.product-rate strong { font-family:var(--yb-font-mono); font-size:44px; font-weight:500; color:var(--yb-brand-primary); }.rules { border-top:1px solid var(--yb-hairline); padding-top:24px; margin-top:28px; }.rules h2 { font-size:20px; font-weight:600; margin:0 0 16px; }.rules p { display:flex; gap:12px; align-items:flex-start; font-size:13px; color:var(--yb-muted); margin:12px 0; line-height:1.8; }.rules p svg { flex:none; margin-top:3px; color:var(--yb-brand-primary); }.layout aside { position:sticky; top:190px; }.product-skeleton { height:650px; border-radius:22px; }.preview-skeleton { height:600px; border-radius:20px; }@media(max-width:1150px) { .layout { grid-template-columns:minmax(0,1fr) 340px; }.paper { padding:28px; } }
+
 </style>

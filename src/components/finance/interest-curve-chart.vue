@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useId } from 'vue';
 import { formatAmount } from '@shared';
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
   height?: number;
 }
 const props = withDefaults(defineProps<Props>(), { width: 720, height: 220, markerLabel: '实际利息' });
+const gradientId = useId();
 
 const safeLockupDays = computed(() => Number.isFinite(props.lockupDays) && props.lockupDays > 0 ? props.lockupDays : 1);
 const safeRatePct = computed(() => Number.isFinite(props.effectiveRatePct) ? props.effectiveRatePct : 0);
@@ -90,7 +91,7 @@ const xTicks = computed(() => {
 
 <template>
   <div class="curve-chart">
-    <svg :viewBox="`0 0 ${width} ${height}`" :width="width" :height="height">
+    <svg :viewBox="`0 0 ${width} ${height}`" :width="width" :height="height" role="img" aria-label="按日单利理论收益曲线，实际利息点采用订单返回值，不代表每日到账流水">
       <!-- Y axis ticks + grid -->
       <g class="grid">
         <line v-for="t in yTicks" :key="'y' + t.y" :x1="padL" :x2="padL + innerW" :y1="t.y" :y2="t.y" />
@@ -107,7 +108,7 @@ const xTicks = computed(() => {
         </text>
       </g>
       <!-- Area + line -->
-      <path :d="areaPath" fill="url(#curveGradient)" stroke="none" />
+      <path :d="areaPath" :fill="`url(#${gradientId})`" stroke="none" />
       <path :d="path" stroke="var(--yb-brand-primary)" stroke-width="2" fill="none" />
       <!-- Current point -->
       <g v-if="currentPoint">
@@ -118,7 +119,7 @@ const xTicks = computed(() => {
         </text>
       </g>
       <defs>
-        <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="var(--yb-brand-primary)" stop-opacity="0.35" />
           <stop offset="100%" stop-color="var(--yb-brand-primary)" stop-opacity="0" />
         </linearGradient>
@@ -135,6 +136,11 @@ const xTicks = computed(() => {
 .curve-chart {
   width: 100%;
 }
+.curve-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 .grid line {
   stroke: var(--yb-hairline);
   stroke-width: 1;
@@ -143,7 +149,7 @@ const xTicks = computed(() => {
 .x-labels text {
   fill: var(--yb-muted);
   font-size: 11px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--yb-font-mono);
 }
 .current-label {
   font-size: 11px;
@@ -156,6 +162,8 @@ const xTicks = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+  line-height: 1.7;
+  flex-wrap: wrap;
 }
 .legend .dot {
   width: 10px;

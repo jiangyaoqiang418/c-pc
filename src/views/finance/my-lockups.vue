@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Icon } from '@iconify/vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -229,65 +234,29 @@ function handleEmptyAction() {
 }
 
 const tabBadgeCount = computed(() => (k: Api.RealFinance.OrderStatus) => allCounts.value[k]);
+
+
 </script>
 
 <template>
-  <div class="my-lockups-page shop-container">
-    <h1 class="page-title">我的锁仓</h1>
 
-    <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs :active-key="activeKey" lazy-load @change="changeTab">
-        <a-tab-pane v-for="t in TABS" :key="t.key">
-          <template #title>
-            {{ t.label }}
-            <a-badge v-if="tabBadgeCount(t.key) > 0" :count="tabBadgeCount(t.key)" :max-count="99" class="badge" />
-          </template>
-        </a-tab-pane>
-      </a-tabs>
-    </a-card>
-
-    <div class="list-wrap">
-      <a-spin :loading="loading" style="width: 100%">
-        <template v-if="orders.length">
-          <LockupCard v-for="o in orders" :key="o.id" :order="o" @unlock="onUnlock" />
-        </template>
-        <EmptyState
-          v-else
-          :title="loadError ? '锁仓列表加载失败' : '该状态下没有锁仓'"
-          :description="loadError || '先去小金库看看吧'"
-          :action-text="loadError ? '重新加载' : '去小金库'"
-          @action="handleEmptyAction"
-        />
-      </a-spin>
-    </div>
-
-    <a-pagination v-if="total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />
-    <EarlyUnlockModal
-      v-model:visible="unlockModalOpen"
-      :order="unlockTarget"
-      :submitting="unlocking"
-      :pending="redemptionPending"
-      @confirm="confirmUnlock"
-    />
+  <div class="my-lockups-page">
+    <header class="page-heading"><div><span class="eyebrow">YOUR LOCKED VAULT</span><h1>我的锁仓</h1><p>查看每笔锁仓的进度与结算。</p></div><Button variant="outline" @click="router.push('/finance')">浏览锁仓产品<Icon icon="lucide:arrow-right" width="16" /></Button></header>
+    <nav class="page-links" aria-label="小金库导航"><RouterLink to="/finance">锁仓产品</RouterLink><RouterLink to="/finance/my-lockups" aria-current="page">我的锁仓</RouterLink></nav>
+    <Tabs :model-value="activeKey" @update:model-value="changeTab"><TabsList class="status-tabs"><TabsTrigger v-for="t in TABS" :key="t.key" :value="t.key">{{ t.label }}<span v-if="tabBadgeCount(t.key) > 0" class="tab-count">{{ tabBadgeCount(t.key) }}</span></TabsTrigger></TabsList><TabsContent :value="activeKey" class="list-wrap">
+      <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓列表"><Skeleton v-for="n in 3" :key="n" class="lockup-skeleton" /></div>
+      <EmptyState v-else-if="loadError" title="锁仓列表加载失败" :description="loadError" action-text="重新加载" @action="load" />
+      <div v-else-if="orders.length" class="lockup-list"><LockupCard v-for="o in orders" :key="o.id" :order="o" @unlock="onUnlock" /></div>
+      <EmptyState v-else title="该状态下没有锁仓" description="在这里查看每笔锁仓的进度与结算。" action-text="浏览锁仓产品" @action="handleEmptyAction" />
+      <BusinessPagination v-if="!loading && !loadError && total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />
+    </TabsContent></Tabs>
+    <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="unlockTarget" :submitting="unlocking" :pending="redemptionPending" @confirm="confirmUnlock" />
   </div>
+
 </template>
 
 <style scoped>
-.my-lockups-page {
-  padding-top: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.list-wrap {
-  margin-top: 16px;
-}
-.badge {
-  margin-left: 4px;
-}
-@media (max-width: 640px) {
-  .my-lockups-page :deep(.arco-tabs-nav-tab) { padding-right: 10px; padding-left: 10px; }
-}
+
+.my-lockups-page { padding-bottom:32px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.page-heading h1 { font-size:30px; font-weight:650; margin:6px 0; }.page-heading p { font-size:14px; color:var(--yb-muted); margin:0; }.page-links { display:flex; gap:28px; margin-bottom:24px; border-bottom:1px solid var(--yb-hairline); }.page-links a { padding-bottom:13px; font-size:14px; color:var(--yb-muted); text-decoration:none; }.page-links [aria-current] { color:var(--yb-brand-primary); border-bottom:2px solid var(--yb-brand-primary); }.status-tabs { width:100%; height:auto; justify-content:flex-start; gap:8px; padding:8px; border:1px solid var(--yb-hairline); background:var(--yb-surface); border-radius:16px; }.status-tabs :deep(button) { padding:10px 20px; }.tab-count { margin-left:6px; font-size:12px; color:var(--yb-brand-primary); }.list-wrap { margin-top:24px; }.lockup-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; margin-bottom:24px; }.lockup-skeleton { height:260px; border-radius:20px; margin-bottom:20px; }
+
 </style>

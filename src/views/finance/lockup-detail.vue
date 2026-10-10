@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Icon } from '@iconify/vue';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+import DescriptionList from '@/components/common/description-list.vue';
+import { financeRedemptionIssue } from '@/service/api/finance';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -176,211 +182,37 @@ function handleEmptyAction() {
   router.push('/finance/my-lockups');
 }
 
+
+
 </script>
 
 <template>
-  <div class="lockup-detail-page shop-container">
-    <a-spin :loading="loading" style="width: 100%">
-      <template v-if="order">
-        <a-breadcrumb class="bread">
-          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/finance')" @keydown.enter="router.push('/finance')" @keydown.space.prevent="router.push('/finance')">小金库</a-breadcrumb-item>
-          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/finance/my-lockups')" @keydown.enter="router.push('/finance/my-lockups')" @keydown.space.prevent="router.push('/finance/my-lockups')">我的锁仓</a-breadcrumb-item>
-          <a-breadcrumb-item>{{ order.productCode || order.id }}</a-breadcrumb-item>
-        </a-breadcrumb>
 
-        <a-card class="hero-card" :body-style="{ padding: '20px 28px' }" :bordered="false">
-          <div class="hero-row">
-            <div class="hero-left">
-              <a-tag v-if="meta" :color="meta.color" size="large">{{ meta.label }}</a-tag>
-              <span class="hero-code">{{ order.productCode || order.id }} · {{ order.productName }}</span>
-            </div>
-            <div class="hero-right">
-              <a-button v-if="order.canRedeem" type="primary" status="danger" @click="openUnlock">
-                提前赎回
-              </a-button>
-              <a-button v-else disabled>{{ order.status === 'SETTLED' ? '已到期，已自动结算' : '当前不可赎回' }}</a-button>
-            </div>
-          </div>
-        </a-card>
-
-        <div class="layout-2col">
-          <a-card class="rate-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-            <div class="section-title">利率快照</div>
-            <div class="rate-formula">
-              <div class="rate-cell">
-                <div class="lbl">年化收益率</div>
-                <div class="val accent">{{ formatRate(Number(order.annualRate)) }}</div>
-              </div>
-            </div>
-          </a-card>
-
-          <a-card class="detail-card" :body-style="{ padding: '20px 24px' }" :bordered="false">
-            <div class="section-title">持仓详情</div>
-            <a-descriptions :column="2" :data="[
-              { label: '本金', value: 'U ' + formatAmount(order.principal) },
-              { label: '预期利息', value: 'U ' + formatAmount(order.expectedInterest) },
-              { label: interestLabel, value: actualInterestText },
-              { label: '提前赎回违约费', value: order.redeemFee === undefined || order.redeemFee === null ? '待确认' : 'U ' + formatAmount(order.redeemFee) },
-              { label: '锁定天数 / 已持有', value: order.lockDays + ' / ' + (daysPassed === undefined ? '待确认' : daysPassed + ' 天') },
-              { label: '起息时间', value: formatDateValue(order.startAt) },
-              { label: '到期时间', value: formatDateValue(order.maturityAt) },
-              { label: '结算/赎回时间', value: formatDateValue(order.settledAt || order.redeemedAt) },
-              { label: '赎回原因', value: order.redeemReason || '—' }
-            ]" />
-          </a-card>
-        </div>
-
-        <a-card class="chart-card" :body-style="{ padding: '20px 24px 24px' }" :bordered="false">
-          <div class="section-title">理论收益参考</div>
-          <InterestCurveChart
-            :lockup-days="order.lockDays"
-            :effective-rate-pct="Number(order.annualRate) * 100"
-            :principal="String(order.principal)"
-            :accrued-days="daysPassed"
-            :accrued-interest="actualInterest"
-            :marker-label="interestLabel"
-            :width="720"
-            :height="220"
-          />
-          <div class="chart-hint">{{ chartHint }}</div>
-        </a-card>
-
-      </template>
-
-      <EmptyState
-        v-else-if="!loading"
-        :title="loadError ? '锁仓信息加载失败' : '锁仓订单不存在'"
-        :description="loadError || undefined"
-        :action-text="loadError ? '重新加载' : '返回列表'"
-        @action="handleEmptyAction"
-      />
-    </a-spin>
-
-    <EarlyUnlockModal
-      v-model:visible="unlockModalOpen"
-      :order="order"
-      :submitting="unlocking"
-      :pending="redemptionPending"
-      @confirm="confirmUnlock"
-    />
+  <div class="lockup-detail-page">
+    <nav class="bread" aria-label="面包屑"><RouterLink to="/finance">小金库</RouterLink><span>/</span><RouterLink to="/finance/my-lockups">我的锁仓</RouterLink><span>/</span><span>{{ order?.productCode || order?.id || '锁仓详情' }}</span></nav>
+    <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓订单"><Skeleton class="hero-skeleton" /><Skeleton class="detail-skeleton" /></div>
+    <template v-else-if="order">
+      <section class="paper hero-card"><div><span v-if="meta" class="status" :data-status="order.status">{{ meta.label }}</span><h1>{{ order.productName || '—' }}</h1><small class="code">{{ order.productCode || order.id }}</small></div><div class="principal"><small>锁仓本金</small><strong>{{ formatAmount(order.principal) }} <span>USDT</span></strong></div></section>
+      <div class="layout">
+        <section class="paper main-card"><div class="interest-head"><div><small>{{ interestLabel }}</small><strong>{{ actualInterestText }}</strong></div><div><small>年化快照</small><strong>{{ formatRate(Number(order.annualRate)) }}</strong></div></div>
+          <h2>理论收益参考</h2><InterestCurveChart :lockup-days="order.lockDays" :effective-rate-pct="Number(order.annualRate) * 100" :principal="String(order.principal)" :accrued-days="daysPassed" :accrued-interest="actualInterest" :marker-label="interestLabel" :width="720" :height="220" /><p class="hint">{{ chartHint }}</p>
+          <div class="divider" /><h2>持仓信息</h2><DescriptionList :columns="2" :items="[{ label: '锁仓周期', value: order.lockDays + ' 天' }, { label: '已持有天数', value: daysPassed === undefined ? '待确认' : daysPassed + ' 天' }, { label: '起息时间', value: formatDateValue(order.startAt) }, { label: '到期时间', value: formatDateValue(order.maturityAt) }, { label: '结算/赎回时间', value: formatDateValue(order.settledAt || order.redeemedAt) }, { label: '赎回原因', value: order.redeemReason || '—' }]" />
+        </section>
+        <aside class="paper"><h2>这笔锁仓的详情</h2><DescriptionList :columns="1" :items="[{ label: '本金', value: formatAmount(order.principal) + ' USDT' }, { label: '预期利息', value: formatAmount(order.expectedInterest) + ' USDT' }, { label: interestLabel, value: actualInterestText }, { label: '提前赎回违约费', value: order.redeemFee === undefined || order.redeemFee === null ? '待确认' : formatAmount(order.redeemFee) + ' USDT' }, { label: '结算币种', value: 'USDT' }]" />
+          <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!order.canRedeem ? 0 : undefined"><Button type="button" variant="outline" class="full danger" :disabled="!order.canRedeem || unlocking" @click="openUnlock">{{ unlocking ? '正在处理…' : order.canRedeem ? '查看提前赎回报价' : order.status === 'SETTLED' ? '已到期，已自动结算' : '当前不可赎回' }}</Button></span></TooltipTrigger><TooltipContent v-if="!order.canRedeem || unlocking" class="max-w-80">{{ unlocking ? '正在处理本次赎回，请勿重复提交' : financeRedemptionIssue(order) }}</TooltipContent></Tooltip></TooltipProvider>
+          <p class="hint">提前赎回将停止后续计息，费用与到账金额须读取订单最新报价。需要支付密码二次确认。</p>
+          <Button variant="link" class="wallet-link" @click="router.push('/wallet')">查看钱包<Icon icon="lucide:arrow-right" width="16" /></Button>
+        </aside>
+      </div>
+    </template>
+    <EmptyState v-else :title="loadError ? '锁仓信息加载失败' : '锁仓订单不存在'" :description="loadError || undefined" :action-text="loadError ? '重新加载' : '返回列表'" @action="handleEmptyAction" />
+    <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="order" :submitting="unlocking" :pending="redemptionPending" @confirm="confirmUnlock" />
   </div>
+
 </template>
 
 <style scoped>
-.lockup-detail-page {
-  padding-top: 16px;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.hero-card {
-  background: linear-gradient(135deg, var(--yb-primary-soft) 0%, #fff 60%);
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.hero-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.hero-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.hero-code {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  font-family: ui-monospace, monospace;
-}
-.layout-2col {
-  display: grid;
-  grid-template-columns: 5fr 7fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.rate-card,
-.detail-card,
-.chart-card,
-.txn-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 12px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.rate-formula {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  padding: 16px 0;
-  background: var(--yb-primary-soft);
-  border-radius: 4px;
-}
-.rate-cell {
-  text-align: center;
-}
-.rate-cell .lbl {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.rate-cell .val {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  font-family: ui-monospace, monospace;
-  margin-top: 4px;
-}
-.rate-cell .val.accent {
-  color: var(--yb-brand-primary);
-}
-.rate-cell.highlight {
-  background: #fff;
-  padding: 4px 16px;
-  border-radius: 4px;
-}
-.op {
-  font-size: 20px;
-  color: var(--yb-muted);
-}
-.vip-row {
-  margin-top: 16px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.vip-row .lbl {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.chart-card {
-  margin-bottom: 16px;
-}
-.chart-hint {
-  margin-top: 8px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.txn-card {
-  margin-bottom: 16px;
-}
-@media (max-width: 900px) {
-  .layout-2col { grid-template-columns: 1fr; }
-  .chart-card :deep(canvas), .chart-card :deep(svg) { max-width: 100%; height: auto; }
-}
-@media (max-width: 640px) {
-  .hero-row, .hero-left { align-items: flex-start; flex-direction: column; }
-  .hero-code { overflow-wrap: anywhere; font-size: 14px; }
-  .rate-formula { gap: 6px; padding: 12px 4px; }
-  .rate-cell.highlight { padding: 4px 8px; }
-  .rate-cell .val { font-size: 17px; }
-  .op { font-size: 16px; }
-}
+
+.lockup-detail-page { padding-bottom:32px; }.bread { display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--yb-muted); margin-bottom:24px; overflow-wrap:anywhere; }.bread a { color:var(--yb-muted); text-decoration:none; }.bread a:hover { color:var(--yb-brand-primary); }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:22px; padding:28px 32px; }.hero-card { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.hero-card h1 { font-size:28px; font-weight:650; margin:10px 0 4px; }.status { display:inline-flex; padding:4px 12px; font-size:12px; border-radius:999px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); }.status[data-status='SETTLED'] { background:var(--yb-success-soft); color:var(--yb-success); }.status[data-status='REDEEMED'],.status[data-status='CANCELED'] { background:var(--yb-fill); color:var(--yb-muted); }.code { font-size:12px; color:var(--yb-muted); font-family:var(--yb-font-mono); overflow-wrap:anywhere; }.principal { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }.principal small { font-size:12px; color:var(--yb-muted); }.principal strong { font-size:34px; font-weight:500; font-family:var(--yb-font-mono); }.principal strong span { font-size:13px; color:var(--yb-muted); }.layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:24px; align-items:start; }.paper h2 { font-size:20px; font-weight:600; margin:0 0 20px; }.interest-head { display:grid; grid-template-columns:1fr 1fr; gap:24px; border-bottom:1px solid var(--yb-hairline); padding-bottom:24px; margin-bottom:28px; }.interest-head>div { display:flex; flex-direction:column; gap:6px; }.interest-head small { font-size:12px; color:var(--yb-muted); }.interest-head strong { font-size:26px; font-weight:500; color:var(--yb-brand-primary); font-family:var(--yb-font-mono); overflow-wrap:anywhere; }.hint { font-size:12px; color:var(--yb-muted); line-height:1.8; margin:16px 0 0; }.divider { height:1px; background:var(--yb-hairline); margin:28px 0; }.layout aside { padding:26px; position:sticky; top:190px; }.layout aside h2 { font-size:18px; }.full,.action-wrap { width:100%; }.action-wrap { display:block; margin-top:24px; }.danger { color:var(--yb-danger); }.wallet-link { padding-left:0; margin-top:10px; }.hero-skeleton { height:160px; border-radius:22px; margin-bottom:24px; }.detail-skeleton { height:600px; border-radius:22px; }
+
 </style>

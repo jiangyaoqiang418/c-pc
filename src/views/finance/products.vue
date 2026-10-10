@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -91,387 +93,59 @@ const availableProducts = computed(() => products.value.filter(p => p.status ===
 const featuredProducts = computed(() => availableProducts.value.filter(p => p.lockDays <= 30));
 const strategyProducts = computed(() => availableProducts.value.filter(p => p.lockDays > 30));
 
-function effectiveRate(p: Api.RealFinance.FinanceProductVO): string {
-  return ((Number(p.annualRate) || 0) * 100).toFixed(2);
-}
-
-function productIcon(p: Api.RealFinance.FinanceProductVO): string {
-  if (p.lockDays <= 7) return '💧';
-  if (p.lockDays <= 30) return '💰';
-  if (p.lockDays <= 90) return '🔒';
-  return '🏦';
-}
-
 function goDetail(p: Api.RealFinance.FinanceProductVO) {
   router.push({ name: 'finance-detail', params: { id: String(p.id) } });
 }
 
-function scrollToList() {
-  const el = document.querySelector('.list-section');
-  el?.scrollIntoView({ behavior: 'smooth' });
+
+
+function knownRate(value: string | number) {
+  if (String(value).trim() === '') return '—';
+  const rate = Number(value);
+  return Number.isFinite(rate) && rate >= 0 ? (rate * 100).toFixed(2) + '%' : '—';
 }
+function listIcon(product: Api.RealFinance.FinanceProductVO) {
+  return product.lockDays <= 7 ? 'lucide:droplets' : product.lockDays <= 30 ? 'lucide:wallet' : 'lucide:lock-keyhole';
+}
+
 </script>
 
 <template>
+
   <div class="finance-page">
-    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
-      {{ loadError }}
-      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
-    </a-alert>
-
-    <!-- Hero (Plasma One 极简白) -->
-    <section class="earn-hero">
-      <div class="hero-eyebrow">EARN BALANCE</div>
-      <div class="hero-total">
-        <span class="unit">U</span>
-        <span class="num">{{ formatAmount(currentBalance) }}</span>
-      </div>
-      <div class="hero-sub">≈ ¥{{ cnyEquiv }}（本地参考折算，非实时，以 USDT 结算）</div>
-      <div v-if="bestApy > 0" class="apy-badge">
-        <span class="apy-icon">▁▂▃▄</span>
-        <span class="apy-num">{{ bestApy.toFixed(2) }}% APY</span>
-      </div>
-      <div class="hero-actions">
-        <button class="action-btn primary" @click="scrollToList">
-          <Icon icon="lucide:arrow-down-to-line" width="14" /> 存入
-        </button>
-        <button class="action-btn" @click="router.push('/finance/my-lockups')">
-          <Icon icon="lucide:arrow-up-from-line" width="14" /> 取出
-        </button>
-      </div>
-    </section>
-
-    <!-- 仅展示后端返回的待结算收益，不生成本地趋势数据 -->
-    <section class="chart-card">
-      <div class="chart-label">待结算收益</div>
-      <div class="chart-amount">
-        <span class="unit">U</span>
-        <span class="num">{{ formatAmount(totalAccruedInterest) }}</span>
-      </div>
-    </section>
-
-    <!-- 分区列表 -->
-    <a-spin :loading="loading" style="width: 100%">
-      <section class="list-section">
-        <template v-if="featuredProducts.length">
-          <h3 class="sec-title">精选</h3>
-          <div class="product-grid">
-            <div v-for="p in featuredProducts" :key="p.id" class="ef-card">
-              <div class="ef-head" role="button" tabindex="0" @click="goDetail(p)" @keydown.enter="goDetail(p)" @keydown.space.prevent="goDetail(p)">
-                <div class="ef-left">
-                  <div class="ef-icon-wrap"><span>{{ productIcon(p) }}</span></div>
-                  <div class="ef-info">
-                    <div class="ef-name">{{ p.name }}</div>
-                    <div class="ef-meta">锁定 {{ p.lockDays }} 天 · 起投 U {{ formatAmount(p.minAmount) }}</div>
-                  </div>
-                </div>
-                <div class="ef-right">
-                  <div class="ef-apy-row">
-                    <span class="ef-apy-label">APY</span>
-                    <InfoTooltip text="APY 为年化收益率，实际收益以锁仓订单为准" :size="12" />
-                  </div>
-                  <div class="ef-apy">{{ effectiveRate(p) }}%</div>
-                </div>
-              </div>
-              <button class="ef-deposit" @click="goDetail(p)">存入</button>
-            </div>
-          </div>
+    <header class="page-heading"><div><span class="eyebrow">UMAOMAO EARN</span><h1>小金库</h1></div><Button variant="outline" @click="router.push('/finance/my-lockups')"><Icon icon="lucide:clock" width="17" />我的锁仓</Button></header>
+    <nav class="page-links" aria-label="小金库导航"><RouterLink to="/finance" aria-current="page">锁仓产品</RouterLink><RouterLink to="/finance/my-lockups">我的锁仓</RouterLink></nav>
+    <div v-if="loadError" class="notice" role="alert"><Icon icon="lucide:circle-alert" width="20" /><span>{{ loadError }}</span><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">重新加载</Button></div>
+    <div v-if="loading" class="overview-grid" aria-busy="true" aria-label="正在读取理财资产"><Skeleton class="overview-skeleton" /><Skeleton class="overview-skeleton" /></div>
+    <div v-else class="overview-grid">
+      <section class="balance-card"><small>锁仓资产 · USDT</small><strong>{{ loadError.includes('钱包余额') ? '—' : formatAmount(currentBalance) }} <span>USDT</span></strong><p>≈ ¥{{ loadError.includes('钱包余额') ? '—' : cnyEquiv }} · 非实时参考折算</p><div class="balance-bottom"><div><small>待结算利息</small><b>{{ formatAmount(totalAccruedInterest) }} <span>USDT</span></b></div><Button variant="outline" class="balance-action" @click="router.push('/finance/my-lockups')">查看锁仓<Icon icon="lucide:arrow-right" width="16" /></Button></div></section>
+      <section class="paper available-card"><span class="asset-icon"><Icon icon="lucide:wallet" width="28" /></span><small>钱包可用余额</small><strong>{{ loadError.includes('钱包余额') ? '—' : formatAmount(walletStore.account?.available) }} <span>USDT</span></strong><p>锁仓金额从可用余额划入，<br>到期结算以订单结果为准。</p><Button variant="link" @click="router.push('/wallet')">查看钱包<Icon icon="lucide:arrow-right" width="16" /></Button></section>
+    </div>
+    <section class="list-section">
+      <div class="section-heading"><h2>锁仓产品</h2><span v-if="!loading && !productLoadError && bestApy > 0">当前产品最高参考年化 {{ bestApy.toFixed(2) }}%<InfoTooltip text="采用当前产品列表返回的年化利率，测算不是收益保证，实际以订单为准。" :size="14" /></span></div>
+      <div v-if="loading" class="product-grid" aria-busy="true"><Skeleton v-for="n in 3" :key="n" class="product-skeleton" /></div>
+      <template v-else>
+        <template v-for="group in [{ label: '30 天以内', products: featuredProducts }, { label: '30 天以上', products: strategyProducts }]" :key="group.label">
+          <h3 v-if="group.products.length" class="group-label">{{ group.label }}</h3>
+          <div v-if="group.products.length" class="product-grid"><article v-for="p in group.products" :key="p.id" class="product-card">
+            <div class="product-head"><span class="product-icon"><Icon :icon="listIcon(p)" width="23" /></span><div><h3>{{ p.name }}</h3><small>{{ p.code }} · USDT</small></div></div>
+            <div class="rate"><small>参考年化 · 按日单利<InfoTooltip text="年化利率由产品接口返回，实际收益以锁仓订单为准。" :size="13" /></small><strong>{{ knownRate(p.annualRate) }}</strong></div>
+            <div class="product-facts"><span>锁仓周期<b>{{ p.lockDays }} <small>天</small></b></span><span>起投金额<b>{{ formatAmount(p.minAmount) }} <small>USDT</small></b></span></div>
+            <p class="product-rule"><Icon icon="lucide:clock" width="15" />到期结算以订单结果为准</p>
+            <Button variant="outline" class="full" @click="goDetail(p)">查看产品<Icon icon="lucide:arrow-right" width="16" /></Button>
+          </article></div>
         </template>
-
-        <template v-if="strategyProducts.length">
-          <h3 class="sec-title">策略金库</h3>
-          <div class="product-grid">
-            <div v-for="p in strategyProducts" :key="p.id" class="ef-card">
-              <div class="ef-head" role="button" tabindex="0" @click="goDetail(p)" @keydown.enter="goDetail(p)" @keydown.space.prevent="goDetail(p)">
-                <div class="ef-left">
-                  <div class="ef-icon-wrap"><span>{{ productIcon(p) }}</span></div>
-                  <div class="ef-info">
-                    <div class="ef-name">{{ p.name }}</div>
-                    <div class="ef-meta">锁定 {{ p.lockDays }} 天 · 起投 U {{ formatAmount(p.minAmount) }}</div>
-                  </div>
-                </div>
-                <div class="ef-right">
-                  <div class="ef-apy-row">
-                    <span class="ef-apy-label">APY</span>
-                    <InfoTooltip text="APY 为年化收益率，实际收益以锁仓订单为准" :size="12" />
-                  </div>
-                  <div class="ef-apy">{{ effectiveRate(p) }}%</div>
-                </div>
-              </div>
-              <button class="ef-deposit" @click="goDetail(p)">存入</button>
-            </div>
-          </div>
-        </template>
-
-        <EmptyState
-          v-if="!featuredProducts.length && !strategyProducts.length && !loading"
-          :title="productLoadError ? '小金库产品加载失败' : '暂无可申购产品'"
-          :description="productLoadError ? '产品列表请求失败，请检查网络后重试。' : '当前没有上架中的理财产品，请稍后再试'"
-          :action-text="productLoadError ? '重新加载' : undefined"
-          @action="productLoadError && loadAll()"
-        />
-      </section>
-    </a-spin>
+        <EmptyState v-if="!featuredProducts.length && !strategyProducts.length" :title="productLoadError ? '小金库产品加载失败' : '暂无可申购产品'" :description="productLoadError ? '产品列表请求失败，请检查网络后重试。' : '当前没有上架产品，已有锁仓仍可正常查看。'" :action-text="productLoadError ? '重新加载' : '查看我的锁仓'" @action="productLoadError ? loadAll() : router.push('/finance/my-lockups')" />
+      </template>
+    </section>
+    <section class="how-it-works"><div><small>01</small><h3>选择周期</h3><p>核对年化、起投金额与期限</p></div><div><small>02</small><h3>确认锁仓</h3><p>预览收益，输入支付密码确认</p></div><div><small>03</small><h3>查看结算</h3><p>追踪锁仓进度与实际到账结果</p></div></section>
+    <details class="rules"><summary>计息与提前赎回规则</summary><p>按日单利：本金 × 年化利率 ÷ 365 × 计息天数。每日计息不等于每日到账；提前赎回是否开放、违约费及可到账利息，以订单最新返回结果为准。</p></details>
   </div>
+
 </template>
 
 <style scoped>
-.finance-page {
-  padding: 0;
-  padding-bottom: 40px;
-}
-.load-alert {
-  margin-bottom: 16px;
-}
 
-/* Hero */
-.earn-hero {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 40px 32px;
-  margin-bottom: 20px;
-  text-align: center;
-}
-.hero-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-muted);
-  margin-bottom: 16px;
-}
-.hero-total {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  color: var(--yb-ink);
-  margin-bottom: 8px;
-}
-.hero-total .unit {
-  font-family: var(--yb-font-mono);
-  font-size: 32px;
-  font-weight: 600;
-  color: var(--yb-muted);
-}
-.hero-total .num {
-  font-family: var(--yb-font-mono);
-  font-size: 64px;
-  font-weight: 700;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.hero-sub {
-  font-family: var(--yb-font-mono);
-  font-size: 15px;
-  color: var(--yb-muted);
-  margin-bottom: 20px;
-  font-variant-numeric: tabular-nums;
-}
-.apy-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: rgba(0, 168, 138, 0.10);
-  border-radius: 999px;
-  margin-bottom: 24px;
-}
-.apy-icon {
-  color: #00A88A;
-  font-size: 12px;
-  letter-spacing: 2px;
-}
-.apy-num {
-  color: #00A88A;
-  font-family: var(--yb-font-mono);
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.hero-actions {
-  display: inline-flex;
-  gap: 12px;
-  margin: 0 auto;
-}
-.action-btn {
-  min-width: 160px;
-  height: 48px;
-  padding: 0 28px;
-  border-radius: 999px;
-  border: 1px solid var(--yb-hairline-2);
-  background: var(--yb-surface);
-  color: var(--yb-ink);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.action-btn.primary {
-  background: var(--yb-brand-primary);
-  color: #fff;
-  border-color: var(--yb-brand-primary);
-}
-.action-btn:hover {
-  transform: translateY(-1px);
-}
+.finance-page { padding-bottom:32px; }.page-heading,.section-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; }.page-heading { margin-bottom:24px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.page-heading h1 { font-size:30px; font-weight:650; margin:6px 0 0; }.page-links { display:flex; gap:28px; margin-bottom:24px; border-bottom:1px solid var(--yb-hairline); }.page-links a { color:var(--yb-muted); padding-bottom:13px; font-size:14px; text-decoration:none; }.page-links [aria-current] { color:var(--yb-brand-primary); border-bottom:2px solid var(--yb-brand-primary); }.notice { display:flex; align-items:center; gap:14px; padding:18px 24px; border-radius:16px; background:var(--yb-primary-soft); font-size:13px; margin-bottom:20px; }.notice span { flex:1; }.overview-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:24px; margin-bottom:32px; }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:22px; }.balance-card { border-radius:22px; padding:32px; background:var(--yb-brand-primary); color:var(--primary-foreground); display:flex; flex-direction:column; }.balance-card>small { font-size:13px; opacity:.8; }.balance-card>strong { font-family:var(--yb-font-mono); font-size:44px; font-weight:500; margin-top:12px; line-height:1.3; }.balance-card strong span { font-size:14px; font-weight:400; opacity:.8; }.balance-card>p { font-size:12px; opacity:.75; margin:10px 0 24px; }.balance-bottom { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; margin-top:auto; padding-top:20px; border-top:1px solid rgb(255 255 255 / 18%); }.balance-bottom div { display:flex; flex-direction:column; gap:4px; }.balance-bottom small { font-size:12px; opacity:.8; }.balance-bottom b { font-family:var(--yb-font-mono); font-size:20px; font-weight:500; }.balance-bottom b span { font-size:12px; }.balance-action { background:transparent; color:var(--primary-foreground); border-color:rgb(255 255 255 / 40%); }.available-card { padding:28px 32px; display:flex; flex-direction:column; align-items:flex-start; }.asset-icon { display:inline-flex; padding:13px; border-radius:16px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); margin-bottom:16px; }.available-card>small { font-size:12px; color:var(--yb-muted); }.available-card>strong { font-size:28px; font-family:var(--yb-font-mono); font-weight:500; margin-top:5px; }.available-card>strong span { font-size:12px; color:var(--yb-muted); }.available-card p { font-size:13px; color:var(--yb-muted); margin:12px 0; }.available-card>button { padding-left:0; }.section-heading h2 { font-size:24px; font-weight:600; margin:0; }.section-heading>span { display:flex; align-items:center; color:var(--yb-muted); font-size:13px; }.group-label { font-size:14px; font-weight:500; margin:20px 0 14px; color:var(--yb-muted); }.product-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }.product-card { border:1px solid var(--yb-hairline); background:var(--yb-surface); padding:24px; border-radius:20px; transition:transform .2s,box-shadow .2s; }.product-card:hover { transform:translateY(-2px); box-shadow:var(--yb-shadow-1); }.product-head { display:flex; gap:14px; align-items:center; }.product-head h3 { font-size:17px; font-weight:600; margin:0 0 4px; }.product-head small { font-size:12px; color:var(--yb-muted); overflow-wrap:anywhere; }.product-icon { display:inline-flex; flex:none; padding:12px; border-radius:14px; color:var(--yb-brand-primary); background:var(--yb-primary-soft); }.rate { margin:24px 0; display:flex; flex-direction:column; gap:5px; }.rate>small { font-size:12px; color:var(--yb-muted); display:flex; align-items:center; }.rate>strong { font-family:var(--yb-font-mono); font-size:36px; font-weight:500; color:var(--yb-brand-primary); }.product-facts { display:grid; grid-template-columns:1fr 1fr; gap:20px; }.product-facts span { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--yb-muted); }.product-facts b { font-size:18px; color:var(--yb-ink); font-family:var(--yb-font-mono); font-weight:500; }.product-facts b small { font-size:12px; color:var(--yb-muted); }.product-rule { display:flex; align-items:center; gap:6px; color:var(--yb-muted); font-size:12px; padding:16px 0; margin:16px 0 0; border-top:1px solid var(--yb-hairline); }.full { width:100%; }.how-it-works { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin:36px 0; padding:24px 0; border-top:1px solid var(--yb-hairline); border-bottom:1px solid var(--yb-hairline); }.how-it-works small { font-size:12px; color:var(--yb-gold); }.how-it-works h3 { font-size:17px; font-weight:600; margin:6px 0; }.how-it-works p,.rules p { font-size:13px; color:var(--yb-muted); line-height:1.8; margin:0; }.rules summary { font-size:14px; cursor:pointer; }.rules p { margin-top:12px; }.overview-skeleton { height:300px; border-radius:22px; }.product-skeleton { height:320px; border-radius:20px; margin-top:24px; }@media(prefers-reduced-motion:reduce) { .product-card { transition:none; }.product-card:hover { transform:none; } }
 
-/* Chart card */
-.chart-card {
-  background: linear-gradient(180deg, var(--yb-primary-soft) 0%, #FFFFFF 50%);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 28px 32px;
-  margin-bottom: 20px;
-}
-.chart-label {
-  font-size: 13px;
-  color: var(--yb-muted);
-  margin-bottom: 6px;
-}
-.chart-amount {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 20px;
-}
-.chart-amount .unit {
-  font-family: var(--yb-font-mono);
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--yb-muted);
-}
-.chart-amount .num {
-  font-family: var(--yb-font-mono);
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.03em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-/* Sections */
-.list-section {
-  padding: 0;
-}
-.sec-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--yb-muted);
-  letter-spacing: 0.14em;
-  margin: 24px 4px 12px;
-}
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  gap: 16px;
-}
-
-/* ether.fi 卡片 */
-.ef-card {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  transition: all 0.15s;
-}
-.ef-card:hover {
-  border-color: var(--yb-hairline-2);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(32, 56, 46, 0.06);
-}
-.ef-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  cursor: pointer;
-}
-.ef-head:focus-visible {
-  outline: 2px solid var(--yb-brand-primary);
-  outline-offset: 4px;
-  border-radius: 6px;
-}
-.ef-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-.ef-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--yb-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  flex-shrink: 0;
-}
-.ef-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.ef-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.01em;
-}
-.ef-meta {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.ef-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.ef-apy-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--yb-muted);
-  letter-spacing: 0.1em;
-}
-.ef-apy {
-  font-family: var(--yb-font-mono);
-  font-size: 22px;
-  font-weight: 700;
-  color: #00A88A;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.ef-deposit {
-  background: transparent;
-  color: var(--yb-gold);
-  border: 1.5px solid var(--yb-gold);
-  border-radius: 999px;
-  padding: 12px 0;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  cursor: pointer;
-  transition: all 0.15s;
-  width: 100%;
-}
-.ef-deposit:hover {
-  background: var(--yb-gold);
-  color: #fff;
-}
 </style>
