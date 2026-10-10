@@ -9,6 +9,7 @@ import UtilityBar from '@/components/layout/utility-bar.vue';
 import UserAvatarButton from '@/components/layout/user-avatar-button.vue';
 import BrandLogo from '@/components/layout/brand-logo.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
+import BuyerWorkspace from '@/components/buyer/buyer-workspace.vue';
 
 const route = useRoute();
 const cart = useCartStore();
@@ -43,7 +44,7 @@ const navigation = [
       </nav>
     </header>
     <main id="main-content" class="main-container um-wrap">
-      <RouterView v-slot="{ Component }"><Transition name="um-page" mode="out-in"><component :is="Component" :key="route.path" /></Transition></RouterView>
+      <BuyerWorkspace :enabled="!!route.meta.requiresBuyer"><RouterView v-slot="{ Component }"><Transition name="um-page" mode="out-in"><component :is="Component" :key="route.path" /></Transition></RouterView></BuyerWorkspace>
     </main>
     <footer class="footer">
       <div class="footer-inner um-wrap">

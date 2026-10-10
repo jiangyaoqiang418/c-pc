@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { computed } from 'vue';
 import { formatAmount } from '@shared';
 
@@ -39,107 +40,21 @@ const holeStyle = computed(() => ({
   width: ringHole.value + 'px',
   height: ringHole.value + 'px'
 }));
+
+
 </script>
 
 <template>
   <div class="deposit-meter" :class="size">
-    <div class="ring" :style="ringStyle">
-      <div class="hole" :style="holeStyle">
-        <div class="lbl">押金总额</div>
-        <div class="total">U {{ formatAmount(total) }}</div>
-      </div>
-    </div>
-    <div class="legend">
-      <div class="legend-row available">
-        <span class="dot" />
-        <span class="lbl">可退保证金</span>
-        <span class="val">U {{ formatAmount(available) }}</span>
-      </div>
-      <div class="legend-row guaranteed">
-        <span class="dot" />
-        <span class="lbl">订单占用</span>
-        <span class="val">U {{ formatAmount(frozen) }}</span>
-      </div>
-      <div class="legend-row sum">
-        <span class="lbl">占用率</span>
-        <span class="val">{{ usageRate === undefined || usageRate === null ? '—' : `${usageRate}%` }}</span>
-      </div>
-    </div>
+    <div class="ring" :style="ringStyle" aria-hidden="true"><div class="hole" :style="holeStyle"><span class="lbl">押金总额</span><strong class="total">U {{ total === undefined ? '—' : formatAmount(total) }}</strong></div></div>
+    <dl class="legend">
+      <div class="legend-row available"><dt><span class="dot" />可退保证金</dt><dd>U {{ availableAmount === undefined ? '—' : formatAmount(availableAmount) }}</dd></div>
+      <div class="legend-row guaranteed"><dt><span class="dot" />订单占用</dt><dd>U {{ guaranteedAmount === undefined ? '—' : formatAmount(guaranteedAmount) }}</dd></div>
+      <div class="legend-row sum"><dt>占用率</dt><dd>{{ usageRate === undefined || usageRate === null ? '—' : usageRate + '%' }}</dd></div>
+    </dl>
   </div>
 </template>
 
 <style scoped>
-.deposit-meter {
-  display: flex;
-  gap: 32px;
-  align-items: center;
-}
-.deposit-meter.sm {
-  gap: 16px;
-}
-.ring {
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.hole {
-  background: #fff;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-.lbl {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.total {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  font-family: ui-monospace, monospace;
-}
-.legend {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.legend-row {
-  display: grid;
-  grid-template-columns: 12px 1fr auto;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-}
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  display: block;
-}
-.legend-row.available .dot {
-  background: var(--yb-primary);
-}
-.legend-row.guaranteed .dot {
-  background: var(--yb-muted);
-}
-.legend-row.sum {
-  grid-template-columns: 1fr auto;
-  padding-top: 8px;
-  border-top: 1px dashed var(--yb-hairline);
-  margin-top: 4px;
-  color: var(--yb-ink-2);
-}
-.val {
-  font-family: ui-monospace, monospace;
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.deposit-meter.sm .total {
-  font-size: 14px;
-}
+.deposit-meter { display:flex; align-items:center; gap:38px; }.ring { border-radius:50%; display:flex; justify-content:center; align-items:center; flex-shrink:0; }.hole { background:var(--yb-surface); border-radius:50%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }.lbl { font-size:12px; color:var(--yb-muted); }.total { font-size:21px; font-family:var(--yb-font-mono); font-weight:600; }.legend { flex:1; display:grid; gap:20px; margin:0; min-width:0; }.legend-row { display:flex; justify-content:space-between; align-items:center; gap:20px; }.legend-row dt { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--yb-muted); }.legend-row dd { margin:0; font-family:var(--yb-font-mono); font-size:17px; font-weight:550; overflow-wrap:anywhere; }.dot { width:9px; height:9px; border-radius:2px; background:var(--yb-primary); flex-shrink:0; }.guaranteed .dot { background:var(--yb-muted); }.sum { border-top:1px solid var(--yb-hairline); padding-top:20px; }.sm .total { font-size:13px; }.sm { gap:22px; }.sm .legend { gap:14px; }.sm .legend-row { gap:12px; }.sm .legend-row dd { font-size:14px; }@media(max-width:700px) { .deposit-meter { flex-direction:column; align-items:stretch; }.ring { align-self:center; } }
 </style>

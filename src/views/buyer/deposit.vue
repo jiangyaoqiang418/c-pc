@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { Icon } from '@iconify/vue';
+import AmountInput from '@/components/common/amount-input.vue';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import { useRoute, useRouter } from 'vue-router';
@@ -217,151 +225,27 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }
+
+
 </script>
 
 <template>
   <div class="deposit-page shop-container">
-    <h1 class="page-title">押金管理</h1>
-    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
-      {{ loadError }}
-      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
-    </a-alert>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <a-alert v-if="account && (account.available === undefined || summary?.depositBalance === undefined || summary?.depositFrozen === undefined || summary?.depositAvailable === undefined)" type="warning" :closable="false" class="load-alert">
-        部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。
-        <template #action><a-button size="mini" :loading="loading" :disabled="transferring" @click="loadAll">重新读取余额</a-button></template>
-      </a-alert>
-      <a-card v-if="account" class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
-        <DepositMeter :balance="summary?.depositBalance" :frozen="summary?.depositFrozen" :available="summary?.depositAvailable" :usage-rate="summary?.usageRate" size="lg" />
-        <a-divider />
-        <a-alert type="info" class="alert">保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</a-alert>
-        <div class="actions">
-          <a-button type="primary" :disabled="transferring || loading" @click="openDepositTransfer('pay')">充值押金</a-button>
-          <a-button :disabled="transferring || loading" @click="openDepositTransfer('refund')">转出至钱包</a-button>
-          <a-tooltip content="上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。">
-            <a-button type="text">📖 规则说明</a-button>
-          </a-tooltip>
-        </div>
-      </a-card>
-
-      <a-card v-if="account" class="stat-card" :body-style="{ padding: '16px 24px' }" :bordered="false">
-        <div class="section-title">担保中订单</div>
-        <div class="stat-row">
-          <div class="stat">
-            <div class="stat-label">担保中订单数</div>
-            <div class="stat-val">{{ guaranteedOrderCount ?? '—' }} 笔</div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">订单占用</div>
-            <div class="stat-val">U {{ formatAmount(summary?.depositFrozen) }}</div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">担保利用率</div>
-            <div class="stat-val">
-              {{ depositUtilization ?? '—' }}
-            </div>
-          </div>
-        </div>
-      </a-card>
-
-      <a-card class="txn-card" :body-style="{ padding: '16px 24px 0' }" :bordered="false">
-        <div class="section-title">押金流水</div>
-        <template v-if="txns.length">
-          <TxnRow v-for="t in txns" :key="t.id" :txn="t" @detail="openTxn" />
-        </template>
-        <EmptyState
-          v-else
-          :title="loadError || '暂无押金流水'"
-          :description="loadError ? '请稍后重试。' : undefined"
-          :action-text="loadError ? '重新加载' : undefined"
-          @action="loadError && loadAll()"
-        />
-      </a-card>
-      <EmptyState v-if="!account && !loading" :title="loadError ? '押金信息加载失败' : '暂无押金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
-      <a-pagination v-if="total > pageSize" v-model:current="current" :total="total" :page-size="pageSize" :disabled="loading" show-total @change="syncPageQuery()" />
-    </a-spin>
-
+    <header class="page-heading"><span class="eyebrow">UMAOMAO / BUYER DEPOSIT</span><h1>押金管理</h1><p>保证金从钱包划入或退回，订单占用部分不可退。</p></header>
+    <Alert v-if="loadError" variant="destructive"><AlertDescription class="notice-row"><span>{{ loadError }}</span><Button variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新加载</Button></AlertDescription></Alert>
+    <Alert v-if="account && (account.available === undefined || summary?.depositBalance === undefined || summary?.depositFrozen === undefined || summary?.depositAvailable === undefined)"><AlertDescription class="notice-row"><span>部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。</span><Button variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新读取余额</Button></AlertDescription></Alert>
+    <section v-if="account" class="paper deposit-summary"><DepositMeter :balance="summary?.depositBalance" :frozen="summary?.depositFrozen" :available="summary?.depositAvailable" :usage-rate="summary?.usageRate" size="lg" /><div class="transfer-actions"><Button :disabled="transferring || loading" @click="openDepositTransfer('pay')">缴纳保证金</Button><Button variant="outline" :disabled="transferring || loading" @click="openDepositTransfer('refund')">退还至钱包</Button><Tooltip><TooltipTrigger as-child><Button variant="ghost" size="sm"><Icon icon="lucide:book-open" />规则说明</Button></TooltipTrigger><TooltipContent class="rules-tooltip">上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。</TooltipContent></Tooltip></div><Alert><AlertDescription>保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</AlertDescription></Alert></section>
+    <Skeleton v-else-if="loading" class="summary-skeleton" aria-label="正在加载押金账户" />
+    <EmptyState v-else :title="loadError ? '押金信息加载失败' : '暂无押金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
+    <section v-if="account" class="paper"><h2>担保中订单</h2><dl class="stat-grid"><div><dt>担保中订单数</dt><dd>{{ guaranteedOrderCount ?? '—' }} <small>笔</small></dd></div><div><dt>订单占用</dt><dd>U {{ formatAmount(summary?.depositFrozen) }}</dd></div><div><dt>担保利用率</dt><dd>{{ depositUtilization ?? '—' }}</dd></div></dl></section>
+    <section class="paper"><div class="section-heading"><h2>押金流水</h2><Button variant="ghost" size="sm" :disabled="loading" @click="loadAll"><Icon icon="lucide:refresh-cw" />刷新</Button></div><div v-if="txns.length"><TxnRow v-for="txn in txns" :key="txn.id" :txn="txn" @detail="openTxn" /></div><div v-else-if="loading" class="loading-list" aria-busy="true"><Skeleton v-for="n in 3" :key="n" class="row-skeleton" /></div><EmptyState v-else :title="loadError || '暂无押金流水'" :description="loadError ? '请稍后重试。' : undefined" :action-text="loadError ? '重新加载' : undefined" @action="loadError && loadAll()" /><BusinessPagination v-if="total > pageSize" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="(page: number) => { current = page; syncPageQuery(); }" /></section>
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
-
-    <a-modal
-      v-model:visible="transferOpen"
-      :title="transferKind === 'pay' ? '缴纳保证金' : '退还保证金至钱包'"
-      :ok-loading="transferring"
-      :on-before-ok="() => { void submitDepositTransfer(); return false; }"
-    >
-      <a-form :model="{ amount: transferAmount }" layout="vertical">
-        <a-form-item label="金额 (USDT)" required>
-          <a-input-number
-            v-model="transferAmount"
-            :min="0.01"
-            :max="maxTransferAmount"
-            :disabled="transferring"
-            :precision="2"
-            placeholder="请输入金额"
-            style="width: 100%"
-          />
-        </a-form-item>
-        <a-alert
-          :type="transferKind === 'pay' ? 'warning' : 'info'"
-          :title="transferKind === 'pay' ? '将从钱包可用余额划入保证金。' : '将从可用保证金退还至钱包余额。'"
-        />
-      </a-form>
+    <a-modal v-model:visible="transferOpen" :title="transferKind === 'pay' ? '缴纳保证金' : '退还保证金至钱包'" :ok-loading="transferring" :closable="!transferring" :mask-closable="!transferring" :esc-to-close="!transferring" :on-before-cancel="() => !transferring" :on-before-ok="() => { void submitDepositTransfer(); return false; }">
+      <div class="transfer-form"><Label for="buyer-deposit-amount">金额（USDT）<span class="required"> *</span></Label><AmountInput id="buyer-deposit-amount" v-model="transferAmount" :min="0.01" :max="maxTransferAmount" :disabled="transferring" :precision="2" placeholder="请输入金额" /><p class="available-hint">{{ transferKind === 'pay' ? '钱包可用余额' : '可退保证金' }}：U {{ maxTransferAmount === undefined ? '—' : formatAmount(maxTransferAmount) }}</p><Alert><AlertDescription>{{ transferKind === 'pay' ? '将从钱包可用余额划入保证金，需输入支付密码确认。' : '将从可用保证金退还至钱包余额。' }}</AlertDescription></Alert></div>
     </a-modal>
   </div>
 </template>
 
 <style scoped>
-.deposit-page {
-  padding-top: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.hero-card,
-.stat-card,
-.txn-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 12px;
-}
-.actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 12px;
-  padding-left: 8px;
-  border-left: 3px solid #ff7d00;
-}
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-.stat-label {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.stat-val {
-  font-size: 22px;
-  font-weight: 700;
-  font-family: ui-monospace, monospace;
-  color: var(--yb-ink);
-  margin-top: 4px;
-}
-.alert {
-  margin-bottom: 16px;
-}
-@media (max-width: 640px) {
-  .hero-card :deep(.arco-card-body), .stat-card :deep(.arco-card-body) { padding: 20px !important; }
-  .actions { flex-wrap: wrap; }
-  .stat-row { grid-template-columns: 1fr; gap: 12px; }
-}
+.deposit-page { display:grid; gap:24px; }.eyebrow { font-size:10px; color:var(--yb-gold); letter-spacing:1.8px; }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.notice-row,.section-heading { display:flex; justify-content:space-between; align-items:center; gap:18px; }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:12px; padding:28px; }.paper h2 { font-size:21px; font-weight:600; margin:0 0 24px; }.section-heading h2 { margin:0; }.section-heading { margin-bottom:24px; }.transfer-actions { display:flex; align-items:center; gap:12px; padding:26px 0; margin-top:24px; border-top:1px solid var(--yb-hairline); flex-wrap:wrap; }.rules-tooltip { max-width:300px; line-height:1.8; }.stat-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:26px; margin:0; }.stat-grid dt { color:var(--yb-muted); font-size:12px; }.stat-grid dd { font-size:26px; font-family:var(--yb-font-mono); margin:12px 0 0; font-weight:550; }.stat-grid small { font-size:14px; }.transfer-form { display:grid; gap:12px; }.required { color:var(--yb-danger); }.available-hint { font-size:12px; color:var(--yb-muted); margin:0 0 8px; }.loading-list { display:grid; gap:14px; }.row-skeleton { height:66px; }.summary-skeleton { height:335px; }@media(max-width:700px) { .paper { padding:20px; }.stat-grid { grid-template-columns:1fr; } }
 </style>

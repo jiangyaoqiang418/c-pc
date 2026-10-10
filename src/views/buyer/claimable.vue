@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -130,103 +134,22 @@ async function onClaim(req: Api.RealPurchase.Record) {
     if (operation === writeVersion) claimingId.value = undefined;
   }
 }
+
+
 </script>
 
 <template>
   <div class="claimable-page shop-container">
-    <a-card class="hero-card" :body-style="{ padding: '24px 32px' }" :bordered="false">
-      <div class="hero-row">
-        <div class="hero-left">
-          <div class="hero-title">可接求购</div>
-          <div class="hero-sub">查看求购大厅当前可接需求</div>
-        </div>
-        <div class="hero-right">
-          <VipBadge v-if="user" :level="user.vipLevel" />
-          <div class="stat">可接 <strong>{{ total }}</strong> 单</div>
-          <a-button @click="router.push('/purchase/hall')">查看求购大厅</a-button>
-        </div>
-      </div>
-    </a-card>
-
-    <a-spin :loading="loading" style="width: 100%">
-      <div v-if="list.length" class="list">
-        <PurchaseRequestCard
-          v-for="r in list"
-          :key="r.id"
-          :request="r"
-          mode="hall"
-          :can-claim="true"
-          :claiming="String(claimingId) === String(r.id)"
-          @claim="onClaim"
-        />
-      </div>
-      <EmptyState
-        v-else
-        :title="loadError || '暂无可接求购'"
-        :description="loadError ? '请稍后重试。' : '当前求购大厅没有可接需求'"
-        :action-text="loadError ? '重新加载' : '查看求购大厅'"
-        @action="loadError ? load() : router.push('/purchase/hall')"
-      />
-    </a-spin>
-
-    <div v-if="total > size" class="pagination">
-      <a-pagination
-        :total="total"
-        :current="current"
-        :page-size="size"
-        show-total
-        @change="(page: number) => { current = page; syncQuery(); }"
-      />
-    </div>
+    <header class="page-heading"><div><span class="eyebrow">UMAOMAO / WISHES</span><h1>可接求购</h1><p>用你的好眼光，为心愿找到合适的商品。</p></div><div class="heading-actions"><VipBadge v-if="user" :level="user.vipLevel" /><Button variant="outline" @click="router.push('/purchase/hall')">查看求购大厅</Button></div></header>
+    <Alert v-if="loadError" variant="destructive"><AlertDescription class="error-row"><span>{{ loadError }}</span><Button variant="outline" size="sm" :disabled="loading" @click="load">重新加载</Button></AlertDescription></Alert>
+    <div class="results-bar"><span>当前可接 <strong>{{ loading || loadError ? '—' : total }}</strong> 单</span><Button variant="ghost" size="sm" :disabled="loading" @click="load">{{ loading ? '加载中…' : '刷新需求' }}</Button></div>
+    <div v-if="list.length" class="list"><PurchaseRequestCard v-for="request in list" :key="request.id" :request="request" mode="hall" :can-claim="true" :claiming="String(claimingId) === String(request.id)" @claim="onClaim" /></div>
+    <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取可接求购"><Skeleton v-for="n in 3" :key="n" class="request-skeleton" /></div>
+    <EmptyState v-else :title="loadError || '暂无可接求购'" :description="loadError ? '请稍后重试。' : '当前求购大厅没有可接需求'" :action-text="loadError ? '重新加载' : '查看求购大厅'" @action="loadError ? load() : router.push('/purchase/hall')" />
+    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" />
   </div>
 </template>
 
 <style scoped>
-.claimable-page {
-  padding-top: 16px;
-}
-.hero-card {
-  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-brand-primary) 100%);
-  color: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.hero-card :deep(.arco-card-body) {
-  color: #fff;
-}
-.hero-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-.hero-title {
-  font-size: 22px;
-  font-weight: 700;
-}
-.hero-sub {
-  opacity: 0.85;
-  font-size: 13px;
-  margin-top: 4px;
-}
-.hero-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.stat strong {
-  font-family: ui-monospace, monospace;
-  font-size: 22px;
-  font-weight: 700;
-}
-.list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
-}
-.pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
-}
+.claimable-page { display:grid; gap:24px; }.page-heading,.heading-actions,.error-row,.results-bar { display:flex; justify-content:space-between; align-items:center; gap:16px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.results-bar { padding:14px 20px; border:1px solid var(--yb-hairline); background:var(--yb-surface); border-radius:10px; font-size:13px; color:var(--yb-muted); }.results-bar strong { color:var(--yb-primary); font-size:18px; margin:0 5px; }.list,.loading-list { display:grid; gap:18px; }.request-skeleton { height:210px; }@media(max-width:900px) { .page-heading { flex-wrap:wrap; } }
 </style>

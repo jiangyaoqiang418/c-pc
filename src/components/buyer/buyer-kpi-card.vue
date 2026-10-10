@@ -1,4 +1,5 @@
 <script setup lang="ts">
+
 import { computed, onMounted, shallowRef } from 'vue';
 import { Icon } from '@iconify/vue';
 import VChart from 'vue-echarts';
@@ -30,7 +31,7 @@ const chartColor = computed(() => {
 });
 
 const sparklineOption = computed(() => {
-  const data = props.sparkline || genFake(props.value);
+  const data = props.sparkline || [];
   return {
     grid: { top: 4, left: 0, right: 0, bottom: 4 },
     xAxis: { type: 'category', show: false, boundaryGap: false, data: data.map((_, i) => i) },
@@ -58,10 +59,6 @@ const sparklineOption = computed(() => {
   };
 });
 
-function genFake(v: string | number) {
-  const base = Number(String(v).replace(/[^0-9.]/g, '')) || 10;
-  return Array.from({ length: 12 }, (_, i) => Math.max(0, base * (0.75 + Math.sin(i * 0.9 + base) * 0.18 + i * 0.02)));
-}
 
 const validDelta = computed(() => (
   props.delta != null && Number.isFinite(props.delta) ? props.delta : undefined
@@ -77,126 +74,15 @@ const deltaIcon = computed(() => (
 ));
 
 const chartKey = shallowRef(0);
+const hasSparkline = computed(() => !!props.sparkline && props.sparkline.length > 1 && props.sparkline.every(Number.isFinite));
+
+
 </script>
 
 <template>
-  <div class="kpi-card" :style="{ '--accent': color }">
-    <div class="head">
-      <div class="icon-wrap">
-        <Icon :icon="icon" class="icon" />
-      </div>
-      <div v-if="validDelta != null" class="delta" :style="{ color: deltaColor! }">
-        <Icon :icon="deltaIcon" width="12" />
-        <span class="yb-mono">{{ Math.abs(validDelta).toFixed(1) }}%</span>
-      </div>
-    </div>
-    <div class="value-row">
-      <span class="value yb-mono">{{ value }}</span>
-      <span v-if="unit" class="unit">{{ unit }}</span>
-    </div>
-    <div class="label">{{ label }}</div>
-    <div class="spark">
-      <VChart :key="chartKey" :option="sparklineOption" autoresize />
-    </div>
-    <div v-if="trend" class="trend">{{ trend }}</div>
-  </div>
+  <article class="kpi-card" :style="{ '--accent': color }"><header><span class="icon-wrap"><Icon :icon="icon" width="20" /></span><span v-if="validDelta != null" class="delta" :style="{ color: deltaColor! }"><Icon :icon="deltaIcon" width="14" />{{ Math.abs(validDelta).toFixed(1) }}%</span></header><div class="value-row"><strong>{{ value }}</strong><span v-if="unit">{{ unit }}</span></div><div class="label">{{ label }}</div><div v-if="hasSparkline" class="spark"><VChart :key="chartKey" :option="sparklineOption" autoresize /></div><div v-if="trend" class="trend">{{ trend }}</div></article>
 </template>
 
 <style scoped>
-.kpi-card {
-  position: relative;
-  background: var(--yb-surface);
-  border-radius: var(--yb-radius-card);
-  padding: 20px 22px 16px;
-  border: 1px solid var(--yb-hairline);
-  box-shadow: var(--yb-shadow-1);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s;
-  display: flex;
-  flex-direction: column;
-  min-height: 160px;
-  overflow: hidden;
-}
-.kpi-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--accent) 0%, transparent 60%);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.28s;
-  pointer-events: none;
-}
-.kpi-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 12%, transparent), var(--yb-shadow-2);
-}
-.kpi-card:hover::before {
-  opacity: 1;
-}
-.head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--yb-surface));
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon {
-  width: 18px;
-  height: 18px;
-}
-.delta {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: var(--yb-radius-pill);
-  background: color-mix(in srgb, currentColor 10%, transparent);
-}
-.value-row {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  margin: 4px 0 2px;
-}
-.value {
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-}
-.unit {
-  font-size: 12px;
-  color: var(--yb-muted);
-  font-weight: 500;
-}
-.label {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-bottom: 6px;
-}
-.spark {
-  flex: 1;
-  min-height: 36px;
-  margin: 4px 0;
-}
-.trend {
-  font-size: 11px;
-  color: var(--yb-faint);
-  font-family: var(--yb-font-mono);
-}
+.kpi-card { padding:26px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-surface); min-width:0; transition:transform .2s,box-shadow .2s; }.kpi-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgb(20 40 30 / 5%); }.kpi-card header { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }.icon-wrap { display:grid; place-items:center; width:38px; height:38px; background:color-mix(in srgb,var(--accent) 10%,var(--yb-surface)); color:var(--accent); border-radius:8px; }.delta { display:flex; align-items:center; gap:5px; font-size:12px; }.value-row { display:flex; align-items:baseline; gap:10px; }.value-row strong { font-size:32px; font-weight:600; font-variant-numeric:tabular-nums; }.value-row>span { font-size:13px; color:var(--yb-muted); }.label { color:var(--yb-muted); font-size:14px; margin-top:9px; }.spark { height:44px; margin-top:20px; }.trend { color:var(--yb-muted); font-size:12px; margin-top:12px; }@media(prefers-reduced-motion:reduce) { .kpi-card { transition:none; }.kpi-card:hover { transform:none; } }
 </style>

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -80,266 +83,23 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
   drawerOpen.value = true;
 }
+
+
 </script>
 
 <template>
-  <div class="bw-page">
-    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
-      {{ loadError }}
-      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
-    </a-alert>
-    <a-alert v-if="walletStore.partialData" type="warning" :closable="false" class="load-alert">
-      部分钱包金额尚未取得，已知金额继续显示；“—”不代表零余额。
-      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
-    </a-alert>
-
-    <!-- ============ Hero (统一白 · 金色徽章区分买手身份) ============ -->
-    <section class="hero">
-      <div class="hero-top">
-        <div class="hero-eyebrow-row">
-          <span class="hero-eyebrow">TOTAL ASSETS · USDT</span>
-          <span class="buyer-badge">
-            <Icon icon="lucide:store" width="11" /> 买手钱包
-          </span>
-        </div>
-        <div class="hero-total">
-          <span class="unit">U</span>
-          <span class="num">{{ totalAssets }}</span>
-        </div>
-        <div class="hero-sub">
-          ≈ <span class="cny-num">¥{{ cnyEquiv }}</span>
-          <span class="rate-sep">·</span>
-          <span class="rate-info">本地参考折算 · 1 USDT = ¥{{ cnyRate.toFixed(2) }}（非实时，以 USDT 结算）</span>
-        </div>
-        <div class="hero-note">含押金 · 钱包 · 冻结 · 利息</div>
-      </div>
-      <div class="hero-side">
-        <div class="hero-actions">
-          <button class="btn primary" @click="router.push('/wallet/deposit')">
-            <Icon icon="lucide:arrow-down-to-line" width="15" /> 链上充值
-          </button>
-          <button class="btn ghost" @click="router.push('/wallet/withdraw')">
-            <Icon icon="lucide:arrow-up-from-line" width="15" /> 转出
-          </button>
-          <button class="btn ghost" @click="router.push('/buyer/deposit')">
-            <Icon icon="lucide:lock" width="15" /> 押金管理
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 桶明细 ============ -->
-    <section class="dist-section">
-      <div class="dist-head">
-        <div class="sec-eyebrow">ASSET BUCKETS · BUYER</div>
-        <h3 class="sec-title">资产桶（买手视角）</h3>
-      </div>
-      <div class="bucket-list">
-        <BucketCard
-          v-for="b in bucketsWithPct"
-          :key="b.key"
-          :bucket-key="b.key"
-          :amount="b.value"
-          :pct="b.pct"
-          variant="row"
-        />
-      </div>
-    </section>
-
-    <!-- ============ 买手专属流水 ============ -->
-    <section class="txn-section">
-      <div class="sec-bar">
-        <div>
-          <div class="sec-eyebrow">BUYER TRANSACTIONS</div>
-          <h3 class="sec-title">最近 30 条买手流水（押金 / 接单结算 / 利息）</h3>
-        </div>
-        <a-link @click="router.push({ name: 'wallet-history', query: { types: buyerLedgerTypes.join(',') } })">查看全部</a-link>
-      </div>
-      <a-spin :loading="loading" style="width: 100%">
-        <div v-if="txns.length" class="txn-list">
-          <TxnRow v-for="t in txns" :key="t.id" :txn="t" @detail="openTxn" />
-        </div>
-        <EmptyState
-          v-else
-          icon="lucide:receipt"
-          :title="loadError || '暂无买手专属流水'"
-          :description="loadError ? '请稍后重试。' : '接单完成 / 押金变动 / 利息发放后这里会显示'"
-          :action-text="loadError ? '重新加载' : undefined"
-          @action="loadError && loadAll()"
-        />
-      </a-spin>
-    </section>
-
-    <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
+  <div class="buyer-wallet shop-container">
+    <header class="page-heading"><span class="eyebrow">UMAOMAO / BUYER WALLET</span><h1>买手钱包</h1><p>清晰掌握资产分布与经营流水。</p></header>
+    <Alert v-if="loadError" variant="destructive"><AlertDescription class="notice-row"><span>{{ loadError }}</span><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">{{ loading ? '加载中…' : '重新加载' }}</Button></AlertDescription></Alert>
+    <Alert v-if="walletStore.partialData"><AlertDescription class="notice-row"><span>部分钱包金额尚未取得，已知金额继续显示；“—”不代表零余额。</span><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">重新读取</Button></AlertDescription></Alert>
+    <section class="wallet-hero"><div><span class="eyebrow">TOTAL ASSETS / USDT</span><div class="hero-total">U <strong>{{ totalAssets }}</strong></div><p class="reference">≈ ¥{{ cnyEquiv }} · 本地参考折算 · 1 USDT = ¥{{ cnyRate.toFixed(2) }}（非实时，以 USDT 结算）</p><small>含押金 · 钱包 · 冻结 · 利息</small></div><div class="hero-actions"><Button @click="router.push('/wallet/deposit')"><Icon icon="lucide:arrow-down-to-line" />链上充值</Button><Button variant="outline" @click="router.push('/wallet/withdraw')"><Icon icon="lucide:arrow-up-from-line" />转出</Button><Button variant="outline" @click="router.push('/buyer/deposit')"><Icon icon="lucide:shield-check" />押金管理</Button></div></section>
+    <section class="paper"><div class="section-heading"><div><span class="eyebrow">ASSET BUCKETS</span><h2>资产桶（买手视角）</h2></div></div><div class="bucket-list"><BucketCard v-for="bucket in bucketsWithPct" :key="bucket.key" :bucket-key="bucket.key" :amount="bucket.value" :pct="bucket.pct" variant="row" /></div></section>
+    <section class="paper"><div class="section-heading"><div><span class="eyebrow">BUYER TRANSACTIONS</span><h2>买手资金流水</h2><p>最近 30 条 · 押金 / 接单结算 / 利息</p></div><Button variant="ghost" size="sm" @click="router.push({ name: 'wallet-history', query: { types: buyerLedgerTypes.join(',') } })">查看全部<Icon icon="lucide:arrow-right" /></Button></div>
+      <div v-if="loading && !txns.length" class="loading-list" aria-busy="true" aria-label="正在读取买手资金流水"><Skeleton v-for="n in 4" :key="n" class="row-skeleton" /></div><div v-else-if="txns.length"><TxnRow v-for="txn in txns" :key="txn.id" :txn="txn" @detail="openTxn" /></div><EmptyState v-else icon="lucide:receipt" :title="loadError || '暂无买手专属流水'" :description="loadError ? '请稍后重试。' : '接单完成 / 押金变动 / 利息发放后这里会显示'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && loadAll()" />
+    </section><TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
   </div>
 </template>
 
 <style scoped>
-.bw-page {
-  padding: 0;
-  padding-bottom: 40px;
-}
-.load-alert {
-  margin-bottom: 16px;
-}
-
-.hero {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 32px 40px;
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 40px;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.hero-eyebrow-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.hero-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-muted);
-}
-.buyer-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  background: var(--yb-champagne);
-  color: var(--yb-gold);
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-.hero-total {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--yb-ink);
-  margin-bottom: 10px;
-}
-.hero-total .unit {
-  font-family: var(--yb-font-mono);
-  font-size: 26px;
-  font-weight: 600;
-  color: var(--yb-muted);
-}
-.hero-total .num {
-  font-family: var(--yb-font-mono);
-  font-size: 52px;
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.hero-sub {
-  font-size: 14px;
-  color: var(--yb-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.cny-num {
-  font-family: var(--yb-font-mono);
-  font-weight: 600;
-  color: var(--yb-ink-2);
-  font-variant-numeric: tabular-nums;
-}
-.rate-sep { color: var(--yb-hairline); }
-.rate-info {
-  font-family: var(--yb-font-mono);
-  font-size: 12px;
-  color: var(--yb-faint);
-}
-.hero-note {
-  font-size: 11px;
-  color: var(--yb-faint);
-  margin-top: 8px;
-  letter-spacing: 0.06em;
-}
-
-.hero-side {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-}
-.hero-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 10px 18px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  border: 1px solid transparent;
-  white-space: nowrap;
-}
-.btn.primary {
-  background: var(--yb-brand-primary);
-  color: #fff;
-}
-.btn.primary:hover {
-  background: var(--yb-brand-hover);
-  transform: translateY(-1px);
-}
-.btn.ghost {
-  background: transparent;
-  color: var(--yb-ink);
-  border-color: var(--yb-hairline-2);
-}
-.btn.ghost:hover {
-  border-color: var(--yb-ink);
-  background: var(--yb-bg);
-}
-
-.dist-section,
-.txn-section {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: 20px;
-  padding: 28px 32px;
-  margin-bottom: 20px;
-}
-.sec-eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-muted);
-  margin-bottom: 4px;
-}
-.sec-title {
-  font-family: var(--yb-font-display);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--yb-ink);
-  margin: 0;
-}
-.dist-head, .sec-bar {
-  margin-bottom: 20px;
-}
-.bucket-list, .txn-list {
-  border-top: 1px solid var(--yb-hairline);
-  border-bottom: 1px solid var(--yb-hairline);
-}
-
-@media (max-width: 1200px) {
-  .hero { grid-template-columns: 1fr; }
-  .hero-side { align-items: flex-start; justify-content: flex-start; }
-}
+.buyer-wallet { display:grid; gap:24px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; margin:8px 0; font-weight:650; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.notice-row,.section-heading { display:flex; align-items:center; justify-content:space-between; gap:18px; }.wallet-hero,.paper { border:1px solid var(--yb-hairline); border-radius:12px; background:var(--yb-surface); padding:28px; }.wallet-hero { display:flex; align-items:center; justify-content:space-between; gap:26px; }.hero-total { font-size:22px; margin:12px 0; font-family:var(--yb-font-mono); }.hero-total strong { font-size:40px; font-weight:550; }.reference,.wallet-hero small { font-size:12px; color:var(--yb-muted); }.reference { margin:0 0 14px; }.hero-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; }.section-heading { margin-bottom:24px; }.section-heading h2 { font-size:21px; font-weight:600; margin:5px 0 0; }.section-heading p { color:var(--yb-muted); font-size:12px; margin:8px 0 0; }.bucket-list,.loading-list { display:grid; gap:10px; }.row-skeleton { height:68px; }@media(max-width:1150px) { .wallet-hero { display:grid; }.hero-actions { justify-content:flex-start; } }
 </style>

@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import DescriptionList from '@/components/common/description-list.vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import * as buyerApi from '@/service/api/buyer';
@@ -134,116 +141,31 @@ watch(() => userStore.currentUser?.id, () => {
   form.reason = '';
   void loadApplication();
 });
+
+
 </script>
 
 <template>
   <div class="buyer-apply-page shop-container">
-    <h1 class="page-title">申请成为买手</h1>
-    <p class="hint">提交后由平台审核。KYC 状态及买手资格以后台审核结果为准。</p>
-    <a-alert v-if="submissionUnknown" type="warning" :closable="false">
-      上次申请结果待核实，本页已暂停重复提交。请读取申请状态；仍无法核实时联系平台，刷新页面不代表原申请失败。
-      <template #action><a-button :loading="loading" @click="loadApplication">核对申请状态</a-button></template>
-    </a-alert>
-
-    <a-spin :loading="loading" class="application-content">
-      <a-alert v-if="loadError" type="error" class="reject-alert" :title="loadError">
-        <template #action><a-button size="mini" @click="loadApplication">重新加载</a-button></template>
-      </a-alert>
-      <a-card v-if="application && !canApply" class="status-card" :body-style="{ padding: '24px 28px' }" :bordered="false">
-        <div class="status-head">
-          <a-tag :color="statusMeta.color" size="large">{{ statusMeta.label }}</a-tag>
-          <span class="status-time">申请时间：{{ formatTime(application.appliedAt) }}</span>
-        </div>
-        <p class="status-text">{{ statusMeta.text }}</p>
-        <a-descriptions :column="2" :data="[
-          { label: '真实姓名', value: application.realName },
-          { label: '联系方式', value: application.contact },
-          { label: '审核时间', value: formatTime(application.reviewedAt) }
-        ]" />
-        <div class="reason-block">
-          <span>申请说明</span>
-          <p>{{ application.reason }}</p>
-        </div>
-      </a-card>
-
-      <a-card v-else class="form-card" :body-style="{ padding: '24px 28px' }" :bordered="false">
-        <a-alert v-if="application?.status === 'REJECTED'" type="error" class="reject-alert" :title="statusMeta.text" />
-        <a-form :model="form" layout="vertical">
-          <a-form-item label="真实姓名" required>
-            <a-input v-model="form.realName" :max-length="64" placeholder="请输入真实姓名" />
-          </a-form-item>
-          <a-form-item label="联系方式" required>
-            <a-input v-model="form.contact" :max-length="64" placeholder="请输入手机号或常用联系方式" />
-          </a-form-item>
-          <a-form-item label="申请说明" required extra="请说明您的采购经验、可服务的品类或地区。">
-            <a-textarea v-model="form.reason" :max-length="500" show-word-limit :auto-size="{ minRows: 5, maxRows: 8 }" placeholder="至少 10 个字" />
-          </a-form-item>
-          <a-button type="primary" :disabled="!canApply" :loading="submitting" @click="submit">提交申请</a-button>
-        </a-form>
-      </a-card>
-    </a-spin>
+    <header><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>申请成为买手</h1><p>提交后由平台审核。KYC 状态及买手资格以后台审核结果为准。</p></header>
+    <Alert v-if="submissionUnknown" class="notice"><AlertDescription><p>上次申请结果待核实，本页已暂停重复提交。请读取申请状态；仍无法核实时联系平台，刷新页面不代表原申请失败。</p><Button variant="outline" size="sm" :disabled="loading" @click="loadApplication">{{ loading ? '正在核对…' : '核对申请状态' }}</Button></AlertDescription></Alert>
+    <Alert v-if="loadError" variant="destructive"><AlertDescription class="error-row"><span>{{ loadError }}</span><Button variant="outline" size="sm" :disabled="loading" @click="loadApplication">重新加载</Button></AlertDescription></Alert>
+    <div v-if="loading" class="paper loading" aria-busy="true" aria-label="正在读取申请状态"><Skeleton v-for="n in 4" :key="n" class="field-skeleton" /></div>
+    <section v-else-if="application && !canApply" class="paper">
+      <div class="status-head"><span class="status-tag" :class="application.status">{{ statusMeta.label }}</span><small>申请时间：{{ formatTime(application.appliedAt) }}</small></div><p class="status-text">{{ statusMeta.text }}</p>
+      <DescriptionList :columns="2" :items="[{ label: '真实姓名', value: application.realName },{ label: '联系方式', value: application.contact },{ label: '审核时间', value: formatTime(application.reviewedAt) }]" /><div class="reason"><h2>申请说明</h2><p>{{ application.reason }}</p></div>
+      <RouterLink v-if="application.status === 'APPROVED' && userStore.currentUser?.isBuyer" to="/buyer/dashboard" class="studio-link">进入买手工作台 →</RouterLink>
+    </section>
+    <form v-else class="paper apply-form" @submit.prevent="submit">
+      <Alert v-if="application?.status === 'REJECTED'" variant="destructive"><AlertDescription>{{ statusMeta.text }}</AlertDescription></Alert>
+      <div class="field"><Label for="buyer-real-name">真实姓名 <span>*</span></Label><Input id="buyer-real-name" v-model="form.realName" maxlength="64" autocomplete="name" placeholder="请输入真实姓名" :disabled="submitting || !canApply" /></div>
+      <div class="field"><Label for="buyer-contact">联系方式 <span>*</span></Label><Input id="buyer-contact" v-model="form.contact" maxlength="64" placeholder="请输入手机号或常用联系方式" :disabled="submitting || !canApply" /></div>
+      <div class="field"><Label for="buyer-reason">申请说明 <span>*</span></Label><Textarea id="buyer-reason" v-model="form.reason" maxlength="500" :rows="6" placeholder="至少 10 个字" :disabled="submitting || !canApply" /><small class="counter">{{ form.reason.length }}/500</small><p class="helper">请说明您的采购经验、可服务的品类或地区。</p></div>
+      <Button type="submit" class="full" :disabled="!canApply || submitting">{{ submitting ? '正在提交…' : '提交申请' }}</Button>
+    </form>
   </div>
 </template>
 
 <style scoped>
-.buyer-apply-page {
-  width: 100%;
-  max-width: 528px;
-  margin: 0 auto;
-  padding-top: 16px;
-}
-.application-content {
-  display: block;
-  width: 100%;
-}
-.page-title {
-  text-align: center;
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.hint {
-  text-align: center;
-  margin: 0 0 16px;
-  color: var(--yb-muted);
-  font-size: 13px;
-}
-.status-card,
-.form-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.status-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.status-time {
-  color: var(--yb-muted);
-  font-size: 13px;
-}
-.status-text {
-  margin: 0 0 20px;
-  color: var(--yb-ink-2);
-}
-.reason-block {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--yb-hairline);
-  color: var(--yb-ink-2);
-  font-size: 13px;
-}
-.reason-block p {
-  margin: 8px 0 0;
-  color: var(--yb-ink);
-  white-space: pre-wrap;
-}
-.reject-alert {
-  margin-bottom: 16px;
-}
-@media (max-width: 640px) {
-  .buyer-apply-page { margin: 0; }
-  .status-head { align-items: flex-start; flex-direction: column; gap: 6px; }
-}
+.buyer-apply-page { max-width:680px; margin:0 auto; display:grid; gap:22px; }header { text-align:center; padding:10px 0 8px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }h1 { font-size:28px; font-weight:650; margin:12px 0; }header p { color:var(--yb-muted); font-size:13px; line-height:1.8; margin:0; }.paper { padding:30px; border:1px solid var(--yb-hairline); background:var(--yb-surface); border-radius:12px; }.apply-form { display:grid; gap:23px; }.field { display:grid; gap:10px; }.field label>span { color:var(--yb-danger); }.counter { margin-top:-4px; text-align:right; color:var(--yb-muted); font-size:12px; }.helper { color:var(--yb-muted); font-size:12px; margin:0; }.full { width:100%; }.status-head { display:flex; justify-content:space-between; gap:15px; align-items:center; }.status-head small { color:var(--yb-muted); font-size:12px; }.status-tag { color:var(--yb-warning); background:color-mix(in srgb,var(--yb-warning) 10%,var(--yb-surface)); padding:5px 10px; border-radius:5px; font-size:13px; }.status-tag.APPROVED { color:var(--yb-success); background:var(--yb-success-soft); }.status-tag.REJECTED { color:var(--yb-danger); background:var(--yb-danger-soft); }.status-text { font-size:14px; line-height:1.9; margin:24px 0; }.reason { margin-top:25px; }.reason h2 { font-size:14px; color:var(--yb-muted); margin:0 0 12px; font-weight:500; }.reason p { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; margin:0; }.studio-link { display:inline-flex; margin-top:28px; color:var(--yb-primary); font-size:14px; }.notice p { margin:0 0 14px; line-height:1.8; }.error-row { display:flex; justify-content:space-between; align-items:center; gap:16px; }.loading { display:grid; gap:25px; }.field-skeleton { height:55px; }@media(max-width:700px) { .paper { padding:22px; }.status-head { flex-wrap:wrap; } }
 </style>

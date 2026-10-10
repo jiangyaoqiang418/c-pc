@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import BuyerKpiCard from '@/components/buyer/buyer-kpi-card.vue';
+import DepositMeter from '@/components/buyer/deposit-meter.vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { formatAmount } from '@shared';
-import { avatarUrl } from '@shared/utils/image';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import VipBadge from '@/components/common/vip-badge.vue';
@@ -31,7 +35,7 @@ const loading = computed(() => Object.values(loadStates).some(Boolean));
 const requestGuard = createLatestRequestGuard();
 
 const user = computed(() => userStore.currentUser);
-const userAvatar = computed(() => (user.value ? avatarUrl(user.value.id) : ''));
+const userAvatar = computed(() => user.value?.avatar || '');
 const account = computed(() => walletStore.account);
 const dashboardReady = computed(() => !!user.value);
 const loadError = computed(() => Object.values(loadErrors).filter(Boolean).join('；'));
@@ -113,13 +117,6 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   void loadAll();
 });
 
-const depositPct = computed(() => {
-  return finiteNonNegative(depositSummary.value?.usageRate);
-});
-const depositTotal = computed(() => {
-  return depositSummary.value?.depositBalance === undefined ? '—' : formatAmount(depositSummary.value.depositBalance);
-});
-const depositPctLabel = computed(() => depositPct.value === undefined ? '—' : `${depositPct.value.toFixed(1)}%`);
 
 function orderCount(status: string) {
   if (!countsLoaded.value) return undefined;
@@ -144,549 +141,60 @@ const kpis = computed(() => [
   { label: '已完成', value: completedOrderCount.value, icon: 'lucide:badge-check', color: 'var(--yb-success)' }
 ]);
 
+
+const avatarFailed = ref(false);
+watch(userAvatar, () => { avatarFailed.value = false; });
+const shortcuts = [
+  { to: '/buyer/products', label: '商品管理', icon: 'lucide:package' },
+  { to: '/buyer/orders', label: '买手订单', icon: 'lucide:clipboard-list' },
+  { to: '/buyer/claimable', label: '可接求购', icon: 'lucide:handshake' },
+  { to: '/buyer/aftersales', label: '售后记录', icon: 'lucide:rotate-ccw' },
+  { to: '/buyer/wallet', label: '买手钱包', icon: 'lucide:wallet' },
+  { to: '/finance', label: '小金库', icon: 'lucide:clock' }
+];
 </script>
 
 <template>
   <div class="dashboard-page shop-container">
-    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
-      {{ loadError }}
-      <template #action><a-button size="mini" :loading="loading" @click="loadAll">重新加载</a-button></template>
-    </a-alert>
-
+    <header class="page-heading"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>买手工作台</h1><p>从选品到交付，让每一份期待都有着落。</p></div><Button @click="router.push('/buyer/products/create')"><Icon icon="lucide:plus" />发布商品</Button></header>
+    <Alert v-if="loadError" variant="destructive"><AlertDescription class="alert-row"><span>{{ loadError }}</span><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">{{ loading ? '加载中…' : '重新加载' }}</Button></AlertDescription></Alert>
     <template v-if="dashboardReady && user">
-      <!-- ============ Hero (深色 accent) ============ -->
-      <section class="hero" v-motion :initial="{ opacity: 0, y: 20 }" :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }">
-        <div class="hero-glow"></div>
-        <div class="hero-left">
-          <img :src="userAvatar" :alt="user.nickname" class="hero-avatar" />
-          <div>
-            <div class="welcome-eyebrow">买手工作台 · BUYER STUDIO</div>
-            <div class="welcome-row">
-              <h1 class="welcome-name">{{ user.nickname }}</h1>
-              <VipBadge :level="user.vipLevel" size="lg" />
-            </div>
-            <div class="welcome-sub">
-              <Icon icon="lucide:check-circle" width="12" />
-              累计完成 <span class="yb-mono strong">{{ completedOrderCount ?? '—' }}</span> 笔订单
-            </div>
-          </div>
-        </div>
-        <div class="hero-stats">
-          <div class="stat">
-            <div class="stat-label">进行中</div>
-            <div class="stat-val"><span class="num yb-mono">{{ pendingOrderCount ?? '—' }}</span><span class="unit">单</span></div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">可接求购</div>
-            <div class="stat-val"><span class="num yb-mono">{{ claimableTotal ?? '—' }}</span><span class="unit">单</span></div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">可用余额</div>
-            <div class="stat-val"><span class="num yb-mono">{{ account?.available === undefined ? '—' : formatAmount(account.available) }}</span><span class="unit">U</span></div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">订单占用</div>
-            <div class="stat-val"><span class="num yb-mono">{{ depositSummary?.depositFrozen === undefined ? '—' : formatAmount(depositSummary.depositFrozen) }}</span><span class="unit">U</span></div>
-          </div>
-        </div>
+      <section class="studio-hero">
+        <div class="hero-content"><span class="eyebrow">CURATE. CONNECT. DELIVER.</span><div class="welcome"><img v-if="userAvatar && !avatarFailed" :src="userAvatar" :alt="user.nickname" @error="avatarFailed = true" /><span v-else class="avatar-letter">{{ user.nickname?.slice(0, 1) || '买' }}</span><h2 :title="user.nickname">你好，{{ user.nickname }}。</h2><VipBadge :level="user.vipLevel" /></div><p>目前有 <strong>{{ pendingOrderCount ?? '—' }}</strong> 笔进行中订单，累计完成 <strong>{{ completedOrderCount ?? '—' }}</strong> 笔。</p><Button class="hero-cta" @click="router.push('/buyer/orders')">处理订单<Icon icon="lucide:arrow-right" /></Button></div>
+        <div class="hero-account"><span>钱包可用余额</span><strong>U {{ account?.available === undefined ? '—' : formatAmount(account.available) }}</strong><span>订单占用保证金</span><b>U {{ depositSummary?.depositFrozen === undefined ? '—' : formatAmount(depositSummary.depositFrozen) }}</b></div>
       </section>
-
-      <!-- ============ KPI grid ============ -->
-      <section class="kpi-grid">
-        <div v-for="metric in kpis" :key="metric.label" class="real-kpi" :style="{ '--accent': metric.color }">
-          <div class="kpi-icon"><Icon :icon="metric.icon" width="18" /></div>
-          <div class="kpi-value yb-mono">{{ metric.value ?? '—' }}<span>单</span></div>
-          <div class="kpi-label">{{ metric.label }}</div>
+      <section class="kpi-grid" aria-label="订单概况"><BuyerKpiCard v-for="metric in kpis" :key="metric.label" :label="metric.label" :value="metric.value ?? '—'" unit="单" :icon="metric.icon" :color="metric.color" /></section>
+      <section class="studio-tools"><div class="section-heading"><h2>经营工具</h2><small>常用功能，一步直达</small></div><div class="shortcut-grid"><RouterLink v-for="item in shortcuts" :key="item.to" :to="item.to"><span><Icon :icon="item.icon" /></span>{{ item.label }}</RouterLink></div></section>
+      <section class="work-grid">
+        <div class="paper ongoing"><div class="section-heading"><div><span class="eyebrow">YOUR NEXT STEP</span><h2>进行中订单</h2></div><Button variant="ghost" size="sm" @click="router.push('/buyer/orders')">全部订单<Icon icon="lucide:arrow-right" /></Button></div>
+          <div v-if="pendingOrders.length" class="order-list"><BuyerOrderCard v-for="order in pendingOrders" :key="order.id" :order="order" @upload-shipping="openOrderAction($event, 'shipping')" @manage-logistics="openOrderAction($event, 'logistics')" /></div>
+          <div v-else-if="loadStates.orders" class="loading-list" aria-busy="true" aria-label="正在加载进行中订单"><Skeleton v-for="n in 2" :key="n" class="order-skeleton" /></div>
+          <EmptyState v-else icon="lucide:inbox" :title="loadErrors.orders || '暂无进行中订单'" :description="loadErrors.orders ? '请稍后重试。' : '去求购大厅查看新的需求'" :action-text="loadErrors.orders ? '重新加载' : '查看求购大厅'" @action="loadErrors.orders ? loadAll() : router.push('/buyer/claimable')" />
         </div>
+        <section class="paper deposit-card"><span class="eyebrow">DEPOSIT OVERVIEW</span><h2>押金概况</h2><Skeleton v-if="loadStates.deposit" class="deposit-skeleton" /><DepositMeter v-else :balance="depositSummary?.depositBalance" :available="depositSummary?.depositAvailable" :frozen="depositSummary?.depositFrozen" :usage-rate="depositSummary?.usageRate" size="sm" /><p v-if="loadErrors.deposit" class="helper-error">{{ loadErrors.deposit }}</p><Button variant="outline" class="full" @click="router.push('/buyer/deposit')">管理押金<Icon icon="lucide:arrow-right" /></Button></section>
       </section>
-
-      <a-card title="我的经营数据（全部时间）" :loading="loadStates.stats">
-        <a-descriptions v-if="businessStats" :column="3" :data="[
-          { label: '评价率', value: `${businessStats.reviewRate}%` },
-          { label: '客诉率', value: `${businessStats.complaintRate}%` },
-          { label: '平均发货时长', value: `${businessStats.avgShipDurationHours} 小时` },
-          { label: '完成订单', value: String(businessStats.completedOrderCount) },
-          { label: '有效评价', value: String(businessStats.reviewedOrderCount) },
-          { label: '售后申请', value: String(businessStats.refundCount) }
-        ]" />
-        <p v-else-if="!loadStates.stats">{{ loadErrors.stats || '暂无经营数据' }}</p>
-        <p>评价率按评价/完成时间，客诉率按退款创建/订单创建时间统计；平均发货时长按发货范围内的付款至发货时长统计。</p>
-      </a-card>
-
-      <!-- ============ 双栏：订单 + 求购 ============ -->
-      <section class="split-grid">
-        <div class="split-card">
-          <div class="split-head">
-            <div class="split-title-group">
-              <div class="sec-tag primary"><Icon icon="lucide:layers" width="12" /> ORDERS</div>
-              <h3 class="split-title">进行中订单</h3>
-            </div>
-            <button class="text-link" @click="router.push('/buyer/orders')">查看全部 <Icon icon="lucide:arrow-right" width="13" /></button>
-          </div>
-          <template v-if="pendingOrders.length">
-            <BuyerOrderCard v-for="o in pendingOrders" :key="o.id" :order="o"
-              @upload-shipping="openOrderAction($event, 'shipping')" @manage-logistics="openOrderAction($event, 'logistics')" />
-          </template>
-          <div v-else-if="loadStates.orders"><a-spin :loading="true" /> 正在加载进行中订单</div>
-          <EmptyState
-            v-else
-            icon="lucide:inbox"
-            :title="loadErrors.orders || '暂无进行中订单'"
-            :description="loadErrors.orders ? '请稍后重试。' : '去求购大厅接单赚取收益'"
-            :action-text="loadErrors.orders ? '重新加载' : undefined"
-            @action="loadErrors.orders && loadAll()"
-          />
-        </div>
-
-        <div class="split-card">
-          <div class="split-head">
-            <div class="split-title-group">
-              <div class="sec-tag gold"><Icon icon="lucide:sparkles" width="12" /> CLAIMABLE</div>
-              <h3 class="split-title">可接求购 <span class="count yb-mono">{{ claimableTotal ?? '—' }}</span></h3>
-            </div>
-            <button class="text-link" @click="router.push('/buyer/claimable')">前往大厅 <Icon icon="lucide:arrow-right" width="13" /></button>
-          </div>
-          <template v-if="claimable.length">
-            <PurchaseRequestCard v-for="r in claimable" :key="r.id" :request="r" mode="hall" :can-claim="false" />
-          </template>
-          <div v-else-if="loadStates.claimable"><a-spin :loading="true" /> 正在加载可接求购</div>
-          <EmptyState
-            v-else
-            icon="lucide:sparkles"
-            :title="loadErrors.claimable || '暂无可接求购'"
-            :description="loadErrors.claimable ? '请稍后重试。' : '当前暂无可接求购'"
-            :action-text="loadErrors.claimable ? '重新加载' : undefined"
-            @action="loadErrors.claimable && loadAll()"
-          />
-        </div>
+      <section class="paper performance"><div class="section-heading"><h2>经营数据</h2><small>全部时间</small></div><div v-if="loadStates.stats" class="performance-grid" aria-busy="true"><Skeleton v-for="n in 6" :key="n" class="metric-skeleton" /></div>
+        <dl v-else-if="businessStats" class="performance-grid"><div v-for="item in [
+          { label: '评价率', value: businessStats.reviewRate + '%' },
+          { label: '客诉率', value: businessStats.complaintRate + '%' },
+          { label: '平均发货时长', value: businessStats.avgShipDurationHours + ' 小时' },
+          { label: '完成订单', value: businessStats.completedOrderCount },
+          { label: '有效评价', value: businessStats.reviewedOrderCount },
+          { label: '售后申请', value: businessStats.refundCount }
+        ]" :key="item.label"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div></dl>
+        <p v-else class="empty-note">{{ loadErrors.stats || '暂无经营数据' }}</p>
+        <details><summary>统计口径</summary><p>评价率按评价/完成时间，客诉率按退款创建/订单创建时间统计；平均发货时长按发货范围内的付款至发货时长统计。</p></details>
       </section>
-
-      <!-- ============ 押金 donut ============ -->
-      <section class="deposit-card" v-motion :initial="{ opacity: 0, y: 20 }" :visible-once="{ opacity: 1, y: 0, transition: { duration: 500 } }">
-        <div class="deposit-head">
-          <div>
-            <div class="sec-tag gold"><Icon icon="lucide:coins" width="12" /> DEPOSIT</div>
-            <h3 class="split-title">押金概况</h3>
-          </div>
-          <button class="text-link" @click="router.push('/buyer/deposit')">押金管理 <Icon icon="lucide:arrow-right" width="13" /></button>
-        </div>
-        <div class="deposit-body">
-          <div class="donut-wrap">
-            <div class="donut" :style="{ '--pct': (depositPct ?? 0) + '%' }">
-              <div class="donut-inner">
-                <div class="donut-label">总押金</div>
-                <div class="donut-value"><span class="unit">U</span><span class="num yb-mono">{{ depositTotal }}</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="deposit-detail">
-            <div class="dd-row">
-              <div class="dd-key"><span class="dd-dot avail"></span> 可退保证金</div>
-              <div class="dd-val yb-mono">U {{ depositSummary?.depositAvailable === undefined ? '—' : formatAmount(depositSummary.depositAvailable) }}</div>
-            </div>
-            <div class="dd-row">
-              <div class="dd-key"><span class="dd-dot lock"></span> 订单占用</div>
-              <div class="dd-val yb-mono">U {{ depositSummary?.depositFrozen === undefined ? '—' : formatAmount(depositSummary.depositFrozen) }}</div>
-            </div>
-            <div class="dd-row">
-              <div class="dd-key">占用率</div>
-              <div class="dd-val yb-mono">{{ depositSummary ? depositPctLabel : '—' }}</div>
-            </div>
-            <div class="deposit-actions">
-              <button class="btn primary sm" @click="router.push('/buyer/deposit')">
-                <Icon icon="lucide:arrow-down-to-line" width="14" /> 充值
-              </button>
-              <button class="btn ghost sm" @click="router.push('/buyer/deposit')">
-                <Icon icon="lucide:arrow-up-from-line" width="14" /> 转出
-              </button>
-              <button class="btn ghost sm" @click="router.push('/buyer/deposit')">
-                <Icon icon="lucide:list" width="14" /> 流水
-              </button>
-            </div>
-          </div>
-        </div>
+      <section class="paper demand-section"><div class="section-heading"><div><span class="eyebrow">MAKE A WISH COME TRUE</span><h2>等待你的好眼光</h2></div><Button variant="ghost" size="sm" @click="router.push('/buyer/claimable')">{{ claimableTotal ?? '—' }} 个可接求购<Icon icon="lucide:arrow-right" /></Button></div>
+        <div v-if="claimable.length" class="demand-list"><PurchaseRequestCard v-for="request in claimable" :key="request.id" :request="request" mode="hall" :can-claim="false" /></div>
+        <div v-else-if="loadStates.claimable" class="loading-list" aria-busy="true"><Skeleton v-for="n in 2" :key="n" class="order-skeleton" /></div>
+        <EmptyState v-else icon="lucide:handshake" :title="loadErrors.claimable || '暂无可接求购'" :description="loadErrors.claimable ? '请稍后重试。' : '当前暂无可接求购'" :action-text="loadErrors.claimable ? '重新加载' : undefined" @action="loadErrors.claimable && loadAll()" />
       </section>
     </template>
-
     <EmptyState v-else-if="!loading" icon="lucide:alert-triangle" title="买手资料加载失败" />
   </div>
 </template>
 
 <style scoped>
-.dashboard-page {
-  padding-top: 24px;
-  padding-bottom: 64px;
-}
-.load-alert {
-  margin-bottom: 16px;
-}
-
-/* ========== Hero (dark accent) ========== */
-.hero {
-  position: relative;
-  background: linear-gradient(135deg, var(--yb-deep) 0%, var(--yb-deep-2) 60%, var(--yb-primary) 100%);
-  color: #fff;
-  border-radius: var(--yb-radius-card);
-  padding: 36px 40px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 32px;
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-.hero-glow {
-  position: absolute;
-  top: -30%;
-  right: -10%;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(var(--yb-gold-rgb), 0.25) 0%, transparent 60%);
-  pointer-events: none;
-}
-.hero-left {
-  position: relative;
-  display: flex;
-  gap: 20px;
-  align-items: center;
-}
-.hero-avatar {
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  border: 3px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-}
-.welcome-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: var(--yb-accent);
-  margin-bottom: 6px;
-}
-.welcome-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-.welcome-name {
-  font-family: var(--yb-font-display);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-.welcome-sub {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-}
-.welcome-sub .strong {
-  color: #fff;
-  font-weight: 700;
-  padding: 0 3px;
-}
-
-.hero-stats {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(4, auto);
-  gap: 40px;
-}
-.stat-label {
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 6px;
-}
-.stat-val {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-.stat-val .num {
-  font-family: var(--yb-font-mono);
-  font-size: 28px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.02em;
-}
-.stat-val .unit {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* ========== KPI grid ========== */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 20px;
-}
-.real-kpi {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-card);
-  padding: 18px 20px;
-  position: relative;
-  overflow: hidden;
-}
-.real-kpi::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--accent);
-}
-.kpi-icon {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--yb-surface));
-  color: var(--accent);
-  margin-bottom: 12px;
-}
-.kpi-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  font-variant-numeric: tabular-nums;
-}
-.kpi-value span {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-left: 4px;
-}
-.kpi-label {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-top: 4px;
-}
-
-/* ========== Split section ========== */
-.split-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-.split-card {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-card);
-  padding: 24px 26px;
-}
-.split-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 18px;
-}
-.split-title-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.sec-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--yb-radius-pill);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  width: fit-content;
-}
-.sec-tag.primary { background: var(--yb-primary-soft); color: var(--yb-primary); }
-.sec-tag.gold { background: var(--yb-champagne); color: var(--yb-gold); }
-.split-title {
-  font-family: var(--yb-font-display);
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--yb-ink);
-  margin: 0;
-}
-.count {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 10px;
-  background: var(--yb-primary-soft);
-  color: var(--yb-primary);
-  border-radius: var(--yb-radius-pill);
-  font-size: 11px;
-  font-weight: 700;
-}
-.text-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: none;
-  color: var(--yb-muted);
-  font-size: 12px;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.text-link:hover { color: var(--yb-ink); }
-
-/* ========== Deposit ========== */
-.deposit-card {
-  background: var(--yb-surface);
-  border: 1px solid var(--yb-hairline);
-  border-radius: var(--yb-radius-card);
-  padding: 24px 28px;
-}
-.deposit-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 20px;
-}
-.deposit-body {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 40px;
-  align-items: center;
-}
-.donut-wrap {
-  display: flex;
-  justify-content: center;
-}
-.donut {
-  --pct: 0%;
-  --size: 200px;
-  width: var(--size);
-  height: var(--size);
-  border-radius: 50%;
-  background: conic-gradient(var(--yb-gold) 0% var(--pct), var(--yb-primary-soft) var(--pct) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  box-shadow: 0 0 40px rgba(var(--yb-gold-rgb), 0.15);
-}
-.donut::after {
-  content: '';
-  position: absolute;
-  inset: 12px;
-  border-radius: 50%;
-  background: var(--yb-surface);
-}
-.donut-inner {
-  position: relative;
-  z-index: 2;
-  text-align: center;
-}
-.donut-label {
-  font-size: 11px;
-  color: var(--yb-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-.donut-value {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-}
-.donut-value .unit {
-  font-family: var(--yb-font-mono);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--yb-gold);
-}
-.donut-value .num {
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-}
-
-.deposit-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.dd-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--yb-hairline);
-}
-.dd-row:last-of-type { border-bottom: none; }
-.dd-key {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--yb-muted);
-}
-.dd-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-.dd-dot.avail { background: var(--yb-primary); }
-.dd-dot.lock { background: var(--yb-gold); }
-.dd-val {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  font-variant-numeric: tabular-nums;
-}
-.deposit-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 10px 18px;
-  border-radius: var(--yb-radius-pill);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-}
-.btn.sm { padding: 8px 14px; font-size: 12px; }
-.btn.primary {
-  background: var(--yb-brand-primary);
-  color: #fff;
-}
-.btn.primary:hover {
-  background: var(--yb-brand-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(var(--yb-primary-rgb), 0.28);
-}
-.btn.ghost {
-  background: var(--yb-bg);
-  color: var(--yb-ink);
-  border-color: var(--yb-hairline);
-}
-.btn.ghost:hover {
-  border-color: var(--yb-ink);
-}
-
-@media (max-width: 1024px) {
-  .hero { flex-direction: column; align-items: flex-start; }
-  .hero-stats { grid-template-columns: repeat(2, 1fr); gap: 20px; }
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .split-grid { grid-template-columns: 1fr; }
-  .deposit-body { grid-template-columns: 1fr; gap: 24px; }
-}
+.dashboard-page { display:grid; gap:24px; }.page-heading,.section-heading,.alert-row { display:flex; justify-content:space-between; align-items:center; gap:18px; }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { margin:0; color:var(--yb-muted); font-size:13px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.studio-hero { display:flex; justify-content:space-between; gap:28px; align-items:center; padding:36px; border-radius:14px; background:var(--yb-primary); color:var(--primary-foreground); }.studio-hero .eyebrow { color:var(--yb-accent); }.welcome { display:flex; align-items:center; gap:12px; margin:18px 0; min-width:0; }.welcome img,.avatar-letter { width:44px; height:44px; flex-shrink:0; border-radius:50%; }.avatar-letter { display:grid; place-items:center; background:color-mix(in srgb,var(--yb-surface) 16%,transparent); font-size:21px; }.welcome h2 { font-size:28px; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:0; }.hero-content { min-width:0; }.hero-content p { font-size:14px; opacity:.85; margin:0 0 24px; }.hero-cta { background:var(--yb-accent); color:var(--yb-accent-ink); }.hero-cta:hover { background:var(--um-gold-light); }.hero-account { display:grid; gap:10px; padding-left:30px; border-left:1px solid color-mix(in srgb,var(--yb-surface) 20%,transparent); flex-shrink:0; }.hero-account span { font-size:12px; opacity:.7; }.hero-account strong { font-family:var(--yb-font-mono); font-size:28px; }.hero-account b { font-family:var(--yb-font-mono); font-size:19px; }.kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }.studio-tools { padding:12px 0; }.section-heading { margin-bottom:24px; }.section-heading h2,.paper>h2 { font-size:21px; font-weight:600; margin:5px 0 0; }.section-heading small { color:var(--yb-muted); font-size:12px; }.shortcut-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; }.shortcut-grid>a { display:grid; justify-items:center; gap:10px; font-size:13px; padding:15px 8px; border-radius:9px; transition:background 200ms var(--um-ease),transform 200ms var(--um-ease); }.shortcut-grid>a>span { display:grid; place-items:center; width:42px; height:42px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-surface); color:var(--yb-primary); }.shortcut-grid>a>span>svg { width:20px; }.shortcut-grid>a:hover { background:var(--yb-primary-soft); transform:translateY(-2px); }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:12px; padding:28px; min-width:0; }.work-grid { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr); gap:22px; align-items:start; }.order-list,.loading-list,.demand-list { display:grid; gap:16px; }.ongoing { padding:24px; }.ongoing :deep(.buyer-order-card) { padding:18px; }.deposit-card>h2 { margin-bottom:24px; }.deposit-card :deep(.deposit-meter) { flex-direction:column; align-items:stretch; gap:20px; }.deposit-card :deep(.ring) { align-self:center; }.full { width:100%; margin-top:24px; }.performance-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:25px; margin:0; }.performance-grid dt { font-size:12px; color:var(--yb-muted); }.performance-grid dd { font-size:24px; font-weight:550; margin:8px 0 0; }.performance details { margin-top:26px; border-top:1px solid var(--yb-hairline); padding-top:18px; font-size:12px; color:var(--yb-muted); }.performance summary { cursor:pointer; }.performance details p { margin:12px 0 0; line-height:1.9; }.empty-note,.helper-error { color:var(--yb-muted); font-size:13px; }.helper-error { color:var(--yb-danger); }.order-skeleton { height:130px; }.deposit-skeleton { height:230px; }.metric-skeleton { height:70px; }@media(max-width:1150px) { .studio-hero { padding:28px; }.hero-account { padding-left:22px; }.welcome h2 { font-size:24px; }.work-grid { grid-template-columns:1fr; }.deposit-card :deep(.deposit-meter) { flex-direction:row; }.hero-account strong { font-size:23px; }.shortcut-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }@media(max-width:700px) { .studio-hero { display:grid; }.hero-account { border-left:0; border-top:1px solid color-mix(in srgb,var(--yb-surface) 20%,transparent); padding:20px 0 0; }.kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.performance-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.page-heading { align-items:flex-start; }.paper { padding:20px; } }@media(prefers-reduced-motion:reduce) { .shortcut-grid>a { transition:none; }.shortcut-grid>a:hover { transform:none; } }
 </style>
