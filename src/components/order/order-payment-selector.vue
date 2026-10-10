@@ -1,6 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Modal } from '@/lib/feedback';
 import * as orderApi from '@/service/api/order';
 import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
@@ -26,10 +32,26 @@ const error = ref('');
 const chainError = ref('');
 const method = ref<'balance' | 'chain'>();
 const selectedChain = ref('');
+const paymentMethodId = useId();
 let writeVersion = 0;
 
 const groupNo = computed(() => detail.value?.orderGroupNo?.trim() || '');
 const activePay = computed(() => latestPay.value && ['PENDING', 'SUBMITTED', 'SUCCESS'].includes(latestPay.value.status));
+const chainDisabledReason = computed(() => {
+  if (!walletPayEntryEnabled) return '链上支付入口暂未开放';
+  if (!groupNo.value) return '该订单缺少订单组号，暂不能创建链上支付单';
+  if (chainError.value) return chainError.value;
+  if (!chains.value.length) return '当前没有可用的链上支付网络';
+  return '';
+});
+const continueDisabledReason = computed(() => {
+  if (loading.value || submitting.value) return '正在核对或处理付款，请稍候';
+  if (error.value) return error.value;
+  if (activePay.value) return '已有钱包支付单，请先查看原支付进度';
+  if (!method.value) return '请先选择付款方式';
+  if (method.value === 'chain' && !selectedChain.value) return '请选择支付链';
+  return '';
+});
 
 function close() {
   if (submitting.value) return;
@@ -263,34 +285,44 @@ async function continuePayment() {
 </script>
 
 <template>
-  <a-modal :visible="visible" title="选择付款方式" :footer="false" :mask-closable="!submitting" @cancel="close">
-    <a-spin :loading="loading" style="width: 100%">
-      <a-alert v-if="error" type="warning" :closable="false">{{ error }}<template #action><a-button size="mini" :disabled="submitting" @click="load">重新核对</a-button></template></a-alert>
+  <a-modal :visible="visible" title="选择付款方式" :width="620" :footer="false" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting" @cancel="close">
+    <div class="payment-options" :aria-busy="loading || submitting">
+      <Alert v-if="error" variant="destructive" class="notice"><AlertDescription>{{ error }}</AlertDescription><Button variant="outline" size="sm" :disabled="submitting || loading" @click="load">重新核对</Button></Alert>
+      <Skeleton v-if="loading && !detail" class="payment-skeleton" />
       <template v-if="detail">
-        <p>订单 {{ detail.code }} · U {{ detail.totalAmount }}</p>
-        <a-alert v-if="activePay" type="info" :closable="false">
-          此订单组已有钱包支付单（{{ latestPay?.statusText || latestPay?.status }}），请先核对原支付进度，勿重复付款。
-          <template #action><a-button size="mini" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: groupNo } })">查看支付进度</a-button></template>
-        </a-alert>
-        <a-alert v-else-if="latestPay && ['CLOSED', 'FAILED'].includes(latestPay.status)" type="warning" :closable="false">此前的链上支付单已{{ latestPay.statusText || latestPay.status }}。再次发起前请先核对原交易是否到账。</a-alert>
-        <a-radio-group v-model="method" direction="vertical" class="method-choices" :disabled="!!activePay || !!error">
-          <a-radio value="balance">站内钱包余额支付（输入支付密码）</a-radio>
-          <a-radio value="chain" :disabled="!walletPayEntryEnabled || !groupNo || !chains.length || !!chainError">USDT 链上支付（连接浏览器钱包）</a-radio>
-        </a-radio-group>
-        <a-alert v-if="chainError" type="warning" :closable="false">{{ chainError }}</a-alert>
-        <p v-else-if="!walletPayEntryEnabled || !groupNo || !chains.length" class="hint">{{ !walletPayEntryEnabled ? '链上支付入口暂未开放。' : !groupNo ? '该订单缺少订单组号，暂不能创建链上支付单。' : '当前没有可用的链上支付网络。' }}</p>
-        <a-select v-if="method === 'chain'" v-model="selectedChain" placeholder="选择支付链" class="chain-select">
-          <a-option v-for="item in chains" :key="item.chain" :value="item.chain">{{ item.label }} · {{ item.network }}</a-option>
-        </a-select>
+        <div class="order-summary"><span>订单 {{ detail.code }}</span><strong>U {{ detail.totalAmount }}</strong></div>
+        <Alert v-if="activePay" class="notice"><AlertDescription>此订单组已有钱包支付单（{{ latestPay?.statusText || latestPay?.status }}），请先核对原支付进度，勿重复付款。</AlertDescription><Button variant="outline" size="sm" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: groupNo } })">查看支付进度</Button></Alert>
+        <Alert v-else-if="latestPay && ['CLOSED', 'FAILED'].includes(latestPay.status)" class="notice"><AlertDescription>此前的链上支付单已{{ latestPay.statusText || latestPay.status }}。再次发起前请先核对原交易是否到账。</AlertDescription></Alert>
+        <fieldset class="method-choices" :disabled="!!activePay || !!error || loading || submitting"><legend class="sr-only">付款方式</legend>
+          <label class="method-option" :class="{ selected: method === 'balance' }"><input type="radio" :name="paymentMethodId" :checked="method === 'balance'" @change="method = 'balance'" /><Icon icon="lucide:wallet" width="20" /><span><strong>站内钱包余额支付</strong><small>下一步输入支付密码</small></span></label>
+          <TooltipProvider><Tooltip><TooltipTrigger as-child><span class="chain-choice" :tabindex="chainDisabledReason ? 0 : undefined"><label class="method-option" :class="{ selected: method === 'chain', disabled: !!chainDisabledReason }"><input type="radio" :name="paymentMethodId" :checked="method === 'chain'" :disabled="!!chainDisabledReason" @change="method = 'chain'" /><Icon icon="lucide:link" width="20" /><span><strong>USDT 链上支付</strong><small>连接浏览器钱包后确认转账</small></span></label></span></TooltipTrigger><TooltipContent v-if="chainDisabledReason">{{ chainDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+        </fieldset>
+        <Alert v-if="chainError" class="notice"><AlertDescription>{{ chainError }}</AlertDescription></Alert>
+        <p v-else-if="chainDisabledReason" class="hint">{{ chainDisabledReason }}。</p>
+        <div v-if="method === 'chain'" class="chain-select"><label for="order-payment-chain">支付网络</label><Select v-model="selectedChain" :disabled="loading || submitting"><SelectTrigger id="order-payment-chain"><SelectValue placeholder="选择支付链" /></SelectTrigger><SelectContent><SelectItem v-for="item in chains" :key="item.chain" :value="item.chain">{{ item.label }} · {{ item.network }}</SelectItem></SelectContent></Select></div>
       </template>
-    </a-spin>
-    <div class="actions"><a-button :disabled="submitting" @click="close">取消</a-button><a-button type="primary" :loading="submitting" :disabled="loading || !!error || !!activePay || !method || (method === 'chain' && !selectedChain)" @click="continuePayment">继续付款</a-button></div>
+      <div class="actions"><Button variant="outline" :disabled="submitting" @click="close">取消</Button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="continueDisabledReason ? 0 : undefined"><Button :disabled="!!continueDisabledReason" @click="continuePayment"><Icon v-if="submitting" icon="lucide:loader-circle" width="16" class="animate-spin" />继续付款</Button></span></TooltipTrigger><TooltipContent v-if="continueDisabledReason">{{ continueDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></div>
+    </div>
   </a-modal>
 </template>
 
 <style scoped>
-.method-choices { display: flex; flex-direction: column; gap: 12px; margin: 18px 0; }
-.chain-select { width: 100%; margin-bottom: 12px; }
-.actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
-.hint { color: var(--yb-muted); font-size: 12px; }
+.order-summary { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-radius: 8px; background: var(--yb-fill); padding: 16px; font-size: 13px; }
+.order-summary strong { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.notice { margin: 16px 0; }
+.notice button { margin-top: 12px; }
+.method-choices { display: grid; gap: 12px; margin: 20px 0; padding: 0; border: 0; }
+.method-option { display: flex; align-items: center; gap: 12px; border: 1px solid var(--yb-hairline); border-radius: 8px; padding: 18px; cursor: pointer; transition: border-color 150ms, background 150ms; }
+.method-option:hover:not(.disabled), .method-option.selected { border-color: var(--yb-primary); background: var(--yb-primary-soft); }
+.method-option input { width: 16px; height: 16px; margin: 0; accent-color: var(--yb-primary); }
+.method-option strong { display: block; font-size: 15px; font-weight: 600; }
+.method-option small { display: block; margin-top: 4px; font-size: 13px; color: var(--yb-muted); }
+.method-choices:disabled .method-option, .method-option.disabled { opacity: .55; cursor: not-allowed; }
+.chain-choice { display: block; }
+.chain-select { display: grid; gap: 8px; margin-bottom: 12px; }
+.chain-select label { font-size: 14px; }
+.actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.hint { color: var(--yb-muted); font-size: 13px; }
+.payment-skeleton { height: 240px; }
+@media (prefers-reduced-motion: reduce) { .method-option { transition: none; } }
 </style>

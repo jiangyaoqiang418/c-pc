@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
+import ImagePreview from '@/components/common/image-preview.vue';
+import { setImageFallback } from '@/utils/image-placeholder';
 import { formatUsdt } from '@shared/utils/currency';
 import { formatDateValue, parseDateValue } from '@/utils/date-range';
 
@@ -8,6 +10,10 @@ const props = defineProps<{
   order: Api.RealOrder.Record;
   logistics?: Api.RealOrder.LogisticsDTO;
 }>();
+const previewOpen = ref(false);
+const previewImages = ref<string[]>([]);
+const previewIndex = ref(0);
+watch(() => props.order.id, () => { previewOpen.value = false; previewImages.value = []; });
 
 interface TimelineEvent {
   key: string;
@@ -216,19 +222,18 @@ const rows = computed(() => {
         <div v-if="event.exceptionSummary" class="event-exception">物流异常：{{ event.exceptionSummary }}</div>
         <div v-if="event.shipVouchers?.length" class="event-vouchers">
           <span class="event-meta">发货凭证</span>
-          <a-image-preview-group>
-            <a-image v-for="url in event.shipVouchers" :key="url" :src="url" width="72" height="72" fit="cover" />
-          </a-image-preview-group>
+          <button v-for="(url, voucherIndex) in event.shipVouchers" :key="url" type="button" class="voucher-button" :aria-label="`查看发货凭证 ${voucherIndex + 1}`" @click="previewImages = event.shipVouchers || []; previewIndex = voucherIndex; previewOpen = true"><img :src="url" alt="发货凭证" @error="setImageFallback" /></button>
         </div>
       </div>
     </li>
   </ol>
+  <ImagePreview v-model="previewOpen" :images="previewImages" :start-index="previewIndex" title="发货凭证" />
 </template>
 
 <style scoped>
 .order-timeline { margin: 0; padding: 4px 0 0; list-style: none; }
-.event { display: grid; grid-template-columns: 230px 36px minmax(0, 1fr); min-height: 68px; }
-.stamp { display: grid; grid-template-columns: 136px 1fr; align-content: start; gap: 10px; padding-top: 5px; color: var(--yb-ink-2); font-size: 13px; white-space: nowrap; }
+.event { display: grid; grid-template-columns: 156px 36px minmax(0, 1fr); min-height: 76px; }
+.stamp { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 4px 16px 0 0; color: var(--yb-muted); font-size: 13px; white-space: nowrap; }
 .date { text-align: right; }
 .time { font-variant-numeric: tabular-nums; }
 .rail { position: relative; display: flex; justify-content: center; align-items: flex-start; }
@@ -237,20 +242,24 @@ const rows = computed(() => {
 .event:last-child .rail::before { bottom: calc(100% - 17px); }
 .node { position: relative; z-index: 1; flex: none; }
 .node--major { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--yb-hairline-2); color: var(--yb-muted); }
-.node--minor { width: 8px; height: 8px; margin-top: 10px; border: 2px solid #fff; border-radius: 50%; background: var(--yb-faint); box-sizing: content-box; }
+.node--minor { width: 8px; height: 8px; margin-top: 10px; border: 2px solid var(--yb-surface); border-radius: 50%; background: var(--yb-faint); box-sizing: content-box; }
 .event--latest .node--major { background: var(--bw-brand-primary); color: #fff; }
 .event--exception .node--major { background: #f53f3f; color: #fff; }
 .content { min-width: 0; padding: 4px 0 22px 24px; }
-.event-title { color: var(--yb-ink-2); font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.event-title { color: var(--yb-ink-2); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 .event-title--major { color: var(--yb-ink); font-weight: 600; }
 .event-detail { margin-top: 3px; color: var(--yb-ink-2); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.event-meta { margin-top: 3px; color: var(--yb-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.event-meta { margin-top: 5px; color: var(--yb-muted); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
 .event-exception { margin-top: 3px; color: #f53f3f; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .event-vouchers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.voucher-button { width: 72px; height: 72px; border: 1px solid var(--yb-hairline); border-radius: 6px; overflow: hidden; }
+.voucher-button img { width: 100%; height: 100%; object-fit: cover; transition: transform 200ms; }
+.voucher-button:hover img { transform: scale(1.03); }
 @media (max-width: 720px) {
   .event { grid-template-columns: 92px 30px minmax(0, 1fr); }
-  .stamp { display: flex; flex-direction: column; gap: 2px; padding-top: 2px; font-size: 11px; }
+  .stamp { align-items: flex-start; gap: 2px; padding-top: 2px; font-size: 12px; }
   .date { text-align: left; white-space: normal; }
   .content { padding-left: 12px; }
 }
+@media (prefers-reduced-motion: reduce) { .voucher-button img { transition: none; } }
 </style>

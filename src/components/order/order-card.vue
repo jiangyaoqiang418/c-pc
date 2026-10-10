@@ -251,131 +251,32 @@ function viewLogistics() {
 </script>
 
 <template>
-  <a-card
-    class="order-card"
-    :bordered="false"
-    :body-style="{ padding: '14px 18px' }"
-    hoverable
-    role="button"
-    tabindex="0"
-    :aria-label="`打开订单 ${order.code}`"
-    @click="goDetail"
-    @keydown.enter.self="goDetail"
-    @keydown.space.prevent.self="goDetail"
-  >
-    <div class="head">
-      <span class="code">订单号：{{ order.code }}</span>
-      <span class="time">下单于 {{ formatDateValue(order.createdAt) }}</span>
-      <span class="seller">买手：{{ order.shopperName }}</span>
-      <OrderStatusTag :status="order.status" />
-    </div>
-    <div class="body">
-      <img :src="cover" :alt="order.productTitle" class="cover" @error="setImageFallback" />
-      <div class="info">
-        <div class="title">{{ order.productTitle }}</div>
-        <div class="addr">收货：{{ order.receiverName }} · {{ order.shippingAddress }}</div>
-      </div>
-      <div class="amount">
-        <div class="amount-label">合计</div>
-        <div class="amount-cny">{{ formatUsdt(order.totalAmount) }}</div>
-        <div class="amount-usdt">≈ {{ formatCny(order.totalAmount) }}</div>
-      </div>
-      <div class="op" @click.stop>
-        <OrderActions :order="order" :reviewable="reviewable" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" />
-      </div>
-    </div>
-  </a-card>
+  <article class="order-card" role="link" tabindex="0" :aria-label="`打开订单 ${order.code}`" @click="goDetail" @keydown.enter.self="goDetail" @keydown.space.self.prevent="goDetail">
+    <header class="head"><div class="order-reference"><span class="code">订单 {{ order.code }}</span><span class="time">{{ formatDateValue(order.createdAt) }}</span></div><OrderStatusTag :status="order.status" /></header>
+    <div class="body"><img :src="cover" :alt="order.productTitle" class="cover" @error="setImageFallback" /><div class="info"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }" class="title" @click.stop>{{ order.productTitle }}</RouterLink><p class="seller" :title="order.shopperName">买手 · {{ order.shopperName }}</p><p class="addr" :title="`收货：${order.receiverName} · ${order.shippingAddress}`">收货：{{ order.receiverName }} · {{ order.shippingAddress }}</p></div><div class="amount"><span class="amount-label">订单合计</span><strong>{{ formatUsdt(order.totalAmount) }}</strong><small>≈ {{ formatCny(order.totalAmount) }}</small></div></div>
+    <footer class="op" @click.stop><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" /></footer>
+  </article>
   <OrderPaymentSelector v-model:visible="paymentOpen" :order="order" @balance="payBalance" />
 </template>
 
 <style scoped>
-.order-card {
-  margin-bottom: 12px;
-  cursor: pointer;
-}
-.order-card:focus-visible {
-  outline: 2px solid var(--yb-brand-primary);
-  outline-offset: 2px;
-}
-.head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px dashed var(--yb-hairline);
-  font-size: 13px;
-  color: var(--yb-ink-2);
-}
-.code {
-  font-family: ui-monospace, monospace;
-  color: var(--yb-ink);
-  font-weight: 500;
-}
-.time {
-  color: var(--yb-muted);
-  font-size: 12px;
-}
-.seller {
-  font-size: 12px;
-  color: var(--yb-ink-2);
-}
-.body {
-  display: grid;
-  grid-template-columns: 80px 1fr auto auto;
-  gap: 16px;
-  align-items: center;
-  padding-top: 12px;
-}
-.cover {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border-radius: 4px;
-  background: var(--yb-fill);
-}
-.title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--yb-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.addr {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-top: 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.amount {
-  text-align: right;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-.amount-label {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.amount-cny {
-  font-family: var(--yb-font-mono);
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
-.amount-usdt {
-  font-family: var(--yb-font-mono);
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.op {
-  align-self: center;
-}
+.order-card { padding: 20px 24px; margin-bottom: 16px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); cursor: pointer; transition: border-color 200ms var(--um-ease), box-shadow 200ms var(--um-ease); }
+.order-card:hover { border-color: var(--yb-hairline-2); box-shadow: var(--yb-shadow-1); }
+.head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--yb-hairline); }
+.order-reference { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.code { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.time { color: var(--yb-muted); font-size: 12px; }
+.body { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 20px 0; }
+.cover { width: 96px; height: 96px; border: 1px solid var(--yb-hairline); border-radius: 8px; object-fit: contain; background: var(--yb-fill); }
+.info { min-width: 0; }
+.title { display: block; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.title:hover { color: var(--yb-primary); }
+.seller { font-size: 13px; color: var(--yb-muted); margin: 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.addr { font-size: 13px; color: var(--yb-muted); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amount { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; padding-left: 20px; }
+.amount-label, .amount small { font-size: 12px; color: var(--yb-muted); }
+.amount strong { font-size: 23px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.op { padding-top: 16px; border-top: 1px solid var(--yb-hairline); }
+@media (max-width: 800px) { .body { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 12px; } .cover { width: 72px; height: 72px; } .amount { padding-left: 0; } }
+@media (prefers-reduced-motion: reduce) { .order-card { transition: none; } }
 </style>

@@ -2,6 +2,12 @@
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { Message } from '@/lib/feedback';
 import OrderCard from '@/components/order/order-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -253,90 +259,46 @@ function handleEmptyAction() {
   }
   router.push('/purchase/create');
 }
+function changeTab(value: string | number) {
+  const key = String(value);
+  if (key === activeKey.value || !TABS.some(tab => tab.key === key)) return;
+  activeKey.value = key;
+  onTabChange();
+}
 </script>
 
 <template>
   <div class="order-list-page shop-container">
-    <div class="page-head">
-      <h1 class="page-title">我的订单 · {{ orderView === 'sell' ? '卖出' : '买入' }}</h1>
-      <a-space v-if="userStore.canSwitchToBuyer" role="group" aria-label="订单视角">
-        <a-button :type="orderView === 'buy' ? 'primary' : 'outline'" :aria-pressed="orderView === 'buy'" @click="changeView('buy')">买入订单</a-button>
-        <a-button :type="orderView === 'sell' ? 'primary' : 'outline'" :aria-pressed="orderView === 'sell'" @click="changeView('sell')">卖出订单</a-button>
-      </a-space>
-    </div>
-
-    <a-card :bordered="false" :body-style="{ padding: 0 }">
-      <a-tabs v-model:active-key="activeKey" lazy-load @change="onTabChange">
-        <a-tab-pane v-for="t in TABS" :key="t.key">
-          <template #title>
-            {{ t.label }}
-            <a-badge v-if="t.statuses && countOfTab(t)" :count="countOfTab(t)" :max-count="99" class="badge" />
-          </template>
-        </a-tab-pane>
-      </a-tabs>
-    </a-card>
-
-    <div class="orders">
-      <a-alert v-if="reviewableError" type="warning">
-        {{ reviewableError }}
-        <template #action><a-button :loading="reviewableLoading" @click="loadReviewableOrders">重新核对</a-button></template>
-      </a-alert>
-      <p v-else-if="reviewableLoading">正在核对评价资格…</p>
-      <a-spin :loading="loading" style="width: 100%">
-        <div v-if="orders.length">
-          <OrderCard v-for="o in orders" :key="o.id" :order="o" :reviewable="reviewableOrderIds.has(String(o.id))" @changed="onChanged" />
-        </div>
-        <EmptyState
-          v-else
-          :title="loadError || '该状态下没有订单'"
-          :description="loadError ? '不会展示不完整的订单数据。' : '直接购买或求购成交后会生成真实订单'"
-          :action-text="loadError ? '重新加载' : '发起求购'"
-          @action="handleEmptyAction"
-        />
-      </a-spin>
-    </div>
-
-    <div v-if="total > size" class="pagination-bar">
-      <a-pagination
-        :total="total"
-        :current="current"
-        :page-size="size"
-        show-total
-        @change="changePage"
-      />
-    </div>
+    <header class="page-head"><div><p class="eyebrow">YOUR ORDERS</p><h1>我的订单 · {{ orderView === 'sell' ? '卖出' : '买入' }}</h1></div><div v-if="userStore.canSwitchToBuyer" class="view-switch" role="group" aria-label="订单视角"><Button :variant="orderView === 'buy' ? 'default' : 'outline'" :aria-pressed="orderView === 'buy'" @click="changeView('buy')">买入订单</Button><Button :variant="orderView === 'sell' ? 'default' : 'outline'" :aria-pressed="orderView === 'sell'" @click="changeView('sell')">卖出订单</Button></div></header>
+    <Tabs :model-value="activeKey" @update:model-value="changeTab"><TabsList class="order-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key" class="order-tab">{{ tab.label }}<span v-if="tab.statuses && countOfTab(tab)" class="tab-count">{{ countOfTab(tab) > 99 ? '99+' : countOfTab(tab) }}</span></TabsTrigger></TabsList></Tabs>
+    <section class="orders" :aria-busy="loading">
+      <Alert v-if="reviewableError" class="review-notice"><AlertDescription>{{ reviewableError }}</AlertDescription><Button variant="outline" size="sm" :disabled="reviewableLoading" @click="loadReviewableOrders"><Icon v-if="reviewableLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新核对</Button></Alert>
+      <p v-else-if="reviewableLoading" class="review-loading" role="status"><Icon icon="lucide:loader-circle" width="14" class="animate-spin" />正在核对评价资格…</p>
+      <div v-if="loading && !orders.length" class="order-skeletons" aria-label="正在读取订单"><Skeleton v-for="i in 3" :key="i" class="order-skeleton" /></div>
+      <div v-else-if="orders.length" :class="{ reading: loading }"><OrderCard v-for="order in orders" :key="order.id" :order="order" :reviewable="reviewableOrderIds.has(String(order.id))" @changed="onChanged" /></div>
+      <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '不会展示不完整的订单数据。' : '直接购买或求购成交后会生成真实订单'" :action-text="loadError ? '重新加载' : '发起求购'" @action="handleEmptyAction" />
+    </section>
+    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
   </div>
 </template>
 
 <style scoped>
-.order-list-page {
-  padding-top: 16px;
-}
-.page-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-}
-.badge {
-  margin-left: 4px;
-}
-.orders {
-  margin-top: 16px;
-}
-.pagination-bar {
-  margin-top: 16px;
-  display: flex;
-  justify-content: center;
-}
-@media (max-width: 640px) {
-  .order-list-page { padding-top: 10px; }
-  .page-head { align-items: flex-start; flex-direction: column; gap: 6px; }
-  :deep(.arco-tabs-nav-tab) { padding-left: 10px; padding-right: 10px; }
-}
+.order-list-page { padding-top: 24px; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 24px; }
+.eyebrow { color: var(--yb-gold); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin: 0 0 5px; }
+h1 { font-size: 28px; font-weight: 650; margin: 0; }
+.view-switch { display: flex; gap: 8px; }
+.order-tabs { display: flex; justify-content: flex-start; gap: 8px; width: 100%; height: auto; padding: 0 16px; overflow-x: auto; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-surface); }
+.order-tab { flex-shrink: 0; padding: 18px 12px; border-radius: 0; border-bottom: 2px solid transparent; box-shadow: none; color: var(--yb-muted); }
+.order-tab[data-state='active'] { background: transparent; color: var(--yb-primary); border-bottom-color: var(--yb-primary); box-shadow: none; }
+.tab-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--yb-fill); font-size: 12px; line-height: 18px; }
+.orders { margin-top: 24px; }
+.order-skeletons { display: grid; gap: 16px; }
+.order-skeleton { height: 210px; }
+.review-notice { margin-bottom: 16px; }
+.review-notice button { margin-top: 10px; }
+.review-loading { display: flex; align-items: center; gap: 6px; color: var(--yb-muted); font-size: 13px; }
+.reading { opacity: .55; transition: opacity 150ms; }
+@media (max-width: 800px) { .page-head { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .reading { transition: none; } }
 </style>

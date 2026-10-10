@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUserStore } from '@/stores';
 import { getOrderCapabilities } from '@/utils/order';
 
@@ -7,8 +9,9 @@ interface Props {
   order: Api.RealOrder.DisplayRecord;
   variant?: 'card' | 'detail';
   reviewable?: boolean;
+  busy?: boolean;
 }
-const props = withDefaults(defineProps<Props>(), { variant: 'card', reviewable: false });
+const props = withDefaults(defineProps<Props>(), { variant: 'card', reviewable: false, busy: false });
 const userStore = useUserStore();
 
 const emit = defineEmits<{
@@ -64,14 +67,8 @@ const actions = computed(() => {
 <template>
   <div class="actions" :class="variant">
     <template v-for="a in actions" :key="a.type">
-      <a-tooltip v-if="a.tip" :content="a.tip" position="top">
-        <a-button :type="a.primary ? 'primary' : 'outline'" size="small" :disabled="a.disabled" @click.stop="a.emit">
-          {{ a.label }}
-        </a-button>
-      </a-tooltip>
-      <a-button v-else :type="a.primary ? 'primary' : 'outline'" size="small" @click.stop="a.emit">
-        {{ a.label }}
-      </a-button>
+      <TooltipProvider v-if="a.tip || busy"><Tooltip><TooltipTrigger as-child><span :tabindex="a.disabled || busy ? 0 : undefined"><Button :variant="a.primary ? 'default' : 'outline'" :disabled="a.disabled || busy" @click.stop="a.emit">{{ a.label }}</Button></span></TooltipTrigger><TooltipContent>{{ busy ? '订单操作正在处理，请稍候' : a.tip }}</TooltipContent></Tooltip></TooltipProvider>
+      <Button v-else :variant="a.primary ? 'default' : 'outline'" :disabled="a.disabled" @click.stop="a.emit">{{ a.label }}</Button>
     </template>
   </div>
 </template>

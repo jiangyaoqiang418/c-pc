@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import ImagePreview from '@/components/common/image-preview.vue';
 import { Message, Modal } from '@/lib/feedback';
 import { Textarea } from '@/components/ui/textarea';
 import { enums } from '@shared';
@@ -31,9 +36,12 @@ const walletPayError = ref('');
 const walletGroupNo = ref('');
 const permissions = computed(() => getOrderCapabilities(order.value, userStore.currentUser?.id));
 const logisticsSection = ref<HTMLElement>();
+const purchasePreviewOpen = ref(false);
+const purchasePreviewIndex = ref(0);
+watch([() => route.params.id, () => userStore.currentUser?.id], () => { purchasePreviewOpen.value = false; });
 
 function viewLogistics() {
-  logisticsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  logisticsSection.value?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 }
 const logistics = ref<Api.RealOrder.LogisticsDTO>();
 const logisticsError = ref('');
@@ -402,328 +410,101 @@ function contactShopper() {
 </script>
 
 <template>
-  <div class="order-detail-page shop-container">
-    <a-spin :loading="loading">
-      <template v-if="order">
-        <a-alert v-if="walletPayError" type="warning" :closable="false">{{ walletPayError }}</a-alert>
-        <a-alert v-if="walletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(walletPay.status)" type="info" :closable="false">
-          钱包支付单 {{ walletPay.payNo }}：{{ walletPay.statusText || walletPay.status }}。{{ walletPay.status === 'SUBMITTED' ? '等待平台确认，请勿重复转账。' : '请核对支付进度。' }}
-          <template #action><a-button @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: walletPay.orderGroupNo } })">查看钱包支付</a-button></template>
-        </a-alert>
-        <a-alert v-if="reviewableLoading" type="info">正在核对评价资格，不影响查看订单详情。</a-alert>
-        <a-alert v-if="reviewReason && !reviewableLoading && !reviewableError" type="info">{{ reviewReason }}</a-alert>
-        <a-alert v-if="reviewableError" type="warning">
-          {{ reviewableError }}
-          <template #action><a-button :loading="reviewableLoading" @click="loadReviewable()">重新核对</a-button></template>
-        </a-alert>
-        <a-card class="hero-card" :body-style="{ padding: '24px' }">
-          <div class="hero-head">
-            <OrderStatusTag :status="order.status" size="large" />
-            <div class="hero-text">
-              <div class="hero-code">订单号：{{ order.code }}</div>
-              <div class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</div>
-            </div>
-            <OrderActions :order="order" :reviewable="reviewable" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" />
-          </div>
-        </a-card>
-
-        <div id="logistics" ref="logisticsSection"></div>
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">订单进度</div>
-          <a-alert v-if="logisticsError" class="contract-alert" type="error" :closable="false">
-            {{ logisticsError }}<template #action><a-button size="mini" @click="load">重新加载</a-button></template>
-          </a-alert>
-          <OrderTimeline :order="order" :logistics="currentLogistics" />
-        </a-card>
-
-        <a-card v-if="purchaseNo || purchaseVouchers.length" class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">采购信息</div>
-          <div v-if="purchaseNo" class="muted">采购单号 {{ purchaseNo }}</div>
-          <div v-if="purchaseVouchers.length" class="voucher-list">
-            <span class="voucher-label">采购凭证</span>
-            <a-image-preview-group>
-              <a-image v-for="url in purchaseVouchers" :key="url" :src="url" width="88" height="88" fit="cover" />
-            </a-image-preview-group>
-          </div>
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">收货信息</div>
-          <a-descriptions :data="[
-            { label: '收货人', value: order.receiverName },
-            { label: '手机', value: order.receiverPhone },
-            { label: '地址', value: order.shippingAddress },
-            { label: '邮编', value: order.postalCode || '—' },
-            { label: '地址 ID', value: order.addressId ? String(order.addressId) : '—' }
-          ]" :column="3" />
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">商品信息</div>
-          <div class="goods-row">
-            <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" />
-            <div class="info">
-              <div
-                class="title"
-                :role="hasProduct ? 'link' : undefined"
-                :tabindex="hasProduct ? 0 : undefined"
-                @click="viewProduct"
-                @keydown.enter="viewProduct"
-                @keydown.space.prevent="viewProduct"
-              >
-                {{ order.productTitle }}
-              </div>
-              <div class="tags">
-                <a-tag v-if="aftersaleMeta" :color="aftersaleMeta.color" size="small">{{ aftersaleMeta.label }}</a-tag>
-                <a-tag v-if="order.overseasCustoms" color="orange" size="small">海外直邮</a-tag>
-              </div>
-            </div>
-            <div class="amount">
-              <span class="amount-cny">{{ formatUsdt(order.price) }}</span>
-              <span class="amount-usdt">≈ {{ formatCny(order.price) }}</span>
-            </div>
-          </div>
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">金额明细</div>
-          <div class="amt-list">
-            <div class="amt-row">
-              <span class="k">商品金额</span>
-              <span class="v"><span class="cny">{{ formatUsdt(order.price) }}</span><span class="usdt">≈ {{ formatCny(order.price) }}</span></span>
-            </div>
-            <div class="amt-row">
-              <span class="k">运费</span>
-              <span class="v"><span class="cny">{{ formatUsdt(order.shippingFee) }}</span></span>
-            </div>
-            <div class="amt-row">
-              <span class="k">税费 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="12" /></span>
-              <span class="v"><span class="cny">{{ formatUsdt(order.tax) }}</span></span>
-            </div>
-            <div class="amt-row total">
-              <span class="k">订单总额</span>
-              <span class="v"><span class="cny total-big">{{ formatUsdt(order.totalAmount) }}</span><span class="usdt">≈ {{ formatCny(order.totalAmount) }} · {{ priceSet(order.totalAmount).rateLabel }}</span></span>
-            </div>
-            <div v-if="order.paymentBizNo" class="amt-row">
-              <span class="k">支付凭证</span>
-              <span class="v yb-mono">{{ order.paymentBizNo }}</span>
-            </div>
-          </div>
-        </a-card>
-
-        <a-card v-if="order.refundId || order.refundStatus || order.refundAmount" class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">退款信息</div>
-          <a-descriptions :column="2" :data="[
-            { label: '退款单号', value: order.refundId ? String(order.refundId) : '—' },
-            { label: '退款状态', value: order.refundStatus || '—' },
-            { label: '退款金额', value: order.refundAmount ? formatUsdt(order.refundAmount) : '—' }
-          ]" />
-        </a-card>
-
-        <a-card v-if="order.priceHistory?.length" class="step-card" :body-style="{ padding: '20px 24px' }">
-          <a-collapse :default-active-key="[]">
-            <a-collapse-item :header="`改价历史 (${order.priceHistory.length} 条)`" key="1">
-              <a-timeline>
-                <a-timeline-item v-for="(h, i) in order.priceHistory" :key="i">
-                  <div>{{ h.field }} <span class="yb-mono">{{ formatUsdt(h.before) }}</span> → <span class="yb-mono">{{ formatUsdt(h.after) }}</span></div>
-                  <div class="muted small">≈ {{ formatCny(h.before) }} → {{ formatCny(h.after) }}</div>
-                  <div class="muted small">{{ h.operator || '系统' }} · {{ formatTime(h.changedAt) }} · {{ h.reason }}</div>
-                </a-timeline-item>
-              </a-timeline>
-            </a-collapse-item>
-          </a-collapse>
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">三方群 / 客服</div>
-          <a-space>
-            <a-button type="primary" @click="contactShopper">
-              打开三方群 IM
-            </a-button>
-            <a-button @click="router.push('/im')">联系平台客服</a-button>
-          </a-space>
-        </a-card>
-
-        <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-          <div class="section-title">关键时间</div>
-          <a-descriptions :data="[
-            { label: '下单', value: formatTime(order.createdAt) },
-            { label: '付款', value: formatTime(order.paidAt) },
-            { label: '采购完成', value: formatTime(order.procuredAt) },
-            { label: '发货', value: formatTime(order.shippedAt) },
-            { label: '签收', value: formatTime(order.deliveredAt) },
-            { label: '归档', value: formatTime(order.archivedAt) }
-          ]" :column="3" />
-        </a-card>
-      </template>
-
-      <EmptyState v-else-if="!loading" :title="loadError || '订单不存在'" :description="loadError ? '不会展示不完整的订单数据。' : undefined" :action-text="loadError ? '重新加载' : '返回订单列表'" @action="loadError ? load() : router.push('/order')" />
-    </a-spin>
+  <div class="order-detail-page shop-container" :aria-busy="loading">
+    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><span>订单详情</span></nav>
+    <div v-if="loading && !order" class="detail-skeletons"><Skeleton class="hero-skeleton" /><Skeleton class="timeline-skeleton" /></div>
+    <template v-else-if="order">
+      <Alert v-if="walletPayError" class="notice"><AlertDescription>{{ walletPayError }}</AlertDescription></Alert>
+      <Alert v-if="walletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(walletPay.status)" class="notice"><AlertDescription>钱包支付单 {{ walletPay.payNo }}：{{ walletPay.statusText || walletPay.status }}。{{ walletPay.status === 'SUBMITTED' ? '等待平台确认，请勿重复转账。' : '请核对支付进度。' }}</AlertDescription><Button variant="outline" size="sm" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: walletPay.orderGroupNo } })">查看钱包支付</Button></Alert>
+      <Alert v-if="reviewableLoading" class="notice"><AlertDescription>正在核对评价资格，不影响查看订单详情。</AlertDescription></Alert>
+      <Alert v-if="reviewReason && !reviewableLoading && !reviewableError" class="notice"><AlertDescription>{{ reviewReason }}</AlertDescription></Alert>
+      <Alert v-if="reviewableError" class="notice"><AlertDescription>{{ reviewableError }}</AlertDescription><Button variant="outline" size="sm" :disabled="reviewableLoading" @click="loadReviewable()">重新核对</Button></Alert>
+      <section class="hero-card panel"><div class="hero-heading"><div><p class="eyebrow">ORDER DETAILS</p><h1>订单 {{ order.code }}</h1><p class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</p></div><OrderStatusTag :status="order.status" size="large" /></div><div v-if="permissions.confirm && order.autoConfirmAt" class="receive-meta"><Icon icon="lucide:clock" width="15" />预计自动收货：{{ formatTime(order.autoConfirmAt) }}<span v-if="order.receiveExtendCount != null">已延长 {{ order.receiveExtendCount }} 次</span></div><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen || loading" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" /></section>
+      <div class="detail-layout">
+        <div class="main-panels">
+          <section id="logistics" ref="logisticsSection" class="panel"><h2>订单进度</h2><Alert v-if="logisticsError" variant="destructive" class="notice"><AlertDescription>{{ logisticsError }}</AlertDescription><Button variant="outline" size="sm" :disabled="loading" @click="load">重新加载</Button></Alert><OrderTimeline :order="order" :logistics="currentLogistics" /></section>
+          <section v-if="purchaseNo || purchaseVouchers.length" class="panel"><h2>采购信息</h2><p v-if="purchaseNo" class="muted">采购单号 {{ purchaseNo }}</p><div v-if="purchaseVouchers.length" class="voucher-list"><span class="voucher-label">采购凭证</span><button v-for="(url, index) in purchaseVouchers" :key="url" type="button" class="voucher-button" :aria-label="`查看采购凭证 ${index + 1}`" @click="purchasePreviewIndex = index; purchasePreviewOpen = true"><img :src="url" alt="采购凭证" @error="setImageFallback" /><Icon icon="lucide:expand" width="14" /></button></div></section>
+          <section class="panel"><h2>商品信息</h2><div class="goods-row"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="goods-info"><button v-if="hasProduct" type="button" class="goods-title linked" @click="viewProduct">{{ order.productTitle }}</button><span v-else class="goods-title">{{ order.productTitle }}</span><div class="tags"><span v-if="aftersaleMeta" class="tag">{{ aftersaleMeta.label }}</span><span v-if="order.overseasCustoms" class="tag overseas">海外直邮</span></div></div><div class="goods-amount"><strong>{{ formatUsdt(order.price) }}</strong><small>≈ {{ formatCny(order.price) }}</small></div></div></section>
+          <section class="panel"><h2>收货信息</h2><dl class="info-grid"><div><dt>收货人</dt><dd>{{ order.receiverName }}</dd></div><div><dt>手机</dt><dd>{{ order.receiverPhone }}</dd></div><div class="wide"><dt>地址</dt><dd>{{ order.shippingAddress }}</dd></div><div><dt>邮编</dt><dd>{{ order.postalCode || '—' }}</dd></div><div><dt>地址 ID</dt><dd>{{ order.addressId != null ? String(order.addressId) : '—' }}</dd></div></dl></section>
+          <section v-if="order.refundId || order.refundStatus || order.refundAmount" class="panel"><h2>退款信息</h2><dl class="info-grid"><div><dt>退款单号</dt><dd>{{ order.refundId != null ? String(order.refundId) : '—' }}</dd></div><div><dt>退款状态</dt><dd>{{ order.refundStatus || '—' }}</dd></div><div><dt>退款金额</dt><dd>{{ order.refundAmount != null ? formatUsdt(order.refundAmount) : '—' }}</dd></div></dl></section>
+          <section v-if="order.priceHistory?.length" class="panel"><details class="price-history"><summary>改价历史（{{ order.priceHistory.length }} 条）<Icon icon="lucide:chevron-down" width="18" /></summary><ol><li v-for="(history, index) in order.priceHistory" :key="index"><div>{{ history.field }} <strong>{{ formatUsdt(history.before) }}</strong> → <strong>{{ formatUsdt(history.after) }}</strong></div><p>≈ {{ formatCny(history.before) }} → {{ formatCny(history.after) }}</p><p>{{ history.operator || '系统' }} · {{ formatTime(history.changedAt) }} · {{ history.reason }}</p></li></ol></details></section>
+          <section class="panel"><h2>关键时间</h2><dl class="info-grid"><div><dt>下单</dt><dd>{{ formatTime(order.createdAt) }}</dd></div><div><dt>付款</dt><dd>{{ formatTime(order.paidAt) }}</dd></div><div><dt>采购完成</dt><dd>{{ formatTime(order.procuredAt) }}</dd></div><div><dt>发货</dt><dd>{{ formatTime(order.shippedAt) }}</dd></div><div><dt>签收</dt><dd>{{ formatTime(order.deliveredAt) }}</dd></div><div><dt>归档</dt><dd>{{ formatTime(order.archivedAt) }}</dd></div></dl></section>
+        </div>
+        <aside class="side-panels">
+          <section class="panel amount-panel"><h2>金额明细</h2><dl class="amount-list"><div><dt>商品金额</dt><dd>{{ formatUsdt(order.price) }}<small>≈ {{ formatCny(order.price) }}</small></dd></div><div><dt>运费</dt><dd>{{ formatUsdt(order.shippingFee) }}</dd></div><div><dt>税费 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="13" /></dt><dd>{{ formatUsdt(order.tax) }}</dd></div></dl><div class="total-block"><span>订单总额</span><strong>{{ formatUsdt(order.totalAmount) }}</strong><small>≈ {{ formatCny(order.totalAmount) }}</small><p>{{ priceSet(order.totalAmount).rateLabel }}</p></div><div v-if="order.paymentBizNo" class="payment-reference"><span>支付凭证</span><p>{{ order.paymentBizNo }}</p></div></section>
+          <section class="panel support-panel"><h2>订单沟通</h2><p>通过订单三方群沟通，或联系平台客服。</p><Button class="support-button" @click="contactShopper"><Icon icon="lucide:messages-square" width="16" />打开三方群 IM</Button><Button variant="outline" class="support-button" @click="router.push('/im')">联系平台客服</Button></section>
+        </aside>
+      </div>
+      <ImagePreview v-model="purchasePreviewOpen" :images="purchaseVouchers" :start-index="purchasePreviewIndex" title="采购凭证" />
+    </template>
+    <EmptyState v-else :title="loadError || '订单不存在'" :description="loadError ? '不会展示不完整的订单数据。' : undefined" :action-text="loadError ? '重新加载' : '返回订单列表'" @action="loadError ? load() : router.push('/order')" />
     <OrderPaymentSelector v-if="order" v-model:visible="paymentOpen" :order="order" @balance="payBalance" />
   </div>
 </template>
 
 <style scoped>
-.order-detail-page {
-  width: fit-content;
-  max-width: calc(100% - 32px);
-  margin: 0 auto;
-  padding-top: 16px;
-}
-.hero-card {
-  background: linear-gradient(135deg, #fff 0%, var(--yb-primary-soft) 100%);
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 16px;
-}
-.hero-head {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.hero-text {
-  flex: 1;
-}
-.hero-code {
-  font-size: 16px;
-  font-weight: 600;
-  font-family: ui-monospace, monospace;
-}
-.hero-meta {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-top: 4px;
-}
-.step-card {
-  margin-bottom: 12px;
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 12px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.contract-alert {
-  margin-bottom: 12px;
-}
-.voucher-list { margin-top: 16px; display: flex; gap: 12px; align-items: flex-start; }
-.voucher-label { color: var(--yb-muted); font-size: 13px; white-space: nowrap; }
-.goods-row {
-  display: grid;
-  grid-template-columns: 80px 1fr auto;
-  align-items: center;
-  gap: 16px;
-}
-.cover {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.title {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--yb-ink);
-}
-.title[role="link"] {
-  cursor: pointer;
-}
-.title[role="link"]:hover {
-  color: var(--bw-brand-primary);
-}
-.title[role="link"]:focus-visible {
-  outline: 2px solid var(--bw-brand-primary);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.tags {
-  margin-top: 8px;
-  display: flex;
-  gap: 6px;
-}
-.amount {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.amount-cny {
-  font-family: var(--yb-font-mono);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
-.amount-usdt {
-  font-family: var(--yb-font-mono);
-  font-size: 11px;
-  color: var(--yb-muted);
-  margin-top: 2px;
-}
-.amt-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.amt-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--yb-hairline);
-}
-.amt-row:last-child { border-bottom: none; }
-.amt-row.total {
-  border-top: 1px solid var(--yb-hairline);
-  border-bottom: none;
-  padding-top: 12px;
-  margin-top: 4px;
-}
-.amt-row .k {
-  color: var(--yb-muted);
-  font-size: 13px;
-}
-.amt-row .v {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.amt-row .cny {
-  color: var(--yb-ink);
-  font-family: var(--yb-font-mono);
-  font-weight: 600;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-.amt-row .usdt {
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  font-size: 11px;
-  margin-top: 2px;
-}
-.total-big {
-  font-size: 24px !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.02em;
-}
-.muted {
-  color: var(--yb-muted);
-}
-.small {
-  font-size: 11px;
-}
-@media (max-width: 640px) {
-  .order-detail-page { width: auto; max-width: none; padding-top: 10px; }
-  .hero-head { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
-  .hero-text { min-width: 0; flex-basis: calc(100% - 56px); }
-  .hero-code, .hero-meta { overflow-wrap: anywhere; }
-  .goods-row { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
-  .cover { width: 64px; height: 64px; }
-  .amount { grid-column: 2; align-items: flex-start; }
-  .voucher-list { align-items: stretch; flex-direction: column; }
-  .total-big { font-size: 20px !important; }
-}
+.order-detail-page { padding-top: 24px; }
+.breadcrumb { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 13px; color: var(--yb-muted); }
+.breadcrumb a:hover { color: var(--yb-primary); }
+.panel { border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); padding: 24px; min-width: 0; }
+.hero-card { margin-bottom: 24px; background: linear-gradient(120deg, var(--yb-surface), var(--yb-primary-soft)); }
+.hero-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
+.eyebrow { color: var(--yb-gold); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin: 0 0 6px; }
+h1 { font-size: 24px; font-weight: 650; margin: 0; overflow-wrap: anywhere; }
+.hero-meta { font-size: 13px; color: var(--yb-muted); margin: 8px 0 0; }
+.receive-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; color: var(--yb-muted); font-size: 13px; margin-bottom: 16px; }
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
+.main-panels, .side-panels { display: grid; gap: 24px; min-width: 0; }
+.side-panels { position: sticky; top: 24px; }
+h2 { font-size: 20px; font-weight: 650; margin: 0 0 20px; }
+.notice { margin-bottom: 16px; }
+.notice button { margin-top: 12px; }
+#logistics { scroll-margin-top: 24px; }
+.voucher-list { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.voucher-label { color: var(--yb-muted); font-size: 13px; width: 100%; }
+.voucher-button { position: relative; border: 1px solid var(--yb-hairline); border-radius: 8px; overflow: hidden; width: 88px; height: 88px; }
+.voucher-button img { width: 100%; height: 100%; object-fit: cover; transition: transform 200ms; }
+.voucher-button svg { position: absolute; bottom: 5px; right: 5px; color: white; background: rgb(0 0 0 / 45%); border-radius: 3px; padding: 2px; width: 20px; height: 20px; }
+.voucher-button:hover img { transform: scale(1.03); }
+.muted { color: var(--yb-muted); font-size: 14px; }
+.goods-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 20px; }
+.cover { width: 88px; height: 88px; object-fit: contain; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-fill); }
+.goods-title { display: block; text-align: left; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.goods-title.linked:hover { color: var(--yb-primary); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag { padding: 2px 6px; font-size: 12px; background: var(--yb-fill); color: var(--yb-primary); border-radius: 4px; }
+.tag.overseas { background: var(--yb-champagne); color: var(--yb-gold); }
+.goods-amount { display: grid; gap: 4px; text-align: right; font-variant-numeric: tabular-nums; }
+.goods-amount strong { font-size: 20px; font-weight: 650; }
+.goods-amount small { font-size: 12px; color: var(--yb-muted); }
+.info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 0; }
+.info-grid dt { font-size: 13px; color: var(--yb-muted); margin-bottom: 6px; }
+.info-grid dd { font-size: 14px; margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.info-grid .wide { grid-column: 1 / -1; }
+.price-history summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 16px; font-weight: 600; list-style: none; }
+.price-history summary::-webkit-details-marker { display: none; }
+.price-history summary svg { transition: transform 200ms; }
+.price-history[open] summary svg { transform: rotate(180deg); }
+.price-history ol { list-style: none; padding: 0; margin: 20px 0 0; }
+.price-history li { padding: 12px 0; border-top: 1px solid var(--yb-hairline); font-size: 14px; }
+.price-history li p { margin: 5px 0 0; font-size: 12px; color: var(--yb-muted); }
+.amount-list { display: grid; gap: 18px; margin: 0; }
+.amount-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.amount-list dt { display: inline-flex; align-items: center; gap: 4px; color: var(--yb-muted); font-size: 14px; }
+.amount-list dd { margin: 0; font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.amount-list dd small, .total-block small { display: block; font-size: 12px; font-weight: 400; color: var(--yb-muted); }
+.total-block { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--yb-hairline); display: grid; gap: 5px; }
+.total-block > span { font-size: 14px; }
+.total-block strong { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.total-block p { font-size: 12px; color: var(--yb-muted); margin: 8px 0 0; }
+.payment-reference { border-top: 1px solid var(--yb-hairline); padding-top: 16px; margin-top: 16px; font-size: 12px; color: var(--yb-muted); }
+.payment-reference p { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; margin: 6px 0 0; }
+.support-panel p { font-size: 13px; color: var(--yb-muted); }
+.support-button { width: 100%; margin-top: 12px; }
+.detail-skeletons { display: grid; gap: 24px; }
+.hero-skeleton { height: 190px; }
+.timeline-skeleton { height: 500px; }
+@media (max-width: 1100px) { .detail-layout { grid-template-columns: minmax(0, 1fr) 290px; gap: 16px; } .panel { padding: 20px; } .main-panels, .side-panels { gap: 16px; } }
+@media (max-width: 800px) { .detail-layout { grid-template-columns: 1fr; } .side-panels { position: static; } }
+@media (prefers-reduced-motion: reduce) { .voucher-button img, .price-history summary svg { transition: none; } }
 </style>
