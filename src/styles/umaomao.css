@@ -46,6 +46,7 @@
   color-scheme: light;
   --yb-bg: var(--um-bg);
   --yb-surface: var(--um-paper);
+  --yb-paper: var(--yb-surface);
   --yb-elevated: var(--um-paper);
   --yb-hairline: var(--um-line);
   --yb-hairline-2: color-mix(in srgb, var(--um-line), var(--um-ink) 12%);
@@ -59,6 +60,7 @@
   --yb-brand-hover: var(--um-dark);
   --yb-primary-2: color-mix(in srgb, var(--um-primary), white 12%);
   --yb-primary-soft: var(--um-soft);
+  --yb-warning-soft: color-mix(in srgb, var(--yb-warning) 10%, var(--yb-surface));
   --yb-accent: var(--um-gold);
   --yb-accent-ink: var(--um-ink);
   --yb-gold: color-mix(in srgb, var(--um-gold), var(--um-ink) 28%);
@@ -68,6 +70,9 @@
   --yb-deep-2: var(--um-primary);
   --yb-font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   --yb-font-display: var(--yb-font-body);
+  --font-body: var(--yb-font-body);
+  --font-display: var(--yb-font-display);
+  --font-mono: var(--yb-font-mono);
   --yb-radius-card: 12px;
   --yb-radius-md: 8px;
   --yb-radius-sm: 6px;

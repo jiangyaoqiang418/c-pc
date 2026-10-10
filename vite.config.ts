@@ -57,7 +57,7 @@ export default defineConfig(({ command, mode }) => {
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
-            if (id.includes('@arco-design')) return 'arco';
+            if (id.includes('/reka-ui/') || id.includes('/@floating-ui/')) return 'ui-primitives';
             if (id.includes('echarts') || id.includes('vue-echarts')) return 'charts';
             if (id.includes('@iconify')) return 'icons';
             if (id.includes('/vue/') || id.includes('/pinia/') || id.includes('/vue-router/')) return 'vue-vendor';

@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Props {
   visible: boolean;
@@ -50,9 +51,9 @@ function submit() {
   >
     <template v-if="order">
       <div class="hint">订单 {{ order.code }} · {{ order.productTitle }}</div>
-      <a-alert type="info" class="alert">
+      <Alert class="alert"><AlertDescription>
         请上传向商家下单的截图作为采购凭证；上传后订单将变为「已采购待发货」
-      </a-alert>
+      </AlertDescription></Alert>
       <AftersaleEvidenceUploader v-model="images" :max="1" />
     </template>
   </a-modal>

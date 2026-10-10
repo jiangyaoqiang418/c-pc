@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { formatDateValue } from '@/utils/date-range';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   announcement: Api.Cms.Announcement;
@@ -30,8 +31,8 @@ const meta = computed(() => TYPE_META[props.announcement.type]);
   >
     <div class="head">
       <span class="emoji">{{ meta.emoji }}</span>
-      <a-tag :color="meta.color" size="small">{{ meta.label }}</a-tag>
-      <a-tag v-if="announcement.pinned" color="red" size="small">置顶</a-tag>
+      <Badge variant="secondary">{{ meta.label }}</Badge>
+      <Badge v-if="announcement.pinned" variant="destructive">置顶</Badge>
       <span class="title">{{ announcement.title }}</span>
     </div>
     <div class="summary">{{ announcement.summary }}</div>

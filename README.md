@@ -1,6 +1,6 @@
-# 油宝 C 端 PC
+# Umaomao C 端 PC
 
-基于 `Vue 3 + Vite + TypeScript + Arco Design Vue + Pinia + Vue Router + Tailwind CSS` 的油宝 C 端 PC 项目。
+基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。沿用既有请求、业务状态和权限流程，UI 参考本地 Umaomao v44 PC 版本，不引入原型的演示业务数据。
 
 ## 环境与命令
 
@@ -22,7 +22,7 @@ pnpm typecheck
 ```text
 src/
 ├── views/                 # 按业务模块组织的页面
-├── components/            # 业务与通用组件
+├── components/            # 业务、通用及 ui/ 下的 shadcn 源码组件
 ├── layouts/               # 页面布局
 ├── router/                # vue-router
 ├── stores/                # Pinia
@@ -67,11 +67,19 @@ src/
 
 ## 主题配色
 
-- 全局主题位于 `src/styles/tokens.scss`，采用森林绿、暖白和金黄；`src/styles/main.css` 将主题映射到 Tailwind。
+- 六主题位于 `src/styles/umaomao.css`；默认森林绿，另保留 navy-coral、ocean、clay、graphite、plum 五套主题，由页头切换并本地保存。`tokens.scss` 保留既有业务变量别名，`main.css` 映射到 Tailwind 和 shadcn 语义变量。
 - 主操作和链接使用 `--yb-brand-primary`，悬停使用 `--yb-brand-hover`，选中底色使用 `--yb-primary-soft`。
 - 活动背景使用 `--yb-accent` 并搭配 `--yb-accent-ink`；白底上的金色小字使用更深的 `--yb-gold`。
-- 旧 `--yb-brand-pink*`、`--yb-primary*` 和 `--bw-*` 保留兼容映射。Arco 主色色阶和中性色在 `body` 上同步覆盖，保留组件的状态色和禁用样式。
+- 旧 `--yb-brand-pink*`、`--yb-primary*` 和 `--bw-*` 保留兼容映射。Arco 入口、样式与依赖已移除；`AModal` / `a-modal` 是基于 Reka Dialog 的业务弹窗兼容名称，不再调用 Arco。
 - 页面样式优先引用主题变量；ECharts 渐变使用解析后的实际色值，SVG 和 CSS 图表可以直接引用主题变量。业务状态、角色标识和第三方品牌色保持各自语义。
+
+## 交互基础
+
+- 按钮与卡片采用柔和商城型 hover、焦点和页面过渡，尊重系统“减少动态效果”设置。
+- 全局消息支持悬浮或聚焦暂停消失；弹窗、抽屉、下拉和 Tooltip 分层，抽屉保留左侧遮罩。
+- 既有筛选、分页、失败重试、上传、支付密码、未保存提示、实时消息及结果核对流程保留；原型缺失的业务操作沿用现有实现。
+- 帮助文章、公告和 AI 的真实接口缺口仍保留未开放状态；协议保留原有演示声明，不伪造已上线内容。
+- 本次 UI 重构按要求未运行测试、类型检查、构建或浏览器验证；源码迁移与真实运行验收是不同状态。
 
 ## 开发边界
 

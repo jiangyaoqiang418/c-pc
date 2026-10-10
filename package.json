@@ -13,7 +13,6 @@
     "check:swagger": "node scripts/check-swagger-contract.mjs"
   },
   "dependencies": {
-    "@arco-design/web-vue": "^2.56.3",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@iconify-json/lucide": "^1.2.115",

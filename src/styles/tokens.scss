@@ -1,9 +1,9 @@
 /**
- * 全局设计 tokens —— 油宝品牌视觉系统
- * 参考产品配色：森林绿 + 暖白 + 金黄
+ * 全局兼容 tokens —— Umaomao PC
+ * 六主题和 shadcn 语义变量由 umaomao.css 统一覆盖
  *
  * 新变量前缀 `--yb-*` (Youbao)
- * 旧 `--bw-*` 变量作 alias 保留（避免破坏其他 40+ 页）
+ * 旧 `--bw-*` 变量保留别名，兼容既有业务组件
  */
 
 :root {
@@ -83,48 +83,6 @@
   --bw-card-radius:    var(--yb-radius-card);
   --bw-page-max-width: var(--yb-page-max-width);
   --bw-page-padding:   var(--yb-page-padding);
-
-  /* ==================== Arco Design 主色完整覆盖 (10 shades) ==================== */
-  --primary-1: 234, 241, 233;
-  --primary-2: 218, 232, 223;
-  --primary-3: 194, 217, 202;
-  --primary-4: 156, 190, 168;
-  --primary-5: 61, 117, 88;
-  --primary-6: var(--yb-primary-rgb);
-  --primary-7: 33, 78, 61;
-  --primary-8: 25, 63, 50;
-  --primary-9: 18, 48, 38;
-  --primary-10: 12, 34, 27;
-  /* 少量组件用 arcoblue-* 命名 */
-  --arcoblue-1: var(--primary-1);
-  --arcoblue-2: var(--primary-2);
-  --arcoblue-3: var(--primary-3);
-  --arcoblue-4: var(--primary-4);
-  --arcoblue-5: var(--primary-5);
-  --arcoblue-6: var(--primary-6);
-  --arcoblue-7: var(--primary-7);
-  --arcoblue-8: var(--primary-8);
-  --arcoblue-9: var(--primary-9);
-  --arcoblue-10: var(--primary-10);
-
-  /* Arco 中性色与页面主题一致；语义状态色保留组件原有配置。 */
-  --color-bg-1: var(--yb-bg);
-  --color-bg-2: var(--yb-surface);
-  --color-bg-3: var(--yb-elevated);
-  --color-bg-4: var(--yb-elevated);
-  --color-bg-5: var(--yb-elevated);
-  --color-text-1: var(--yb-ink);
-  --color-text-2: var(--yb-ink-2);
-  --color-text-3: var(--yb-muted);
-  --color-text-4: var(--yb-faint);
-  --color-fill-1: var(--yb-bg);
-  --color-fill-2: var(--yb-fill);
-  --color-fill-3: var(--yb-hairline);
-  --color-fill-4: var(--yb-hairline-2);
-  --color-border-1: var(--yb-hairline);
-  --color-border-2: var(--yb-hairline);
-  --color-border-3: var(--yb-hairline-2);
-  --color-border-4: var(--yb-hairline-2);
 }
 
 /* ==================== base reset ==================== */
@@ -172,16 +130,4 @@ a {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
-}
-
-/* Arco 组件微调 (克制) */
-.arco-btn {
-  border-radius: var(--yb-radius-md);
-  font-weight: 500;
-}
-.arco-card {
-  border-radius: var(--yb-radius-card);
-}
-.arco-tag {
-  border-radius: var(--yb-radius-pill);
 }

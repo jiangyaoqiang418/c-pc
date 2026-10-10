@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { formatAmount } from '@shared';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   group: Api.Im.OrderGroup;
@@ -57,7 +59,7 @@ function goOrder() {
   <div class="group-header">
     <div class="header-left">
       <div class="title-row">
-        <a-tag :color="meta.color">{{ meta.label }}</a-tag>
+        <Badge variant="secondary">{{ meta.label }}</Badge>
         <span class="order-code">{{ group.orderId }}</span>
         <span v-if="group.fromPresaleId" class="presale-flag">🔗 从售前并入</span>
       </div>
@@ -81,7 +83,7 @@ function goOrder() {
           {{ a.letter }}
         </div>
       </div>
-      <a-button size="small" type="outline" @click="goOrder">查看订单 ›</a-button>
+      <Button type="button" size="sm" variant="outline" @click="goOrder">查看订单 ›</Button>
     </div>
   </div>
 </template>

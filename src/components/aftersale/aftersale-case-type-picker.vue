@@ -62,7 +62,7 @@ const TYPES: TypeDef[] = [
   transition: all 0.18s;
 }
 .type-card:hover {
-  border-color: rgb(var(--primary-4));
+  border-color: color-mix(in srgb, var(--yb-primary) 45%, var(--yb-hairline));
 }
 .type-card.active {
   border-color: var(--bw-brand-primary);

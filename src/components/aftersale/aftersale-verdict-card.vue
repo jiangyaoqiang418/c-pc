@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { formatAmount } from '@shared';
 import { formatDateValue } from '@/utils/date-range';
+import DescriptionList from '@/components/common/description-list.vue';
 
 interface Props {
   caseRecord: Api.Order.AftersaleCase;
@@ -25,7 +26,7 @@ const meta = computed(() => (props.caseRecord.verdict ? VERDICT_META[props.caseR
       <span class="badge" :style="{ background: meta.color }">{{ meta.label }}</span>
     </div>
     <div class="tone">{{ meta.tone }}</div>
-    <a-descriptions :column="2" :data="[
+    <DescriptionList :columns="2" :items="[
       { label: '仲裁员', value: caseRecord.arbitrator || '—' },
       { label: '退款金额', value: caseRecord.refundAmount ? 'U ' + formatAmount(caseRecord.refundAmount) : '—' },
       { label: '押金扣罚', value: caseRecord.depositDeductAmount ? 'U ' + formatAmount(caseRecord.depositDeductAmount) : '—' },

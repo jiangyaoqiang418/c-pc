@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router';
 import type { AiSearchResult } from '@shared/api/ai';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   result?: AiSearchResult;
@@ -37,7 +38,7 @@ function inducePurchase() {
             <div class="induce-sub">让全球买手为您代购，平台 USDT 担保 24h 接单</div>
           </div>
         </div>
-        <a-button type="primary" @click="inducePurchase">一键发起求购 ›</a-button>
+        <Button type="button" @click="inducePurchase">一键发起求购 ›</Button>
       </div>
 
       <template v-if="result.suggestions.length">
