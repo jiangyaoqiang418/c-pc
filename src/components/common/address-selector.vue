@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Message } from '@/lib/feedback';
 import * as realAddressApi from '@/service/api/address';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -11,6 +15,7 @@ interface Props {
   userId: string | number;
 }
 const props = defineProps<Props>();
+const groupId = useId();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string | number | undefined): void;
   (e: 'changed', addr: Api.RealAddress.AddressRecord | undefined): void;
@@ -135,119 +140,42 @@ async function submit(params: Api.RealAddress.AddressSaveParams) {
 </script>
 
 <template>
-  <div class="address-selector">
-    <a-spin :loading="loading" style="width: 100%">
-      <div class="address-list" role="radiogroup" aria-label="收货地址">
-        <a-alert v-if="loadError" type="error" :show-icon="false">
-          {{ loadError }}
-          <template #action><a-link role="button" tabindex="0" @click="load" @keydown.enter="load" @keydown.space.prevent="load">重新加载</a-link></template>
-        </a-alert>
-        <div
-          v-for="a in list"
-          :key="a.id"
-          class="address-row"
-          :class="{ active: isSelected(a) }"
-          role="radio"
-          tabindex="0"
-          :aria-checked="isSelected(a)"
-          :aria-label="`${a.receiverName}，${a.receiverPhone}，${a.detail}`"
-          @click="onSelect(a)"
-          @keydown.enter="onSelect(a)"
-          @keydown.space.prevent="onSelect(a)"
-        >
-          <div class="row-radio">
-            <span class="radio-dot" :class="{ checked: isSelected(a) }" />
-          </div>
-          <div class="row-info">
-            <div class="row-head">
-              <span class="receiver">{{ a.receiverName }}</span>
-              <span class="phone">{{ a.receiverPhone }}</span>
-              <a-tag v-if="a.isDefault" color="arcoblue" size="small">默认</a-tag>
-            </div>
-            <div class="row-detail">{{ a.country }} · {{ a.province }} · {{ a.city }} · {{ a.district }} · {{ a.detail }}</div>
-          </div>
-        </div>
-        <a-button class="add-btn" long type="dashed" @click="openAdd">+ 新增收货地址</a-button>
-      </div>
-    </a-spin>
-
-    <a-modal v-model:visible="modalOpen" title="新增收货地址" :footer="false">
+  <div class="address-selector" :aria-busy="loading">
+    <Alert v-if="loadError" variant="destructive" class="address-error"><AlertDescription>{{ loadError }}</AlertDescription><Button variant="outline" size="sm" :disabled="loading" @click="load">重新加载</Button></Alert>
+    <div v-if="loading && !list.length" class="address-list" aria-label="正在读取收货地址"><Skeleton v-for="i in 2" :key="i" class="address-skeleton" /></div>
+    <fieldset v-else class="address-list" :disabled="loading || !!loadError">
+      <legend class="sr-only">选择收货地址</legend>
+      <label v-for="a in list" :key="a.id" class="address-row" :class="{ active: isSelected(a) }">
+        <input type="radio" :name="groupId" :checked="isSelected(a)" :aria-label="`${a.receiverName}，${a.receiverPhone}，${a.detail}`" @change="onSelect(a)" />
+        <div class="row-info"><div class="row-head"><span class="receiver">{{ a.receiverName }}</span><span class="phone">{{ a.receiverPhone }}</span><span v-if="a.isDefault" class="default-tag">默认地址</span><Icon v-if="isSelected(a)" icon="lucide:check" width="16" class="selected-icon" /></div><div class="row-detail">{{ a.country }} · {{ a.province }} · {{ a.city }} · {{ a.district }} · {{ a.detail }}</div></div>
+      </label>
+      <p v-if="!list.length && !loadError" class="no-address">还没有收货地址，请添加后继续结算。</p>
+    </fieldset>
+    <Button class="add-btn" variant="outline" :disabled="submitting || loading" @click="openAdd"><Icon icon="lucide:plus" width="16" />新增收货地址</Button>
+    <a-modal v-model:visible="modalOpen" title="新增收货地址" :footer="false" :mask-closable="!submitting">
       <AddressForm :submitting="submitting" @submit="submit" />
     </a-modal>
   </div>
 </template>
 
 <style scoped>
-.address-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.address-row:focus-visible {
-  outline: 2px solid var(--bw-brand-primary);
-  outline-offset: 2px;
-}
-.address-row {
-  display: flex;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--yb-hairline-2);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.address-row:hover {
-  border-color: rgb(var(--primary-4));
-  background: var(--yb-primary-soft);
-}
-.address-row.active {
-  border-color: var(--bw-brand-primary);
-  background: var(--yb-primary-soft);
-}
-.row-radio {
-  display: flex;
-  align-items: center;
-}
-.radio-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1.5px solid var(--yb-hairline-2);
-  display: inline-block;
-  position: relative;
-}
-.radio-dot.checked {
-  border-color: var(--bw-brand-primary);
-}
-.radio-dot.checked::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--bw-brand-primary);
-}
-.row-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.receiver {
-  font-weight: 600;
-  color: var(--yb-ink);
-}
-.phone {
-  color: var(--yb-ink-2);
-  font-size: 13px;
-}
-.row-detail {
-  color: var(--yb-ink-2);
-  font-size: 13px;
-  margin-top: 4px;
-}
-.add-btn {
-  margin-top: 4px;
-}
+.address-list { display: grid; gap: 12px; padding: 0; margin: 0; border: 0; }
+.address-row { display: flex; align-items: flex-start; gap: 12px; padding: 18px; border: 1px solid var(--yb-hairline); border-radius: 8px; cursor: pointer; transition: background 150ms, border-color 150ms; }
+.address-row:hover, .address-row.active { border-color: var(--yb-primary); background: var(--yb-primary-soft); }
+.address-list:disabled .address-row { opacity: .55; cursor: not-allowed; }
+.address-row:focus-within { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
+.address-row input { margin-top: 4px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--yb-primary); }
+.row-info { min-width: 0; flex: 1; }
+.row-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.receiver { font-size: 15px; font-weight: 600; }
+.phone, .row-detail { color: var(--yb-muted); font-size: 13px; }
+.row-detail { margin-top: 8px; overflow-wrap: anywhere; }
+.default-tag { font-size: 12px; color: var(--yb-primary); border: 1px solid var(--yb-hairline); padding: 0 6px; border-radius: 4px; }
+.selected-icon { margin-left: auto; color: var(--yb-primary); }
+.add-btn { width: 100%; margin-top: 12px; border-style: dashed; }
+.no-address { padding: 16px; margin: 0; font-size: 14px; color: var(--yb-muted); background: var(--yb-fill); border-radius: 8px; }
+.address-skeleton { height: 96px; }
+.address-error { margin-bottom: 12px; }
+.address-error button { margin-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .address-row { transition: none; } }
 </style>

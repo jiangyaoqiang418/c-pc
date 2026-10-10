@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import QuantityStepper from '@/components/common/quantity-stepper.vue';
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -26,6 +32,13 @@ onBeforeUnmount(closeRemoval);
 watch(() => userStore.currentUser?.id, closeRemoval);
 
 const items = computed(() => cart.enrichedItems);
+const selection = computed(() => cart.allSelected ? true : items.value.some(item => item.selected) ? 'indeterminate' as const : false);
+const checkoutDisabledReason = computed(() => {
+  if (cart.mutating) return '购物车正在同步，请稍候再结算';
+  if (items.value.some(item => item.selected && !item.available)) return '已选商品尚未全部确认可购，请重试读取或调整数量和勾选';
+  if (cart.selectedQty === 0) return '请先勾选至少一件可购商品';
+  return '';
+});
 
 function setAll(checked: boolean) {
   cart.setAllSelected(checked);
@@ -88,322 +101,102 @@ onMounted(() => {
 
 <template>
   <div class="cart-page shop-container">
-    <h1 class="page-title">购物车</h1>
-
-    <a-result v-if="cart.cacheError" status="error" title="购物车读取失败" :subtitle="cart.cacheError">
-      <template #extra><a-button type="primary" @click="cart.retryLoad">重新读取</a-button></template>
-    </a-result>
-    <template v-else-if="items.length">
-      <a-card class="cart-card" :body-style="{ padding: 0 }">
-        <div class="head-row">
-          <div class="col-check">
-            <a-checkbox :model-value="cart.allSelected" @change="(v) => setAll(!!v)">全选</a-checkbox>
-          </div>
-          <div class="col-product">商品</div>
-          <div class="col-price">单价</div>
-          <div class="col-qty">数量</div>
-          <div class="col-sub">小计</div>
-          <div class="col-op">操作</div>
+    <header class="page-heading"><div><p class="eyebrow">YOUR SELECTION</p><h1>购物车 <span v-if="items.length">{{ cart.totalQty }} 件商品</span></h1></div><RouterLink to="/product/list" class="continue-link">继续逛逛 <Icon icon="lucide:arrow-right" width="16" /></RouterLink></header>
+    <Alert v-if="cart.cacheError" variant="destructive" class="error-panel">
+      <AlertTitle>购物车读取失败</AlertTitle><AlertDescription>{{ cart.cacheError }}</AlertDescription>
+      <Button variant="outline" class="retry-button" @click="cart.retryLoad">重新读取</Button>
+    </Alert>
+    <div v-else-if="items.length" class="cart-layout">
+      <section class="cart-card" aria-label="购物车商品">
+        <div class="cart-toolbar">
+          <label class="check-label"><Checkbox :model-value="selection" aria-label="全选购物车商品" @update:model-value="value => setAll(value === true)"><Icon :icon="selection === 'indeterminate' ? 'lucide:minus' : 'lucide:check'" width="14" /></Checkbox>全选商品</label>
+          <Button variant="ghost" size="sm" :disabled="cart.mutating || !items.some(item => item.confirmedInvalid)" @click="clearInvalid">清理失效商品</Button>
         </div>
-        <div
-          v-for="item in items"
-          :key="item.productId"
-          class="data-row"
-          :class="{ invalid: !item.available }"
-        >
-          <div class="col-check">
-            <a-checkbox
-              :model-value="item.selected"
-              :disabled="!item.available && !item.selected"
-              @change="(v) => cart.setSelected(item.productId, !!v)"
-            />
-          </div>
-          <div class="col-product">
-            <img v-if="item.product" :src="item.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product.title || '商品图片'" class="cover" @error="setImageFallback" />
-            <div class="product-info">
-              <div class="product-title">{{ item.product?.title || (item.loadState === 'error' ? '商品读取失败' : '商品加载中') }}</div>
-              <div class="product-tags">
-                <a-tag v-if="item.product" :color="getAftersaleMeta(item.product.aftersaleType).color" size="small">
-                  {{ getAftersaleMeta(item.product.aftersaleType).label }}
-                </a-tag>
-                <a-tag v-if="item.product?.overseasCustoms" color="orange" size="small">海外直邮</a-tag>
-                <span class="seller">{{ item.product?.sellerName || '—' }}</span>
-                <a-tag v-if="item.confirmedInvalid" color="red" size="small">已失效</a-tag>
-                <a-tag v-else-if="item.loadState === 'loading'" size="small">读取中</a-tag>
-                <a-button v-else-if="item.loadState === 'error'" type="text" size="small" @click="cart.refresh()">读取失败，重试</a-button>
-                <a-tag v-else-if="!item.available" color="orange" size="small">请检查数量或商品信息</a-tag>
-              </div>
+        <article v-for="item in items" :key="item.productId" class="cart-item" :class="{ invalid: !item.available }">
+          <Checkbox class="item-check" :model-value="item.selected" :disabled="!item.available && !item.selected" :aria-label="`选择 ${item.product?.title || '商品'}`" @update:model-value="value => cart.setSelected(item.productId, value === true)" />
+          <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" class="cover" @error="setImageFallback" />
+          <div class="product-info">
+            <RouterLink v-if="item.product" :to="`/product/${item.productId}`" class="product-title">{{ item.product.title }}</RouterLink>
+            <div v-else class="product-title">{{ item.loadState === 'error' ? '商品读取失败' : '商品加载中' }}</div>
+            <div class="product-tags">
+              <span v-if="item.product" class="product-tag">{{ getAftersaleMeta(item.product.aftersaleType).label }}</span>
+              <span v-if="item.product?.overseasCustoms" class="product-tag overseas">海外直邮</span>
+              <span class="seller">买手 · {{ item.product?.sellerName || '—' }}</span>
             </div>
+            <p v-if="item.confirmedInvalid" class="item-notice danger">商品已失效，请移除后重新选择</p>
+            <p v-else-if="item.loadState === 'loading'" class="item-notice"><Icon icon="lucide:loader-circle" width="14" class="animate-spin" />正在读取商品信息</p>
+            <Button v-else-if="item.loadState === 'error'" variant="link" size="sm" class="retry-link" @click="cart.refresh()">读取失败，重新读取</Button>
+            <p v-else-if="!item.available" class="item-notice">请检查数量或商品信息</p>
+            <PriceTag v-if="item.product" :price="item.product.price" size="sm" :show-rate="false" />
+            <span v-else class="price-pending">单价待读取</span>
           </div>
-          <div class="col-price">
-            <PriceTag :price="item.product?.price || '0'" size="sm" />
+          <div class="item-actions">
+            <QuantityStepper :model-value="item.qty" :max="item.product?.stock || 1" :disabled="cart.mutating || item.loadState !== 'ready' || item.confirmedInvalid" :label="`${item.product?.title || '商品'}数量`" @update:model-value="value => cart.update(item.productId, value)" />
+            <div v-if="item.product" class="line-total">{{ formatUsdt(item.subtotal) }}<small>≈ {{ formatCny(item.subtotal) }}</small></div>
+            <Button variant="ghost" size="sm" class="remove-button" :disabled="cart.mutating" @click="remove(item.productId)"><Icon icon="lucide:trash-2" width="14" />移除</Button>
           </div>
-          <div class="col-qty">
-            <a-input-number
-              :model-value="item.qty"
-              :min="1"
-              :max="item.product?.stock || 1"
-              size="small"
-              class="qty-input"
-              :disabled="item.loadState !== 'ready' || item.confirmedInvalid"
-              @change="(v) => cart.update(item.productId, Number(v) || 1)"
-            />
-          </div>
-          <div class="col-sub">
-            <span class="sub-price">{{ formatUsdt(item.subtotal) }}</span>
-            <span class="sub-usdt">≈ {{ formatCny(item.subtotal) }}</span>
-          </div>
-          <div class="col-op">
-            <a-button type="text" status="danger" size="small" @click="remove(item.productId)">删除</a-button>
-          </div>
-        </div>
-      </a-card>
-
-      <div class="summary-card">
-        <div class="summary-left">
-          <a-button type="text" size="small" :disabled="!items.some(item => item.confirmedInvalid)" @click="clearInvalid">清理失效商品</a-button>
-          <span class="muted small">已选 {{ cart.selectedQty }} 件 / 共 {{ cart.totalQty }} 件</span>
-        </div>
-        <div class="summary-right">
-          <div class="summary-row">
-            <span class="lbl">商品合计</span>
-            <span class="summary-val">
-              <span class="v-cny">{{ formatUsdt(cart.subTotal) }}</span>
-              <span class="v-usdt">≈ {{ formatCny(cart.subTotal) }}</span>
-            </span>
-          </div>
-          <div class="summary-row">
-            <span class="lbl">运费</span>
-            <span class="summary-val">
-              <span class="v-cny">{{ formatUsdt(cart.shippingFeeTotal) }}</span>
-            </span>
-          </div>
-          <div class="summary-row">
-            <span class="lbl">税费<InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="12" /></span>
-            <span class="summary-val">
-              <span class="v-cny">{{ formatUsdt(cart.taxTotal) }}</span>
-            </span>
-          </div>
-          <div class="summary-row total">
-            <span class="lbl">应付总额</span>
-            <span class="total-amount-block">
-              <span class="total-cny">{{ formatUsdt(cart.grandTotal) }}</span>
-              <span class="total-usdt">≈ {{ formatCny(cart.grandTotal) }} · {{ priceSet(cart.grandTotal).rateLabel }}</span>
-            </span>
-          </div>
-          <a-button type="primary" size="large" :disabled="cart.selectedQty === 0" @click="goCheckout">
-            去结算 ({{ cart.selectedQty }})
-          </a-button>
-        </div>
-      </div>
-    </template>
-
-    <EmptyState
-      v-else
-      title="购物车空空如也"
-      description="去首页发现喜欢的商品吧"
-      action-text="去逛逛"
-      @action="router.push('/')"
-    />
+        </article>
+      </section>
+      <aside class="summary-card" aria-label="结算明细">
+        <h2>订单小计</h2><p class="selection-meta">已选 {{ cart.selectedQty }} 件 / 共 {{ cart.totalQty }} 件</p>
+        <dl class="summary-list">
+          <div><dt>商品合计</dt><dd>{{ formatUsdt(cart.subTotal) }}<small>≈ {{ formatCny(cart.subTotal) }}</small></dd></div>
+          <div><dt>运费</dt><dd>{{ formatUsdt(cart.shippingFeeTotal) }}</dd></div>
+          <div><dt>税费 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="13" /></dt><dd>{{ formatUsdt(cart.taxTotal) }}</dd></div>
+        </dl>
+        <div class="total-block"><span>应付总额</span><strong>{{ formatUsdt(cart.grandTotal) }}</strong><small>≈ {{ formatCny(cart.grandTotal) }}</small></div>
+        <TooltipProvider><Tooltip><TooltipTrigger as-child><span class="checkout-trigger" :tabindex="checkoutDisabledReason ? 0 : undefined"><Button class="checkout-button" size="lg" :disabled="!!checkoutDisabledReason" @click="goCheckout">去结算（{{ cart.selectedQty }}）<Icon icon="lucide:arrow-right" width="16" /></Button></span></TooltipTrigger><TooltipContent v-if="checkoutDisabledReason">{{ checkoutDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+        <p class="rate-note">{{ priceSet(cart.grandTotal).rateLabel }}<br />本地参考折算，以 USDT 结算</p>
+      </aside>
+    </div>
+    <EmptyState v-else title="购物车空空如也" description="去首页发现喜欢的商品吧" action-text="去逛逛" @action="router.push('/')" />
   </div>
 </template>
 
 <style scoped>
-.cart-page {
-  padding-top: 16px;
-}
-.page-title {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0;
-  color: var(--yb-ink);
-}
-.cart-card {
-  margin-bottom: 16px;
-}
-.head-row,
-.data-row {
-  display: grid;
-  grid-template-columns: 60px 1fr 120px 140px 140px 80px;
-  align-items: center;
-  padding: 12px 16px;
-}
-.head-row {
-  background: var(--yb-fill);
-  font-size: 13px;
-  color: var(--yb-ink-2);
-  font-weight: 500;
-  border-bottom: 1px solid var(--yb-hairline);
-}
-.data-row {
-  border-bottom: 1px solid var(--yb-fill);
-}
-.data-row.invalid {
-  opacity: 0.55;
-}
-.col-product {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.cover {
-  width: 64px;
-  height: 64px;
-  border-radius: 4px;
-  object-fit: cover;
-  background: var(--yb-fill);
-}
-.product-info {
-  flex: 1;
-  min-width: 0;
-}
-.product-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--yb-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.product-tags {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-.seller {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.qty-input {
-  width: 100px;
-}
-.sub-price {
-  display: block;
-  color: var(--yb-ink);
-  font-weight: 700;
-  font-size: 15px;
-  font-family: var(--yb-font-mono);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.sub-usdt {
-  display: block;
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  margin-top: 2px;
-}
-.summary-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  padding: 16px 24px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 32px;
-  align-items: center;
-}
-.summary-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  white-space: nowrap;
-}
-.summary-right {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(250px, 1.35fr) auto;
-  align-items: center;
-  gap: 16px;
-}
-.summary-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--yb-ink-2);
-  text-align: right;
-  min-width: 0;
-  padding: 4px 0;
-}
-.summary-val {
-  min-width: 0;
-  max-width: 100%;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  overflow-wrap: anywhere;
-}
-.v-cny {
-  color: var(--yb-ink);
-  font-family: var(--yb-font-mono);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.v-usdt {
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  margin-top: 1px;
-}
-.summary-row.total {
-  padding-top: 10px;
-  border-top: 1px solid var(--yb-hairline);
-  margin-top: 6px;
-}
-.total-amount-block {
-  flex: 1 1 160px;
-  min-width: 0;
-  max-width: 100%;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.total-cny {
-  overflow-wrap: anywhere;
-  font-family: var(--yb-font-mono);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.total-usdt {
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  margin-top: 2px;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.lbl {
-  color: var(--yb-muted);
-  margin-right: 8px;
-  white-space: nowrap;
-}
-.muted {
-  color: var(--yb-muted);
-}
-.small {
-  font-size: 12px;
-}
-
-@media (max-width: 1180px) {
-  .summary-card {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .summary-right {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .summary-right > .arco-btn {
-    grid-column: 1 / -1;
-    justify-self: end;
-  }
-}
+.cart-page { padding-top: 24px; }
+.page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+.eyebrow { color: var(--yb-gold); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin: 0 0 5px; }
+h1 { margin: 0; font-size: 28px; font-weight: 650; color: var(--yb-ink); }
+h1 span { margin-left: 12px; font-size: 14px; font-weight: 400; color: var(--yb-muted); }
+.continue-link { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--yb-primary); }
+.cart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+.cart-card, .summary-card { border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); }
+.cart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--yb-hairline); }
+.check-label { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.cart-item { display: grid; grid-template-columns: 16px 112px minmax(0, 1fr) 142px; gap: 20px; align-items: start; padding: 24px; border-bottom: 1px solid var(--yb-hairline); }
+.cart-item:last-child { border-bottom: 0; }
+.cart-item.invalid .cover { opacity: .55; }
+.item-check { margin-top: 4px; }
+.cover { width: 112px; height: 112px; border: 1px solid var(--yb-hairline); border-radius: 8px; object-fit: contain; background: var(--yb-fill); }
+.product-info { min-width: 0; }
+.product-title { display: block; font-size: 16px; font-weight: 600; color: var(--yb-ink); overflow-wrap: anywhere; }
+a.product-title:hover { color: var(--yb-primary); }
+.product-tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.product-tag { font-size: 12px; padding: 2px 6px; border-radius: 4px; background: var(--yb-fill); color: var(--yb-primary); }
+.product-tag.overseas { color: var(--yb-gold); background: var(--yb-champagne); }
+.seller, .price-pending, .selection-meta { color: var(--yb-muted); font-size: 13px; }
+.item-notice { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--yb-muted); margin: 0 0 10px; }
+.danger, .remove-button { color: var(--yb-danger); }
+.retry-link { padding: 0; height: auto; margin-bottom: 10px; }
+.item-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+.line-total { font-size: 16px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.line-total small, .summary-list small { display: block; color: var(--yb-muted); font-size: 12px; font-weight: 400; }
+.summary-card { padding: 24px; position: sticky; top: 24px; }
+.summary-card h2 { font-size: 20px; font-weight: 650; margin: 0 0 6px; }
+.selection-meta { margin: 0 0 20px; }
+.summary-list { display: grid; gap: 16px; margin: 0; }
+.summary-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.summary-list dt { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--yb-muted); }
+.summary-list dd { text-align: right; margin: 0; font-size: 14px; font-weight: 600; }
+.total-block { margin: 20px 0; padding-top: 20px; border-top: 1px solid var(--yb-hairline); display: grid; gap: 5px; }
+.total-block > span { font-size: 14px; }
+.total-block strong { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.total-block small, .rate-note { color: var(--yb-muted); font-size: 12px; }
+.checkout-trigger, .checkout-button { width: 100%; }
+.rate-note { margin: 14px 0 0; }
+.error-panel { padding: 24px; }
+.retry-button { margin-top: 16px; }
+@media (max-width: 1100px) { .cart-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; } .cart-item { grid-template-columns: 16px 80px minmax(0, 1fr) 120px; padding: 20px; gap: 12px; } .cover { width: 80px; height: 80px; } .summary-card { padding: 20px; } }
+@media (max-width: 800px) { .cart-layout { grid-template-columns: 1fr; } .summary-card { position: static; } }
 </style>

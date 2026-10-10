@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import PaymentMethodSelector from '@/components/order/payment-method-selector.vue';
 import { Message, Modal } from '@/lib/feedback';
 import { formatAmount } from '@shared';
 import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
@@ -99,6 +106,24 @@ const selfSoldTitles = computed(() => selfSoldItems.value.map(item => item.produ
 const availableBalance = computed(() => wallet.value?.available === undefined ? undefined : Number(wallet.value.available));
 const balanceEnough = computed(() => availableBalance.value !== undefined && availableBalance.value >= Number(grandTotal.value));
 const walletSelected = computed(() => walletPayEntryEnabled && paymentMethod.value === 'wallet');
+const submitDisabledReason = computed(() => {
+  if (submitting.value || confirmationPending.value) return '订单正在处理，请勿重复提交';
+  if (loadError.value) return loadError.value;
+  if (loading.value || cart.mutating) return '商品和结算信息正在同步';
+  if (selfSoldItems.value.length) return '不能购买自己发布的商品';
+  if (!addressValid.value) return '请先选择有效的收货地址';
+  if (!walletSelected.value && (walletLoading.value || availableBalance.value === undefined)) return '请先读取并核对钱包余额';
+  if (walletSelected.value && !selectedWalletChain()) return '请选择当前可用且满足最低支付金额的链';
+  if (!agreed.value) return '请先阅读并同意用户协议及隐私政策';
+  return '';
+});
+const pendingDisabledReason = computed(() => {
+  if (submitting.value || loading.value) return '正在读取或处理订单，请稍候';
+  if (loadError.value) return loadError.value;
+  if (!agreed.value) return '请先核对上述订单及待付金额';
+  if (walletSelected.value && !selectedWalletChain(pendingTotal.value)) return '请选择当前可用且满足最低支付金额的链';
+  return '';
+});
 
 function amountAtLeast(amount: string | number, minimum: string | number | null) {
   if (minimum === null || minimum === undefined || minimum === '') return true;
@@ -808,423 +833,135 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 
 <template>
   <div class="checkout-page">
-    <a-alert v-if="loadError" type="error" :closable="false" class="load-alert">
-      {{ loadError }}
-      <template #action><a-button size="mini" :loading="loading" @click="load">重新加载</a-button></template>
-    </a-alert>
-    <div v-if="hasCreatedOrders" class="container">
-      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-        <h2>继续已创建订单</h2>
-        <p>以下为上次下单生成的真实订单，不使用当前购物车的商品、地址或金额。已付款或已结束的订单不会再次付款。</p>
-        <a-spin :loading="loading" style="width: 100%">
-          <div v-for="order in pendingOrders" :key="String(order.id)" class="step-card">
-            <a-link @click="router.push({ name: 'order-detail', params: { id: String(order.id) } })">订单 {{ order.code }}</a-link>
-            <OrderStatusTag :status="order.status" />
-            <p>{{ order.productTitle }} · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p>
-            <p>收货地址：{{ order.shippingAddress }}</p>
-          </div>
-        </a-spin>
-        <p>本次待付款：{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</p>
-        <a-alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" type="info" :closable="false">
-          钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。
-          <template #action><a-button @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</a-button></template>
-        </a-alert>
-        <a-alert v-if="pendingCheckout?.paymentResult" type="info">
-          上次核对回执（当前状态以上方订单为准）：
-          <div v-for="item in pendingCheckout.paymentResult.items" :key="String(item.orderId)">
-            {{ item.orderNo || item.orderId }} · U {{ item.amount }} · {{ item.status }} {{ item.message || '' }}
-          </div>
-        </a-alert>
-        <div v-if="walletPayEntryEnabled && walletChains.length && unpaidOrders.length" class="pay-methods pending-methods">
-          <a-radio-group v-model="paymentMethod" type="button">
-            <a-radio value="balance">站内余额支付</a-radio>
-            <a-radio value="wallet">USDT 钱包直付</a-radio>
-          </a-radio-group>
-          <a-select v-if="walletSelected" v-model="selectedChain" placeholder="请选择支付链" style="width: 280px">
-            <a-option v-for="chain in walletChains" :key="chain.chain" :value="chain.chain"
-              :disabled="!chain.enabled || !amountAtLeast(pendingTotal || '0', chain.minAmount)">
-              {{ chain.label || chain.chain }} · {{ chain.network }}
-            </a-option>
-          </a-select>
-        </div>
-        <div class="pending-actions">
-          <a-checkbox v-if="unpaidOrders.length" v-model="agreed">已核对上述订单及待付金额</a-checkbox>
-          <a-space>
-            <a-button v-if="unpaidOrders.length" type="primary"
-              :disabled="!agreed || loading || !!loadError || (walletSelected && !selectedWalletChain(pendingTotal))"
-              :loading="submitting" @click="payPendingOrders">
-              {{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}
-            </a-button>
-            <a-button :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</a-button>
-            <a-button @click="router.push({ name: 'order-list' })">查看我的订单</a-button>
-          </a-space>
-        </div>
-      </a-card>
-    </div>
-    <div v-else-if="hasUnconfirmedOrder" class="container">
-      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-        <div class="step-title">上次下单结果待确认</div>
-        <p>浏览器保存了上次提交的 {{ pendingCheckout?.orderItems.length }} 种商品，但还没有收到订单号；这不代表订单已创建。当前购物车和地址可能已经变化。</p>
-        <ul class="recovery-items">
-          <li v-for="item in pendingCheckout?.orderItems" :key="String(item.productId)">商品编号 {{ item.productId }} · 数量 {{ item.quantity ?? 1 }}</li>
-        </ul>
-        <a-alert type="warning" :closable="false">恢复时只使用上次保存的商品和地址，可能创建上次的订单；恢复后会先展示订单供你核对，不会自动付款。</a-alert>
-        <a-space class="recovery-actions">
-          <a-button type="primary" :loading="submitting || confirmationPending" @click="confirmRecoverUnconfirmedOrder">恢复上次订单</a-button>
-          <a-button :disabled="submitting || confirmationPending" @click="router.push({ name: 'order-list' })">查看我的订单</a-button>
-        </a-space>
-      </a-card>
-    </div>
-    <div v-else-if="items.length" class="container">
-      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-        <div class="step-title">1. 收货信息</div>
-        <AddressSelector
-          v-if="userStore.currentUser"
-          v-model="addressId"
-          :user-id="userStore.currentUser.id"
-          @validity="addressValid = $event"
-          @changed="(a) => (selectedAddr = a)"
-        />
-      </a-card>
-
-      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-        <div class="step-title">2. 商品清单 <span class="muted">· {{ items.length }} 种 {{ items.reduce((sum, item) => sum + item.qty, 0) }} 件</span></div>
-        <div v-if="overseasItems.length" class="overseas-warn">
-          🌏 以下 {{ overseasItems.length }} 件商品来自海外直邮，过关后不可退货退款
-        </div>
-        <div class="goods-list">
-          <div v-for="item in items" :key="item.productId" class="goods-row">
+    <header class="page-heading"><p class="eyebrow">SECURE CHECKOUT</p><h1>确认订单</h1><p>核对商品、收货信息与支付方式后提交。</p></header>
+    <Alert v-if="loadError" variant="destructive" class="load-alert"><AlertTitle>结算信息未能读取</AlertTitle><AlertDescription>{{ loadError }}</AlertDescription><Button variant="outline" :disabled="loading" @click="load"><Icon v-if="loading" icon="lucide:loader-circle" width="16" class="animate-spin" />重新加载</Button></Alert>
+    <section v-if="hasCreatedOrders" class="panel pending-checkout" :aria-busy="loading">
+      <div class="section-heading"><span class="step-number"><Icon icon="lucide:clipboard-list" width="18" /></span><h2>继续已创建订单</h2></div>
+      <p class="section-description">以下为上次下单生成的真实订单，不使用当前购物车的商品、地址或金额。已付款或已结束的订单不会再次付款。</p>
+      <Skeleton v-if="loading && !pendingOrders.length" class="orders-skeleton" />
+      <div class="pending-orders" :class="{ reading: loading }">
+        <article v-for="order in pendingOrders" :key="String(order.id)" class="pending-order"><div class="order-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">订单 {{ order.code }}</RouterLink><OrderStatusTag :status="order.status" /></div><p>{{ order.productTitle }} · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p><p class="muted">收货地址：{{ order.shippingAddress }}</p></article>
+      </div>
+      <div class="pending-total">本次待付款 <strong>{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</strong></div>
+      <Alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" class="notice"><AlertDescription>钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。</AlertDescription><Button variant="outline" class="notice-action" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</Button></Alert>
+      <Alert v-if="pendingCheckout?.paymentResult" class="notice"><AlertTitle>上次核对回执（当前状态以上方订单为准）</AlertTitle><AlertDescription><div v-for="item in pendingCheckout.paymentResult.items" :key="String(item.orderId)" class="receipt-item">{{ item.orderNo || item.orderId }} · U {{ item.amount }} · {{ item.status }} {{ item.message || '' }}</div></AlertDescription></Alert>
+      <PaymentMethodSelector v-if="walletPayEntryEnabled && walletChains.length && unpaidOrders.length" v-model="paymentMethod" v-model:selected-chain="selectedChain" class="pending-methods" :chains="walletChains" :wallet-enabled="walletPayEntryEnabled" :disabled="submitting || loading" :chain-available="chain => chain.enabled && amountAtLeast(pendingTotal || '0', chain.minAmount)" />
+      <Alert v-if="walletPayEntryEnabled && walletChainsError" class="notice"><AlertDescription>{{ walletChainsError }}</AlertDescription><Button variant="link" class="notice-action" :disabled="walletChainsLoading || submitting" @click="loadWalletChains">重新读取支付网络</Button></Alert>
+      <label v-if="unpaidOrders.length" class="agree-row"><Checkbox :model-value="agreed" :disabled="submitting || loading" aria-label="已核对上述订单及待付金额" @update:model-value="value => agreed = value === true" />已核对上述订单及待付金额</label>
+      <div class="pending-actions">
+        <TooltipProvider v-if="unpaidOrders.length"><Tooltip><TooltipTrigger as-child><span :tabindex="pendingDisabledReason ? 0 : undefined"><Button :disabled="!!pendingDisabledReason" @click="payPendingOrders"><Icon v-if="submitting" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}</Button></span></TooltipTrigger><TooltipContent v-if="pendingDisabledReason">{{ pendingDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+        <Button variant="outline" :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</Button><Button variant="ghost" @click="router.push({ name: 'order-list' })">查看我的订单</Button>
+      </div>
+    </section>
+    <section v-else-if="hasUnconfirmedOrder" class="panel recovery-panel">
+      <div class="section-heading"><span class="step-number"><Icon icon="lucide:circle-alert" width="18" /></span><h2>上次下单结果待确认</h2></div>
+      <p class="section-description">浏览器保存了上次提交的 {{ pendingCheckout?.orderItems.length }} 种商品，但还没有收到订单号；这不代表订单已创建。当前购物车和地址可能已经变化。</p>
+      <ul class="recovery-items"><li v-for="item in pendingCheckout?.orderItems" :key="String(item.productId)">商品编号 {{ item.productId }} · 数量 {{ item.quantity ?? 1 }}</li></ul>
+      <Alert class="notice"><AlertDescription>恢复时只使用上次保存的商品和地址，可能创建上次的订单；恢复后会先展示订单供你核对，不会自动付款。</AlertDescription></Alert>
+      <div class="pending-actions"><Button :disabled="submitting || confirmationPending" @click="confirmRecoverUnconfirmedOrder"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />恢复上次订单</Button><Button variant="outline" :disabled="submitting || confirmationPending" @click="router.push({ name: 'order-list' })">查看我的订单</Button></div>
+    </section>
+    <div v-else-if="loading && !items.length" class="checkout-layout" aria-label="正在读取结算信息"><div class="main-sections"><Skeleton class="section-skeleton" /><Skeleton class="section-skeleton" /></div><Skeleton class="summary-skeleton" /></div>
+    <div v-else-if="items.length" class="checkout-layout" :aria-busy="loading || submitting">
+      <div class="main-sections">
+        <section class="panel"><div class="section-heading"><span class="step-number">1</span><h2>收货信息</h2></div><AddressSelector v-if="userStore.currentUser" v-model="addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @changed="address => selectedAddr = address" /></section>
+        <section class="panel">
+          <div class="section-heading"><span class="step-number">2</span><h2>商品清单</h2><span class="section-meta">{{ items.length }} 种 · {{ items.reduce((sum, item) => sum + item.qty, 0) }} 件</span></div>
+          <Alert v-if="overseasItems.length" class="notice overseas-notice"><AlertDescription>以下 {{ overseasItems.length }} 种商品来自海外直邮，过关后不可退货退款。</AlertDescription></Alert>
+          <div class="goods-list"><article v-for="item in items" :key="item.productId" class="goods-row">
             <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" class="cover" @error="setImageFallback" />
-            <div class="info">
-              <div class="title">{{ item.product?.title }}</div>
-              <div class="tags">
-                <a-tag v-if="item.product" :color="productApi.getAftersaleMeta(item.product.aftersaleType).color" size="small">
-                  {{ productApi.getAftersaleMeta(item.product.aftersaleType).label }}
-                </a-tag>
-                <a-tag v-if="item.product?.overseasCustoms" color="orange" size="small">海外直邮</a-tag>
-                <span class="seller">买手 · {{ item.product?.sellerName }}</span>
-              </div>
-            </div>
-            <div class="qty">×{{ item.qty }}</div>
-            <div class="amount">
-              <span class="amount-cny">{{ formatUsdt(item.lineTotal) }}</span>
-              <span class="amount-usdt">≈ {{ formatCny(item.lineTotal) }}</span>
-            </div>
-          </div>
-        </div>
-      </a-card>
-
-      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-        <div class="step-title">3. 金额明细</div>
-        <div class="amount-list">
-          <div class="am-row">
-            <span class="am-label">商品合计</span>
-            <span class="am-val">
-              <span class="cny">{{ formatUsdt(subTotal) }}</span>
-              <span class="usdt">≈ {{ formatCny(subTotal) }}</span>
-            </span>
-          </div>
-          <div class="am-row">
-            <span class="am-label">运费合计</span>
-            <span class="am-val">
-              <span class="cny">{{ formatUsdt(shippingFeeTotal) }}</span>
-              <span class="usdt">≈ {{ formatCny(shippingFeeTotal) }}</span>
-            </span>
-          </div>
-          <div class="am-row">
-            <span class="am-label">
-              税费合计
-              <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="12" />
-            </span>
-            <span class="am-val">
-              <span class="cny">{{ formatUsdt(taxTotal) }}</span>
-              <span class="usdt">≈ {{ formatCny(taxTotal) }}</span>
-            </span>
-          </div>
-          <div class="am-row total">
-            <span class="am-label">应付总额</span>
-            <span class="am-val">
-              <span class="cny total-cny">{{ formatUsdt(grandTotal) }}</span>
-              <span class="usdt">≈ {{ formatCny(grandTotal) }} · {{ priceSet(grandTotal).rateLabel }}</span>
-            </span>
-          </div>
-        </div>
-      </a-card>
-
-      <a-card class="step-card" :body-style="{ padding: '20px 24px' }">
-        <div class="step-title">4. 支付</div>
-        <div class="pay-methods">
-          <a-radio-group v-model="paymentMethod" type="button">
-            <a-radio value="balance">站内余额支付</a-radio>
-            <a-radio v-if="walletPayEntryEnabled && walletChains.length" value="wallet">USDT 钱包直付</a-radio>
-          </a-radio-group>
-          <div v-if="!walletSelected" class="pay-row">
-            <span class="pay-name">使用钱包余额支付</span>
-            <span class="pay-meta" :class="{ insufficient: !balanceEnough }">
-              可用 U {{ formatAmount(availableBalance) }} {{ availableBalance === undefined ? '· 余额待确认' : balanceEnough ? '' : '· 余额不足' }}
-            </span>
-          </div>
-          <template v-else>
-            <a-select v-model="selectedChain" placeholder="请选择支付链" style="max-width: 360px; width: 100%">
-              <a-option v-for="chain in walletChains" :key="chain.chain" :value="chain.chain"
-                :disabled="!chain.enabled || !amountAtLeast(grandTotal, chain.minAmount)">
-                {{ chain.label || chain.chain }} · {{ chain.network }}
-                {{ chain.minAmount ? `（最低 U ${chain.minAmount}）` : '' }}
-              </a-option>
-            </a-select>
-            <p class="wallet-pay-hint">订单创建后以服务端金额为准；正式转账需少量 ETH、BNB 或 TRX 支付链上手续费。</p>
-          </template>
-        </div>
-        <a-alert v-if="walletPayEntryEnabled && walletChainsError" type="warning" :closable="false">
-          {{ walletChainsError }} <a-link @click="loadWalletChains">重试</a-link>
-        </a-alert>
-        <a-alert v-if="walletError" type="warning" :closable="false">
-          {{ walletError }}；商品、收货地址及协议选择保持不变。
-          <template #action><a-button size="mini" :loading="walletLoading" :disabled="loading || submitting || confirmationPending" @click="loadWallet">重新读取余额</a-button></template>
-        </a-alert>
-        <a-alert
-          v-if="selfSoldItems.length"
-          type="error"
-          :title="`不能购买自己发布的商品：${selfSoldTitles}`"
-          content="请返回购物车移除该商品，或选择其他买手的商品后再结算。"
-          class="self-purchase-alert"
-        />
-
-        <a-divider />
-
-        <div class="agree-row">
-          <a-checkbox v-model="agreed">
-            我已阅读并同意
-            <a-link role="link" tabindex="0" @click.stop="router.push({ path: '/help', query: { agreement: 'user' } })" @keydown.enter.stop="router.push({ path: '/help', query: { agreement: 'user' } })" @keydown.space.stop.prevent="router.push({ path: '/help', query: { agreement: 'user' } })">《用户协议》</a-link>
-            <a-link role="link" tabindex="0" @click.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })" @keydown.enter.stop="router.push({ path: '/help', query: { agreement: 'privacy' } })" @keydown.space.stop.prevent="router.push({ path: '/help', query: { agreement: 'privacy' } })">《隐私政策》</a-link>
-          </a-checkbox>
-        </div>
-
-        <div class="submit-row">
-          <div class="submit-meta">
-            <span class="muted">应付：</span>
-            <span class="grand">{{ formatUsdt(grandTotal) }}</span>
-            <span class="grand-usdt">≈ {{ formatCny(grandTotal) }}</span>
-          </div>
-          <a-button type="primary" size="large" :loading="submitting || confirmationPending"
-            :disabled="!agreed || !addressValid || selfSoldItems.length > 0 || !!loadError || loading || (!walletSelected && (walletLoading || availableBalance === undefined)) || (walletSelected && !selectedWalletChain())"
-            @click="submit">
-            {{ walletSelected ? '提交订单并前往钱包支付' : '提交订单' }}
-          </a-button>
-        </div>
-      </a-card>
+            <div class="goods-info"><RouterLink :to="`/product/${item.productId}`" class="goods-title">{{ item.product?.title }}</RouterLink><div class="tags"><span v-if="item.product" class="tag">{{ productApi.getAftersaleMeta(item.product.aftersaleType).label }}</span><span v-if="item.product?.overseasCustoms" class="tag overseas-tag">海外直邮</span></div><p class="seller">买手 · {{ item.product?.sellerName || '—' }}</p></div>
+            <span class="quantity">× {{ item.qty }}</span><div class="line-amount"><strong>{{ formatUsdt(item.lineTotal) }}</strong><small>≈ {{ formatCny(item.lineTotal) }}</small></div>
+          </article></div>
+        </section>
+        <section class="panel">
+          <div class="section-heading"><span class="step-number">3</span><h2>选择支付方式</h2></div>
+          <PaymentMethodSelector v-model="paymentMethod" v-model:selected-chain="selectedChain" :chains="walletChains" :wallet-enabled="walletPayEntryEnabled" :disabled="submitting || confirmationPending" :chain-available="chain => chain.enabled && amountAtLeast(grandTotal, chain.minAmount)">
+            <template #balance><div class="balance-row"><span>钱包可用余额</span><span :class="{ insufficient: availableBalance !== undefined && !balanceEnough }">{{ availableBalance === undefined ? '余额待确认' : `U ${formatAmount(availableBalance)}` }}{{ availableBalance !== undefined && !balanceEnough ? ' · 余额不足' : '' }}</span></div></template>
+          </PaymentMethodSelector>
+          <Alert v-if="walletPayEntryEnabled && walletChainsError" class="notice"><AlertDescription>{{ walletChainsError }}</AlertDescription><Button variant="link" class="notice-action" :disabled="walletChainsLoading || submitting || confirmationPending" @click="loadWalletChains">重新读取支付网络</Button></Alert>
+          <Alert v-if="walletError" class="notice"><AlertDescription>{{ walletError }}；商品、收货地址及协议选择保持不变。</AlertDescription><Button variant="outline" class="notice-action" :disabled="loading || submitting || confirmationPending || walletLoading" @click="loadWallet"><Icon v-if="walletLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新读取余额</Button></Alert>
+          <Alert v-if="selfSoldItems.length" variant="destructive" class="notice"><AlertTitle>不能购买自己发布的商品：{{ selfSoldTitles }}</AlertTitle><AlertDescription>请返回购物车移除该商品，或选择其他买手的商品后再结算。</AlertDescription></Alert>
+        </section>
+      </div>
+      <aside class="panel payment-summary">
+        <h2>金额明细</h2>
+        <dl class="amount-list"><div><dt>商品合计</dt><dd>{{ formatUsdt(subTotal) }}<small>≈ {{ formatCny(subTotal) }}</small></dd></div><div><dt>运费合计</dt><dd>{{ formatUsdt(shippingFeeTotal) }}</dd></div><div><dt>税费合计 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="13" /></dt><dd>{{ formatUsdt(taxTotal) }}</dd></div></dl>
+        <div class="grand-total"><span>应付总额</span><strong>{{ formatUsdt(grandTotal) }}</strong><small>≈ {{ formatCny(grandTotal) }}</small></div>
+        <div class="agree-row"><Checkbox id="checkout-agreement" :model-value="agreed" :disabled="submitting || confirmationPending" aria-label="同意用户协议及隐私政策" @update:model-value="value => agreed = value === true" /><div><label for="checkout-agreement">我已阅读并同意</label><RouterLink :to="{ path: '/help', query: { agreement: 'user' } }">《用户协议》</RouterLink><RouterLink :to="{ path: '/help', query: { agreement: 'privacy' } }">《隐私政策》</RouterLink></div></div>
+        <TooltipProvider><Tooltip><TooltipTrigger as-child><span class="submit-trigger" :tabindex="submitDisabledReason ? 0 : undefined"><Button class="submit-button" size="lg" :disabled="!!submitDisabledReason" @click="submit"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ walletSelected ? '提交订单并前往钱包支付' : '提交订单' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+        <p class="rate-note">{{ priceSet(grandTotal).rateLabel }}<br />本地参考折算，以 USDT 结算</p><RouterLink to="/cart" class="return-cart"><Icon icon="lucide:arrow-left" width="14" />返回购物车</RouterLink>
+      </aside>
     </div>
-
-    <EmptyState v-else title="没有选中要结算的商品" action-text="回到购物车" @action="router.push('/cart')" />
+    <EmptyState v-else-if="!loadError" title="没有选中要结算的商品" action-text="回到购物车" @action="router.push('/cart')" />
   </div>
 </template>
 
 <style scoped>
-.checkout-page {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 0 16px;
-}
-.container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.step-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-}
-.recovery-actions { margin-top: 16px; }
-.recovery-items { margin: 0 0 16px; padding-left: 20px; color: var(--yb-muted); }
-.step-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 16px;
-  padding-left: 8px;
-  border-left: 3px solid var(--bw-brand-primary);
-}
-.overseas-warn {
-  background: #fff7e6;
-  color: #ff7d00;
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  border-left: 3px solid #ff7d00;
-}
-.goods-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.goods-row {
-  display: grid;
-  grid-template-columns: 60px 1fr 80px 120px;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px dashed var(--yb-hairline);
-}
-.cover {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 4px;
-  background: var(--yb-fill);
-}
-.title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--yb-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-.tags {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-}
-.seller {
-  font-size: 11px;
-  color: var(--yb-muted);
-}
-.qty {
-  text-align: center;
-  color: var(--yb-ink-2);
-}
-.amount {
-  text-align: right;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.amount-cny {
-  color: var(--yb-ink);
-  font-weight: 700;
-  font-family: var(--yb-font-mono);
-  font-size: 15px;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
-.amount-usdt {
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  margin-top: 2px;
-}
-
-/* Amount list */
-.amount-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.am-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 8px 0;
-  border-bottom: 1px dashed var(--yb-hairline);
-}
-.am-row:last-child { border-bottom: none; }
-.am-row.total {
-  border-top: 1px solid var(--yb-hairline);
-  border-bottom: none;
-  padding-top: 14px;
-  margin-top: 4px;
-}
-.am-label {
-  color: var(--yb-muted);
-  font-size: 13px;
-}
-.am-val {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-.am-val .cny {
-  color: var(--yb-ink);
-  font-family: var(--yb-font-mono);
-  font-weight: 600;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-.am-val .usdt {
-  font-size: 11px;
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  margin-top: 2px;
-}
-.total-cny {
-  font-size: 26px !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.02em;
-}
-.pay-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 0;
-}
-.pay-methods { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.pending-methods { margin: 16px 0; }
-.wallet-pay-hint { margin: 0; font-size: 12px; color: var(--yb-muted); }
-.pay-name {
-  font-weight: 500;
-  color: var(--yb-ink);
-}
-.pay-meta {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.self-purchase-alert {
-  margin-top: 12px;
-}
-.pay-meta.insufficient {
-  color: #f53f3f;
-}
-.agree-row {
-  margin: 12px 0;
-}
-.pending-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin-top: 12px;
-}
-.submit-row {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 24px;
-}
-.submit-meta {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.grand {
-  font-family: var(--yb-font-mono);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--yb-ink);
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-.grand-usdt {
-  font-family: var(--yb-font-mono);
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-left: 4px;
-}
-.muted {
-  color: var(--yb-muted);
-  font-size: 13px;
-}
+.checkout-page { width: min(1200px, calc(100% - 64px)); margin: 0 auto; padding: 28px 0 48px; }
+.page-heading { margin-bottom: 24px; }
+.eyebrow { margin: 0 0 4px; color: var(--yb-gold); font-size: 12px; letter-spacing: .12em; font-weight: 600; }
+.page-heading h1 { font-size: 28px; font-weight: 650; margin: 0; }
+.page-heading > p:last-child { margin: 8px 0 0; font-size: 14px; color: var(--yb-muted); }
+.checkout-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
+.main-sections { display: grid; gap: 24px; min-width: 0; }
+.panel { padding: 24px; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; min-width: 0; }
+.section-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.step-number { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: var(--yb-primary-soft); color: var(--yb-primary); font-size: 13px; font-weight: 600; }
+h2 { font-size: 20px; font-weight: 650; margin: 0; }
+.section-meta, .section-description { color: var(--yb-muted); font-size: 13px; }
+.section-meta { margin-left: auto; }
+.section-description { margin: 0 0 20px; }
+.goods-row { display: grid; grid-template-columns: 80px minmax(0, 1fr) 40px auto; align-items: center; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--yb-hairline); }
+.goods-row:first-child { padding-top: 0; }
+.goods-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.cover { width: 80px; height: 80px; object-fit: contain; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-fill); }
+.goods-title { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.goods-title:hover { color: var(--yb-primary); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag { font-size: 12px; padding: 1px 6px; border-radius: 4px; color: var(--yb-primary); background: var(--yb-fill); }
+.overseas-tag { color: var(--yb-gold); background: var(--yb-champagne); }
+.seller { font-size: 12px; color: var(--yb-muted); margin: 6px 0 0; }
+.quantity { font-size: 14px; color: var(--yb-muted); text-align: center; }
+.line-amount { text-align: right; font-variant-numeric: tabular-nums; }
+.line-amount strong { font-size: 16px; font-weight: 600; }
+.line-amount small, .amount-list small { display: block; font-size: 12px; font-weight: 400; color: var(--yb-muted); }
+.balance-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
+.insufficient { color: var(--yb-danger); }
+.payment-summary { position: sticky; top: 24px; }
+.amount-list { display: grid; gap: 18px; margin: 24px 0; }
+.amount-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.amount-list dt { display: inline-flex; align-items: center; gap: 4px; color: var(--yb-muted); font-size: 14px; }
+.amount-list dd { margin: 0; font-size: 14px; font-weight: 600; text-align: right; }
+.grand-total { display: grid; gap: 5px; padding-top: 20px; border-top: 1px solid var(--yb-hairline); }
+.grand-total > span { font-size: 14px; }
+.grand-total strong { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.grand-total small, .rate-note { font-size: 12px; color: var(--yb-muted); }
+.agree-row { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; font-size: 13px; color: var(--yb-muted); line-height: 1.8; }
+.agree-row > button { margin-top: 3px; flex-shrink: 0; }
+.agree-row label { cursor: pointer; }
+.agree-row a { color: var(--yb-primary); }
+.submit-trigger, .submit-button { width: 100%; }
+.submit-button { white-space: normal; height: auto; min-height: 44px; text-align: center; }
+.rate-note { margin: 14px 0; }
+.return-cart { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 13px; color: var(--yb-muted); }
+.pending-order { border: 1px solid var(--yb-hairline); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+.order-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.order-heading a { color: var(--yb-primary); font-size: 14px; font-weight: 600; }
+.pending-order p { margin: 8px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.pending-total { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 0; font-size: 14px; }
+.pending-total strong { font-size: 20px; font-weight: 650; }
+.notice { margin: 16px 0; background: var(--yb-fill); }
+.notice-action { margin-top: 10px; }
+.receipt-item { margin-top: 8px; overflow-wrap: anywhere; }
+.pending-methods { margin: 20px 0; }
+.pending-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.recovery-items { margin: 0; padding-left: 20px; font-size: 13px; color: var(--yb-muted); }
+.load-alert { margin-bottom: 20px; }
+.load-alert button { margin-top: 12px; }
+.section-skeleton { height: 280px; }
+.summary-skeleton { height: 440px; }
+.orders-skeleton { height: 200px; margin-bottom: 20px; }
+.reading { opacity: .55; }
+@media (max-width: 1100px) { .checkout-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; } .panel { padding: 20px; } .goods-row { gap: 12px; grid-template-columns: 64px minmax(0, 1fr) 30px auto; } .cover { width: 64px; height: 64px; } }
+@media (max-width: 800px) { .checkout-layout { grid-template-columns: 1fr; } .payment-summary { position: static; } }
 </style>
