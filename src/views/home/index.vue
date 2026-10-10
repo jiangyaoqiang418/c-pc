@@ -12,7 +12,7 @@ import SideNav from '@/components/layout/side-nav.vue';
 import RightPanel from '@/components/layout/right-panel.vue';
 import * as realProductApi from '@/service/api/product';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import digitalHeroImage from '@/assets/images/home-hero-digital.jpg';
+import digitalHeroImage from '@/assets/images/umaomao-hero.png';
 import homeHeroImage from '@/assets/images/home-hero-home.jpg';
 import lifeHeroImage from '@/assets/images/home-hero-life.jpg';
 
@@ -59,7 +59,7 @@ type HeroSlide = Api.RealProduct.BannerDTO & { showcase?: boolean };
 
 // 本地主题展示图只用于活动接口成功返回空列表的情况，不代表促销活动。
 const showcaseBanners: HeroSlide[] = [
-  { id: 'showcase-digital', image: digitalHeroImage, title: '精选科技，升级生活', subtitle: '发现值得逛的数码好物', tag: '数码好物', showcase: true },
+  { id: 'showcase-digital', image: digitalHeroImage, title: '精选科技，\n升级生活。', subtitle: '从一份灵感，到每一天的好生活。', tag: 'THE ART OF EVERYDAY', showcase: true },
   { id: 'showcase-home', image: homeHeroImage, title: '品质家电，焕新日常', subtitle: '让每一天多一点舒适与从容', tag: '品质生活', showcase: true },
   { id: 'showcase-life', image: lifeHeroImage, title: '生活好物，随心发现', subtitle: '从日常出发，探索更多好物', tag: '生活灵感', showcase: true }
 ];
@@ -280,7 +280,7 @@ const productSections = computed(() => [
               v-if="activeHero"
               :key="activeHero.id"
               class="hero-single"
-              :class="{ 'hero-showcase': activeHero.showcase }"
+              :class="{ 'hero-showcase': activeHero.showcase, 'hero-digital': activeHero.id === 'showcase-digital' }"
               :style="{ backgroundImage: `url(${activeHero.image})` }"
               :role="activeHero.pathTo ? 'link' : undefined"
               :tabindex="activeHero.pathTo ? 0 : undefined"
@@ -295,7 +295,7 @@ const productSections = computed(() => [
                 <h1>{{ activeHero.title }}</h1>
                 <p v-if="activeHero.subtitle">{{ activeHero.subtitle }}</p>
                 <button v-if="activeHero.showcase" class="hero-cta" @click.stop="goProductList()">
-                  浏览商品 <Icon icon="lucide:arrow-right" width="16" />
+                  {{ activeHero.id === 'showcase-digital' ? '探索本期精选' : '浏览商品' }} <Icon icon="lucide:arrow-right" width="16" />
                 </button>
                 <button v-else-if="activeHero.pathTo" class="hero-cta" @click.stop="goBanner(activeHero.pathTo)">
                   立即查看 <Icon icon="lucide:arrow-right" width="16" />
@@ -371,7 +371,24 @@ const productSections = computed(() => [
 </template>
 
 <style scoped>
-.home-page { padding-top: 24px; padding-bottom: 48px; }
+.home-page { display: flex; flex-direction: column; }
+.home-page .hero-band { grid-template-columns: 190px minmax(0, 1fr) 250px; gap: 16px; }
+.home-page .hero-stage,.home-page .hero-unavailable { border-radius: 6px; min-height: 390px; }
+.home-page .hero-showcase .hero-overlay { background: linear-gradient(90deg,rgba(var(--yb-primary-rgb),.82),rgba(var(--yb-primary-rgb),.04) 78%); }
+.home-page .hero-content { max-width: 510px; padding: 48px 32px 80px; justify-content: flex-start; }
+.home-page .hero-digital .hero-overlay { background: transparent; }
+.home-page .hero-content h1 { font-size: 38px; font-weight: 650; line-height: 1.35; max-width: 340px; white-space: pre-line; letter-spacing: -.5px; }
+.home-page .hero-content p { font-size: 14px; }
+.home-page .hero-tag { font-size: 10px; letter-spacing: 2px; margin-bottom: 20px; }
+.home-page .hero-cta { border-radius: 4px; padding: 13px 24px; background: var(--yb-apricot); }
+.home-page .channel-section { order: 2; }
+.home-page .hero-band,.home-page .service-band,.home-page .home-error,.home-page .product-section { order: 1; }
+.home-page .service-band { background: transparent; border: 0; border-top: 1px solid var(--yb-hairline); border-bottom: 1px solid var(--yb-hairline); border-radius: 0; margin-bottom: 32px; padding: 22px 0; }
+.home-page .section-heading .eyebrow { display: none; }
+.home-page .section-heading h2 { font-size: 24px; margin: 0; }
+.home-page .home-products { gap: 24px 20px; }
+@media(max-width:1100px) { .home-page .hero-band { grid-template-columns: 180px minmax(0,1fr); } .home-page .hero-content h1 { font-size: 32px; } }
+.home-page { padding-top: 0; padding-bottom: 48px; }
 .hero-band { display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 20px; align-items: stretch; margin-bottom: 24px; }
 .hb-left, .hb-center, .hb-right { min-width: 0; }
 .hb-center { display: flex; }

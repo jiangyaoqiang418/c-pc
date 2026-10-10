@@ -46,12 +46,12 @@ function logout() {
 
 <style scoped>
 .account-menu { min-width: 0; }
-.account-trigger { display: flex; align-items: center; gap: 8px; padding: 6px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; transition: background 150ms; }
+.account-trigger { display: flex; align-items: center; gap: 8px; padding:6px 10px; border:1px solid var(--yb-hairline); border-radius:6px; background:var(--yb-fill); cursor: pointer; transition: background 150ms; }
 .account-trigger:hover { background: var(--yb-fill); }
-.avatar { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--yb-primary); color: white; font-weight: 600; }
+.avatar { flex:none; display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--yb-primary); color:white; font-weight:600; }
 .meta { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 0; }
 .name { max-width: 76px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; font-size: 13px; font-weight: 600; color: var(--yb-ink); }
-.account-warning { max-width: 90px; font-size: 10px; color: var(--yb-muted); }
+.account-warning { max-width:90px; font-size:10px; line-height:12px; color:var(--yb-muted); white-space:nowrap; }
 .account-chevron { width: 12px; color: var(--yb-muted); }
 .guest-actions { display: flex; align-items: center; gap: 6px; }
 </style>

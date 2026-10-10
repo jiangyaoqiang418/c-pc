@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import { useUserStore } from '@/stores';
+import { Message } from '@/lib/feedback';
+import { toggleProductFavorite } from '@/service/api/product';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { getAftersaleMeta } from '@/service/api/product';
@@ -14,11 +17,28 @@ interface Props {
 const props = defineProps<Props>();
 
 const router = useRouter();
+const userStore = useUserStore();
+const favoriting = ref(false);
+let active = true;
+onBeforeUnmount(() => { active = false; });
+async function favorite() {
+  if (favoriting.value || props.demo) return;
+  const userId = userStore.currentUser?.id;
+  if (userId === undefined) { Message.warning('请先登录后再收藏'); return; }
+  const productId = props.product.id;
+  favoriting.value = true;
+  try {
+    await toggleProductFavorite(productId, { showError: false });
+    if (active && String(userStore.currentUser?.id) === String(userId) && String(props.product.id) === String(productId)) Message.success('收藏状态已更新，可在我的收藏查看');
+  } catch {
+    if (active && String(userStore.currentUser?.id) === String(userId)) Message.error('收藏失败，请稍后重试');
+  } finally { if (active) favoriting.value = false; }
+}
 const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
 const aftersale = computed(() => getAftersaleMeta(props.product.aftersaleType));
 const categoryCaption = computed(() => {
   const path = props.product.categoryPath;
-  if (props.variant === 'home' && path === String(props.product.categoryId)) return '';
+  if (path === String(props.product.categoryId)) return '';
   return path?.split('/').pop() || '';
 });
 
@@ -48,12 +68,13 @@ function goDetail() {
       <div v-if="product.overseasCustoms" class="badge overseas">
         <Icon icon="lucide:globe" width="12" /> 海外直邮
       </div>
+      <button v-if="!demo" type="button" class="favorite-button" :aria-label="`收藏 ${product.title}`" :disabled="favoriting" @click.stop="favorite" @keydown.stop><Icon :icon="favoriting ? 'lucide:loader-circle' : 'lucide:heart'" width="18" :class="{ 'animate-spin': favoriting }" /></button>
       <div v-if="product.stock === 0" class="sold-out">
         <span>已售罄</span>
       </div>
     </div>
     <div class="info">
-      <div v-if="categoryCaption" class="brand">{{ categoryCaption }}</div>
+      <div class="brand" :aria-hidden="!categoryCaption">{{ categoryCaption }}</div>
       <div class="title" :title="product.title">{{ product.title }}</div>
       <div class="price-row">
         <span class="cny">{{ formatUsdt(product.price) }}</span>
@@ -71,6 +92,20 @@ function goDetail() {
 </template>
 
 <style scoped>
+.favorite-button { position:absolute; top:10px; right:10px; z-index:2; display:grid; place-items:center; width:34px; height:34px; background:var(--yb-paper); color:var(--yb-primary); border:1px solid var(--yb-hairline); border-radius:50%; opacity:0; transform:translateY(-3px); transition:opacity 160ms, transform 160ms; cursor:pointer; }
+.pc-product-card:hover .favorite-button, .pc-product-card:focus-within .favorite-button { opacity:1; transform:none; }
+.favorite-button:focus-visible { outline:2px solid var(--yb-primary); outline-offset:2px; }
+.favorite-button:disabled { cursor:wait; }
+@media (hover:none), (prefers-reduced-motion:reduce) { .favorite-button { opacity:1; transform:none; transition:none; } }
+.pc-product-card:not(.is-home) { background: transparent; border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
+.pc-product-card:not(.is-home):hover { transform: none; box-shadow: none; }
+.pc-product-card:not(.is-home) .cover-wrap { border-radius: 6px; }
+.pc-product-card:not(.is-home) .info { padding: 16px 0 0; }
+.pc-product-card:not(.is-home) .price-row { margin-top: 0; }
+.pc-product-card:not(.is-home) .tags-row { border-top: 1px solid var(--yb-hairline); padding-top: 10px; }
+.pc-product-card .cny { font-family: var(--yb-font-body); font-weight: 700; letter-spacing: 0; line-height: 1.35; }
+.pc-product-card .usdt, .pc-product-card .sales { font-family: var(--yb-font-body); font-weight: 400; }
+.pc-product-card:not(.is-home) .tag-pill { padding: 0; background: transparent; color: var(--yb-muted); border-radius: 0; font-weight: 400; }
 .pc-product-card {
   background: var(--yb-surface);
   border-radius: var(--yb-radius-card);
@@ -122,7 +157,10 @@ function goDetail() {
   font-weight: 500;
 }
 .badge.overseas {
-  background: rgba(var(--yb-gold-rgb), 0.92);
+  background: var(--yb-paper);
+  color: var(--yb-primary);
+  border-radius: 4px;
+  padding: 3px 7px;
 }
 .sold-out {
   position: absolute;
@@ -143,6 +181,7 @@ function goDetail() {
   gap: 8px;
 }
 .brand {
+  min-height:18px;
   font-size: 12px;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -208,7 +247,7 @@ function goDetail() {
   font-family: var(--yb-font-mono);
 }
 
-/* 首页保留此前的完整图片陈列方式，统一为 Umaomao 的轻量商品卡。 */
+/* 首页使用新版图片主导的轻量商品陈列。 */
 .pc-product-card.is-home {
   min-width: 0;
   border-radius: 8px;
@@ -224,10 +263,10 @@ function goDetail() {
 .is-home .cover-wrap {
   background: var(--yb-surface);
   aspect-ratio: 1 / 1;
-  padding: 14px;
+  padding: 0;
 }
 .is-home .cover {
-  object-fit: contain;
+  object-fit: cover;
 }
 .is-home .info {
   padding: 4px 14px 14px;

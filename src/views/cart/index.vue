@@ -160,6 +160,7 @@ onMounted(() => {
 h1 { margin: 0; font-size: 28px; font-weight: 650; color: var(--yb-ink); }
 h1 span { margin-left: 12px; font-size: 14px; font-weight: 400; color: var(--yb-muted); }
 .continue-link { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--yb-primary); }
+.cart-page > :deep(.empty-state) { min-height:360px; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:8px; }
 .cart-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
 .cart-card, .summary-card { border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); }
 .cart-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--yb-hairline); }

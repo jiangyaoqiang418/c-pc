@@ -177,7 +177,7 @@ onBeforeUnmount(() => {
     <nav class="bread" aria-label="当前位置">
       <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" /><span>全部分类</span><Icon icon="lucide:chevron-right" width="14" /><span aria-current="page">{{ breadcrumb }}</span>
     </nav>
-    <header class="category-heading"><span>EXPLORE BY CATEGORY</span><h1>按分类发现好物</h1></header>
+
 
     <div class="layout">
       <aside class="side">
@@ -207,6 +207,13 @@ onBeforeUnmount(() => {
       </aside>
 
       <section class="content">
+        <section v-if="selectedTreeNode?.children?.length" class="taxonomy" aria-label="子分类">
+          <h1>{{ selectedTreeNode.title }}</h1>
+          <article v-for="group in selectedTreeNode.children" :key="group.key" class="taxonomy-group">
+            <button class="taxonomy-title" @click="selectTreeNode(group)">{{ group.title }}<Icon icon="lucide:chevron-right" width="14" /></button>
+            <div v-if="group.children?.length" class="taxonomy-links"><button v-for="leaf in group.children" :key="leaf.key" @click="selectTreeNode(leaf)">{{ leaf.title }}</button></div>
+          </article>
+        </section>
         <div class="content-bar">
           <span class="content-title">{{ breadcrumb }}</span>
           <span class="content-meta">共 {{ total }} 件商品</span>
@@ -235,6 +242,19 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.category-page .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 32px; border: 1px solid var(--yb-hairline); border-radius: 10px; background: var(--yb-paper); overflow: hidden; }
+.category-page .side { border: 0; border-radius: 0; background: var(--yb-fill); padding: 20px 10px; min-height: 520px; }
+.category-page .content { padding: 28px 28px 28px 0; }
+.category-page .content-title { font-size: 18px; }
+.category-page .category-node[data-selected] { background: var(--yb-paper); }
+.taxonomy { padding-bottom: 28px; margin-bottom: 24px; border-bottom: 1px solid var(--yb-hairline); }
+.taxonomy h1 { margin: 0 0 24px; font-size: 24px; font-weight: 650; }
+.taxonomy-group { display: grid; grid-template-columns: 160px minmax(0,1fr); gap: 24px; padding: 18px 0; border-top: 1px solid var(--yb-hairline); align-items: baseline; }
+.taxonomy-title { display: flex; align-items: center; gap: 8px; text-align: left; font-size: 15px; font-weight: 600; }
+.taxonomy-links { display: flex; flex-wrap: wrap; gap: 14px 24px; }
+.taxonomy-links button { font-size: 13px; color: var(--yb-muted); }
+.taxonomy-links button:hover,.taxonomy-title:hover { color: var(--yb-brand-primary); }
+@media(max-width: 800px) { .category-page .layout { grid-template-columns: 180px minmax(0,1fr); gap: 20px; } .taxonomy-group { grid-template-columns: 1fr; gap: 14px; } }
 .category-page { padding-top: 24px; padding-bottom: 48px; }
 .bread { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; color: var(--yb-muted); font-size: 13px; }
 .bread a:hover { color: var(--yb-primary); }

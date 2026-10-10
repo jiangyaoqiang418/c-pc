@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuLab
 import { useUiTheme, type UiTheme } from '@/composables/use-ui-theme';
 
 const { currentTheme, themes, setTheme } = useUiTheme();
-function selectTheme(value: string) {
+function selectTheme(value: unknown) {
   if (themes.some(theme => theme.id === value)) setTheme(value as UiTheme);
 }
 </script>

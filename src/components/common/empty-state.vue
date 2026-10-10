@@ -35,25 +35,23 @@ defineEmits<{ (e: 'action'): void }>();
   gap: 12px;
 }
 .icon-wrap {
-  width: 96px;
-  height: 96px;
-  border-radius: 999px;
-  background: var(--yb-champagne);
-  color: var(--yb-gold);
+  width: 56px;
+  height: 56px;
+  color: var(--yb-muted);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 .icon {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
 }
 .title {
-  font-size: 17px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 650;
   color: var(--yb-ink);
-  letter-spacing: -0.01em;
+  line-height: 1.4;
 }
 .desc {
   font-size: 13px;
@@ -67,8 +65,9 @@ defineEmits<{ (e: 'action'): void }>();
   background: var(--yb-brand-primary);
   color: #fff;
   border: none;
-  border-radius: var(--yb-radius-pill);
-  font-size: 13px;
+  border-radius: 4px;
+  min-height: 44px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   display: inline-flex;
@@ -80,4 +79,6 @@ defineEmits<{ (e: 'action'): void }>();
   background: var(--yb-brand-hover);
   transform: translateY(-1px);
 }
+.action:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 3px; }
+@media(prefers-reduced-motion:reduce) { .action { transition:none; }.action:hover { transform:none; } }
 </style>

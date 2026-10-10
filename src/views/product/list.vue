@@ -26,6 +26,7 @@ const filter = reactive({
   sort: 'DEFAULT' as productApi.StorefrontSort
 });
 
+const expandedFilters = reactive({ aftersale: true, overseas: true, price: true });
 const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -212,8 +213,9 @@ function selectOverseas(value: string) {
   applyToUrl();
 }
 
-function selectSort(value: productApi.StorefrontSort) {
-  filter.sort = value;
+function selectSort(value: string) {
+  if (!sortOptions.some(option => option.value === value)) return;
+  filter.sort = value as productApi.StorefrontSort;
   applyToUrl();
 }
 </script>
@@ -223,44 +225,42 @@ function selectSort(value: productApi.StorefrontSort) {
     <nav class="bread" aria-label="当前位置">
       <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" /><span aria-current="page">商品列表</span>
     </nav>
-    <header class="catalog-heading">
-      <div><span class="eyebrow">DISCOVER SOMETHING GOOD</span><h1>发现值得拥有的好物</h1></div>
-      <p>精选商品，安心选购</p>
-    </header>
-
-    <section class="filter-bar" aria-label="商品筛选">
+    <div class="catalog-layout">
+    <aside class="filter-bar" aria-label="商品筛选">
+      <header class="filter-heading"><h1>筛选商品</h1><Button variant="ghost" size="sm" @click="resetFilters">重置</Button></header>
       <div class="filter-row">
-        <span class="filter-label" id="aftersale-filter-label">售后类型</span>
-        <div class="filter-options" role="group" aria-labelledby="aftersale-filter-label">
-          <button v-for="option in aftersaleOptions" :key="option.value" class="filter-option" :aria-pressed="aftersaleSelection === option.value" @click="selectAftersale(option.value)">
-            {{ option.label }}
-          </button>
+        <button type="button" class="filter-label filter-toggle" id="aftersale-filter-label" :aria-expanded="expandedFilters.aftersale" aria-controls="aftersale-filter-options" @click="expandedFilters.aftersale = !expandedFilters.aftersale">售后类型<span aria-hidden="true">{{ expandedFilters.aftersale ? '−' : '+' }}</span></button>
+        <div v-show="expandedFilters.aftersale" id="aftersale-filter-options" class="filter-options" role="group" aria-labelledby="aftersale-filter-label">
+          <label v-for="option in aftersaleOptions" :key="option.value" class="filter-choice">
+            <input type="radio" name="aftersale" :value="option.value" :checked="aftersaleSelection === option.value" @change="selectAftersale(option.value)" />
+            <span>{{ option.label }}</span>
+          </label>
         </div>
       </div>
       <div class="filter-row">
-        <span class="filter-label" id="overseas-filter-label">海外过关</span>
-        <div class="filter-options" role="group" aria-labelledby="overseas-filter-label">
-          <button class="filter-option" :aria-pressed="overseasSelection === 'all'" @click="selectOverseas('all')">不限</button>
-          <button class="filter-option" :aria-pressed="overseasSelection === 'overseas'" @click="selectOverseas('overseas')">仅海外直邮</button>
+        <button type="button" class="filter-label filter-toggle" id="overseas-filter-label" :aria-expanded="expandedFilters.overseas" aria-controls="overseas-filter-options" @click="expandedFilters.overseas = !expandedFilters.overseas">海外过关<span aria-hidden="true">{{ expandedFilters.overseas ? '−' : '+' }}</span></button>
+        <div v-show="expandedFilters.overseas" id="overseas-filter-options" class="filter-options" role="group" aria-labelledby="overseas-filter-label">
+          <label class="filter-choice"><input type="radio" name="overseas" :checked="overseasSelection === 'all'" @change="selectOverseas('all')" /><span>不限</span></label>
+          <label class="filter-choice"><input type="radio" name="overseas" :checked="overseasSelection === 'overseas'" @change="selectOverseas('overseas')" /><span>仅海外直邮</span></label>
         </div>
       </div>
-      <form class="filter-row" @submit.prevent="applyToUrl">
-        <span class="filter-label">价格区间</span>
+      <form class="filter-row price-filter" @submit.prevent="applyToUrl">
+        <button type="button" class="filter-label filter-toggle" :aria-expanded="expandedFilters.price" aria-controls="price-filter-options" @click="expandedFilters.price = !expandedFilters.price">价格区间（USDT）<span aria-hidden="true">{{ expandedFilters.price ? '−' : '+' }}</span></button>
+        <div v-show="expandedFilters.price" id="price-filter-options" class="price-range">
         <Input :model-value="filter.minPrice" type="number" min="0" step="any" aria-label="最低价格（USDT）" placeholder="USDT 最低" class="price-input" @update:model-value="updatePrice('minPrice', $event)" />
         <span class="price-dash" aria-hidden="true">—</span>
         <Input :model-value="filter.maxPrice" type="number" min="0" step="any" aria-label="最高价格（USDT）" placeholder="USDT 最高" class="price-input" @update:model-value="updatePrice('maxPrice', $event)" />
-        <Button type="submit" variant="outline" size="sm">确定</Button>
-        <Button type="button" variant="ghost" size="sm" @click="resetFilters">重置筛选</Button>
+        </div>
+        <Button v-show="expandedFilters.price" type="submit" variant="outline" size="sm">应用筛选</Button>
       </form>
-    </section>
+    </aside>
+    <div class="catalog-main">
 
     <section class="result-bar" aria-label="搜索结果与排序">
-      <div class="result-title">{{ title }} <span class="muted">{{ loading ? '正在加载…' : `共 ${total} 件` }}</span></div>
-      <div class="sort-options" role="group" aria-label="商品排序">
-        <button v-for="option in sortOptions" :key="option.value" class="sort-option" :aria-pressed="filter.sort === option.value" @click="selectSort(option.value)">
-          {{ option.label }}
-        </button>
-      </div>
+      <div class="result-title">{{ title }} <span class="muted">{{ loading ? '正在加载…' : loadError ? '读取失败' : `共 ${total} 件精选商品` }}</span></div>
+      <select class="sort-select" aria-label="商品排序" :value="filter.sort" @change="selectSort(($event.target as HTMLSelectElement).value)">
+        <option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+      </select>
     </section>
 
     <section class="catalog-results" :aria-busy="loading" aria-label="商品列表">
@@ -283,12 +283,41 @@ function selectSort(value: productApi.StorefrontSort) {
       />
       <BusinessPagination v-if="total > size" class="pagination-bar" :total="total" :current="current" :page-size="size" :loading="loading" @change="onPageChange" />
     </section>
+    </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.list-page { padding-top: 24px; padding-bottom: 48px; }
-.bread { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; color: var(--yb-muted); font-size: 13px; }
+.filter-toggle { display:flex; justify-content:space-between; width:100%; text-align:left; cursor:pointer; }
+.filter-toggle:focus-visible { outline:2px solid var(--yb-primary); outline-offset:4px; }
+.sort-select { padding:8px 32px 8px 12px; border:1px solid var(--yb-hairline); border-radius:4px; background:var(--yb-paper); font:inherit; font-size:13px; color:var(--yb-ink); }
+.catalog-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 32px; align-items: start; }
+.catalog-main { min-width: 0; }
+.list-page .filter-bar { position: sticky; top: 170px; padding:20px; border:1px solid var(--yb-hairline); border-radius:6px; background:var(--yb-paper); gap: 0; }
+.filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.filter-heading h1 { font-size: 15px; font-weight: 600; }
+.filter-heading button { font-size: 12px; padding: 0; height: 30px; color: var(--yb-muted); }
+.list-page .filter-row { display: grid; gap: 16px; padding:18px 0; border-top: 1px solid var(--yb-hairline); }
+.list-page .filter-label { width: auto; color: var(--yb-ink); font-size: 14px; font-weight: 600; }
+.list-page .filter-options { display: grid; gap: 6px; }
+.filter-choice { display: flex; align-items: center; gap: 10px; color: var(--yb-muted); font-size: 13px; cursor: pointer; }
+.filter-choice input { width: 14px; height: 14px; accent-color: var(--yb-primary); }
+.filter-choice:has(input:checked) { color: var(--yb-ink); }
+.price-range { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.list-page .price-input { width: 0; flex: 1; height: 38px; min-width: 0; padding: 8px; font-size: 12px; }
+.list-page .price-filter > button { width: 100%; }
+.list-page .result-title { font-size: 14px; font-weight: 600; }
+.list-page .muted { font-size: 12px; }
+.list-page .catalog-grid { gap: 24px 16px; }
+@media (max-width: 1100px) { .catalog-layout { grid-template-columns: 180px minmax(0, 1fr); gap: 24px; } }
+@media (max-width: 800px) {
+  .catalog-layout { grid-template-columns: minmax(0, 1fr); }
+  .list-page .filter-bar { position: static; border-right: 0; padding: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .filter-heading { grid-column: 1 / -1; }
+}
+.list-page { margin-top:-8px; padding-top: 0; padding-bottom: 48px; }
+.bread { display:flex; align-items:center; gap:10px; margin-bottom:12px; color: var(--yb-muted); font-size: 12px; }
 .bread a:hover { color: var(--yb-primary); }
 .bread [aria-current] { color: var(--yb-ink); }
 .catalog-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
@@ -298,11 +327,7 @@ function selectSort(value: productApi.StorefrontSort) {
 .filter-bar { background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; padding: 22px 24px; margin-bottom: 24px; display: grid; gap: 16px; }
 .filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .filter-label { width: 76px; flex-shrink: 0; color: var(--yb-muted); font-size: 14px; }
-.filter-options, .sort-options { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.filter-option, .sort-option { border: 1px solid transparent; border-radius: 6px; padding: 7px 14px; color: var(--yb-muted); font-size: 14px; transition: color 150ms, background 150ms, border-color 150ms; }
-.filter-option:hover, .sort-option:hover { background: var(--yb-fill); color: var(--yb-primary); }
-.filter-option[aria-pressed="true"] { background: var(--yb-primary); color: #fff; }
-.sort-option[aria-pressed="true"] { border-color: var(--yb-hairline); background: var(--yb-surface); color: var(--yb-primary); }
+.filter-options { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
 .price-input { width: 144px; height: 36px; }
 .price-dash { color: var(--yb-muted); }
 .result-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
@@ -319,6 +344,6 @@ function selectSort(value: productApi.StorefrontSort) {
   .result-bar { align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .catalog-grid, .filter-option, .sort-option { transition: none; }
+  .catalog-grid { transition:none; }
 }
 </style>

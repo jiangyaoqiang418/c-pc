@@ -308,7 +308,7 @@ function setTab(value: string | number) {
         <TabsContent value="spec" class="tab-body">
           <dl class="spec-list">
             <div><dt>商品编号</dt><dd>{{ product.code }}</dd></div>
-            <div><dt>所属分类</dt><dd>{{ product.categoryPath }}</dd></div>
+            <div><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd></div>
             <div><dt>海外过关</dt><dd>{{ product.overseasCustoms ? '是' : '否' }}</dd></div>
             <div><dt>售后类型</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd></div>
             <div><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd></div>
@@ -342,18 +342,18 @@ function setTab(value: string | number) {
 </template>
 
 <style scoped>
-.detail-page { padding-top: 24px; padding-bottom: 56px; }
+.detail-page { padding-top: 0; padding-bottom: 56px; }
 .bread { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 28px; font-size: 13px; color: var(--yb-muted); }
 .bread a:hover { color: var(--yb-primary); }
 .bread [aria-current] { min-width: 0; color: var(--yb-ink); overflow-wrap: anywhere; }
-.hero-grid, .detail-skeleton { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; margin-bottom: 48px; }
-.gallery-wrap { position: relative; z-index: 1; padding: 16px; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; }
+.hero-grid, .detail-skeleton { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap:54px; align-items:start; margin-bottom:48px; }
+.gallery-wrap { position: relative; z-index: 1; padding:0; background:transparent; border:0; border-radius:6px; }
 .meta { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .brand-label { font-size: 12px; letter-spacing: .06em; color: var(--yb-muted); }
 .meta h1 { margin: 0; font-size: 32px; line-height: 1.35; font-weight: 600; letter-spacing: -.6px; overflow-wrap: anywhere; }
 .summary { color: var(--yb-muted); font-size: 15px; line-height: 1.8; }
 .rating-summary { display: flex; align-items: center; gap: 10px; color: var(--yb-muted); font-size: 13px; }
-.price-block { display: flex; flex-direction: column; gap: 8px; padding: 24px; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-fill); }
+.price-block { display:flex; flex-direction:column; gap:8px; padding:24px; border:0; border-left:3px solid var(--yb-gold); border-radius:4px; background:var(--yb-champagne); }
 .price-main { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; }
 .price-main strong { font-size: 36px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
 .currency-label { color: var(--yb-muted); font-size: 12px; }

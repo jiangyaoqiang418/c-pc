@@ -39,10 +39,10 @@ function go(name: string) {
 <style scoped>
 .utility-bar {
   height: 32px;
-  background: var(--yb-brand-primary);
-  border-bottom: 1px solid var(--yb-brand-hover);
+  background: var(--yb-fill);
+  border-bottom: 1px solid var(--yb-hairline);
   font-size: 12px;
-  color: #fff;
+  color: var(--yb-ink);
 }
 .ub-inner {
   height: 100%;
@@ -62,13 +62,13 @@ function go(name: string) {
 }
 .ub-region {
   font-weight: 600;
-  color: #fff;
+  color: var(--yb-ink);
 }
 .ub-welcome {
-  color: #fff;
+  color: var(--yb-muted);
 }
 .ub-sep {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--yb-hairline-2);
 }
 .ub-link {
   padding: 0;
@@ -76,11 +76,11 @@ function go(name: string) {
   background: transparent;
   font: inherit;
   cursor: pointer;
-  color: #fff;
+  color: var(--yb-ink);
   transition: color 0.15s;
 }
 .ub-link:hover {
-  color: var(--yb-apricot);
+  color: var(--yb-primary);
 }
 .badge-link { display: inline-flex; align-items: center; gap: 4px; }
 @media (max-width: 1100px) { .ub-inner { width: calc(100% - 48px); } }

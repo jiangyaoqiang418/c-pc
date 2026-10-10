@@ -65,6 +65,7 @@ function onSearchKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .search-wrap {
+  position: relative;
   flex: 1;
   max-width: 640px;
   display: flex;
@@ -120,6 +121,10 @@ function onSearchKeydown(event: KeyboardEvent) {
 }
 
 .hot-words {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
   display: flex;
   gap: 12px;
   padding: 0 4px;

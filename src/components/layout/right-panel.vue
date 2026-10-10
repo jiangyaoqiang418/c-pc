@@ -5,7 +5,8 @@ import { Icon } from '@iconify/vue';
 import { avatarUrl } from '@shared/utils/image';
 import VipBadge from '@/components/common/vip-badge.vue';
 import AudienceSegment from '@/components/common/audience-segment.vue';
-import { useUserStore } from '@/stores';
+import { useUserStore, useWalletStore } from '@/stores';
+import { formatAmount } from '@shared';
 import * as realOrderApi from '@/service/api/order';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,19 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 
 const router = useRouter();
 const userStore = useUserStore();
+const walletStore = useWalletStore();
+const walletError = ref(false);
+const walletGuard = createLatestRequestGuard();
+async function loadWallet() {
+  const isCurrent = walletGuard.begin();
+  walletError.value = false;
+  const id = userStore.currentUser?.id;
+  if (!id) return;
+  try { await walletStore.fetchWallet(id); } catch { if (isCurrent()) walletError.value = true; }
+}
+onMounted(loadWallet);
+watch(() => userStore.currentUser?.id, loadWallet);
+onBeforeUnmount(walletGuard.invalidate);
 
 const isLoggedIn = computed(() => userStore.isLoggedIn);
 const user = computed(() => userStore.currentUser);
@@ -141,6 +155,7 @@ function goProfile() { router.push({ name: 'profile' }); }
           </div>
         </div>
         <AudienceSegment v-if="user?.isBuyer" />
+        <button class="account-balance" @click="go('/wallet')"><span>钱包可用余额</span><strong>{{ walletError || !walletStore.account ? '—' : formatAmount(walletStore.account.available) }} <small>USDT</small></strong><Icon icon="lucide:chevron-right" width="14" /></button>
       </div>
 
       <!-- 身份面板动态切换 -->
@@ -226,11 +241,36 @@ function goProfile() { router.push({ name: 'profile' }); }
           </div>
         </div>
       </transition>
+      <Button variant="ghost" class="center-link" @click="goProfile">进入个人中心<Icon icon="lucide:chevron-right" width="14" /></Button>
     </template>
+    <RouterLink to="/purchase/hall" class="wish-teaser"><span>YOUR NEXT FIND</span><strong>想要什么好物？</strong><small>让买手帮你找到心头好</small><Icon icon="lucide:arrow-up-right" width="20" /></RouterLink>
   </aside>
 </template>
 
 <style scoped>
+.right-panel .user-card.logged { background: var(--yb-paper); border: 0; border-radius: 6px 6px 0 0; padding: 20px 18px 16px; }
+.right-panel .mode-panel { gap: 0; }
+.right-panel .orders-card { background: var(--yb-paper); border: 0; border-radius: 0; padding: 16px 18px; }
+.right-panel .orders-card:hover { transform: none; box-shadow: none; }
+.right-panel .orders-head { display: none; }
+.right-panel .orders-stats { border-top: 1px solid var(--yb-hairline); padding-top: 16px; }
+.right-panel .stat-num { font-family: var(--yb-font-body); font-size: 19px; }
+.right-panel .links-block { background: var(--yb-paper); border: 0; border-radius: 0; padding: 0 10px 12px; }
+.right-panel .mini-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.right-panel .mini-cell { padding: 6px 0; gap: 3px; }
+.right-panel .mini-icon-wrap { width: 24px; height: 24px; background: transparent; }
+.right-panel .mini-label { font-size: 11px; }
+.right-panel .center-link { width: 100%; background: var(--yb-paper); color: var(--yb-muted); font-size: 12px; border-radius: 0 0 6px 6px; margin-top: -12px; }
+.account-balance { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; text-align: left; margin-top: 6px; }
+.account-balance > span { font-size: 12px; color: var(--yb-muted); }
+.account-balance > strong { grid-row: 2; font-size: 23px; font-weight: 650; }
+.account-balance > strong small { font-size: 11px; font-weight: 400; }
+.account-balance > svg { grid-column: 2; grid-row: 1 / 3; color: var(--yb-muted); }
+.wish-teaser { position: relative; display: grid; gap: 5px; padding: 20px; border-radius: 6px; background: var(--yb-primary-soft); color: var(--yb-ink); }
+.wish-teaser > span { font-size: 9px; letter-spacing: 1.8px; color: var(--yb-muted); }
+.wish-teaser > strong { font-size: 16px; font-weight: 600; }
+.wish-teaser > small { font-size: 12px; color: var(--yb-muted); }
+.wish-teaser > svg { position: absolute; right: 18px; top: 30px; }
 .right-panel {
   width: 280px;
   flex-shrink: 0;

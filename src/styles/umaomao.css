@@ -68,7 +68,7 @@
   --yb-apricot: var(--um-gold-light);
   --yb-deep: var(--um-dark);
   --yb-deep-2: var(--um-primary);
-  --yb-font-body: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  --yb-font-body: -apple-system, system-ui, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   --yb-font-display: var(--yb-font-body);
   --font-body: var(--yb-font-body);
   --font-display: var(--yb-font-display);
@@ -91,7 +91,25 @@
   --border: var(--yb-hairline); --input: var(--yb-hairline-2); --ring: var(--yb-primary);
   --radius: 8px;
 }
-body { font-size: 15px; line-height: 1.65; }
+body { font-size: 15px; line-height: 1.65; text-rendering: auto; }
+/* Reference typography: compact customer headings, distinct buyer workspace titles. */
+.layout-default .main-container :is(.page-heading, .page-head) .eyebrow { display:none; }
+.layout-default .main-container :is(.page-heading, .page-head) h1 { font-size:24px; line-height:1.4; font-weight:650; margin:0; }
+.layout-default .main-container :is(.page-heading, .page-head) p { margin:8px 0 0; font-size:14px; }
+.layout-default .main-container :is(.page-heading, .page-head) { margin-bottom:24px; }
+.layout-default .main-container :is(.profile-page,.wallet-page,.list-page,.vip-page,.points-page,.kyc-page,.security-page,.cart-page,.address-page,.review-page,.notification-page,.favorites-page,.review-write-page,.aftersale-detail-page,.aftersale-create-page) { padding-top:0; }
+.layout-default .main-container .buyer-workspace.enabled :is(.page-heading,.page-head) .eyebrow { display:inline; font-size:10px; letter-spacing:1.8px; color:var(--yb-primary); }
+.layout-default .main-container .buyer-workspace.enabled :is(.page-heading,.page-head) h1 { font-size:28px; margin:8px 0; }
+.layout-default .main-container .buyer-workspace.enabled .workspace-content :is(.paper,.panel) { border-radius:8px; }
+.layout-default .buyer-workspace.enabled .workspace-content [role='tablist'] { justify-content:flex-start; width:100%; background:transparent; border-radius:0; border-bottom:1px solid var(--yb-hairline); padding:0; gap:12px; overflow-x:auto; height:auto; box-shadow:none; }
+.layout-default .buyer-workspace.enabled .workspace-content [role='tab'] { background:transparent; border-radius:0; border-bottom:3px solid transparent; padding:12px 14px; box-shadow:none; }
+.layout-default .buyer-workspace.enabled .workspace-content [role='tab'][data-state='active'] { border-bottom-color:var(--yb-gold); color:var(--yb-primary); }
+.layout-default .main-container :is(.aftersale-page,.review-list-page,.fav-page,.favorites-page,.my-lockups-page,.my-purchase-page,.purchase-hall-page)>:is(section,div)>.empty-state,
+.layout-default .main-container :is(.aftersale-page,.review-list-page,.fav-page,.favorites-page,.my-lockups-page,.my-purchase-page,.purchase-hall-page)>.empty-state { min-height:340px; border:1px solid var(--yb-hairline); border-radius:8px; background:var(--yb-paper); }
+.layout-default .main-container :is(.tabs-bar,.page-tabs) [role="tablist"] { background:transparent; border-radius:0; border-bottom:1px solid var(--yb-hairline); padding:0; box-shadow:none; }
+.layout-default .main-container :is(.tabs-bar,.page-tabs) [role="tab"] { border-radius:0; min-height:44px; padding-inline:16px; background:transparent; box-shadow:none; border-bottom:3px solid transparent; }
+.layout-default .main-container :is(.tabs-bar,.page-tabs) [role="tab"][data-state="active"] { border-color:var(--yb-accent); color:var(--yb-primary); }
+
 button, input, select, textarea { font-family: inherit; }
 button:not(:disabled), [role='button']:not([aria-disabled='true']) { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
