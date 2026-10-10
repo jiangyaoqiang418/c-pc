@@ -8,6 +8,8 @@ import AudienceSegment from '@/components/common/audience-segment.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -110,13 +112,13 @@ function goProfile() { router.push({ name: 'profile' }); }
     <div v-if="!isLoggedIn" class="user-card">
       <div class="welcome-row">
         <div>
-          <div class="welcome-title">欢迎来油宝</div>
-          <div class="welcome-sub">Web3 USDT 跨境代购</div>
+          <div class="welcome-title">欢迎来到 Umaomao</div>
+          <div class="welcome-sub">发现好物，安心选购</div>
         </div>
       </div>
       <div class="auth-actions">
-        <button class="btn primary" @click="goLogin">登录</button>
-        <button class="btn ghost" @click="goRegister">注册</button>
+        <Button class="flex-1" @click="goLogin">登录</Button>
+        <Button variant="outline" class="flex-1" @click="goRegister">注册</Button>
       </div>
     </div>
 
@@ -128,7 +130,7 @@ function goProfile() { router.push({ name: 'profile' }); }
           <img :src="userAvatar" :alt="user!.nickname" class="avatar" />
           <div class="user-info">
             <div class="user-name">
-              <span>{{ user!.nickname }}</span>
+              <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="account-name">{{ user!.nickname }}</span></TooltipTrigger><TooltipContent>{{ user!.nickname }}</TooltipContent></Tooltip></TooltipProvider>
               <VipBadge :level="user!.vipLevel" size="sm" />
             </div>
             <div class="user-sub">
@@ -252,23 +254,9 @@ function goProfile() { router.push({ name: 'profile' }); }
   background: linear-gradient(135deg, var(--yb-champagne) 0%, var(--yb-surface) 100%);
 }
 .welcome-row { display: flex; align-items: center; gap: 10px; }
-.welcome-title { font-size: 13px; font-weight: 700; color: var(--yb-ink); letter-spacing: -0.01em; }
-.welcome-sub { font-size: 10px; color: var(--yb-muted); margin-top: 2px; }
-.auth-actions { display: flex; gap: 6px; }
-.btn {
-  flex: 1;
-  padding: 8px 0;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.15s;
-}
-.btn.primary { background: var(--yb-brand-primary); color: #fff; }
-.btn.primary:hover { background: var(--yb-brand-hover); }
-.btn.ghost { background: transparent; color: var(--yb-ink); border-color: var(--yb-hairline-2); }
-.btn.ghost:hover { border-color: var(--yb-ink); }
+.welcome-title { font-size: 16px; font-weight: 600; color: var(--yb-ink); letter-spacing: -0.01em; }
+.welcome-sub { font-size: 13px; color: var(--yb-muted); margin-top: 4px; }
+.auth-actions { display: flex; gap: 10px; }
 
 .user-row {
   display: flex;
@@ -292,23 +280,24 @@ function goProfile() { router.push({ name: 'profile' }); }
   border: 2px solid var(--yb-surface);
   box-shadow: var(--yb-shadow-1);
 }
-.user-info { min-width: 0; }
+.user-info { min-width: 0; flex: 1; }
+.account-name { min-width: 0; max-width: 116px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .user-name {
   display: flex; align-items: center; gap: 6px;
-  font-size: 13px; font-weight: 700; color: var(--yb-ink);
+  font-size: 15px; font-weight: 600; color: var(--yb-ink);
 }
 .user-sub {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11px; color: var(--yb-muted); margin-top: 3px;
+  font-size: 12px; color: var(--yb-muted); margin-top: 4px;
 }
 
 /* Mode panel transitions */
 .mode-panel { display: flex; flex-direction: column; gap: 12px; }
 .fade-slide-enter-active, .fade-slide-leave-active {
-  transition: opacity 0.28s ease, transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 180ms var(--um-ease), transform 180ms var(--um-ease);
 }
-.fade-slide-enter-from { opacity: 0; transform: translateY(6px); }
-.fade-slide-leave-to { opacity: 0; transform: translateY(-6px); }
+.fade-slide-enter-from { opacity: 0; transform: translateY(3px); }
+.fade-slide-leave-to { opacity: 0; transform: translateY(-3px); }
 
 /* 我的订单卡 */
 .orders-card {
@@ -336,7 +325,7 @@ function goProfile() { router.push({ name: 'profile' }); }
   color: var(--yb-ink);
   margin-bottom: 12px;
 }
-.orders-title { flex: 1; font-size: 13px; font-weight: 700; }
+.orders-title { flex: 1; font-size: 15px; font-weight: 600; }
 .orders-arrow { color: var(--yb-muted); }
 .orders-stats {
   display: grid;
@@ -354,7 +343,7 @@ function goProfile() { router.push({ name: 'profile' }); }
 }
 .stat-num.hl { color: var(--yb-danger); }
 .stat-lbl {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--yb-muted);
   margin-top: 4px;
 }
@@ -406,7 +395,7 @@ function goProfile() { router.push({ name: 'profile' }); }
 }
 .mini-cell:hover .mini-icon-wrap { background: var(--yb-champagne); color: var(--yb-gold); }
 .mini-label {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--yb-muted);
   text-align: center;
   letter-spacing: -0.01em;
@@ -436,7 +425,11 @@ function goProfile() { router.push({ name: 'profile' }); }
   margin-bottom: 4px;
 }
 .buyer-sub {
-  font-size: 11px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fade-slide-enter-active, .fade-slide-leave-active, .user-row, .orders-card, .mini-cell { transition: none; }
+  .fade-slide-enter-from, .fade-slide-leave-to, .orders-card:hover { transform: none; }
 }
 </style>

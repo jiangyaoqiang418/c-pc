@@ -16,7 +16,7 @@ function onChange(v: 'customer' | 'buyer') {
     const u = userStore.currentUser;
     if (!u?.isBuyer) {
       Message.info({
-        content: '此账号非买手身份，请切换到买手账号（张丽琳/杨建军）体验',
+        content: '当前账号不是买手，暂时无法切换为买手视角',
         duration: 4000
       });
       return;
@@ -38,32 +38,26 @@ function onChange(v: 'customer' | 'buyer') {
 
 <template>
   <div class="audience-segment" role="group" aria-label="当前视角">
-    <div
+    <button
+      type="button"
       class="seg"
       :class="{ active: value === 'customer' }"
-      role="button"
-      tabindex="0"
       :aria-pressed="value === 'customer'"
       @click="onChange('customer')"
-      @keydown.enter="onChange('customer')"
-      @keydown.space.prevent="onChange('customer')"
     >
       <Icon icon="lucide:user" width="13" />
       <span>顾客</span>
-    </div>
-    <div
+    </button>
+    <button
+      type="button"
       class="seg"
       :class="{ active: value === 'buyer' }"
-      role="button"
-      tabindex="0"
       :aria-pressed="value === 'buyer'"
       @click="onChange('buyer')"
-      @keydown.enter="onChange('buyer')"
-      @keydown.space.prevent="onChange('buyer')"
     >
       <Icon icon="lucide:store" width="13" />
       <span>买手</span>
-    </div>
+    </button>
   </div>
 </template>
 
@@ -72,7 +66,7 @@ function onChange(v: 'customer' | 'buyer') {
   display: inline-flex;
   background: var(--yb-bg);
   border: 1px solid var(--yb-hairline);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 3px;
   gap: 2px;
   width: 100%;
@@ -84,12 +78,14 @@ function onChange(v: 'customer' | 'buyer') {
   justify-content: center;
   gap: 5px;
   padding: 7px 16px;
-  border-radius: 999px;
-  font-size: 12px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
   font-weight: 600;
   color: var(--yb-muted);
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 150ms, color 150ms, box-shadow 150ms;
   user-select: none;
   letter-spacing: 0.02em;
 }
@@ -108,4 +104,5 @@ function onChange(v: 'customer' | 'buyer') {
   outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
+@media (prefers-reduced-motion: reduce) { .seg { transition: none; } }
 </style>

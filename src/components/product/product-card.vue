@@ -9,12 +9,18 @@ import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-place
 interface Props {
   product: Api.RealProduct.DisplayRecord;
   demo?: boolean;
+  variant?: 'default' | 'home';
 }
 const props = defineProps<Props>();
 
 const router = useRouter();
 const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
 const aftersale = computed(() => getAftersaleMeta(props.product.aftersaleType));
+const categoryCaption = computed(() => {
+  const path = props.product.categoryPath;
+  if (props.variant === 'home' && path === String(props.product.categoryId)) return '';
+  return path?.split('/').pop() || '';
+});
 
 function goDetail() {
   if (props.demo) {
@@ -29,6 +35,7 @@ function goDetail() {
 <template>
   <div
     class="pc-product-card"
+    :class="{ 'is-home': variant === 'home' }"
     role="link"
     :aria-label="demo ? `搜索真实商品：${product.title}` : `查看商品：${product.title}`"
     tabindex="0"
@@ -46,7 +53,7 @@ function goDetail() {
       </div>
     </div>
     <div class="info">
-      <div v-if="product.categoryPath" class="brand">{{ product.categoryPath.split('/').pop() }}</div>
+      <div v-if="categoryCaption" class="brand">{{ categoryCaption }}</div>
       <div class="title" :title="product.title">{{ product.title }}</div>
       <div class="price-row">
         <span class="cny">{{ formatUsdt(product.price) }}</span>
@@ -199,6 +206,69 @@ function goDetail() {
   font-size: 12px;
   color: var(--yb-muted);
   font-family: var(--yb-font-mono);
+}
+
+/* 首页保留此前的完整图片陈列方式，统一为 Umaomao 的轻量商品卡。 */
+.pc-product-card.is-home {
+  min-width: 0;
+  border-radius: 8px;
+  border-color: transparent;
+  box-shadow: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.pc-product-card.is-home:hover {
+  transform: none;
+  border-color: var(--yb-hairline-2);
+  box-shadow: var(--yb-shadow-1);
+}
+.is-home .cover-wrap {
+  background: var(--yb-surface);
+  aspect-ratio: 1 / 1;
+  padding: 14px;
+}
+.is-home .cover {
+  object-fit: contain;
+}
+.is-home .info {
+  padding: 4px 14px 14px;
+  gap: 5px;
+}
+.is-home .brand {
+  font-size: 11px;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.is-home .title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.is-home .cny {
+  font-family: var(--yb-font-body);
+  font-size: 23px;
+  line-height: 1.4;
+}
+.is-home .usdt {
+  font-size: 11px;
+}
+.is-home .tags-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.is-home .tag-pill {
+  max-width: 100%;
+  padding: 2px 5px;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: normal;
+}
+.is-home .badge.overseas {
+  background: var(--yb-accent);
+  color: var(--yb-accent-ink);
+  border-radius: 4px;
+  padding: 3px 6px;
 }
 @media (prefers-reduced-motion: reduce) {
   .pc-product-card, .cover { transition: none; }
