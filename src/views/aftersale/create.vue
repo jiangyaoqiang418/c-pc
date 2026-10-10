@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isDefinitiveRejection } from '@/service/request/type';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
@@ -131,43 +137,38 @@ function submit(restoring = false) {
     }
   });
 }
+
+
+const submitDisabledReason = computed(() => {
+  if (submitting.value || confirmationOpen.value) return '正在处理原申请，请稍候';
+  if (uploading.value) return '请等待凭证上传完成';
+  if (recoveryError.value) return recoveryError.value;
+  if (pendingIntent.value && !pendingIntent.value.receipt) return '请先恢复并核对原退款申请';
+  if (!eligible.value) return '仅待发货或待收货订单可申请仅退款';
+  return '';
+});
 </script>
 
 <template>
   <div class="aftersale-create-page shop-container" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-    <a-spin class="aftersale-create-content" :loading="loading">
+    <div class="aftersale-create-content" :aria-busy="loading">
+      <nav class="bread" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><strong>申请仅退款</strong></nav>
       <template v-if="order">
-        <a-alert v-if="recoveryError" type="warning">{{ recoveryError }}</a-alert>
-        <a-alert v-else-if="pendingIntent && !pendingIntent.receipt" type="warning">
-          原退款申请待核对，将使用原原因、凭证和幂等键；回查未落地才按原参数重试。
-          <template #action><a-button :loading="submitting" @click="submit(true)">恢复原申请</a-button></template>
-        </a-alert>
-        <a-breadcrumb class="bread"><a-breadcrumb-item role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">我的订单</a-breadcrumb-item><a-breadcrumb-item>申请仅退款</a-breadcrumb-item></a-breadcrumb>
-        <a-card class="order-card" :bordered="false"><div class="order-row"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /> · 订单 {{ order.code }}</div></div><strong>U {{ order.totalAmount }}</strong></div></a-card>
-        <a-alert v-if="!eligible" type="warning" class="notice">仅“待发货”或“待收货”订单可申请仅退款。</a-alert>
-        <a-card class="step-card" :bordered="false"><div class="step-title">退款原因</div><a-textarea v-model="form.reason" :max-length="512" show-word-limit :rows="5" placeholder="请说明退款原因，例如商品与描述不符" /></a-card>
-        <a-card class="step-card" :bordered="false"><div class="step-title">上传凭证（可选，最多 6 张）</div><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></a-card>
-        <a-card class="actions-card" :bordered="false"><a-button @click="router.back()">取消</a-button><a-button type="primary" :disabled="!eligible || uploading || !!recoveryError || (!!pendingIntent && !pendingIntent.receipt)" :loading="submitting || confirmationOpen" @click="submit(false)">提交仅退款申请</a-button></a-card>
+        <Alert v-if="recoveryError" class="notice"><AlertDescription>{{ recoveryError }}</AlertDescription></Alert>
+        <Alert v-else-if="pendingIntent && !pendingIntent.receipt" class="notice"><AlertDescription>原退款申请待核对，将使用原原因、凭证和幂等键；回查未落地才按原参数重试。</AlertDescription><Button size="sm" variant="outline" :disabled="submitting || confirmationOpen" @click="submit(true)">恢复原申请</Button></Alert>
+        <header class="form-heading"><span class="eyebrow">REFUND REQUEST</span><h1>申请仅退款</h1><p>填写退款原因及凭证，提交后由平台审核。</p></header>
+        <section class="order-card"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
+        <Alert v-if="!eligible" class="notice"><AlertDescription>仅“待发货”或“待收货”订单可申请仅退款。</AlertDescription></Alert>
+        <section class="step-card"><Label for="refund-reason" class="section-title">退款原因 <span aria-hidden="true">*</span></Label><Textarea id="refund-reason" v-model="form.reason" :disabled="submitting || confirmationOpen" maxlength="512" rows="5" placeholder="请说明退款原因，例如商品与描述不符" required /><small class="word-count">{{ form.reason.length }}/512</small></section>
+        <section class="step-card"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></section>
+        <footer class="actions"><Button variant="outline" :disabled="submitting || confirmationOpen" @click="router.back()">取消</Button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><Button :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
       </template>
-      <EmptyState v-else-if="!loading" :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />
-    </a-spin>
+      <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-52" /><Skeleton class="h-44" /></div>
+      <EmptyState v-else :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.aftersale-create-page { max-width: 960px; margin: 0 auto; padding-top: 16px; }
-.bread,.order-card,.step-card,.notice { margin-bottom: 12px; }
-.order-row { display:grid; grid-template-columns:80px 1fr auto; gap:16px; align-items:center; }
-.cover { width:80px; height:80px; object-fit:cover; border-radius:4px; background:var(--yb-fill); }
-.meta { color:var(--yb-muted); font-size:12px; margin-top:6px; }.step-title { font-weight:600; margin-bottom:14px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }
-.aftersale-create-content { display:block; width:100%; max-width:560px; margin:0 auto; }
-.actions-card :deep(.arco-card-body) { display:flex; justify-content:center; gap:16px; }
-@media (max-width: 640px) {
-  .aftersale-create-page { padding-top: 10px; }
-  .order-row { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
-  .order-row > strong:last-child { grid-column: 2; }
-  .cover { width: 64px; height: 64px; }
-  .actions-card :deep(.arco-card-body) { justify-content: stretch; }
-  .actions-card :deep(.arco-btn) { flex: 1; }
-}
+.aftersale-create-page { padding-top:32px; padding-bottom:48px; }.aftersale-create-content { width:100%; max-width:720px; margin:0 auto; }.bread { display:flex; align-items:center; gap:14px; margin-bottom:24px; color:var(--yb-muted); font-size:13px; }.bread a:hover { color:var(--yb-brand-primary); }.bread strong { color:var(--yb-ink); font-weight:500; }.form-heading { margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:6px 0; font-size:28px; font-weight:650; }.form-heading p { margin:0; color:var(--yb-muted); font-size:14px; }.order-card { display:flex; align-items:center; gap:18px; padding:24px; margin-bottom:20px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }.cover { width:76px; height:76px; object-fit:cover; border-radius:6px; background:var(--yb-fill); }.order-info { min-width:0; flex:1; }.order-info strong { font-size:16px; }.meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; color:var(--yb-muted); font-size:12px; overflow-wrap:anywhere; }.amount { font-size:20px; white-space:nowrap; }.step-card { padding:26px; margin-bottom:18px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }.section-title { display:flex; align-items:center; gap:8px; margin:0 0 18px; font-size:16px; font-weight:600; }.section-title span { color:var(--destructive); }.section-title small { color:var(--yb-muted); font-size:13px; font-weight:400; }.word-count { display:block; margin-top:8px; text-align:right; font-size:12px; color:var(--yb-muted); }.notice { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:18px; }.actions { display:flex; align-items:center; justify-content:flex-end; gap:16px; margin-top:26px; }.skeletons { display:grid; gap:18px; }@media(max-width:700px) { .order-card { flex-wrap:wrap; }.amount { margin-left:94px; }.step-card { padding:20px; } }
 </style>

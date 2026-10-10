@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -134,22 +138,34 @@ function cancel(row: Api.RealRefund.RefundDTO) {
     finally { if (operation === writeVersion) { cancellingId.value = undefined; cancellationPending.value = false; } }
   }});
 }
+
+
+function changeTab(value: string | number) {
+  if (statusDefs.some(item => item.key === String(value))) activeKey.value = String(value);
+}
 </script>
 
 <template>
   <div class="aftersale-list-page shop-container">
-    <h1 class="page-title">我的仅退款</h1>
-    <a-tabs v-model:active-key="activeKey"><a-tab-pane v-for="item in statusDefs" :key="item.key" :title="item.label" /></a-tabs>
-    <a-spin :loading="loading" style="width:100%"><template v-if="refunds.length"><a-card v-for="row in refunds" :key="row.refundId" class="case-card" :bordered="false" role="button" tabindex="0" :aria-label="`打开仅退款申请 ${row.orderNo || row.refundId}`" @click="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})" @keydown.enter.self="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})" @keydown.space.prevent.self="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})">
-      <div class="head"><strong>{{ row.productTitle || '仅退款申请' }}</strong><a-tag :color="statusColor[String(row.status)]">{{ statusLabel(row) }}</a-tag></div>
-      <div class="meta">订单号：{{ row.orderNo || '—' }} · 退款金额：U {{ row.amount ?? '—' }}</div><p>{{ row.reason }}</p>
-      <div class="actions" @click.stop><a-button size="small" @click="router.push({name:'aftersale-detail',params:{id:String(row.refundId)}})">详情</a-button><a-button v-if="canCancel(row)" size="small" status="danger" :loading="cancellingId === row.refundId" @click="cancel(row)">撤销</a-button></div>
-    </a-card></template><EmptyState v-else :title="loadError || '暂无仅退款申请'" :description="loadError ? '不会展示不完整的售后数据。' : '可在待发货或待收货订单中申请仅退款'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && load()" /></a-spin>
-    <a-pagination v-if="total > pageSize" v-model:current="current" :total="total" :page-size="pageSize" :disabled="loading || cancellationPending" show-total @change="syncQuery()" />
+    <header class="page-heading"><div><span class="eyebrow">AFTER-SALES</span><h1>我的仅退款</h1></div><Button variant="outline" @click="router.push('/order')">查看订单</Button></header>
+    <Tabs :model-value="activeKey" @update:model-value="changeTab"><TabsList class="status-tabs"><TabsTrigger v-for="item in statusDefs" :key="item.key" :value="item.key">{{ item.label }}</TabsTrigger></TabsList></Tabs>
+    <section class="case-list" :aria-busy="loading" aria-label="仅退款申请列表">
+      <div v-if="loading && !refunds.length" class="loading-list"><Skeleton v-for="n in 3" :key="n" class="case-skeleton" /></div>
+      <template v-else-if="refunds.length">
+        <article v-for="row in refunds" :key="row.refundId" class="case-card" :class="{ refreshing: loading }" role="link" tabindex="0" :aria-label="`打开仅退款申请 ${row.orderNo || row.refundId}`" @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.enter.self="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.space.self.prevent="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">
+          <header class="case-head"><strong>{{ row.productTitle || '仅退款申请' }}</strong><span class="status" :class="statusColor[String(row.status)]">{{ statusLabel(row) }}</span></header>
+          <div class="case-body"><div><small>订单号：{{ row.orderNo || '—' }}</small><p>{{ row.reason || '—' }}</p></div><div class="amount"><small>申请退款金额</small><strong>U {{ row.amount ?? '—' }}</strong></div></div>
+          <footer class="actions" @click.stop><Button size="sm" variant="outline" @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">查看详情</Button><Button v-if="canCancel(row)" size="sm" variant="outline" class="danger" :disabled="!!cancellingId || cancellationPending || loading" @click="cancel(row)">{{ cancellingId === row.refundId ? '撤销中…' : '撤销申请' }}</Button></footer>
+        </article>
+      </template>
+      <EmptyState v-else :title="loadError || '暂无仅退款申请'" :description="loadError ? '不会展示不完整的售后数据。' : '可在待发货或待收货订单中申请仅退款'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && load()" />
+    </section>
+    <BusinessPagination v-if="total > pageSize" :current="current" :total="total" :page-size="pageSize" :loading="loading || cancellationPending" @change="current = $event; syncQuery()" />
   </div>
 </template>
 
 <style scoped>
-.aftersale-list-page { padding-top:16px; }.page-title { font-size:20px; margin:0; }.case-card { margin-top:12px; cursor:pointer; }.case-card:focus-visible { outline:2px solid var(--bw-brand-primary); outline-offset:2px; }.head,.actions { display:flex; align-items:center; justify-content:space-between; gap:8px; }.meta { font-size:12px; color:var(--yb-muted); margin-top:8px; }.case-card p { font-size:13px; margin:10px 0; color:var(--yb-ink-2); }.actions { justify-content:flex-end; }
-@media (max-width: 640px) { .aftersale-list-page { padding-top: 10px; } .head { align-items:flex-start; } .head strong,.meta { overflow-wrap:anywhere; } }
+.aftersale-list-page { padding-top: 32px; padding-bottom: 48px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:4px 0 0; font-size:28px; font-weight:650; }
+.status-tabs { display:flex; justify-content:flex-start; width:100%; height:auto; gap:8px; padding:0; border-bottom:1px solid var(--yb-hairline); border-radius:0; background:transparent; }.status-tabs :deep(button) { padding:14px 18px; border-radius:0; border-bottom:2px solid transparent; color:var(--yb-muted); box-shadow:none; }.status-tabs :deep(button[data-state=active]) { color:var(--yb-brand-primary); border-bottom-color:var(--yb-brand-primary); background:transparent; }.case-list { margin-top:24px; }.case-card { padding:24px; margin-bottom:16px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); cursor:pointer; transition:transform .2s,box-shadow .2s,border-color .2s; }.case-card:hover { transform:translateY(-2px); border-color:var(--yb-hairline-2); box-shadow:0 8px 24px rgb(20 40 30 / 5%); }.case-card:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.case-head,.case-body { display:flex; justify-content:space-between; gap:24px; }.case-head strong { font-size:17px; }.case-body { align-items:center; padding:18px 0; }.case-body small { color:var(--yb-muted); font-size:13px; }.case-body p { margin:8px 0 0; color:var(--yb-ink-2); white-space:pre-wrap; overflow-wrap:anywhere; }.amount { text-align:right; flex-shrink:0; }.amount strong { display:block; margin-top:4px; font-size:23px; }.actions { display:flex; justify-content:flex-end; gap:12px; padding-top:16px; border-top:1px solid var(--yb-hairline); }.danger { color:var(--destructive); }.status { align-self:flex-start; border-radius:4px; padding:3px 9px; font-size:12px; background:var(--yb-fill); color:var(--yb-muted); white-space:nowrap; }.status.orange { background:#fff3df; color:#9a5709; }.status.green { background:#e9f3eb; color:#326b43; }.status.red { background:#fcecea; color:#ad453e; }.refreshing { opacity:.65; }.loading-list { display:grid; gap:16px; }.case-skeleton { height:210px; border-radius:10px; }
+@media(max-width:800px) { .case-body { align-items:flex-start; flex-direction:column; }.amount { text-align:left; }.status-tabs { overflow-x:auto; }.status-tabs :deep(button) { flex-shrink:0; } }@media(prefers-reduced-motion:reduce) { .case-card { transition:none; }.case-card:hover { transform:none; } }
 </style>

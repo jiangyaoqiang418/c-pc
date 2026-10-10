@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { Button } from '@/components/ui/button';
+import ImagePreview from '@/components/common/image-preview.vue';
+import { setImageFallback } from '@/utils/image-placeholder';
 import { useRouter } from 'vue-router';
 import ReviewStars from '@/components/common/review-stars.vue';
 import { formatDateValue } from '@/utils/date-range';
@@ -29,140 +32,25 @@ const statusMeta = computed(() => ({
 function goOrder() {
   router.push({ name: 'order-detail', params: { id: String(props.review.orderId) } });
 }
+
+
+const deleteVisible = ref(false);
+const previewOpen = ref(false);
+const previewIndex = ref(0);
+watch(() => props.review.reviewId, () => { deleteVisible.value = false; previewOpen.value = false; });
 </script>
 
 <template>
-  <a-card class="review-card" :class="{ hidden: isHidden }" :body-style="{ padding: '16px 20px' }" :bordered="false">
-    <div class="head">
-      <div class="head-left">
-        <ReviewStars :score="review.productScore" :show-score="true" size="md" />
-        <a-tag :color="statusMeta.color" size="small">
-          {{ statusMeta.label }}
-        </a-tag>
-      </div>
-      <div class="head-right">
-        <span class="time">{{ formatDateValue(review.createdAt) }}</span>
-        <a-link role="link" tabindex="0" size="small" @click="goOrder" @keydown.enter="goOrder" @keydown.space.prevent="goOrder">查看订单</a-link>
-      </div>
-    </div>
-
-    <div v-if="isHidden" class="hidden-overlay">
-      ⚠️ 该评价已被平台隐藏
-      <span v-if="review.rejectReason">{{ review.rejectReason }}</span>
-      <span v-else-if="review.appealStatus === 'PENDING'" class="appeal-pending">申诉处理中…</span>
-    </div>
-    <template v-else>
-      <div class="content">{{ review.content }}</div>
-      <div v-if="review.images?.length" class="photos">
-        <img v-for="(u, index) in review.images" :key="u" :src="u" :alt="`评价图片 ${index + 1}`" />
-      </div>
-      <div v-if="review.replyContent" class="reply">买手回复：{{ review.replyContent }}</div>
-      <div class="meta">
-        <span class="from">— {{ review.userName || '匿名用户' }} · 订单 {{ review.orderNo || review.orderId }}</span>
-      </div>
-    </template>
-    <div v-if="audience === 'sent' || canReply || canAppeal" class="actions">
-      <a-popconfirm
-        v-if="audience === 'sent'"
-        content="删除后无法恢复，确认删除这条评价吗？"
-        type="warning"
-        @ok="emit('delete', review)"
-      >
-        <a-button type="text" status="danger" size="mini" :loading="actionLoading === String(review.reviewId)">删除评价</a-button>
-      </a-popconfirm>
-      <a-button v-if="canReply" type="text" size="mini" :loading="actionLoading === String(review.reviewId)" @click="emit('reply', review)">回复评价</a-button>
-      <a-button v-if="canAppeal" type="text" size="mini" :loading="actionLoading === String(review.reviewId)" @click="emit('appeal', review)">发起申诉</a-button>
-    </div>
-  </a-card>
+  <article class="review-card" :class="{ hidden: isHidden }">
+    <header class="head"><div class="head-left"><ReviewStars :score="review.productScore" :show-score="true" size="md" /><span class="status" :class="statusMeta.color">{{ statusMeta.label }}</span></div><div class="head-right"><time>{{ formatDateValue(review.createdAt) }}</time><Button variant="link" size="sm" @click="goOrder">查看订单</Button></div></header>
+    <div v-if="isHidden" class="hidden-notice"><strong>{{ review.status === 'REJECTED' ? '该评价已被平台驳回' : '该评价已被平台隐藏' }}</strong><span v-if="review.rejectReason">{{ review.rejectReason }}</span><span v-else-if="review.appealStatus === 'PENDING'" class="appeal-pending">申诉处理中…</span></div>
+    <template v-else><p class="content">{{ review.content || '未填写评价内容' }}</p><div v-if="review.images?.length" class="photos"><button v-for="(u, index) in review.images" :key="`${u}:${index}`" type="button" :aria-label="`预览评价图片 ${index + 1}`" @click="previewIndex = index; previewOpen = true"><img :src="u" :alt="`评价图片 ${index + 1}`" @error="setImageFallback" /></button></div><div v-if="review.replyContent" class="reply"><strong>买手回复</strong><p>{{ review.replyContent }}</p></div><small class="meta">{{ review.userName || '匿名用户' }} · 订单 {{ review.orderNo || review.orderId }}</small></template>
+    <footer v-if="audience === 'sent' || canReply || canAppeal" class="actions"><Button v-if="audience === 'sent'" variant="ghost" size="sm" class="danger" :disabled="!!actionLoading" @click="deleteVisible = true">删除评价</Button><Button v-if="canReply" variant="outline" size="sm" :disabled="!!actionLoading" @click="emit('reply', review)">回复评价</Button><Button v-if="canAppeal" variant="outline" size="sm" :disabled="!!actionLoading" @click="emit('appeal', review)">发起申诉</Button></footer>
+    <AModal v-model:visible="deleteVisible" title="删除评价？" :width="420" ok-text="确认删除" :ok-button-props="{ status: 'danger', disabled: !!actionLoading }" @ok="emit('delete', review)"><p class="delete-notice">删除后无法恢复，确认删除这条评价吗？</p></AModal>
+    <ImagePreview v-model="previewOpen" :images="review.images || []" :start-index="previewIndex" title="评价图片" />
+  </article>
 </template>
 
 <style scoped>
-.review-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 12px;
-  border: 1px solid var(--yb-hairline);
-}
-.review-card.hidden {
-  background: var(--yb-fill);
-}
-.head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.head-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.head-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.time {
-  color: var(--yb-muted);
-  font-size: 12px;
-}
-.content {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--yb-ink);
-  margin-bottom: 8px;
-  white-space: pre-wrap;
-}
-.tags {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.photos {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.photos img {
-  width: 72px;
-  height: 72px;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.meta {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-.from {
-  font-style: italic;
-}
-.reply { margin: 10px 0; padding: 8px 10px; border-radius: 4px; background: var(--yb-fill); color: var(--yb-ink-2); font-size: 13px; }
-.hidden-overlay {
-  padding: 20px 0;
-  color: #ff7d00;
-  font-size: 13px;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-.appeal-link {
-  margin-left: 12px;
-}
-.appeal-pending {
-  color: var(--yb-brand-primary);
-  font-size: 12px;
-}
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-}
+.review-card { background:var(--yb-paper); border-radius:10px; margin-bottom:16px; border:1px solid var(--yb-hairline); padding:24px; }.review-card.hidden { background:var(--yb-fill); }.head,.head-left,.head-right { display:flex; align-items:center; gap:12px; }.head { justify-content:space-between; flex-wrap:wrap; margin-bottom:18px; }.head-left { flex-wrap:wrap; }.head-right time { color:var(--yb-muted); font-size:12px; }.content { font-size:15px; line-height:1.8; color:var(--yb-ink); margin:0 0 18px; white-space:pre-wrap; overflow-wrap:anywhere; }.photos { display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap; }.photos button { overflow:hidden; border:1px solid var(--yb-hairline); border-radius:6px; padding:0; background:var(--yb-fill); cursor:zoom-in; }.photos img { width:80px; height:80px; object-fit:cover; display:block; transition:transform .2s; }.photos button:hover img { transform:scale(1.03); }.photos button:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.meta { font-size:12px; color:var(--yb-muted); overflow-wrap:anywhere; }.reply { margin:18px 0; padding:16px; border-radius:6px; background:var(--yb-fill); color:var(--yb-ink-2); font-size:13px; }.reply strong { font-weight:500; }.reply p { margin:8px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; }.hidden-notice { padding:20px 0; color:#9a5709; font-size:14px; display:grid; gap:10px; }.appeal-pending { color:var(--yb-brand-primary); }.actions { display:flex; justify-content:flex-end; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--yb-hairline); }.danger { color:var(--destructive); }.status { border-radius:4px; padding:3px 8px; font-size:12px; background:var(--yb-fill); color:var(--yb-muted); }.status.orange { background:#fff3df; color:#9a5709; }.status.green { background:#e9f3eb; color:#326b43; }.status.red { background:#fcecea; color:#ad453e; }.delete-notice { margin:0; line-height:1.8; }@media(prefers-reduced-motion:reduce) { .photos img { transition:none; }.photos button:hover img { transform:none; } }
 </style>

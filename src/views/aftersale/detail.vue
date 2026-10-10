@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import ImagePreview from '@/components/common/image-preview.vue';
+import { setImageFallback } from '@/utils/image-placeholder';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -85,20 +89,31 @@ function cancel() {
     }
   });
 }
+
+
+const previewOpen = ref(false);
+const previewIndex = ref(0);
+watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; });
 </script>
 
 <template>
-  <div class="aftersale-detail-page shop-container"><a-spin class="aftersale-detail-content" :loading="loading"><template v-if="refund">
-    <a-breadcrumb class="bread"><a-breadcrumb-item role="link" tabindex="0" @click="router.push('/aftersale')" @keydown.enter="router.push('/aftersale')" @keydown.space.prevent="router.push('/aftersale')">我的仅退款</a-breadcrumb-item><a-breadcrumb-item>{{ refund.orderNo || refund.refundId }}</a-breadcrumb-item></a-breadcrumb>
-    <a-card class="hero-card" :bordered="false"><div class="hero"><div><h2>仅退款申请</h2><div class="muted">订单 {{ refund.orderNo || '—' }} · 申请于 {{ formatTime(refund.appliedAt || refund.createdAt) }}</div></div><a-tag :color="String(refund.status) === 'AGREED' ? 'green' : String(refund.status) === 'REJECTED' ? 'red' : 'orange'">{{ refund.statusText || labels[String(refund.status)] || refund.status }}</a-tag></div></a-card>
-    <a-card class="step-card" :bordered="false"><div class="section-title">退款信息</div><a-descriptions :column="2" :data="[{label:'退款金额',value:'U ' + (refund.amount ?? '—')},{label:'退款业务号',value:refund.refundBizNo || '—'},{label:'订单申请前状态',value:refund.orderStatusBefore || '—'},{label:'审核时间',value:formatTime(refund.reviewedAt)}]" /></a-card>
-    <a-card class="step-card" :bordered="false"><div class="section-title">退款原因</div><p class="reason">{{ refund.reason || '—' }}</p><div v-if="refund.evidenceImages?.length" class="evidence"><img v-for="(url, index) in refund.evidenceImages" :key="url" :src="url" :alt="`退款凭证 ${index + 1}`" /></div></a-card>
-    <a-card v-if="refund.reviewRemark" class="step-card" :bordered="false"><div class="section-title">平台审核说明</div><p class="reason">{{ refund.reviewRemark }}</p></a-card>
-    <div class="actions"><a-space :size="16"><a-button @click="router.push({name:'order-detail',params:{id:String(refund.orderId)}})">查看订单</a-button><a-button v-if="canCancel" status="danger" :loading="cancelling" @click="cancel">撤销申请</a-button></a-space></div>
-  </template><EmptyState v-else-if="!loading" :title="loadError || '退款申请不存在'" :action-text="loadError ? '重新加载' : '返回售后列表'" @action="loadError ? load() : router.push('/aftersale')" /></a-spin></div>
+  <div class="aftersale-detail-page shop-container">
+    <div class="aftersale-detail-content" :aria-busy="loading">
+      <template v-if="refund">
+        <nav class="bread" aria-label="面包屑"><RouterLink to="/aftersale">我的仅退款</RouterLink><span>/</span><strong>{{ refund.orderNo || refund.refundId }}</strong></nav>
+        <header class="hero-card"><div><span class="eyebrow">REFUND DETAILS</span><h1>仅退款申请</h1><p>订单 {{ refund.orderNo || '—' }} · 申请于 {{ formatTime(refund.appliedAt || refund.createdAt) }}</p></div><span class="status" :class="String(refund.status).toLowerCase()">{{ refund.statusText || labels[String(refund.status)] || refund.status }}</span></header>
+        <section class="step-card"><h2>退款信息</h2><dl><div><dt>退款金额</dt><dd class="amount">U {{ refund.amount ?? '—' }}</dd></div><div><dt>退款业务号</dt><dd>{{ refund.refundBizNo || '—' }}</dd></div><div><dt>订单申请前状态</dt><dd>{{ refund.orderStatusBefore || '—' }}</dd></div><div><dt>审核时间</dt><dd>{{ formatTime(refund.reviewedAt) }}</dd></div></dl></section>
+        <section class="step-card"><h2>退款原因</h2><p class="reason">{{ refund.reason || '—' }}</p><div v-if="refund.evidenceImages?.length" class="evidence"><button v-for="(url, index) in refund.evidenceImages" :key="`${url}:${index}`" type="button" :aria-label="`预览退款凭证 ${index + 1}`" @click="previewIndex = index; previewOpen = true"><img :src="url" :alt="`退款凭证 ${index + 1}`" @error="setImageFallback" /></button></div></section>
+        <section v-if="refund.reviewRemark" class="step-card"><h2>平台审核说明</h2><p class="reason">{{ refund.reviewRemark }}</p></section>
+        <footer class="actions"><Button variant="outline" @click="router.push({ name: 'order-detail', params: { id: String(refund.orderId) } })">查看订单</Button><Button v-if="canCancel" variant="outline" class="danger" :disabled="cancelling || cancellationPending || loading" @click="cancel">{{ cancelling ? '撤销中…' : '撤销申请' }}</Button></footer>
+        <ImagePreview v-model="previewOpen" :images="refund.evidenceImages || []" :start-index="previewIndex" title="退款凭证" />
+      </template>
+      <div v-else-if="loading" class="skeletons"><Skeleton class="h-36" /><Skeleton class="h-52" /><Skeleton class="h-52" /></div>
+      <EmptyState v-else :title="loadError || '退款申请不存在'" :action-text="loadError ? '重新加载' : '返回售后列表'" @action="loadError ? load() : router.push('/aftersale')" />
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.aftersale-detail-page { max-width:960px; margin:0 auto; padding-top:16px; }.aftersale-detail-content { display:block; width:100%; max-width:560px; margin:0 auto; }.bread,.hero-card,.step-card { margin-bottom:12px; }.hero { display:flex; justify-content:space-between; align-items:center; gap:16px; }.hero h2 { margin:0 0 8px; font-size:18px; }.muted { color:var(--yb-muted); font-size:12px; }.section-title { font-weight:600; margin-bottom:12px; padding-left:8px; border-left:3px solid var(--bw-brand-primary); }.reason { white-space:pre-wrap; color:var(--yb-ink-2); line-height:1.7; }.evidence { display:flex; flex-wrap:wrap; gap:8px; }.evidence img { width:120px; height:120px; object-fit:cover; border-radius:4px; }.actions { display:flex; justify-content:flex-end; }
-@media (max-width: 640px) { .aftersale-detail-page { padding-top: 10px; } .hero { align-items:flex-start; flex-direction:column; gap:8px; } .evidence img { width:88px; height:88px; } }
+.aftersale-detail-page { padding-top:32px; padding-bottom:48px; }.aftersale-detail-content { width:100%; max-width:800px; margin:0 auto; }.bread { display:flex; align-items:center; gap:14px; margin-bottom:24px; color:var(--yb-muted); font-size:13px; overflow-wrap:anywhere; }.bread a:hover { color:var(--yb-brand-primary); }.bread strong { color:var(--yb-ink); font-weight:500; }.hero-card { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:28px; margin-bottom:20px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:6px 0 8px; font-size:26px; font-weight:650; }.hero-card p { margin:0; color:var(--yb-muted); font-size:13px; }.step-card { padding:28px; margin-bottom:18px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }h2 { margin:0 0 22px; font-size:18px; font-weight:600; }dl { margin:0; display:grid; grid-template-columns:1fr 1fr; gap:22px 28px; }dl>div { min-width:0; }dt { color:var(--yb-muted); font-size:13px; margin-bottom:6px; }dd { margin:0; overflow-wrap:anywhere; font-size:15px; }.amount { font-size:23px; font-weight:600; }.reason { margin:0; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--yb-ink-2); line-height:1.8; }.evidence { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }.evidence button { overflow:hidden; border:1px solid var(--yb-hairline); border-radius:6px; padding:0; background:var(--yb-fill); cursor:zoom-in; }.evidence img { display:block; width:100px; height:100px; object-fit:cover; transition:transform .2s; }.evidence button:hover img { transform:scale(1.03); }.evidence button:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.actions { display:flex; justify-content:flex-end; gap:16px; margin-top:26px; }.danger { color:var(--destructive); }.status { padding:5px 10px; border-radius:5px; background:var(--yb-fill); color:var(--yb-muted); font-size:13px; white-space:nowrap; }.status.applying { background:#fff3df; color:#9a5709; }.status.agreed { background:#e9f3eb; color:#326b43; }.status.rejected { background:#fcecea; color:#ad453e; }.skeletons { display:grid; gap:18px; }@media(max-width:700px) { .hero-card { flex-wrap:wrap; }dl { grid-template-columns:1fr; }.step-card { padding:22px; } }@media(prefers-reduced-motion:reduce) { .evidence img { transition:none; }.evidence button:hover img { transform:none; } }
 </style>

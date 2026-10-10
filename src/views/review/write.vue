@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -153,104 +156,28 @@ function handleEmptyAction() {
   }
   router.push('/order');
 }
+
+
 </script>
 
 <template>
-  <div class="review-write-page shop-container">
-    <a-spin :loading="loading" class="review-content">
-      <template v-if="order">
-        <a-breadcrumb class="bread">
-          <a-breadcrumb-item role="link" tabindex="0" @click="router.push('/order')" @keydown.enter="router.push('/order')" @keydown.space.prevent="router.push('/order')">我的订单</a-breadcrumb-item>
-          <a-breadcrumb-item role="link" tabindex="0" @click="router.push({ name: 'order-detail', params: { id: String(order.id) } })" @keydown.enter="router.push({ name: 'order-detail', params: { id: String(order.id) } })" @keydown.space.prevent="router.push({ name: 'order-detail', params: { id: String(order.id) } })">
-            {{ order.code }}
-          </a-breadcrumb-item>
-          <a-breadcrumb-item>写评价</a-breadcrumb-item>
-        </a-breadcrumb>
-
-        <a-card class="order-card" :body-style="{ padding: '14px 20px' }" :bordered="false">
-          <div class="order-row">
-            <img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" />
-            <div class="info">
-              <div class="title">{{ order.productTitle }}</div>
-              <div class="meta">买手 {{ order.shopperName }} · 总额 U {{ formatAmount(order.totalAmount) }}</div>
-            </div>
-          </div>
-        </a-card>
-
-        <a-alert v-if="submissionUnknown" type="warning">
-          本次评价结果尚未确认，原内容保留在当前登录会话中。可查看已提交评价后返回重试；刷新或退出登录会清除本地快照，不会撤销已发出的请求。
-          <template #action><a-space><a-button :disabled="submissionInFlight || confirmationOpen" @click="retryPendingReview">按原评价重试</a-button><a-button @click="router.push('/review')">查看我的评价</a-button></a-space></template>
-        </a-alert>
-        <a-alert v-else-if="pendingOperation?.state === 'submitting'" type="info">原评价正在提交，离开页面不会取消请求，请勿重复提交。</a-alert>
-        <ReviewForm v-if="reviewRouteEligible" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${orderId}`" :initial="initialReview" :submitting="submissionInFlight || confirmationOpen || submissionUnknown" @submit="onSubmit" />
-        <a-alert v-else-if="eligibilityReason" type="info" class="eligibility-alert">{{ eligibilityReason }}</a-alert>
-        <a-alert v-else-if="eligibilityError" type="warning" class="eligibility-alert">
-          {{ eligibilityError }}
-          <template #action><a-button :loading="loading" @click="load">重新核对</a-button></template>
-        </a-alert>
-        <a-alert v-else-if="!loading" type="warning" class="eligibility-alert">
-          当前订单不具备评价资格（可能已评价、超过可评价期限或身份/状态不符），请从订单列表的“写评价”入口进入。
-          <template #action><a-button size="mini" @click="router.push('/order')">返回订单</a-button></template>
-        </a-alert>
-      </template>
-
-      <EmptyState
-        v-else-if="!loading"
-        :title="loadError ? '订单加载失败' : '订单不存在'"
-        :description="loadError || undefined"
-        :action-text="loadError ? '重新加载' : '返回订单'"
-        @action="handleEmptyAction"
-      />
-    </a-spin>
-  </div>
+  <div class="review-write-page shop-container"><div class="review-content" :aria-busy="loading">
+    <template v-if="order">
+      <nav class="bread" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">{{ order.code }}</RouterLink><span>/</span><strong>写评价</strong></nav>
+      <header class="page-heading"><span class="eyebrow">YOUR EXPERIENCE</span><h1>分享这次购物体验</h1><p>真实的使用感受，也是下一位买家的参考。</p></header>
+      <section class="order-card"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="info"><h2>{{ order.productTitle }}</h2><small>买手 {{ order.shopperName }} · 总额 U {{ formatAmount(order.totalAmount) }}</small></div></section>
+      <Alert v-if="submissionUnknown" class="notice"><AlertDescription>本次评价结果尚未确认，原内容保留在当前登录会话中。可查看已提交评价后返回重试；刷新或退出登录会清除本地快照，不会撤销已发出的请求。</AlertDescription><div class="notice-actions"><Button size="sm" variant="outline" :disabled="submissionInFlight || confirmationOpen" @click="retryPendingReview">按原评价重试</Button><Button size="sm" variant="outline" @click="router.push('/review')">查看我的评价</Button></div></Alert>
+      <Alert v-else-if="pendingOperation?.state === 'submitting'" class="notice"><AlertDescription>原评价正在提交，离开页面不会取消请求，请勿重复提交。</AlertDescription></Alert>
+      <ReviewForm v-if="reviewRouteEligible" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${orderId}`" :initial="initialReview" :submitting="submissionInFlight || confirmationOpen || submissionUnknown" @submit="onSubmit" />
+      <Alert v-else-if="eligibilityReason" class="notice"><AlertDescription>{{ eligibilityReason }}</AlertDescription></Alert>
+      <Alert v-else-if="eligibilityError" class="notice"><AlertDescription>{{ eligibilityError }}</AlertDescription><Button size="sm" variant="outline" :disabled="loading" @click="load">重新核对</Button></Alert>
+      <Alert v-else-if="!loading" class="notice"><AlertDescription>当前订单不具备评价资格（可能已评价、超过可评价期限或身份/状态不符），请从订单列表的“写评价”入口进入。</AlertDescription><Button size="sm" variant="outline" @click="router.push('/order')">返回订单</Button></Alert>
+    </template>
+    <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-96" /></div>
+    <EmptyState v-else :title="loadError ? '订单加载失败' : '订单不存在'" :description="loadError || undefined" :action-text="loadError ? '重新加载' : '返回订单'" @action="handleEmptyAction" />
+  </div></div>
 </template>
 
 <style scoped>
-.review-write-page {
-  padding-top: 16px;
-  max-width: 860px;
-  margin: 0 auto;
-}
-.review-content {
-  display: block;
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-}
-.bread {
-  margin-bottom: 12px;
-}
-.order-card {
-  background: #fff;
-  border-radius: var(--bw-card-radius);
-  margin-bottom: 12px;
-}
-.order-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.cover {
-  width: 64px;
-  height: 64px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-.title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  margin-bottom: 4px;
-}
-.meta {
-  font-size: 12px;
-  color: var(--yb-muted);
-}
-@media (max-width: 640px) {
-  .review-write-page { margin: 0; }
-  .order-row { align-items: flex-start; }
-  .info { min-width: 0; }
-  .title { overflow-wrap: anywhere; }
-  .meta { line-height: 1.6; }
-}
+.review-write-page { padding-top:32px; padding-bottom:48px; }.review-content { display:block; width:100%; max-width:720px; margin:0 auto; }.bread { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:24px; color:var(--yb-muted); font-size:13px; }.bread a:hover { color:var(--yb-brand-primary); }.bread strong { color:var(--yb-ink); font-weight:500; }.page-heading { margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { font-size:28px; font-weight:650; margin:6px 0 8px; }.page-heading p { margin:0; color:var(--yb-muted); font-size:14px; }.order-card { display:flex; align-items:center; gap:18px; padding:24px; margin-bottom:20px; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; }.cover { width:76px; height:76px; border-radius:6px; object-fit:cover; background:var(--yb-fill); }.info { min-width:0; }.info h2 { font-size:17px; font-weight:600; margin:0 0 8px; }.info small { color:var(--yb-muted); font-size:13px; }.notice { margin:18px 0; display:grid; gap:14px; }.notice-actions { display:flex; flex-wrap:wrap; gap:12px; }.skeletons { display:grid; gap:18px; }
 </style>

@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import ImagePreview from '@/components/common/image-preview.vue';
+import { setImageFallback } from '@/utils/image-placeholder';
 import { onBeforeUnmount, ref, toRaw, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import { uploadFile } from '@/service/api/product';
@@ -94,86 +99,27 @@ function remove(i: number) {
   next.splice(i, 1);
   updateImages(next);
 }
+
+
+const previewOpen = ref(false);
+const previewIndex = ref(0);
+watch(() => props.modelValue, () => { previewOpen.value = false; });
 </script>
 
 <template>
-  <div class="evidence">
-    <input ref="inputRef" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
-    <div v-for="(u, i) in modelValue" :key="u" class="cell">
-      <img :src="u" :alt="`售后凭证 ${i + 1}`" />
-      <button class="remove" type="button" :disabled="disabled" :aria-label="`删除售后凭证 ${i + 1}`" :title="`删除售后凭证 ${i + 1}`" @click="remove(i)">✕</button>
+  <div class="evidence" :aria-busy="uploading">
+    <input ref="inputRef" class="file-input" type="file" accept="image/*" multiple :disabled="disabled || uploading" @change="onFileChange" />
+    <div v-for="(u, i) in modelValue" :key="`${u}:${i}`" class="cell">
+      <button type="button" class="preview" :aria-label="`预览凭证 ${i + 1}`" @click="previewIndex = i; previewOpen = true"><img :src="u" :alt="`凭证 ${i + 1}`" @error="setImageFallback" /></button>
+      <button class="remove" type="button" :disabled="disabled" :aria-label="`删除凭证 ${i + 1}`" :title="`删除凭证 ${i + 1}`" @click="remove(i)"><Icon icon="lucide:x" width="14" /></button>
     </div>
-    <button v-if="modelValue.length < max" class="add" type="button" aria-label="添加售后凭证图片" :disabled="disabled || uploading" @click="pickFile">
-      {{ uploading ? '上传中…' : '+ 添加图片' }}
-    </button>
-    <a-alert v-if="failedFiles.length" type="warning">
-      {{ failedFiles.length }} 张图片上传失败，成功图片已保留。
-      <template #action><a-button size="mini" :disabled="disabled || modelValue.length >= max" :loading="uploading" @click="uploadFiles([...failedFiles])">重试失败图片</a-button></template>
-    </a-alert>
-    <div class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</div>
+    <button v-if="modelValue.length < max" class="add" type="button" aria-label="添加凭证图片" :disabled="disabled || uploading" @click="pickFile"><Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:plus'" width="22" :class="{ 'animate-spin': uploading }" /><span>{{ uploading ? '上传中…' : '添加图片' }}</span></button>
+    <Alert v-if="failedFiles.length" class="failure"><AlertDescription>{{ failedFiles.length }} 张图片上传失败，成功图片已保留。</AlertDescription><Button type="button" variant="outline" size="sm" :disabled="disabled || modelValue.length >= max || uploading" @click="uploadFiles([...failedFiles])">重试失败图片</Button></Alert>
+    <small class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</small>
+    <ImagePreview v-model="previewOpen" :images="modelValue" :start-index="previewIndex" title="凭证图片" />
   </div>
 </template>
 
 <style scoped>
-.file-input {
-  display: none;
-}
-.evidence {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-.cell {
-  position: relative;
-  width: 96px;
-  height: 96px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid var(--yb-hairline);
-}
-.cell img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-.remove {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  border: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 11px;
-}
-.remove:focus-visible,
-.add:focus-visible {
-  outline: 2px solid var(--bw-brand-primary);
-  outline-offset: 2px;
-}
-.add {
-  width: 96px;
-  height: 96px;
-  background: var(--yb-fill);
-  border: 1.5px dashed var(--yb-hairline-2);
-  border-radius: 6px;
-  color: var(--yb-muted);
-  cursor: pointer;
-  font-size: 12px;
-}
-.add:hover {
-  border-color: var(--bw-brand-primary);
-  color: var(--bw-brand-primary);
-}
-.hint {
-  flex-basis: 100%;
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--yb-muted);
-}
+.file-input { display:none; }.evidence { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }.cell { position:relative; width:96px; height:96px; border-radius:6px; border:1px solid var(--yb-hairline); background:var(--yb-fill); }.preview { display:block; width:100%; height:100%; border:0; border-radius:6px; overflow:hidden; padding:0; cursor:zoom-in; }.cell img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }.preview:hover img { transform:scale(1.03); }.remove { position:absolute; top:5px; right:5px; display:grid; place-items:center; background:rgb(20 30 25 / 65%); color:#fff; border:none; width:24px; height:24px; border-radius:50%; cursor:pointer; }.preview:focus-visible,.remove:focus-visible,.add:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.add { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; width:96px; height:96px; background:var(--yb-fill); border:1px dashed var(--yb-hairline-2); border-radius:6px; color:var(--yb-muted); cursor:pointer; font-size:13px; transition:border-color .15s,color .15s,background .15s; }.add:hover:not(:disabled) { border-color:var(--yb-brand-primary); color:var(--yb-brand-primary); background:var(--yb-primary-soft); }.add:disabled,.remove:disabled { cursor:not-allowed; opacity:.5; }.hint { flex-basis:100%; font-size:12px; color:var(--yb-muted); }.failure { flex-basis:100%; display:flex; align-items:center; flex-wrap:wrap; gap:12px; }@media(prefers-reduced-motion:reduce) { .cell img,.add { transition:none; }.preview:hover img { transform:none; } }
 </style>
