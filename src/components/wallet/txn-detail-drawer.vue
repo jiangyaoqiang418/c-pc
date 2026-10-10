@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { computed } from 'vue';
 import { Message } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
@@ -23,18 +24,14 @@ const typeLabel = computed(() => {
 
 function copy(text?: string) {
   if (!text) return;
-  navigator.clipboard.writeText(text).then(() => Message.success('已复制'));
+  navigator.clipboard.writeText(text).then(() => Message.success('已复制')).catch(() => Message.warning('复制失败，请手动选择并复制'));
 }
 </script>
 
 <template>
-  <a-drawer
-    :visible="visible"
-    title="交易详情"
-    :width="480"
-    :footer="false"
-    @update:visible="(v) => $emit('update:visible', v)"
-  >
+  <Sheet :open="visible" @update:open="value => $emit('update:visible', value)">
+    <SheetContent side="right" class="transaction-sheet">
+      <SheetHeader><SheetTitle>交易详情</SheetTitle><SheetDescription>钱包流水及其关联业务信息</SheetDescription></SheetHeader>
     <template v-if="txn">
       <div class="head">
         <div class="type-badge">{{ typeLabel }}</div>
@@ -84,10 +81,13 @@ function copy(text?: string) {
         </div>
       </div>
     </template>
-  </a-drawer>
+    </SheetContent>
+  </Sheet>
 </template>
 
 <style scoped>
+:global(.transaction-sheet) { width:min(480px,calc(100vw - 32px)); background:var(--yb-paper); padding:28px; }
+
 .head {
   text-align: center;
   padding: 24px 0 28px;
@@ -99,8 +99,8 @@ function copy(text?: string) {
   padding: 4px 12px;
   background: var(--yb-bg);
   color: var(--yb-muted);
-  border-radius: 999px;
-  font-size: 11px;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   margin-bottom: 16px;
@@ -125,7 +125,7 @@ function copy(text?: string) {
   margin-left: 2px;
 }
 .amount .num {
-  font-size: 40px;
+  font-size: 36px;
   font-weight: 700;
   letter-spacing: -0.03em;
 }
@@ -161,7 +161,7 @@ function copy(text?: string) {
   justify-content: space-between;
   padding: 10px 0;
   border-bottom: 1px solid var(--yb-hairline);
-  font-size: 13px;
+  font-size: 14px;
 }
 .dl-row:last-child {
   border-bottom: none;
@@ -174,8 +174,8 @@ function copy(text?: string) {
   font-weight: 500;
   max-width: 60%;
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .chain-row {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
 import { computed } from 'vue';
 import { enums, formatAmount } from '@shared';
 import { formatDateValue, parseDateValue } from '@/utils/date-range';
@@ -37,140 +38,18 @@ const relativeTime = computed(() => {
   if (days < 30) return `${days} 天前`;
   return formatDateValue(props.txn.createdAt, true);
 });
+
+
 </script>
 
 <template>
-  <div
-    class="txn-row"
-    :class="{ compact }"
-    role="button"
-    tabindex="0"
-    @click="$emit('detail', txn)"
-    @keydown.enter="$emit('detail', txn)"
-    @keydown.space.prevent="$emit('detail', txn)"
-  >
-    <div class="dir" :class="{ inbound: isIn, outbound: !isIn }">
-      <span class="arrow">{{ isIn ? '↑' : '↓' }}</span>
-    </div>
-    <div class="middle">
-      <div class="type-line">
-        <span class="type">{{ typeLabel }}</span>
-      </div>
-      <div class="desc">{{ desc }}</div>
-      <div v-if="!compact" class="meta">
-        <span v-if="txn.bucketFrom">{{ enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' }}</span>
-        <span v-if="txn.bucketFrom && txn.bucketTo"> → </span>
-        <span v-if="txn.bucketTo">{{ enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' }}</span>
-        <span v-if="txn.chainTxHash" class="hash">· {{ txn.chainTxHash.slice(0, 10) }}…</span>
-      </div>
-    </div>
-    <div class="right">
-      <div class="amount" :class="{ inbound: isIn, outbound: !isIn }">
-        <span class="sign">{{ isIn ? '+' : '−' }}</span>
-        <span class="num">U {{ formatAmount(txn.amount) }}</span>
-      </div>
-      <div class="time">{{ compact ? relativeTime : formatDateValue(txn.createdAt) }}</div>
-    </div>
-  </div>
+  <button type="button" class="txn-row" :class="{ compact }" :aria-label="`${typeLabel}，${isIn ? '收入' : '支出'} U ${formatAmount(txn.amount)}，查看交易详情`" @click="$emit('detail', txn)">
+    <span class="dir" :class="{ inbound: isIn, outbound: !isIn }"><Icon :icon="isIn ? 'lucide:arrow-down-left' : 'lucide:arrow-up-right'" width="18" /></span>
+    <span class="middle"><span class="type-line">{{ typeLabel }}</span><span class="desc" :title="desc">{{ desc }}</span><span v-if="!compact" class="meta"><span v-if="txn.bucketFrom">{{ enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' }}</span><span v-if="txn.bucketFrom && txn.bucketTo"> → </span><span v-if="txn.bucketTo">{{ enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' }}</span><span v-if="txn.chainTxHash" class="hash"> · {{ txn.chainTxHash.slice(0, 10) }}…</span></span></span>
+    <span class="right"><span class="amount" :class="{ inbound: isIn, outbound: !isIn }">{{ isIn ? '+' : '−' }} U {{ formatAmount(txn.amount) }}</span><span class="time">{{ compact ? relativeTime : formatDateValue(txn.createdAt) }}</span></span><Icon icon="lucide:chevron-right" width="16" class="row-arrow" />
+  </button>
 </template>
 
 <style scoped>
-.txn-row {
-  display: grid;
-  grid-template-columns: 32px 1fr auto;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--yb-hairline);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.txn-row:last-child {
-  border-bottom: none;
-}
-.txn-row:hover {
-  background: var(--yb-bg);
-}
-.txn-row:focus-visible {
-  outline: 2px solid var(--yb-brand-primary);
-  outline-offset: -2px;
-}
-.txn-row.compact {
-  padding: 12px 0;
-}
-
-.dir {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: var(--yb-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--yb-muted);
-  font-family: var(--yb-font-mono);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
-}
-.dir.inbound {
-  color: var(--yb-success);
-}
-.dir.outbound {
-  color: var(--yb-danger);
-}
-
-.type-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.type {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--yb-ink);
-  letter-spacing: -0.005em;
-}
-.desc {
-  font-size: 12px;
-  color: var(--yb-muted);
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 320px;
-}
-.meta {
-  font-size: 11px;
-  color: var(--yb-faint);
-  margin-top: 3px;
-}
-.hash {
-  font-family: var(--yb-font-mono);
-}
-
-.right {
-  text-align: right;
-}
-.amount {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-  font-family: var(--yb-font-mono);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--yb-ink);
-}
-.amount.inbound { color: var(--yb-success); }
-.amount.outbound { color: var(--yb-danger); }
-.amount .sign { font-weight: 600; }
-.amount .num { font-variant-numeric: tabular-nums; }
-
-.time {
-  font-family: var(--yb-font-mono);
-  font-size: 11px;
-  color: var(--yb-faint);
-  margin-top: 3px;
-}
+.txn-row { display:grid; grid-template-columns:36px minmax(0,1fr) auto 16px; align-items:center; gap:16px; width:100%; border:0; border-bottom:1px solid var(--yb-hairline); padding:20px 12px; text-align:left; background:transparent; cursor:pointer; transition:background .15s; }.txn-row:last-child { border-bottom:0; }.txn-row:hover { background:var(--yb-primary-soft); }.txn-row:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:-2px; }.txn-row.compact { padding:16px 0; }.dir { display:grid; place-items:center; width:36px; height:36px; border-radius:6px; background:var(--yb-fill); }.dir.inbound { color:var(--yb-success); }.dir.outbound { color:var(--yb-danger); }.middle { min-width:0; }.type-line { display:block; font-size:14px; font-weight:600; color:var(--yb-ink); }.desc { display:block; margin-top:5px; font-size:13px; color:var(--yb-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.meta { display:block; font-size:12px; color:var(--yb-muted); margin-top:6px; }.hash { font-family:var(--yb-font-mono); }.right { text-align:right; }.amount { display:block; font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }.amount.inbound { color:var(--yb-success); }.amount.outbound { color:var(--yb-danger); }.time { display:block; color:var(--yb-muted); font-size:12px; margin-top:6px; }.row-arrow { color:var(--yb-muted); }@media(max-width:700px) { .txn-row { grid-template-columns:30px minmax(0,1fr) auto; gap:10px; padding:16px 0; }.dir { width:30px; height:30px; }.row-arrow { display:none; }.time { max-width:130px; }.amount { font-size:15px; } }@media(prefers-reduced-motion:reduce) { .txn-row { transition:none; } }
 </style>
