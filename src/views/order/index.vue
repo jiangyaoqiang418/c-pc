@@ -283,16 +283,17 @@ function changeTab(value: string | number) {
 </template>
 
 <style scoped>
-.order-list-page { padding-top: 24px; }
+.order-list-page { max-width: 1020px; margin: 0 auto; padding-top: 0; }
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 24px; }
 .eyebrow { color: var(--yb-gold); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin: 0 0 5px; }
 h1 { font-size: 28px; font-weight: 650; margin: 0; }
 .view-switch { display: flex; gap: 8px; }
 .order-tabs { display: flex; justify-content: flex-start; gap: 8px; width: 100%; height: auto; padding: 0 16px; overflow-x: auto; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-surface); }
 .order-tab { flex-shrink: 0; padding: 18px 12px; border-radius: 0; border-bottom: 2px solid transparent; box-shadow: none; color: var(--yb-muted); }
-.order-tab[data-state='active'] { background: transparent; color: var(--yb-primary); border-bottom-color: var(--yb-primary); box-shadow: none; }
+.order-tab[data-state='active'] { background: transparent; color: var(--yb-primary); border-bottom-color: var(--yb-gold); box-shadow: none; }
 .tab-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--yb-fill); font-size: 12px; line-height: 18px; }
 .orders { margin-top: 24px; }
+.orders > :deep(.empty-state) { background: var(--yb-paper); border: 1px solid var(--yb-hairline); border-radius: 8px; min-height: 360px; }
 .order-skeletons { display: grid; gap: 16px; }
 .order-skeleton { height: 210px; }
 .review-notice { margin-bottom: 16px; }

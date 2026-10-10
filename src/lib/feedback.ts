@@ -23,6 +23,7 @@ export interface ConfirmationOptions {
   content?: FeedbackContent;
   okText?: string;
   cancelText?: string;
+  hideCancel?: boolean;
   maskClosable?: boolean;
   closable?: boolean;
   width?: string | number;
@@ -110,7 +111,7 @@ export function closeConfirmation(key: number) {
 }
 
 function showConfirmation(options: ConfirmationOptions, showCancel: boolean) {
-  const item: Confirmation = { ...options, content: preserveContent(options.content), key: ++sequence, showCancel };
+  const item: Confirmation = { ...options, content: preserveContent(options.content), key: ++sequence, showCancel: showCancel && !options.hideCancel };
   confirmations.push(item);
   return { close: () => closeConfirmation(item.key) };
 }

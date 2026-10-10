@@ -204,7 +204,7 @@ watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; 
       <section class="paper progress-card"><h2>求购进度</h2><div v-if="progressError" class="notice" role="alert"><span>{{ progressError }}</span><Button variant="outline" size="sm" @click="load">重新加载</Button></div><template v-else-if="progress"><PurchaseStatusTimeline :request="request" :progress="progress" /><div class="progress-summary"><p>推送 {{ progress.pushBatchCount }} 批 · 累计触达 {{ progress.reachedBuyerCount }} 位买手</p><p>最近推送：{{ formatDateValue(progress.lastPushedAt ?? undefined) }}</p></div></template><p v-else class="muted">{{ isMyRequest ? '正在读取处理进度' : '处理进度仅求购发起人可查看' }}</p>
         <template v-if="request.status === 'claimed'"><div class="section-divider" /><h3>接单信息</h3><p class="claimed"><Icon icon="lucide:check-circle" width="18" />已被 {{ request.claimedByName }} 接单<span v-if="request.assignedBy">· 后台指派</span></p><p v-if="request.relatedOrderCode" class="code">关联订单 {{ request.relatedOrderCode }}</p><div v-if="isMyRequest && request.relatedOrderId" class="button-row"><Button @click="router.push({ name: 'order-detail', params: { id: String(request.relatedOrderId) } })">查看关联订单<Icon icon="lucide:arrow-right" width="16" /></Button></div></template>
       </section>
-      <ImagePreview v-model:visible="previewOpen" :images="request.evidenceUrls || []" :start-index="previewIndex" />
+      <ImagePreview v-model="previewOpen" :images="request.evidenceUrls || []" :start-index="previewIndex" />
     </template>
     <EmptyState v-else :title="loadError || '求购不存在'" :description="loadError ? '不会展示不完整的求购数据。' : undefined" :action-text="loadError ? '重新加载' : '返回大厅'" @action="loadError ? load() : router.push('/purchase/hall')" />
   </div>

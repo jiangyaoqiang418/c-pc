@@ -104,7 +104,7 @@ function cancel() {
     title: '取消订单？',
     content: () => h(Textarea, {
       modelValue: reason.value,
-      'onUpdate:modelValue': (value: string) => { reason.value = value; },
+      'onUpdate:modelValue': (value: string | number) => { reason.value = String(value); },
       placeholder: '请输入取消原因（必填）',
       autoSize: { minRows: 3, maxRows: 5 }
     }),

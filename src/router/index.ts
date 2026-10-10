@@ -85,19 +85,19 @@ const routes: RouteRecordRaw[] = [
     path: '/checkout',
     name: 'checkout',
     component: () => import('@/views/checkout/index.vue'),
-    meta: { layout: 'checkout', title: '订单结算', requiresAuth: true }
+    meta: { layout: 'default', title: '订单结算', requiresAuth: true }
   },
   {
     path: '/checkout/success/:orderId',
     name: 'checkout-success',
     component: () => import('@/views/checkout/success.vue'),
-    meta: { layout: 'checkout', title: '支付结果', requiresAuth: true }
+    meta: { layout: 'default', title: '支付结果', requiresAuth: true }
   },
   {
     path: '/checkout/wallet-pay/:orderGroupNo',
     name: 'checkout-wallet-pay',
     component: () => import('@/views/checkout/wallet-pay.vue'),
-    meta: { layout: 'checkout', title: '钱包支付', requiresAuth: true }
+    meta: { layout: 'default', title: '钱包支付', requiresAuth: true }
   },
   {
     path: '/auth/login',

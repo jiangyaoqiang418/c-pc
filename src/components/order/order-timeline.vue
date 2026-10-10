@@ -107,14 +107,14 @@ const events = computed<TimelineEvent[]>(() => {
 
   const currentStages: Partial<Record<Api.Order.OrderStatus, { title: string; icon: string }>> = {
     PROCURING: { title: '采购中', icon: 'lucide:shopping-bag' },
-    PROCURED: { title: '已采购', icon: 'lucide:package-check' },
     IN_TRANSIT: { title: '运输中', icon: 'lucide:truck' },
     AFTERSALE_CONFIRM: { title: '待确认收货', icon: 'lucide:package-search' },
     WARRANTY: { title: '质保中', icon: 'lucide:shield-check' },
     ARCHIVED: { title: '已归档', icon: 'lucide:archive' }
   };
   const currentStage = currentStages[order.status];
-  if (currentStage && !(order.status === 'IN_TRANSIT' && matchingLogistics?.logisticsStatus)) {
+  const transportStatusRepresented = order.status === 'IN_TRANSIT' && matchingLogistics?.logisticsStatus && !['PENDING_SHIPMENT', 'SHIPPED'].includes(matchingLogistics.logisticsStatus);
+  if (currentStage && !transportStatusRepresented) {
     result.push({ key: 'status-' + order.status, title: currentStage.title, occurredAt: order.status === 'PROCURED' ? order.procuredAt : undefined, icon: currentStage.icon, major: true });
   }
 
@@ -122,7 +122,8 @@ const events = computed<TimelineEvent[]>(() => {
     const currentStatus = matchingLogistics.logisticsStatus;
     const latestTrack = [...(matchingLogistics.tracks || [])].sort((a, b) => (eventTime(b.occurredAt) ?? -1) - (eventTime(a.occurredAt) ?? -1))[0];
     const statusRepresented = latestTrack?.status === currentStatus || (currentStatus === 'SHIPPED' && result.some(event => event.key === 'shipped'));
-    if (currentStatus && !statusRepresented) {
+    const canShowCurrentLogistics = !['CANCELLED', 'REFUNDED', 'COMPLETED', 'WARRANTY', 'IN_AFTERSALE', 'ARCHIVED'].includes(order.status);
+    if (canShowCurrentLogistics && currentStatus && !statusRepresented) {
       result.push({ key: 'status-logistics', title: matchingLogistics.logisticsStatusText || trackLabels[currentStatus], detail: '当前物流状态', exceptionSummary: matchingLogistics.logisticsException || undefined, icon: trackIcons[currentStatus] || 'lucide:package', major: true, exceptional: currentStatus === 'EXCEPTION' });
     }
     const tracks = [...(matchingLogistics.tracks || [])].sort((a, b) => (eventTime(a.occurredAt) ?? -1) - (eventTime(b.occurredAt) ?? -1));
@@ -153,7 +154,7 @@ const events = computed<TimelineEvent[]>(() => {
         exceptional: track.status === 'EXCEPTION' || track.exceptionNode === true
       });
     });
-    if (!shippedAt && !tracks.length && (shippingInfo || shippingFees || shippedRemark || shipVouchers.length)) {
+    if (!shippedAt && !tracks.length && (trackingNo || shippedRemark || shipVouchers.length)) {
       result.push({ key: 'shipment-info', title: '发货资料', shippingInfo, shippingFees, shippedRemark, shipVouchers, icon: 'lucide:package', major: true });
     }
     if (matchingLogistics.logisticsException && !result.some(event => event.exceptionSummary)) {

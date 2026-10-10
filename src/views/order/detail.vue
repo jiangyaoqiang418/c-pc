@@ -273,7 +273,7 @@ function cancel() {
     title: '取消订单？',
     content: () => h(Textarea, {
       modelValue: reason.value,
-      'onUpdate:modelValue': (value: string) => { reason.value = value; },
+      'onUpdate:modelValue': (value: string | number) => { reason.value = String(value); },
       placeholder: '请输入取消原因（必填）',
       autoSize: { minRows: 3, maxRows: 5 }
     }),
@@ -419,7 +419,7 @@ function contactShopper() {
       <Alert v-if="reviewableLoading" class="notice"><AlertDescription>正在核对评价资格，不影响查看订单详情。</AlertDescription></Alert>
       <Alert v-if="reviewReason && !reviewableLoading && !reviewableError" class="notice"><AlertDescription>{{ reviewReason }}</AlertDescription></Alert>
       <Alert v-if="reviewableError" class="notice"><AlertDescription>{{ reviewableError }}</AlertDescription><Button variant="outline" size="sm" :disabled="reviewableLoading" @click="loadReviewable()">重新核对</Button></Alert>
-      <section class="hero-card panel"><div class="hero-heading"><div><p class="eyebrow">ORDER DETAILS</p><h1>订单 {{ order.code }}</h1><p class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</p></div><OrderStatusTag :status="order.status" size="large" /></div><div v-if="permissions.confirm && order.autoConfirmAt" class="receive-meta"><Icon icon="lucide:clock" width="15" />预计自动收货：{{ formatTime(order.autoConfirmAt) }}<span v-if="order.receiveExtendCount != null">已延长 {{ order.receiveExtendCount }} 次</span></div><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen || loading" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" /></section>
+      <section class="hero-card panel"><div class="hero-heading"><div><h1>订单 {{ order.code }}</h1><p class="hero-meta">创建于 {{ formatTime(order.createdAt) }} · 买手 {{ order.shopperName }}</p></div><OrderStatusTag :status="order.status" size="large" /></div><div v-if="permissions.confirm && order.autoConfirmAt" class="receive-meta"><Icon icon="lucide:clock" width="15" />预计自动收货：{{ formatTime(order.autoConfirmAt) }}<span v-if="order.receiveExtendCount != null">已延长 {{ order.receiveExtendCount }} 次</span></div><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen || loading" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" /></section>
       <div class="detail-layout">
         <div class="main-panels">
           <section id="logistics" ref="logisticsSection" class="panel"><h2>订单进度</h2><Alert v-if="logisticsError" variant="destructive" class="notice"><AlertDescription>{{ logisticsError }}</AlertDescription><Button variant="outline" size="sm" :disabled="loading" @click="load">重新加载</Button></Alert><OrderTimeline :order="order" :logistics="currentLogistics" /></section>
@@ -443,23 +443,22 @@ function contactShopper() {
 </template>
 
 <style scoped>
-.order-detail-page { padding-top: 24px; }
+.order-detail-page { max-width: 1020px; margin-inline: auto; padding-top: 0; }
 .breadcrumb { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 13px; color: var(--yb-muted); }
 .breadcrumb a:hover { color: var(--yb-primary); }
-.panel { border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); padding: 24px; min-width: 0; }
-.hero-card { margin-bottom: 24px; background: linear-gradient(120deg, var(--yb-surface), var(--yb-primary-soft)); }
+.panel { border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-surface); padding: 24px; min-width: 0; }
+.hero-card { margin-bottom: 24px; background: var(--yb-primary-soft); }
 .hero-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
-.eyebrow { color: var(--yb-gold); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin: 0 0 6px; }
 h1 { font-size: 24px; font-weight: 650; margin: 0; overflow-wrap: anywhere; }
 .hero-meta { font-size: 13px; color: var(--yb-muted); margin: 8px 0 0; }
 .receive-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; color: var(--yb-muted); font-size: 13px; margin-bottom: 16px; }
 .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
 .main-panels, .side-panels { display: grid; gap: 24px; min-width: 0; }
-.side-panels { position: sticky; top: 24px; }
+.side-panels { position: sticky; top: 170px; }
 h2 { font-size: 20px; font-weight: 650; margin: 0 0 20px; }
 .notice { margin-bottom: 16px; }
 .notice button { margin-top: 12px; }
-#logistics { scroll-margin-top: 24px; }
+#logistics { scroll-margin-top: 170px; }
 .voucher-list { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
 .voucher-label { color: var(--yb-muted); font-size: 13px; width: 100%; }
 .voucher-button { position: relative; border: 1px solid var(--yb-hairline); border-radius: 8px; overflow: hidden; width: 88px; height: 88px; }

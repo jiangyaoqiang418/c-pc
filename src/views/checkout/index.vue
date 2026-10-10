@@ -897,7 +897,7 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 </template>
 
 <style scoped>
-.checkout-page { width: min(1200px, calc(100% - 64px)); margin: 0 auto; padding: 28px 0 48px; }
+.checkout-page { width:100%; margin:0 auto; padding:0 0 32px; }
 .page-heading { margin-bottom: 24px; }
 .eyebrow { margin: 0 0 4px; color: var(--yb-gold); font-size: 12px; letter-spacing: .12em; font-weight: 600; }
 .page-heading h1 { font-size: 28px; font-weight: 650; margin: 0; }
@@ -927,7 +927,7 @@ h2 { font-size: 20px; font-weight: 650; margin: 0; }
 .line-amount small, .amount-list small { display: block; font-size: 12px; font-weight: 400; color: var(--yb-muted); }
 .balance-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
 .insufficient { color: var(--yb-danger); }
-.payment-summary { position: sticky; top: 24px; }
+.payment-summary { position: sticky; top:170px; }
 .amount-list { display: grid; gap: 18px; margin: 24px 0; }
 .amount-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .amount-list dt { display: inline-flex; align-items: center; gap: 4px; color: var(--yb-muted); font-size: 14px; }

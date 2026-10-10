@@ -101,5 +101,15 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
 </template>
 
 <style scoped>
+.buyer-wallet .wallet-hero { position: relative; display: grid; grid-template-columns: minmax(0,1fr) auto; background: var(--yb-brand-primary); color: var(--yb-paper); padding: 32px; gap: 20px; }
+.buyer-wallet .wallet-hero > div:first-child { grid-column: 1 / -1; }
+.buyer-wallet .hero-total { font-family: var(--yb-font-body); margin: 12px 0 8px; }
+.buyer-wallet .hero-total strong { font-size: 48px; font-weight: 650; }
+.buyer-wallet .reference,.buyer-wallet .wallet-hero small { color: var(--yb-paper); opacity: .7; }
+.buyer-wallet .hero-actions { justify-content: flex-start; }
+.buyer-wallet .hero-actions button:first-child { color: var(--yb-ink); background: var(--yb-gold); }
+.buyer-wallet .hero-actions button:not(:first-child) { background: transparent; color: var(--yb-paper); border-color: rgba(255,255,255,.3); }
+.buyer-wallet .wallet-hero::after { content: 'U'; position: absolute; top: 30px; right: 44px; width: 116px; height: 116px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.15); border-radius: 50%; font-size: 48px; color: var(--yb-gold); opacity: .55; pointer-events: none; }
+.buyer-wallet .section-heading .eyebrow { display: none; }
 .buyer-wallet { display:grid; gap:24px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; margin:8px 0; font-weight:650; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.notice-row,.section-heading { display:flex; align-items:center; justify-content:space-between; gap:18px; }.wallet-hero,.paper { border:1px solid var(--yb-hairline); border-radius:12px; background:var(--yb-surface); padding:28px; }.wallet-hero { display:flex; align-items:center; justify-content:space-between; gap:26px; }.hero-total { font-size:22px; margin:12px 0; font-family:var(--yb-font-mono); }.hero-total strong { font-size:40px; font-weight:550; }.reference,.wallet-hero small { font-size:12px; color:var(--yb-muted); }.reference { margin:0 0 14px; }.hero-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; }.section-heading { margin-bottom:24px; }.section-heading h2 { font-size:21px; font-weight:600; margin:5px 0 0; }.section-heading p { color:var(--yb-muted); font-size:12px; margin:8px 0 0; }.bucket-list,.loading-list { display:grid; gap:10px; }.row-skeleton { height:68px; }@media(max-width:1150px) { .wallet-hero { display:grid; }.hero-actions { justify-content:flex-start; } }
 </style>

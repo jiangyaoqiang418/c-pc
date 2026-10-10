@@ -46,7 +46,7 @@ function submit() {
     title="上传采购截图"
     :ok-loading="submitting"
     ok-text="确认上传"
-    @update:visible="(v) => $emit('update:visible', v)"
+    @update:visible="(v: boolean) => $emit('update:visible', v)"
     @ok="submit"
   >
     <template v-if="order">
