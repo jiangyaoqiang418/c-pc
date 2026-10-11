@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
       <span v-if="uploading" class="media-state" role="status"><Icon icon="lucide:loader-circle" width="15" class="animate-spin" />媒体上传中…</span>
       <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音</span>
     </div>
-    <Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="disabled || submitting" rows="3" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
+    <Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="disabled || submitting" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
     <div class="footer">
       <span class="hint">Enter 发送 · Shift+Enter 换行</span>
       <Button type="button" size="sm" :disabled="disabled || submitting || mediaBusy || !text.trim()" @click="send"><Icon :icon="sending || submitting ? 'lucide:loader-circle' : 'lucide:send'" :class="{ 'animate-spin': sending || submitting }" width="16" />{{ sending || submitting ? '发送中' : '发送' }}</Button>
@@ -286,11 +286,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 
-.input-area { flex-shrink: 0; padding: 14px 22px 16px; border-top: 1px solid var(--yb-hairline); background: var(--yb-surface); }
-.toolbar { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; min-height: 32px; flex-wrap: wrap; }
+.input-area { flex-shrink: 0; padding: 10px 16px; border-top: 1px solid var(--yb-hairline); background: var(--yb-surface); }
+.toolbar { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; min-height: 28px; flex-wrap: wrap; }
 .file-input { display: none; }.voice-trigger { display: inline-flex; border-radius: 6px; }.voice-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
-.textarea { min-height: 78px; max-height: 150px; resize: vertical; background: var(--yb-bg); }
-.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; }
+.textarea { min-height: 56px; max-height: 96px; resize: vertical; background: var(--yb-bg); }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 6px; }
 .hint, .media-state { color: var(--yb-muted); font-size: 12px; }.media-state { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
 .is-recording, .recording-state { color: var(--yb-danger); }.recording-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 

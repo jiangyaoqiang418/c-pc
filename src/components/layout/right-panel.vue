@@ -216,11 +216,7 @@ function goProfile() { router.push({ name: 'profile' }); }
 
         <div v-else key="buyer" class="mode-panel">
           <!-- 买手面板 -->
-          <div class="panel-block buyer-hero">
-            <div class="buyer-eyebrow">BUYER MODE</div>
-            <div class="buyer-title">买手工作台</div>
-            <div class="buyer-sub">接单 · 上货 · 结算 · 押金</div>
-          </div>
+          <Button variant="ghost" class="buyer-workspace-link" @click="go('/buyer/dashboard')"><Icon icon="lucide:store" width="16" />买手工作台<Icon icon="lucide:chevron-right" width="14" class="workspace-arrow" /></Button>
           <div class="panel-block links-block">
             <div class="mini-grid">
               <div
@@ -248,7 +244,7 @@ function goProfile() { router.push({ name: 'profile' }); }
 </template>
 
 <style scoped>
-.right-panel .user-card.logged { background: var(--yb-paper); border: 0; border-radius: 6px 6px 0 0; padding: 20px 18px 16px; }
+.right-panel .user-card.logged { background: var(--yb-paper); border: 0; border-radius: 6px 6px 0 0; padding: 16px; gap: 10px; }
 .right-panel .mode-panel { gap: 0; }
 .right-panel .orders-card { background: var(--yb-paper); border: 0; border-radius: 0; padding: 16px 18px; }
 .right-panel .orders-card:hover { transform: none; box-shadow: none; }
@@ -257,16 +253,18 @@ function goProfile() { router.push({ name: 'profile' }); }
 .right-panel .stat-num { font-family: var(--yb-font-body); font-size: 19px; }
 .right-panel .links-block { background: var(--yb-paper); border: 0; border-radius: 0; padding: 0 10px 12px; }
 .right-panel .mini-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
-.right-panel .mini-cell { padding: 6px 0; gap: 3px; }
+.right-panel .mini-cell { padding: 4px 0; gap: 3px; }
 .right-panel .mini-icon-wrap { width: 24px; height: 24px; background: transparent; }
-.right-panel .mini-label { font-size: 11px; }
+.right-panel .mini-label { font-size: 11px; line-height: 1.4; }
 .right-panel .center-link { width: 100%; background: var(--yb-paper); color: var(--yb-muted); font-size: 12px; border-radius: 0 0 6px 6px; margin-top: -12px; }
-.account-balance { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; text-align: left; margin-top: 6px; }
+.buyer-workspace-link { justify-content: flex-start; background: var(--yb-paper); border-radius: 0; padding-inline: 16px; font-size: 13px; }
+.workspace-arrow { margin-left: auto; }
+.account-balance { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; text-align: left; line-height: 1.4; }
 .account-balance > span { font-size: 12px; color: var(--yb-muted); }
-.account-balance > strong { grid-row: 2; font-size: 23px; font-weight: 650; }
+.account-balance > strong { grid-row: 2; font-size: 20px; font-weight: 650; }
 .account-balance > strong small { font-size: 11px; font-weight: 400; }
 .account-balance > svg { grid-column: 2; grid-row: 1 / 3; color: var(--yb-muted); }
-.wish-teaser { position: relative; display: grid; gap: 5px; padding: 20px; border-radius: 6px; background: var(--yb-primary-soft); color: var(--yb-ink); }
+.wish-teaser { position: relative; display: grid; gap: 4px; padding: 14px 16px; border-radius: 6px; background: var(--yb-primary-soft); color: var(--yb-ink); line-height: 1.4; }
 .wish-teaser > span { font-size: 9px; letter-spacing: 1.8px; color: var(--yb-muted); }
 .wish-teaser > strong { font-size: 16px; font-weight: 600; }
 .wish-teaser > small { font-size: 12px; color: var(--yb-muted); }
@@ -324,11 +322,11 @@ function goProfile() { router.push({ name: 'profile' }); }
 .account-name { min-width: 0; max-width: 116px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 .user-name {
   display: flex; align-items: center; gap: 6px;
-  font-size: 15px; font-weight: 600; color: var(--yb-ink);
+  font-size: 15px; font-weight: 600; color: var(--yb-ink); line-height: 1.4;
 }
 .user-sub {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 12px; color: var(--yb-muted); margin-top: 4px;
+  font-size: 12px; color: var(--yb-muted); margin-top: 4px; line-height: 1.4;
 }
 
 /* Mode panel transitions */
@@ -445,29 +443,6 @@ function goProfile() { router.push({ name: 'profile' }); }
   color: var(--yb-gold);
 }
 
-/* Buyer hero */
-.buyer-hero {
-  background: linear-gradient(135deg, var(--yb-brand-primary) 0%, var(--yb-brand-hover) 100%);
-  color: #fff;
-  border-color: transparent;
-}
-.buyer-eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: rgba(255, 255, 255, 0.72);
-  margin-bottom: 6px;
-}
-.buyer-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
-  margin-bottom: 4px;
-}
-.buyer-sub {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
-}
 @media (prefers-reduced-motion: reduce) {
   .fade-slide-enter-active, .fade-slide-leave-active, .user-row, .orders-card, .mini-cell { transition: none; }
   .fade-slide-enter-from, .fade-slide-leave-to, .orders-card:hover { transform: none; }

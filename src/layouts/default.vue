@@ -16,6 +16,7 @@ const cart = useCartStore();
 const user = useUserStore();
 const cartCount = computed(() => cart.count);
 const isCheckout = computed(() => String(route.name).startsWith('checkout'));
+const isMessaging = computed(() => ['im', 'im-order-group'].includes(String(route.name)));
 const currentCheckoutStep = computed(() => route.name === 'checkout-success' ? 1 : 0);
 const checkoutSteps = ['收货与支付', '支付结果'];
 const showBreadcrumb = computed(() => !route.meta.requiresBuyer && !['home', 'product-list', 'product-detail', 'category', 'order-detail', 'purchase-detail', 'aftersale-detail', 'aftersale-create', 'review-write', 'pay-password', 'login-password', 'finance-detail', 'finance-lockup-detail'].includes(String(route.name)));
@@ -34,7 +35,7 @@ const navigation = [
 </script>
 
 <template>
-  <div class="layout-default">
+  <div class="layout-default" :class="{ 'is-messaging': isMessaging }">
     <UtilityBar />
     <header class="header">
       <div class="header-inner um-wrap">
@@ -54,11 +55,11 @@ const navigation = [
       </nav>
     </header>
     <main id="main-content" class="main-container um-wrap">
-      <nav v-if="showBreadcrumb" class="global-breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="12" /><span aria-current="page">{{ route.meta.title }}</span></nav>
+      <nav v-if="showBreadcrumb && !isMessaging" class="global-breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="12" /><span aria-current="page">{{ route.meta.title }}</span></nav>
       <ol v-if="isCheckout" class="checkout-progress" aria-label="结算流程"><li v-for="(step, index) in checkoutSteps" :key="step" :aria-current="currentCheckoutStep === index ? 'step' : undefined"><span>{{ index + 1 }}</span>{{ step }}<Icon v-if="index === 0" icon="lucide:arrow-right" width="18" /></li></ol>
       <slot><BuyerWorkspace :enabled="!!route.meta.requiresBuyer"><RouterView v-slot="{ Component }"><Transition name="um-page" mode="out-in"><component :is="Component" :key="route.path" /></Transition></RouterView></BuyerWorkspace></slot>
     </main>
-    <footer class="footer">
+    <footer v-if="!isMessaging" class="footer">
       <div class="payment-banner um-wrap"><Icon icon="lucide:globe" width="28" /><strong>数字支付，清晰结算。</strong><span>用 USDT，连接你与全球好物。</span><RouterLink to="/help">了解支付流程 <Icon icon="lucide:arrow-right" width="18" /></RouterLink></div>
       <div class="footer-inner um-wrap">
         <div class="footer-brand"><BrandLogo /><p>{{ BRAND.slogan }}</p></div>
@@ -75,6 +76,9 @@ const navigation = [
 .checkout-progress [aria-current] { color:var(--yb-primary); font-weight:600; }
 .checkout-progress li>svg { margin-left:18px; }
 .layout-default { min-height: 100vh; display: flex; flex-direction: column; }
+.layout-default.is-messaging { height: 100dvh; min-height: 0; overflow: hidden; }
+.is-messaging > .header, .is-messaging > :deep(.utility-bar) { flex-shrink: 0; }
+.is-messaging .main-container { display: flex; flex-direction: column; min-height: 0; padding-block: 12px; }
 .um-wrap { width: calc(100% - 96px); max-width: 1320px; margin-inline: auto; }
 .header { position: sticky; top: 0; z-index: 40; border-bottom: 1px solid var(--yb-hairline); background: color-mix(in srgb, var(--yb-surface) 94%, transparent); backdrop-filter: blur(18px); }
 .header-inner { display: grid; grid-template-columns: minmax(208px, 1fr) minmax(260px, 580px) minmax(208px, 1fr); gap: 28px; align-items: center; min-height: 76px; padding-block: 10px; }
@@ -87,6 +91,8 @@ const navigation = [
 .desktop-nav { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; gap: 28px; min-height: 42px; align-items: center; }
 .all-categories { display: flex; gap: 10px; align-items: center; height: 42px; padding: 0 18px; border-radius: 6px 6px 0 0; background: var(--yb-primary); color: white; font-size: 14px; font-weight: 600; }
 .all-categories > svg:last-child { margin-left: auto; width: 14px; }
+.all-categories { white-space: nowrap; }
+.header-actions > * { flex-shrink: 0; }
 .nav-links { display: flex; align-items: center; justify-content: space-around; gap: 20px; height: 100%; }
 .nav-links a { display: inline-flex; position: relative; align-items: center; height: 100%; font-size: 14px; color: var(--yb-muted); white-space: nowrap; }
 .nav-links a:hover, .nav-links a.active { color: var(--yb-primary); }
@@ -107,6 +113,8 @@ const navigation = [
 .um-page-enter-active, .um-page-leave-active { transition: opacity 180ms var(--um-ease); }
 .um-page-enter-from, .um-page-leave-to { opacity: 0; }
 @media (max-width: 1100px) { .um-wrap { width: calc(100% - 48px); } .header-inner { grid-template-columns: 160px minmax(240px, 1fr) 230px; gap: 20px; } .desktop-nav { grid-template-columns: 160px minmax(0, 1fr) auto; gap: 20px; } .nav-links { gap: 20px; } .nav-tools { gap: 14px; } }
+@media (min-width: 901px) and (max-width: 1250px) { .header-inner { grid-template-columns: 160px minmax(240px, 1fr) auto; gap: 20px; }.header-actions { gap: 10px; } }
+@media (max-width: 1100px) { .all-categories { gap: 8px; padding-inline: 12px; }.all-categories > svg:first-child { width: 16px; } }
 @media (max-width: 900px) { .header-inner { grid-template-columns: 160px minmax(200px, 1fr); } .header-actions { grid-column: 1 / -1; } .desktop-nav { display: flex; flex-wrap: wrap; gap: 20px; } .nav-links { min-height: 40px; } .nav-tools { margin-left: auto; } .footer-inner { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .um-page-enter-active, .um-page-leave-active { transition: none; } }
 </style>

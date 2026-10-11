@@ -7,6 +7,7 @@ import { useUserStore } from '@/stores';
 
 const router = useRouter();
 const userStore = useUserStore();
+withDefaults(defineProps<{ variant?: 'default' | 'cards' }>(), { variant: 'default' });
 
 const value = computed(() => (userStore.isBuyerActive ? 'buyer' : 'customer'));
 
@@ -37,7 +38,7 @@ function onChange(v: 'customer' | 'buyer') {
 </script>
 
 <template>
-  <div class="audience-segment" role="group" aria-label="当前视角">
+  <div class="audience-segment" :class="{ 'is-cards': variant === 'cards' }" role="group" aria-label="当前视角">
     <button
       type="button"
       class="seg"
@@ -45,8 +46,8 @@ function onChange(v: 'customer' | 'buyer') {
       :aria-pressed="value === 'customer'"
       @click="onChange('customer')"
     >
-      <Icon icon="lucide:user" width="13" />
-      <span>顾客</span>
+      <Icon icon="lucide:user" :width="variant === 'cards' ? 20 : 13" />
+      <span>顾客<small v-if="variant === 'cards'">选购与收藏</small></span>
     </button>
     <button
       type="button"
@@ -55,8 +56,8 @@ function onChange(v: 'customer' | 'buyer') {
       :aria-pressed="value === 'buyer'"
       @click="onChange('buyer')"
     >
-      <Icon icon="lucide:store" width="13" />
-      <span>买手</span>
+      <Icon icon="lucide:store" :width="variant === 'cards' ? 20 : 13" />
+      <span>买手<small v-if="variant === 'cards'">商品与订单</small></span>
     </button>
   </div>
 </template>
@@ -104,5 +105,9 @@ function onChange(v: 'customer' | 'buyer') {
   outline: 2px solid var(--yb-brand-primary);
   outline-offset: 2px;
 }
+.audience-segment.is-cards { background: transparent; border: 0; padding: 0; gap: 8px; }
+.is-cards .seg { justify-content: flex-start; min-height: 68px; padding: 12px 10px; border: 1px solid var(--yb-hairline); font-size: 12px; text-align: left; font-weight: 600; }
+.is-cards .seg>svg { flex: none; }.is-cards .seg small { display: block; margin-top: 3px; font-size: 10px; font-weight: 400; letter-spacing: 0; }
+.is-cards .seg.active, .is-cards .seg.active:hover { background: var(--yb-fill); color: var(--yb-primary); border-color: var(--yb-primary); box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .seg { transition: none; } }
 </style>

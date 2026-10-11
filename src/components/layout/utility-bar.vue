@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { useNotifyStore, useUserStore } from '@/stores';
+import ReferenceRateTicker from './reference-rate-ticker.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -14,12 +15,9 @@ function go(name: string) {
 <template>
   <div class="utility-bar">
     <div class="ub-inner">
-      <div class="ub-left">
-        <span class="ub-region">中国大陆</span>
-        <span class="ub-sep">·</span>
-        <span class="ub-welcome">欢迎来到 Umaomao</span>
-      </div>
+      <ReferenceRateTicker />
       <div class="ub-right">
+        <span class="ub-region">中国大陆</span><span class="ub-sep">·</span>
         <template v-if="userStore.isLoggedIn">
           <button type="button" class="ub-link badge-link" @click="go('im')">消息<span v-if="notifyStore.imUnreadCount" class="badge">{{ notifyStore.imUnreadCount > 99 ? '99+' : notifyStore.imUnreadCount }}</span></button>
           <span class="ub-sep">·</span>
@@ -38,6 +36,8 @@ function go(name: string) {
 
 <style scoped>
 .utility-bar {
+  position: relative;
+  z-index: 50;
   height: 32px;
   background: var(--yb-fill);
   border-bottom: 1px solid var(--yb-hairline);
@@ -55,17 +55,15 @@ function go(name: string) {
   justify-content: space-between;
   box-sizing: border-box;
 }
-.ub-left, .ub-right {
+.ub-right {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 .ub-region {
   font-weight: 600;
   color: var(--yb-ink);
-}
-.ub-welcome {
-  color: var(--yb-muted);
 }
 .ub-sep {
   color: var(--yb-hairline-2);

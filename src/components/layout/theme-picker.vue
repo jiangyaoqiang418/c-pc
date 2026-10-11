@@ -28,6 +28,7 @@ function selectTheme(value: unknown) {
 <style scoped>
 .theme-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 0; border: 0; background: none; color: var(--yb-muted); font-size: 13px; cursor: pointer; }
 .theme-trigger:hover { color: var(--yb-primary); }
+.theme-trigger { white-space: nowrap; }
 .chevron { font-size: 12px; }
 .theme-dot { width: 16px; height: 16px; border-radius: 50%; border: 3px solid; margin-right: 6px; }
 </style>

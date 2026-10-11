@@ -13,8 +13,9 @@ interface Props {
   breakdown: Segment[];
   totalAssets?: string;
   size?: number;
+  showLegend?: boolean;
 }
-const props = withDefaults(defineProps<Props>(), { size: 180 });
+const props = withDefaults(defineProps<Props>(), { size: 180, showLegend: true });
 
 // 图形与图例共用主题色阶，保持各资产分类的配色一致。
 const THEME_SCALE = ['var(--yb-deep)', 'var(--yb-primary)', 'var(--yb-primary-2)', 'var(--yb-sage)', 'var(--yb-accent)'];
@@ -60,7 +61,7 @@ const holeStyle = computed(() => {
         <div class="total-label">暂无资产</div>
       </div>
     </div>
-    <div class="legend">
+    <div v-if="showLegend" class="legend">
       <div v-for="(s, i) in breakdown" :key="s.label" class="legend-row">
         <span class="dot" :style="{ background: THEME_SCALE[i % THEME_SCALE.length] }" />
         <span class="lbl">{{ s.label }}</span>
@@ -76,6 +77,10 @@ const holeStyle = computed(() => {
   display: flex;
   align-items: center;
   gap: 32px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
 }
 .ring {
   border-radius: 50%;
@@ -108,6 +113,7 @@ const holeStyle = computed(() => {
   align-items: baseline;
   gap: 3px;
   padding: 0 8px;
+  max-width: 100%;
 }
 .total-val .unit {
   font-family: var(--yb-font-mono);
@@ -121,16 +127,19 @@ const holeStyle = computed(() => {
   font-weight: 700;
   color: var(--yb-ink);
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .legend {
-  flex: 1;
+  flex: 1 1 280px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 .legend-row {
   display: grid;
-  grid-template-columns: 10px 1fr 56px 120px;
+  grid-template-columns: 8px minmax(80px, 1fr) 48px minmax(80px, auto);
   gap: 10px;
   font-size: 12px;
   color: var(--yb-ink-2);
@@ -157,5 +166,6 @@ const holeStyle = computed(() => {
   font-family: var(--yb-font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--yb-ink);
+  overflow-wrap: anywhere;
 }
 </style>

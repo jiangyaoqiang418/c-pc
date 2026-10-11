@@ -74,7 +74,7 @@ function goDetail() {
       </div>
     </div>
     <div class="info">
-      <div class="brand" :aria-hidden="!categoryCaption">{{ categoryCaption }}</div>
+      <div v-if="categoryCaption || variant !== 'home'" class="brand" :aria-hidden="!categoryCaption">{{ categoryCaption }}</div>
       <div class="title" :title="product.title">{{ product.title }}</div>
       <div class="price-row">
         <span class="cny">{{ formatUsdt(product.price) }}</span>
@@ -250,18 +250,19 @@ function goDetail() {
 /* 首页使用新版图片主导的轻量商品陈列。 */
 .pc-product-card.is-home {
   min-width: 0;
-  border-radius: 8px;
-  border-color: transparent;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
   box-shadow: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .pc-product-card.is-home:hover {
   transform: none;
-  border-color: var(--yb-hairline-2);
-  box-shadow: var(--yb-shadow-1);
+  box-shadow: none;
 }
 .is-home .cover-wrap {
   background: var(--yb-surface);
+  border-radius: 6px;
   aspect-ratio: 1 / 1;
   padding: 0;
 }
@@ -269,8 +270,8 @@ function goDetail() {
   object-fit: cover;
 }
 .is-home .info {
-  padding: 4px 14px 14px;
-  gap: 5px;
+  padding: 14px 0 0;
+  gap: 6px;
 }
 .is-home .brand {
   font-size: 11px;
@@ -282,6 +283,10 @@ function goDetail() {
 .is-home .title {
   font-size: 16px;
   font-weight: 600;
+  display: block;
+  min-height: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .is-home .cny {
   font-family: var(--yb-font-body);
@@ -292,17 +297,22 @@ function goDetail() {
   font-size: 11px;
 }
 .is-home .tags-row {
+  border-top: 1px solid var(--yb-hairline);
+  padding-top: 10px;
   align-items: flex-start;
   flex-wrap: wrap;
   row-gap: 6px;
 }
 .is-home .tag-pill {
   max-width: 100%;
-  padding: 2px 5px;
+  padding: 0;
+  background: transparent;
+  color: var(--yb-muted);
   font-size: 11px;
   border-radius: 4px;
   white-space: normal;
 }
+.is-home .favorite-button { opacity: 1; transform: none; }
 .is-home .badge.overseas {
   background: var(--yb-accent);
   color: var(--yb-accent-ink);

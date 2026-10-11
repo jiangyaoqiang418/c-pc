@@ -213,7 +213,7 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', updatePageVisibility);
 });
 
-const buyersPick = computed(() => recommendations.value.slice(0, 4));
+const buyersPick = computed(() => recommendations.value.slice(0, 5));
 const flashCountdown = computed(() => {
   if (!flashEndAt.value) return '进行中';
   const raw = flashEndAt.value;
@@ -251,9 +251,9 @@ const productLoading = computed(() => sectionLoading.recommendations || sectionL
 const hasProducts = computed(() => !!(hot.value.length || newest.value.length || flash.value.length || recommendations.value.length));
 const productSections = computed(() => [
   { key: 'pick', source: 'recommendations', title: '今日值得逛', eyebrow: 'CURATED FOR YOU', records: buyersPick.value, sort: 'DEFAULT' },
-  { key: 'flash', source: 'flash', title: '限时秒杀', eyebrow: 'LIMITED TIME', records: flash.value.slice(0, 4), sort: 'DEFAULT' },
-  { key: 'hot', source: 'hot', title: '人气热销', eyebrow: 'BEST SELLERS', records: hot.value.slice(0, 8), sort: 'SALES' },
-  { key: 'newest', source: 'newest', title: '新品到货', eyebrow: 'NEW ARRIVALS', records: newest.value.slice(0, 8), sort: 'NEW' },
+  { key: 'flash', source: 'flash', title: '限时秒杀', eyebrow: 'LIMITED TIME', records: flash.value.slice(0, 5), sort: 'DEFAULT' },
+  { key: 'hot', source: 'hot', title: '人气热销', eyebrow: 'BEST SELLERS', records: hot.value.slice(0, 10), sort: 'SALES' },
+  { key: 'newest', source: 'newest', title: '新品到货', eyebrow: 'NEW ARRIVALS', records: newest.value.slice(0, 10), sort: 'NEW' },
   { key: 'recommendations', source: 'recommendations', title: '为你推荐', eyebrow: 'MORE TO DISCOVER', records: recommendations.value, sort: 'DEFAULT' }
 ] satisfies { key: string; source: Exclude<HomeSection, 'banners'>; title: string; eyebrow: string; records: Api.RealProduct.Record[]; sort: realProductApi.StorefrontSort }[]);
 </script>
@@ -358,7 +358,7 @@ const productSections = computed(() => [
           <Button variant="ghost" size="sm" class="section-more" @click="goProductList(section.sort)">浏览全部商品 <Icon icon="lucide:arrow-right" width="16" /></Button>
         </header>
         <div v-if="sectionLoading[section.source] && !section.records.length" class="home-products" aria-hidden="true">
-          <div v-for="index in 4" :key="index" class="home-skeleton"><Skeleton class="aspect-square w-full" /><Skeleton class="mt-4 h-4 w-3/4" /><Skeleton class="mt-4 h-6 w-1/2" /></div>
+          <div v-for="index in 5" :key="index" class="home-skeleton"><Skeleton class="aspect-square w-full" /><Skeleton class="mt-4 h-4 w-3/4" /><Skeleton class="mt-4 h-6 w-1/2" /></div>
         </div>
         <div v-else-if="section.records.length" class="home-products">
           <ProductCard v-for="product in section.records" :key="product.id" :product="product" variant="home" />
@@ -386,7 +386,7 @@ const productSections = computed(() => [
 .home-page .service-band { background: transparent; border: 0; border-top: 1px solid var(--yb-hairline); border-bottom: 1px solid var(--yb-hairline); border-radius: 0; margin-bottom: 32px; padding: 22px 0; }
 .home-page .section-heading .eyebrow { display: none; }
 .home-page .section-heading h2 { font-size: 24px; margin: 0; }
-.home-page .home-products { gap: 24px 20px; }
+.home-page .home-products { gap: 28px 16px; }
 @media(max-width:1100px) { .home-page .hero-band { grid-template-columns: 180px minmax(0,1fr); } .home-page .hero-content h1 { font-size: 32px; } }
 .home-page { padding-top: 0; padding-bottom: 48px; }
 .hero-band { display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 20px; align-items: stretch; margin-bottom: 24px; }
@@ -441,14 +441,14 @@ const productSections = computed(() => [
 .channel-card p { color: var(--yb-muted); font-size: 13px; }
 .channel-icon { color: var(--yb-primary); flex-shrink: 0; }
 .channel-arrow { position: absolute; right: 16px; top: 16px; color: var(--yb-muted); }
-.home-products { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.home-products { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .home-skeleton { padding: 12px; background: var(--yb-surface); border-radius: 8px; }
 .countdown { display: inline-flex; align-items: center; gap: 8px; color: var(--yb-danger); font-size: 13px; font-variant-numeric: tabular-nums; }
 @media (max-width: 1200px) {
   .hero-band { grid-template-columns: 190px minmax(0, 1fr) 240px; gap: 16px; }
   .hero-content { padding-left: 24px; padding-right: 24px; }
   .service-link { gap: 10px; padding: 0 12px; }
-  .home-products { gap: 20px; }
+  .home-products { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 1024px) {
   .hero-band { grid-template-columns: 180px minmax(0, 1fr); }

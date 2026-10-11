@@ -97,6 +97,8 @@ body { font-size: 15px; line-height: 1.65; text-rendering: auto; }
 .layout-default .main-container :is(.page-heading, .page-head) h1 { font-size:24px; line-height:1.4; font-weight:650; margin:0; }
 .layout-default .main-container :is(.page-heading, .page-head) p { margin:8px 0 0; font-size:14px; }
 .layout-default .main-container :is(.page-heading, .page-head) { margin-bottom:24px; }
+.layout-default.is-messaging .main-container .page-heading { margin-bottom:10px; }
+.layout-default.is-messaging .main-container .page-heading h1 { font-size:18px; }
 .layout-default .main-container :is(.profile-page,.wallet-page,.list-page,.vip-page,.points-page,.kyc-page,.security-page,.cart-page,.address-page,.review-page,.notification-page,.favorites-page,.review-write-page,.aftersale-detail-page,.aftersale-create-page) { padding-top:0; }
 .layout-default .main-container .buyer-workspace.enabled :is(.page-heading,.page-head) .eyebrow { display:inline; font-size:10px; letter-spacing:1.8px; color:var(--yb-primary); }
 .layout-default .main-container .buyer-workspace.enabled :is(.page-heading,.page-head) h1 { font-size:28px; margin:8px 0; }

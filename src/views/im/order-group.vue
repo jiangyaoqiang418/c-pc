@@ -467,7 +467,7 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
 <template>
 
   <div class="im-group-page shop-container">
-    <header class="page-heading"><div><p class="eyebrow">ORDER CONVERSATION</p><h1>订单会话</h1></div><Button type="button" variant="outline" @click="closeToConversationList"><Icon icon="lucide:arrow-left" width="16" />返回消息中心</Button></header>
+    <header class="page-heading"><h1>订单会话</h1><Button type="button" variant="ghost" size="sm" @click="closeToConversationList"><Icon icon="lucide:arrow-left" width="16" />返回消息中心</Button></header>
     <section class="chat-card chat-pane" :aria-busy="loading">
       <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载订单会话</span></div>
       <div v-if="conversation" class="conversation">
@@ -494,6 +494,12 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
 
 .chat-pane { position: relative; min-width: 0; min-height: 0; background: var(--yb-bg); }.conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }.conversation-header { flex-shrink: 0; padding: 18px 24px 12px; border-bottom: 1px solid var(--yb-hairline); background: var(--yb-surface); }.header-main { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.header-product { display: flex; align-items: center; gap: 12px; min-width: 0; }.header-product > div { min-width: 0; }.header-product img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }.header-product h2 { font-size: 17px; font-weight: 650; color: var(--yb-ink); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.header-product p { margin: 3px 0 0; color: var(--yb-muted); font-size: 12px; }.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 12px; flex-wrap: wrap; }.action-trigger { display: inline-flex; border-radius: 6px; }.action-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }.delete-action { color: var(--yb-danger); }.order-strip { display: flex; align-items: center; gap: 8px; padding: 10px 24px; flex-shrink: 0; background: var(--yb-surface); border-bottom: 1px solid var(--yb-hairline); overflow-x: auto; }.order-chip { white-space: nowrap; font-size: 12px; }.notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin: 10px 20px 0; flex-shrink: 0; border-radius: 8px; font-size: 12px; }.notice > span { flex: 1; min-width: 0; }.notice > svg { flex-shrink: 0; }.warning { background: color-mix(in srgb, var(--yb-warning) 10%, var(--yb-surface)); color: var(--yb-warning); }.messages { flex: 1 1 auto; min-height: 0; padding: 24px; overflow-y: auto; overscroll-behavior: contain; }.load-older { text-align: center; margin-bottom: 20px; }.empty-msg { text-align: center; color: var(--yb-muted); padding: 60px 0; font-size: 14px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }.new-message-bar { display: flex; justify-content: center; padding: 8px 16px; }.chat-loading { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--yb-primary); background: color-mix(in srgb, var(--yb-surface) 85%, transparent); font-size: 13px; }
 
-.conversation-header { padding-bottom: 18px; }.header-product { flex: 1; }
+.im-group-page { display: flex; flex-direction: column; flex: 1; width: 100%; min-height: 0; padding-block: 0; }
+.page-heading { flex-shrink: 0; gap: 12px; margin-bottom: 10px; min-height: 32px; }
+.page-heading h1 { font-size: 18px; }
+.chat-card { flex: 1; height: auto; min-height: 0; border-radius: 8px; }
+.conversation-header { padding: 12px 16px; }.header-product { flex: 1; }
+.header-product h2 { font-size: 15px; }.header-product p { overflow-wrap: anywhere; }
+.messages { padding: 18px; }
 
 </style>
