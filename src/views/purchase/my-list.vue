@@ -224,9 +224,9 @@ function selectTab(value: string | number) {
       <TabsContent :value="activeKey" class="result-panel">
         <p class="result-count">{{ loading || loadError ? '正在核对求购记录' : '共 ' + total + ' 条求购' }}</p>
         <div v-if="loading" class="req-grid" aria-busy="true" aria-label="正在读取求购"><Skeleton v-for="n in 6" :key="n" class="request-skeleton" /></div>
-        <EmptyState v-else-if="loadError" :title="loadError" description="未展示不完整的记录，请重新加载。" action-text="重新加载" @action="load" />
+        <EmptyState v-else-if="loadError" class="result-empty" :title="loadError" description="未展示不完整的记录，请重新加载。" action-text="重新加载" @action="load" />
         <div v-else-if="list.length" class="req-grid"><PurchaseRequestCard v-for="r in list" :key="r.id" :request="r" mode="mine" :canceling="String(cancelingId) === String(r.id)" @cancel="onCancel" /></div>
-        <EmptyState v-else icon="lucide:search" title="暂无该状态下的求购" description="告诉买手你想要什么，让期待有回应。" action-text="发起求购" @action="router.push('/purchase/create')" />
+        <EmptyState v-else class="result-empty" icon="lucide:search" title="暂无该状态下的求购" description="告诉买手你想要什么，让期待有回应。" action-text="发起求购" @action="router.push('/purchase/create')" />
         <BusinessPagination v-if="!loading && !loadError && total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />
       </TabsContent>
     </Tabs>
@@ -235,6 +235,7 @@ function selectTab(value: string | number) {
 </template>
 
 <style scoped>
+.result-empty { min-height:340px; border:1px solid var(--yb-hairline); border-radius:8px; background:var(--yb-paper); }
 
 .my-purchase-page { padding-bottom:32px; }.page-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:24px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.page-heading h1 { font-size:30px; font-weight:650; margin:6px 0; }.page-heading p { color:var(--yb-muted); font-size:14px; margin:0; }.button-row { display:flex; gap:12px; align-items:center; }.page-links { display:flex; gap:28px; border-bottom:1px solid var(--yb-hairline); margin-bottom:24px; }.page-links a { padding-bottom:13px; color:var(--yb-muted); text-decoration:none; font-size:14px; }.page-links [aria-current] { border-bottom:2px solid var(--yb-brand-primary); color:var(--yb-brand-primary); }.notice { display:flex; gap:12px; align-items:center; padding:16px 20px; border-radius:14px; background:var(--yb-primary-soft); margin-bottom:20px; font-size:13px; }.notice span { flex:1; }.status-tabs { width:100%; justify-content:flex-start; gap:8px; height:auto; padding:8px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:16px; }.status-tabs :deep(button) { padding:10px 18px; }.tab-count { font-size:12px; margin-left:6px; color:var(--yb-brand-primary); }.result-panel { margin-top:20px; }.result-count { font-size:13px; color:var(--yb-muted); margin:0 0 16px; }.req-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }.request-skeleton { height:330px; border-radius:20px; }@media(max-width:1150px) { .req-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 

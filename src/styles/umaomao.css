@@ -106,7 +106,7 @@ body { font-size: 15px; line-height: 1.65; text-rendering: auto; }
 .layout-default .buyer-workspace.enabled .workspace-content [role='tablist'] { justify-content:flex-start; width:100%; background:transparent; border-radius:0; border-bottom:1px solid var(--yb-hairline); padding:0; gap:12px; overflow-x:auto; height:auto; box-shadow:none; }
 .layout-default .buyer-workspace.enabled .workspace-content [role='tab'] { background:transparent; border-radius:0; border-bottom:3px solid transparent; padding:12px 14px; box-shadow:none; }
 .layout-default .buyer-workspace.enabled .workspace-content [role='tab'][data-state='active'] { border-bottom-color:var(--yb-gold); color:var(--yb-primary); }
-.layout-default .main-container :is(.aftersale-page,.review-list-page,.fav-page,.favorites-page,.my-lockups-page,.my-purchase-page,.purchase-hall-page)>:is(section,div)>.empty-state,
+.layout-default .main-container :is(.aftersale-page,.aftersale-list-page,.review-list-page,.fav-page,.favorites-page,.my-lockups-page,.my-purchase-page,.purchase-hall-page)>:is(section,div)>.empty-state,
 .layout-default .main-container :is(.aftersale-page,.review-list-page,.fav-page,.favorites-page,.my-lockups-page,.my-purchase-page,.purchase-hall-page)>.empty-state { min-height:340px; border:1px solid var(--yb-hairline); border-radius:8px; background:var(--yb-paper); }
 .layout-default .main-container :is(.tabs-bar,.page-tabs) [role="tablist"] { background:transparent; border-radius:0; border-bottom:1px solid var(--yb-hairline); padding:0; box-shadow:none; }
 .layout-default .main-container :is(.tabs-bar,.page-tabs) [role="tab"] { border-radius:0; min-height:44px; padding-inline:16px; background:transparent; box-shadow:none; border-bottom:3px solid transparent; }
