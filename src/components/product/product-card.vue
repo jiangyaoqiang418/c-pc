@@ -12,7 +12,7 @@ import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-place
 interface Props {
   product: Api.RealProduct.DisplayRecord;
   demo?: boolean;
-  variant?: 'default' | 'home';
+  variant?: 'default' | 'home' | 'catalog';
 }
 const props = defineProps<Props>();
 
@@ -55,7 +55,7 @@ function goDetail() {
 <template>
   <div
     class="pc-product-card"
-    :class="{ 'is-home': variant === 'home' }"
+    :class="{ 'is-home': variant === 'home', 'is-catalog': variant === 'catalog' }"
     role="link"
     :aria-label="demo ? `搜索真实商品：${product.title}` : `查看商品：${product.title}`"
     tabindex="0"
@@ -74,8 +74,9 @@ function goDetail() {
       </div>
     </div>
     <div class="info">
-      <div v-if="categoryCaption || variant !== 'home'" class="brand" :aria-hidden="!categoryCaption">{{ categoryCaption }}</div>
+      <div v-if="variant !== 'catalog' && (categoryCaption || variant !== 'home')" class="brand" :aria-hidden="!categoryCaption">{{ categoryCaption }}</div>
       <div class="title" :title="product.title">{{ product.title }}</div>
+      <div v-if="variant === 'catalog' && categoryCaption" class="brand">{{ categoryCaption }}</div>
       <div class="price-row">
         <span class="cny">{{ formatUsdt(product.price) }}</span>
         <span class="usdt">≈ {{ formatCny(product.price) }}</span>
@@ -245,6 +246,67 @@ function goDetail() {
   font-size: 12px;
   color: var(--yb-muted);
   font-family: var(--yb-font-mono);
+}
+
+/* 列表卡片收紧信息留白；首页保留原有陈列样式。 */
+.pc-product-card.is-catalog {
+  min-width: 0;
+  background: var(--yb-paper);
+  border: 1px solid var(--yb-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pc-product-card.is-catalog:hover {
+  border-color: var(--yb-hairline-2);
+  box-shadow: var(--yb-shadow-1);
+}
+.pc-product-card.is-catalog .cover-wrap {
+  flex-shrink: 0;
+  aspect-ratio: 4 / 3;
+  border-radius: 0;
+  background: var(--yb-fill);
+}
+.pc-product-card.is-catalog .info {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  gap: 6px;
+}
+.is-catalog .brand {
+  min-height: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.is-catalog .title {
+  min-height: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pc-product-card.is-catalog .price-row {
+  margin-top: auto;
+  padding-top: 4px;
+}
+.is-catalog .cny {
+  font-size: 21px;
+  line-height: 1.3;
+}
+.pc-product-card.is-catalog .tags-row {
+  margin-top: 4px;
+  padding-top: 8px;
+  gap: 6px;
+}
+.is-catalog .tag-pill {
+  max-width: 100%;
+  font-size: 11px;
+  white-space: normal;
+}
+.is-catalog .sales {
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 /* 首页使用新版图片主导的轻量商品陈列。 */

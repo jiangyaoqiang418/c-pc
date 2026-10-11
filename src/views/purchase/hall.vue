@@ -250,8 +250,8 @@ function selectExpectedDays(value: unknown) {
       <form @submit.prevent="queryRecords">
         <div class="field keyword"><label for="demand-keyword">关键词</label><Input id="demand-keyword" v-model="keyword" placeholder="搜索商品标题" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }" /></div>
         <div class="field budget-field"><span id="demand-budget-label">预算区间 · USDT</span><div class="range" aria-labelledby="demand-budget-label"><AmountInput v-model="minBudgetField" :min="0" :precision="8" aria-label="最低预算" placeholder="最低" /><span>—</span><AmountInput v-model="maxBudgetField" :min="0" :precision="8" aria-label="最高预算" placeholder="最高" /></div></div>
-        <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>
-        <div class="button-row"><Button type="submit"><Icon icon="lucide:search" width="16" />查询</Button><Button type="button" variant="secondary" @click="reset">重置</Button></div>
+        <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days" class="h-11 text-[15px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>
+        <div class="button-row"><Button type="submit" class="h-11 text-[15px]"><Icon icon="lucide:search" width="16" />查询</Button><Button type="button" variant="secondary" class="h-11 text-[15px]" @click="reset">重置</Button></div>
       </form>
     </section>
     <div v-if="!canClaim && userStore.isLoggedIn" class="notice">

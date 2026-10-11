@@ -4,11 +4,14 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import * as productApi from '@/service/api/product';
+import * as categoryApi from '@/service/api/category';
+import { useCategoryNavigation } from '@/composables/use-category-navigation';
 import ProductCard from '@/components/product/product-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Icon } from '@iconify/vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -34,6 +37,74 @@ const size = ref(20);
 const loading = ref(false);
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
+const { categories: navigationCategories, loadCategories } = useCategoryNavigation();
+const categoryTree = ref<Api.RealCategory.CategoryNodeDTO[]>([]);
+const categoryTreeLoaded = ref(false);
+const categoryLoading = ref(false);
+const categoryError = ref('');
+const categoryRequestGuard = createLatestRequestGuard();
+
+interface CategoryPathNode {
+  id: string;
+  name: string;
+  children?: readonly CategoryPathNode[];
+}
+
+function findCategoryPath(nodes: readonly CategoryPathNode[], id?: string): { id: string; name: string }[] | undefined {
+  if (!id) return undefined;
+  for (const node of nodes) {
+    const segment = { id: node.id, name: node.name };
+    if (node.id === id) return [segment];
+    const childPath = findCategoryPath(node.children || [], id);
+    if (childPath) return [segment, ...childPath];
+  }
+  return undefined;
+}
+
+const categoryPath = computed(() => findCategoryPath(navigationCategories.value, filter.categoryId)
+  || findCategoryPath(categoryTree.value, filter.categoryId) || []);
+const categoryLabel = computed(() => categoryPath.value.map(node => node.name).join(' / ')
+  || (categoryLoading.value ? '正在加载分类…' : categoryError.value || '当前分类'));
+
+async function loadCategoryPath(force = false) {
+  const isCurrent = categoryRequestGuard.begin();
+  categoryLoading.value = true;
+  categoryError.value = '';
+  try {
+    await loadCategories(force);
+    if (!isCurrent() || !filter.categoryId) return;
+    if (categoryPath.value.length) return;
+    // 导航只包含有商品的分类；空分类的名称仍从现有完整分类树读取。
+    if (!categoryTreeLoaded.value || force) {
+      const nextTree = await categoryApi.fetchRealCategoryTree({ signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      categoryTree.value = nextTree;
+      categoryTreeLoaded.value = true;
+    }
+    if (!categoryPath.value.length) categoryError.value = '当前分类不可用';
+  } catch {
+    if (isCurrent()) categoryError.value = '分类名称加载失败';
+  } finally {
+    if (isCurrent()) categoryLoading.value = false;
+  }
+}
+
+function categoryLocation(categoryId?: string) {
+  return { name: 'product-list', query: { ...route.query, categoryId, page: undefined } };
+}
+
+function clearCategory() {
+  void router.push(categoryLocation());
+}
+
+watch(() => filter.categoryId, id => {
+  if (id) void loadCategoryPath();
+  else {
+    categoryRequestGuard.invalidate();
+    categoryLoading.value = false;
+    categoryError.value = '';
+  }
+});
 
 const sortOptions: { value: productApi.StorefrontSort; label: string }[] = [
   { value: 'DEFAULT', label: '综合排序' },
@@ -178,7 +249,10 @@ onMounted(() => {
   if (syncFromQuery()) updateUrl(true);
   else load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => {
+  requestGuard.invalidate();
+  categoryRequestGuard.invalidate();
+});
 
 watch(
   () => route.fullPath,
@@ -190,7 +264,7 @@ watch(
 
 const title = computed(() => {
   if (filter.keyword) return `搜索：「${filter.keyword}」`;
-  if (filter.categoryId) return `分类筛选`;
+  if (filter.categoryId) return categoryPath.value.at(-1)?.name || '分类筛选';
   return '全部商品';
 });
 
@@ -213,8 +287,8 @@ function selectOverseas(value: string) {
   applyToUrl();
 }
 
-function selectSort(value: string) {
-  if (!sortOptions.some(option => option.value === value)) return;
+function selectSort(value: unknown) {
+  if (typeof value !== 'string' || !sortOptions.some(option => option.value === value)) return;
   filter.sort = value as productApi.StorefrontSort;
   applyToUrl();
 }
@@ -223,7 +297,19 @@ function selectSort(value: string) {
 <template>
   <div class="list-page shop-container">
     <nav class="bread" aria-label="当前位置">
-      <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" /><span aria-current="page">商品列表</span>
+      <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" aria-hidden="true" />
+      <template v-if="filter.categoryId">
+        <RouterLink :to="categoryLocation()">商品列表</RouterLink>
+        <template v-for="(node, index) in categoryPath" :key="node.id">
+          <Icon icon="lucide:chevron-right" width="14" aria-hidden="true" />
+          <RouterLink v-if="index < categoryPath.length - 1" :to="categoryLocation(node.id)">{{ node.name }}</RouterLink>
+          <span v-else aria-current="page">{{ node.name }}</span>
+        </template>
+        <template v-if="!categoryPath.length">
+          <Icon icon="lucide:chevron-right" width="14" aria-hidden="true" /><span aria-current="page">{{ categoryLabel }}</span>
+        </template>
+      </template>
+      <span v-else aria-current="page">商品列表</span>
     </nav>
     <div class="catalog-layout">
     <aside class="filter-bar" aria-label="商品筛选">
@@ -258,21 +344,34 @@ function selectSort(value: string) {
 
     <section class="result-bar" aria-label="搜索结果与排序">
       <div class="result-title">{{ title }} <span class="muted">{{ loading ? '正在加载…' : loadError ? '读取失败' : `共 ${total} 件精选商品` }}</span></div>
-      <select class="sort-select" aria-label="商品排序" :value="filter.sort" @change="selectSort(($event.target as HTMLSelectElement).value)">
-        <option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-      </select>
+      <Select :model-value="filter.sort" @update:model-value="selectSort">
+        <SelectTrigger class="sort-select" aria-label="商品排序"><SelectValue placeholder="综合排序" /></SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</SelectItem>
+        </SelectContent>
+      </Select>
     </section>
+
+    <div v-if="filter.categoryId" class="selected-filters" role="group" aria-label="已选筛选条件">
+      <span class="selected-filter-label">已选分类</span>
+      <Button variant="outline" size="sm" class="category-chip" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">
+        <Icon icon="lucide:folder-tree" width="14" aria-hidden="true" />
+        <span class="category-chip-text">{{ categoryLabel }}</span>
+        <Icon icon="lucide:x" width="14" aria-hidden="true" />
+      </Button>
+      <Button v-if="categoryError && !categoryLoading" variant="ghost" size="sm" @click="loadCategoryPath(true)">重试分类名称</Button>
+    </div>
 
     <section class="catalog-results" :aria-busy="loading" aria-label="商品列表">
       <span v-if="loading" class="sr-only" role="status">正在加载商品</span>
       <div v-if="loading && !list.length" class="catalog-grid" aria-hidden="true">
         <div v-for="index in 8" :key="index" class="product-skeleton">
-          <Skeleton class="aspect-square w-full rounded-none" />
+          <Skeleton class="aspect-[4/3] w-full rounded-none" />
           <div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div>
         </div>
       </div>
       <div v-else-if="list.length" class="catalog-grid" :class="{ 'is-updating': loading }">
-        <ProductCard v-for="product in list" :key="product.id" :product="product" />
+        <ProductCard v-for="product in list" :key="product.id" :product="product" variant="catalog" />
       </div>
       <EmptyState
         v-else
@@ -291,7 +390,7 @@ function selectSort(value: string) {
 <style scoped>
 .filter-toggle { display:flex; justify-content:space-between; width:100%; text-align:left; cursor:pointer; }
 .filter-toggle:focus-visible { outline:2px solid var(--yb-primary); outline-offset:4px; }
-.sort-select { padding:8px 32px 8px 12px; border:1px solid var(--yb-hairline); border-radius:4px; background:var(--yb-paper); font:inherit; font-size:13px; color:var(--yb-ink); }
+.sort-select { width:144px; flex-shrink:0; border-color:var(--yb-hairline); border-radius:4px; background:var(--yb-paper); font-size:13px; color:var(--yb-ink); }
 .catalog-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 32px; align-items: start; }
 .catalog-main { min-width: 0; }
 .list-page .filter-bar { position: sticky; top: 170px; padding:20px; border:1px solid var(--yb-hairline); border-radius:6px; background:var(--yb-paper); gap: 0; }
@@ -317,9 +416,16 @@ function selectSort(value: string) {
   .filter-heading { grid-column: 1 / -1; }
 }
 .list-page { margin-top:-8px; padding-top: 0; padding-bottom: 48px; }
-.bread { display:flex; align-items:center; gap:10px; margin-bottom:12px; color: var(--yb-muted); font-size: 12px; }
+.bread { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; color: var(--yb-muted); font-size: 12px; }
+.bread a, .bread span { min-width:0; overflow-wrap:anywhere; }
+.bread :deep(svg) { flex-shrink:0; }
 .bread a:hover { color: var(--yb-primary); }
 .bread [aria-current] { color: var(--yb-ink); }
+.selected-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+.selected-filter-label { color:var(--yb-muted); font-size:12px; flex-shrink:0; }
+.category-chip { max-width:100%; height:auto; min-height:32px; padding:6px 10px; background:var(--yb-primary-soft); border-color:var(--yb-hairline); color:var(--yb-ink); font-size:12px; }
+.category-chip-text { min-width:0; text-align:left; white-space:normal; overflow-wrap:anywhere; }
+.category-chip :deep(svg) { flex-shrink:0; }
 .catalog-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .eyebrow { color: var(--yb-muted); font-size: 11px; letter-spacing: .14em; }
 .catalog-heading h1 { margin-top: 8px; font-size: 28px; font-weight: 650; letter-spacing: -.5px; }
@@ -336,8 +442,8 @@ function selectSort(value: string) {
 .catalog-results { min-height: 320px; }
 .catalog-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; transition: opacity 150ms; }
 .catalog-grid.is-updating { opacity: .55; }
-.product-skeleton { overflow: hidden; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; }
-.skeleton-info { padding: 20px; display: grid; gap: 10px; }
+.product-skeleton { overflow: hidden; background: var(--yb-paper); border: 1px solid var(--yb-hairline); border-radius: 8px; }
+.skeleton-info { padding: 12px; display: grid; gap: 6px; }
 .pagination-bar { margin-top: 36px; }
 @media (max-width: 1100px) {
   .catalog-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }

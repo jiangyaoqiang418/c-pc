@@ -13,10 +13,8 @@ watch([() => route.name, () => route.query.keyword], ([name, value], previous) =
   else if (!previous || name !== previous[0]) kw.value = '';
 }, { immediate: true });
 
-const HOT_WORDS = ['平板电脑', '爆款耳机', 'iPhone 16', 'MacBook', '女装'];
-
-function submit(q?: string) {
-  const query = (q || kw.value).trim();
+function submit() {
+  const query = kw.value.trim();
   kw.value = query;
   router.push({ name: 'product-list', query: { keyword: query || undefined } });
 }
@@ -45,21 +43,6 @@ function onSearchKeydown(event: KeyboardEvent) {
         <span>搜索</span>
       </button>
     </div>
-    <div class="hot-words">
-      <span
-        v-for="w in HOT_WORDS"
-        :key="w"
-        class="hot-word"
-        role="button"
-        tabindex="0"
-        :aria-label="`搜索${w}`"
-        @click="submit(w)"
-        @keydown.enter="submit(w)"
-        @keydown.space.prevent="submit(w)"
-      >
-        {{ w }}
-      </span>
-    </div>
   </div>
 </template>
 
@@ -70,7 +53,6 @@ function onSearchKeydown(event: KeyboardEvent) {
   max-width: 640px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
 }
 
 .search-box {
@@ -120,31 +102,5 @@ function onSearchKeydown(event: KeyboardEvent) {
   background: var(--yb-brand-hover);
 }
 
-.hot-words {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0;
-  right: 0;
-  display: flex;
-  gap: 12px;
-  padding: 0 4px;
-  height: 18px;
-  overflow: hidden;
-}
-.hot-word {
-  font-size: 12px;
-  color: var(--yb-muted);
-  cursor: pointer;
-  transition: color 0.15s;
-  white-space: nowrap;
-}
-.hot-word:hover {
-  color: var(--yb-primary);
-}
-.hot-word:focus-visible {
-  outline: 2px solid var(--yb-brand-primary);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
 .search-leading { align-self: center; flex: none; width: 17px; height: 17px; margin-left: 14px; color: var(--yb-muted); }
 </style>

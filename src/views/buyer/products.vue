@@ -48,6 +48,7 @@ const keyword = ref('');
 const categoryId = ref<string | number>();
 const focusedProductId = ref<string>();
 const categoryOptions = ref<Array<{ value: string | number; label: string; children?: any[] }>>([]);
+const categoryLoading = ref(false);
 const current = ref(1);
 const size = ref(12);
 const total = ref(0);
@@ -153,6 +154,7 @@ async function load() {
 
 async function loadCategories() {
   const isCurrent = categoryGuard.begin();
+  categoryLoading.value = true;
   try {
     const next = await fetchRealCategoryTree({ signal: isCurrent.signal, onlyWithProduct: false });
     if (isCurrent()) categoryOptions.value = mapCategoryOptions(next);
@@ -160,6 +162,8 @@ async function loadCategories() {
     if (!isCurrent()) return;
     categoryOptions.value = [];
     Message.warning('商品分类加载失败，可先按名称查询商品');
+  } finally {
+    if (isCurrent()) categoryLoading.value = false;
   }
 }
 
@@ -311,7 +315,7 @@ async function savePrice() {
   <div class="bp-page shop-container">
     <header class="page-head"><div><span class="eyebrow">UMAOMAO / PRODUCTS</span><h1>商品管理</h1><p>认真完善每一件商品，让好物被看见。</p></div><div class="head-actions"><Button variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button @click="router.push('/buyer/products/create')"><Icon icon="lucide:plus" />发布商品</Button></div></header>
     <Tabs v-model="activeKey"><TabsList class="product-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key">{{ tab.label }}</TabsTrigger></TabsList></Tabs>
-    <form class="filter-card" @submit.prevent="queryProducts"><Input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /><CategoryPicker v-model="categoryId" :options="categoryOptions" /><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="resetFilters">重置</Button></form>
+    <form class="filter-card" @submit.prevent="queryProducts"><Input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /><CategoryPicker v-model="categoryId" :options="categoryOptions" :loading="categoryLoading" /><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="resetFilters">重置</Button></form>
     <div v-if="products.length" class="grid"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>
     <div v-else-if="loading" class="grid" aria-busy="true" aria-label="正在读取商品列表"><Skeleton v-for="n in 6" :key="n" class="product-skeleton" /></div>
     <EmptyState v-else :title="loadError ? '商品列表加载失败' : '该状态下没有商品'" :description="loadError || '点击右上角「发布商品」开始售卖'" :action-text="loadError ? '重新加载' : '发布商品'" @action="loadError ? load() : router.push('/buyer/products/create')" />

@@ -29,6 +29,7 @@ const categoryOptions = ref<CategoryOption[]>([]);
 const loading = ref(false);
 const loadError = ref('');
 const categoryLoadError = ref('');
+const categoryLoading = ref(false);
 const submitting = ref(false);
 const modalOpen = ref(false);
 const total = ref(0);
@@ -98,6 +99,7 @@ async function load() {
 
 async function loadCategories() {
   const isCurrent = categoriesGuard.begin();
+  categoryLoading.value = true;
   categoryLoadError.value = '';
   try {
     const tree = await categoryApi.fetchRealCategoryTree({ signal: isCurrent.signal });
@@ -107,6 +109,8 @@ async function loadCategories() {
     if (!isCurrent()) return;
     categoryOptions.value = [];
     categoryLoadError.value = '上级分类暂时无法加载；仍可提交顶级分类申请。';
+  } finally {
+    if (isCurrent()) categoryLoading.value = false;
   }
 }
 
@@ -208,7 +212,7 @@ const filterStatus = computed({
     <form class="filter-bar" @submit.prevent="current = 1; load()"><Input v-model="filter.keyword" aria-label="分类名称或申请理由" placeholder="分类名称或申请理由" /><Select v-model="filterStatus"><SelectTrigger class="status-filter" aria-label="申请状态"><SelectValue placeholder="全部状态" /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="PENDING">待审核</SelectItem><SelectItem value="APPROVED">已通过</SelectItem><SelectItem value="REJECTED">已驳回</SelectItem></SelectContent></Select><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="reset">重置</Button></form>
     <section class="paper"><div v-if="loading && !records.length" class="loading-list" aria-busy="true"><Skeleton v-for="n in 4" :key="n" class="row-skeleton" /></div><EmptyState v-else-if="loadError" :title="loadError" action-text="重新加载" @action="load" /><div v-else-if="records.length" class="table-scroll"><table><thead><tr><th>申请分类</th><th>上级分类</th><th>申请理由</th><th>状态</th><th>审核意见</th><th>申请时间</th><th>审核时间</th></tr></thead><tbody><tr v-for="record in records" :key="record.id"><td class="name">{{ record.newName }}</td><td>{{ record.parentPath || '顶级分类' }}</td><td class="long-text">{{ record.reason }}</td><td><span class="status-tag" :class="record.status">{{ statusText(record.status) }}</span></td><td class="long-text">{{ record.reviewComment || '—' }}</td><td>{{ formatTime(record.createdAt) }}</td><td>{{ formatTime(record.reviewedAt) }}</td></tr></tbody></table></div><EmptyState v-else title="暂无分类申请" description="需要新增分类时，可提交申请。" action-text="提交申请" @action="openSubmit" /></section>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; load(); }" />
-    <a-modal v-model:visible="modalOpen" :key="modalVersion" title="提交分类申请" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="application-form"><div class="field"><Label for="category-parent">上级分类</Label><CategoryPicker id="category-parent" :model-value="form.parentId" :options="categoryOptions" :disabled="submitting" placeholder="不选择则申请顶级分类" @update:model-value="form.parentId = $event === undefined ? undefined : String($event)" /><Alert v-if="categoryLoadError"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="submitting" @click="loadCategories">重新加载</Button></AlertDescription></Alert></div><div class="field"><Label for="category-new-name">新分类名称 <span>*</span></Label><Input id="category-new-name" v-model="form.newName" :disabled="submitting" maxlength="50" placeholder="请输入分类名称" /></div><div class="field"><Label for="category-reason">申请理由 <span>*</span></Label><Textarea id="category-reason" v-model="form.reason" :disabled="submitting" maxlength="500" :rows="5" placeholder="请说明分类申请理由" /><small class="counter">{{ form.reason.length }}/500</small></div></div></a-modal>
+    <a-modal v-model:visible="modalOpen" :key="modalVersion" title="提交分类申请" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="application-form"><div class="field"><Label for="category-parent">上级分类</Label><CategoryPicker id="category-parent" :model-value="form.parentId" :options="categoryOptions" :loading="categoryLoading" :disabled="submitting" placeholder="不选择则申请顶级分类" @update:model-value="form.parentId = $event === undefined ? undefined : String($event)" /><Alert v-if="categoryLoadError"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="submitting || categoryLoading" @click="loadCategories">重新加载</Button></AlertDescription></Alert></div><div class="field"><Label for="category-new-name">新分类名称 <span>*</span></Label><Input id="category-new-name" v-model="form.newName" :disabled="submitting" maxlength="50" placeholder="请输入分类名称" /></div><div class="field"><Label for="category-reason">申请理由 <span>*</span></Label><Textarea id="category-reason" v-model="form.reason" :disabled="submitting" maxlength="500" :rows="5" placeholder="请说明分类申请理由" /><small class="counter">{{ form.reason.length }}/500</small></div></div></a-modal>
   </div>
 </template>
 

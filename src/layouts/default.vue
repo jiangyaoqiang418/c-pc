@@ -9,6 +9,7 @@ import UtilityBar from '@/components/layout/utility-bar.vue';
 import UserAvatarButton from '@/components/layout/user-avatar-button.vue';
 import BrandLogo from '@/components/layout/brand-logo.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
+import SideNav from '@/components/layout/side-nav.vue';
 import BuyerWorkspace from '@/components/buyer/buyer-workspace.vue';
 
 const route = useRoute();
@@ -47,7 +48,7 @@ const navigation = [
         </div>
       </div>
       <nav class="desktop-nav um-wrap" aria-label="商城导航">
-        <RouterLink to="/category" class="all-categories" :aria-current="route.name === 'category' ? 'page' : undefined"><Icon icon="lucide:menu" />全部商品分类<Icon icon="lucide:chevron-right" /></RouterLink>
+        <SideNav mode="nav" />
         <div class="nav-links">
           <RouterLink v-for="item in navigation" :key="item.name" :to="item.to" :class="{ active: route.name === item.name }" :aria-current="route.name === item.name ? 'page' : undefined">{{ item.label }}</RouterLink>
         </div>
@@ -89,9 +90,6 @@ const navigation = [
 .cart-cta:hover { color: var(--yb-primary); }
 .cart-badge { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 50px; background: var(--yb-primary); color: white; font-size: 11px; }
 .desktop-nav { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; gap: 28px; min-height: 42px; align-items: center; }
-.all-categories { display: flex; gap: 10px; align-items: center; height: 42px; padding: 0 18px; border-radius: 6px 6px 0 0; background: var(--yb-primary); color: white; font-size: 14px; font-weight: 600; }
-.all-categories > svg:last-child { margin-left: auto; width: 14px; }
-.all-categories { white-space: nowrap; }
 .header-actions > * { flex-shrink: 0; }
 .nav-links { display: flex; align-items: center; justify-content: space-around; gap: 20px; height: 100%; }
 .nav-links a { display: inline-flex; position: relative; align-items: center; height: 100%; font-size: 14px; color: var(--yb-muted); white-space: nowrap; }
@@ -114,7 +112,6 @@ const navigation = [
 .um-page-enter-from, .um-page-leave-to { opacity: 0; }
 @media (max-width: 1100px) { .um-wrap { width: calc(100% - 48px); } .header-inner { grid-template-columns: 160px minmax(240px, 1fr) 230px; gap: 20px; } .desktop-nav { grid-template-columns: 160px minmax(0, 1fr) auto; gap: 20px; } .nav-links { gap: 20px; } .nav-tools { gap: 14px; } }
 @media (min-width: 901px) and (max-width: 1250px) { .header-inner { grid-template-columns: 160px minmax(240px, 1fr) auto; gap: 20px; }.header-actions { gap: 10px; } }
-@media (max-width: 1100px) { .all-categories { gap: 8px; padding-inline: 12px; }.all-categories > svg:first-child { width: 16px; } }
 @media (max-width: 900px) { .header-inner { grid-template-columns: 160px minmax(200px, 1fr); } .header-actions { grid-column: 1 / -1; } .desktop-nav { display: flex; flex-wrap: wrap; gap: 20px; } .nav-links { min-height: 40px; } .nav-tools { margin-left: auto; } .footer-inner { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .um-page-enter-active, .um-page-leave-active { transition: none; } }
 </style>

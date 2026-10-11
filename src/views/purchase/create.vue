@@ -60,6 +60,7 @@ const confirmationOpen = ref(false);
 const addressValid = ref(false);
 const uploading = ref(false);
 const categoryLoadError = ref('');
+const categoryLoading = ref(false);
 const categoryGuard = createLatestRequestGuard();
 let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
@@ -69,6 +70,7 @@ onMounted(reloadCategories);
 
 async function reloadCategories() {
   const isCurrent = categoryGuard.begin();
+  categoryLoading.value = true;
   categoryLoadError.value = '';
   try {
     const options = await fetchCreateCategoryOptions({ signal: isCurrent.signal });
@@ -77,6 +79,8 @@ async function reloadCategories() {
     if (!isCurrent()) return;
     cascaderOptions.value = [];
     categoryLoadError.value = '商品分类加载失败，请检查网络后重新加载。';
+  } finally {
+    if (isCurrent()) categoryLoading.value = false;
   }
 }
 
@@ -233,7 +237,7 @@ function selectAftersale(value: unknown) {
         <section class="paper"><h2><span>01</span>基本信息</h2>
           <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen" /></div>
           <div class="field"><span class="field-label">收货地址 <em>*</em></span><AddressSelector v-if="userStore.currentUser" v-model="form.addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @initialized="acceptAutomaticField('addressId', $event)" /></div>
-          <div class="field"><label for="request-category">商品分类 <em>*</em></label><CategoryPicker id="request-category" v-model="form.categoryId" :options="cascaderOptions" :disabled="submitting || confirmationOpen" placeholder="选择分类（支持一至五级）" /><p v-if="categoryLoadError" class="error" role="alert">{{ categoryLoadError }}<Button type="button" variant="link" size="sm" @click="reloadCategories">重新加载</Button></p></div>
+          <div class="field"><label for="request-category">商品分类 <em>*</em></label><CategoryPicker id="request-category" v-model="form.categoryId" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting || confirmationOpen" placeholder="选择分类（支持一至五级）" /><p v-if="categoryLoadError" class="error" role="alert">{{ categoryLoadError }}<Button type="button" variant="link" size="sm" :disabled="categoryLoading" @click="reloadCategories">重新加载</Button></p></div>
           <div class="field"><label for="request-description">商品描述 <small>可选</small></label><Textarea id="request-description" v-model="form.productDescription" :rows="3" placeholder="详细描述商品规格、版本、颜色等" /></div>
         </section>
         <section class="paper"><h2><span>02</span>预算与期限</h2><div class="form-grid">
