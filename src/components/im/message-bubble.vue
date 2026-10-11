@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { Button } from '@/components/ui/button';
 import { parseOrderMessageCard } from '@/utils/im';
 
 interface Props {
@@ -25,6 +26,16 @@ const isOrderCard = computed(() => type.value === 'ORDER_CARD');
 const isImage = computed(() => type.value === 'IMAGE');
 const isVoice = computed(() => type.value === 'VOICE');
 const isVideo = computed(() => type.value === 'VIDEO');
+const mediaFailed = ref(false);
+const mediaAttempt = ref(0);
+watch([() => props.msg.id, () => props.msg.mediaUrl, type], () => {
+  mediaFailed.value = false;
+  mediaAttempt.value = 0;
+});
+function retryMedia() {
+  mediaFailed.value = false;
+  mediaAttempt.value += 1;
+}
 const ROLE_META: Record<string, { label: string; cls: string }> = {
   CUSTOMER: { label: '顾客', cls: 'customer' },
   SELLER: { label: '买手', cls: 'seller' },
@@ -81,11 +92,15 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
   </div>
   <div v-else class="msg-row" :class="side">
     <div class="msg-meta"><span class="sender-name">{{ senderName || msg.senderName || '成员' }}</span><span v-if="roleMeta" class="role-tag" :class="roleMeta.cls">{{ roleMeta.label }}</span><span class="time">{{ time }}</span></div>
-    <div v-if="isImage && msg.mediaUrl" class="bubble media" :class="side">
-      <button type="button" class="media-image-button" :aria-label="'预览图片：' + (msg.content || '聊天图片')" @click="emit('preview-image', msg.mediaUrl)"><img :src="msg.mediaUrl" alt="图片消息" class="media-img" /></button>
+    <div v-if="(isImage || isVoice || isVideo) && (!msg.mediaUrl || mediaFailed)" class="bubble media media-error" :class="side" role="status">
+      <Icon icon="lucide:file-warning" width="20" /><span>{{ isImage ? '图片' : isVoice ? '语音' : '视频' }}{{ msg.mediaUrl ? '加载失败，链接可能已失效或格式不受支持' : '暂不可用' }}</span>
+      <Button v-if="msg.mediaUrl" type="button" variant="outline" size="sm" @click="retryMedia">重新加载</Button>
     </div>
-    <div v-else-if="isVoice" class="bubble media voice" :class="side"><audio v-if="msg.mediaUrl" :src="msg.mediaUrl" controls preload="metadata" /><span v-else>语音暂不可用</span><span v-if="msg.duration">{{ msg.duration }} 秒</span></div>
-    <div v-else-if="isVideo" class="bubble media video" :class="side"><video v-if="msg.mediaUrl" :src="msg.mediaUrl" :poster="msg.coverUrl || undefined" controls preload="none" playsinline /><div v-else class="video-placeholder"><Icon icon="lucide:video-off" width="22" />视频暂不可用</div><span v-if="msg.duration" class="video-duration">{{ msg.duration }} 秒</span></div>
+    <div v-else-if="isImage && msg.mediaUrl" class="bubble media" :class="side">
+      <button type="button" class="media-image-button" :aria-label="'预览图片：' + (msg.content || '聊天图片')" @click="emit('preview-image', msg.mediaUrl)"><img :key="mediaAttempt" :src="msg.mediaUrl" alt="图片消息" class="media-img" @error="mediaFailed = true" /></button>
+    </div>
+    <div v-else-if="isVoice" class="bubble media voice" :class="side"><audio :key="mediaAttempt" :src="msg.mediaUrl || undefined" aria-label="语音消息" controls preload="metadata" @error="mediaFailed = true" /><span v-if="msg.duration">{{ msg.duration }} 秒</span></div>
+    <div v-else-if="isVideo" class="bubble media video" :class="side"><video :key="mediaAttempt" :src="msg.mediaUrl || undefined" :poster="msg.coverUrl || undefined" aria-label="视频消息" controls preload="none" playsinline @error="mediaFailed = true" /><span v-if="msg.duration" class="video-duration">{{ msg.duration }} 秒</span></div>
     <div v-else class="bubble text" :class="side">{{ msg.content || '—' }}</div>
     <div v-if="side === 'right'" class="message-status" aria-live="polite">
       <span v-if="msg.failed" class="failed"><Icon icon="lucide:circle-alert" width="13" />发送失败</span><span v-else-if="msg.pending">发送中…</span><span v-else-if="readText">{{ readText }}</span>
@@ -102,6 +117,8 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .bubble.media { padding: 5px; background: var(--yb-surface); border: 1px solid var(--yb-hairline); }.bubble.media.right { background: var(--yb-primary-soft); }.media-image-button { display: block; padding: 0; border: 0; border-radius: 6px; background: transparent; cursor: zoom-in; }.media-img { max-width: 260px; max-height: 260px; border-radius: 6px; display: block; }.voice { display: flex; align-items: center; gap: 8px; }.voice audio { max-width: 260px; height: 36px; }.voice > span { font-size: 12px; color: var(--yb-muted); padding: 0 5px; }
 .video { position: relative; }.video video, .video-placeholder { width: 300px; max-width: 65vw; aspect-ratio: 16 / 9; border-radius: 6px; background: var(--yb-ink); color: var(--yb-surface); display: flex; gap: 8px; align-items: center; justify-content: center; }.video-duration { display: block; padding: 3px 6px; color: var(--yb-muted); font-size: 12px; }
 .message-status { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 0 4px; color: var(--yb-muted); font-size: 12px; }.failed { display: inline-flex; align-items: center; gap: 4px; color: var(--yb-danger); }.recall-btn { border: 0; padding: 2px 0; background: transparent; color: var(--yb-primary); cursor: pointer; font-size: inherit; }.recall-btn:hover { text-decoration: underline; }.recall-btn:focus-visible, .media-image-button:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 3px; }
+.media-error { display:flex; align-items:center; gap:10px; padding:12px !important; flex-wrap:wrap; color:var(--yb-muted); }
+.media-error>svg { flex-shrink:0; }.media-error>span { max-width:260px; font-size:13px; }
 .order-card { width: 390px; max-width: 90%; padding: 0; overflow: hidden; display: flex; text-align: left; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 10px; cursor: pointer; transition: border-color 150ms, box-shadow 150ms; }.order-card:hover { border-color: var(--yb-primary); box-shadow: var(--yb-shadow-1); }.order-card:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 3px; }.order-cover { width: 92px; min-height: 92px; object-fit: cover; flex-shrink: 0; }.order-card-body { min-width: 0; flex: 1; padding: 14px; }.order-title { color: var(--yb-ink); font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.order-meta { margin-top: 5px; color: var(--yb-muted); font-size: 12px; overflow-wrap: anywhere; }.order-footer { display: flex; align-items: center; gap: 12px; margin-top: 10px; color: var(--yb-ink-2); font-size: 12px; }.order-footer strong { margin-left: auto; font-family: var(--font-mono); color: var(--yb-primary); }
 
 </style>

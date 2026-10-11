@@ -386,7 +386,7 @@ const productSections = computed(() => [
 .home-page .service-band { background: transparent; border: 0; border-top: 1px solid var(--yb-hairline); border-bottom: 1px solid var(--yb-hairline); border-radius: 0; margin-bottom: 32px; padding: 22px 0; }
 .home-page .section-heading .eyebrow { display: none; }
 .home-page .section-heading h2 { font-size: 24px; margin: 0; }
-.home-page .home-products { gap: 28px 16px; }
+.home-page .home-products { gap: 22px 16px; }
 @media(max-width:1100px) { .home-page .hero-band { grid-template-columns: 180px minmax(0,1fr); } .home-page .hero-content h1 { font-size: 32px; } }
 .home-page { padding-top: 0; padding-bottom: 48px; }
 .hero-band { display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 20px; align-items: stretch; margin-bottom: 24px; }

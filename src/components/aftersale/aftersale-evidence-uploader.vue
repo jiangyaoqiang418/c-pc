@@ -61,8 +61,11 @@ async function onFileChange(e: Event) {
 async function uploadFiles(files: File[]) {
   if (!files.length || props.disabled || uploading.value) return;
 
-  const available = props.max - props.modelValue.length;
-  const picked = files.slice(0, available);
+  const available = Math.max(0, props.max - props.modelValue.length);
+  const supported = files.filter(file => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
+  if (supported.length !== files.length) Message.warning('仅支持 JPG、PNG 或 WebP 图片，其他文件未上传');
+  if (supported.length > available) Message.warning(`最多还能添加 ${available} 张图片，超出的文件未上传`);
+  const picked = supported.slice(0, available);
   if (!picked.length) return;
   const operation = ++uploadVersion;
   uploading.value = true;
@@ -108,7 +111,7 @@ watch(() => props.modelValue, () => { previewOpen.value = false; });
 
 <template>
   <div class="evidence" :aria-busy="uploading">
-    <input ref="inputRef" class="file-input" type="file" accept="image/*" multiple :disabled="disabled || uploading" @change="onFileChange" />
+    <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple :disabled="disabled || uploading" @change="onFileChange" />
     <div v-for="(u, i) in modelValue" :key="`${u}:${i}`" class="cell">
       <button type="button" class="preview" :aria-label="`预览凭证 ${i + 1}`" @click="previewIndex = i; previewOpen = true"><img :src="u" :alt="`凭证 ${i + 1}`" @error="setImageFallback" /></button>
       <button class="remove" type="button" :disabled="disabled" :aria-label="`删除凭证 ${i + 1}`" :title="`删除凭证 ${i + 1}`" @click="remove(i)"><Icon icon="lucide:x" width="14" /></button>

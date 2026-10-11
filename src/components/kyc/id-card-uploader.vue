@@ -39,7 +39,7 @@ async function onFileChange(event: Event) {
   const file = input.files?.[0];
   input.value = '';
   if (!file || props.disabled || uploading.value) return;
-  if (!file.type.startsWith('image/')) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     Message.warning('请上传 JPG、PNG 或 WebP 格式的图片');
     return;
   }
