@@ -32,7 +32,7 @@ const form = reactive<FormState>({
   productScore: props.initial?.productScore ?? 5,
   sellerScore: props.initial?.sellerScore ?? 5,
   content: props.initial?.content ?? '',
-  photoUrls: props.initial?.photoUrls ?? []
+  photoUrls: [...(props.initial?.photoUrls ?? [])]
 });
 const { markInteracted, markSaved } = useUnsavedForm(() => form, () => undefined);
 defineExpose({ markSaved });
@@ -103,9 +103,9 @@ const submitDisabledReason = computed(() => props.submitting ? '正在核对或�
 
 <template>
   <section class="review-form" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-    <h2>分享这次购物体验</h2>
-    <div class="row"><span class="lbl">商品评分</span><ReviewStars v-model:score="form.productScore" :mode="submitting ? 'readonly' : 'input'" size="lg" /><span class="score-label">{{ scoreLabel }}</span></div>
-    <div class="row"><span class="lbl">买手服务</span><ReviewStars v-model:score="form.sellerScore" :mode="submitting ? 'readonly' : 'input'" size="lg" /></div>
+    <h2>评分与评价</h2>
+    <div class="row"><span class="lbl">商品评分</span><ReviewStars v-model:score="form.productScore" :mode="submitting ? 'readonly' : 'input'" size="lg" label="商品评分" /><span class="score-label">{{ scoreLabel }}</span></div>
+    <div class="row"><span class="lbl">买手服务</span><ReviewStars v-model:score="form.sellerScore" :mode="submitting ? 'readonly' : 'input'" size="lg" label="买手服务评分" /></div>
     <div class="field"><Label for="review-content">评价内容 <small>选填</small></Label><Textarea id="review-content" v-model="form.content" :disabled="submitting" maxlength="1000" rows="5" placeholder="说说商品如何、买手服务怎么样" /><small class="word-count">{{ form.content.length }}/1000</small></div>
     <div class="field"><span class="field-label">图片 <small>选填，最多 {{ MAX_PHOTOS }} 张</small></span>
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" :disabled="submitting || uploading" @change="onPhotoSelected" />

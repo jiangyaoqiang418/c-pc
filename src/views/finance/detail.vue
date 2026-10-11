@@ -119,11 +119,10 @@ async function onSubscribe(amount: string) {
   try {
     const payPassword = await requestPayPassword(route.fullPath);
     if (!payPassword || !isCurrentWrite()) return;
-    activePayPassword = payPassword;
     let orderId: string | number;
     try {
       orderId = await submitKeyedFinancialOperation(requestedUserId, `finance-subscribe:${requestedProductId}`,
-        { productId: requestedProductId, amount }, subscriptionIntentApi);
+        { productId: requestedProductId, amount }, createSubscriptionIntentApi(payPassword, isCurrentWrite));
       if (isCurrentWrite()) refreshSubmissionIssue();
     } catch (error) {
       if (isCurrentWrite()) {
@@ -145,35 +144,39 @@ async function onSubscribe(amount: string) {
       }
     }
   } finally {
-    activePayPassword = '';
     if (operation === writeVersion) subscribing.value = false;
   }
 }
 
-let activePayPassword = '';
-const subscriptionIntentApi = {
-  lookup: financeApi.fetchFinanceOrderByKey,
-  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => financeApi.subscribeFinance({ productId: snapshot.productId!, amount: snapshot.amount, idempotencyKey, payPassword: activePayPassword }, { showError: false })
-};
+function createSubscriptionIntentApi(payPassword: string, isCurrentWrite: () => boolean) {
+  return {
+    lookup: financeApi.fetchFinanceOrderByKey,
+    submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => {
+      if (!isCurrentWrite()) throw new Error('页面或账号已变化，原申购保留待核对');
+      return financeApi.subscribeFinance({ productId: snapshot.productId!, amount: snapshot.amount, idempotencyKey, payPassword }, { showError: false });
+    }
+  };
+}
 
 async function restoreSubscription() {
   const userId = userStore.currentUser?.id;
   const productId = id.value;
   if (userId === undefined || subscribing.value) return;
   const operation = ++writeVersion;
+  const isCurrentWrite = () => operation === writeVersion
+    && id.value === productId
+    && String(userStore.currentUser?.id) === String(userId);
   subscribing.value = true;
   try {
     const payPassword = await requestPayPassword(route.fullPath);
-    if (!payPassword) return;
-    activePayPassword = payPassword;
-    const orderId = await submitKeyedFinancialOperation(userId, `finance-subscribe:${productId}`, undefined, subscriptionIntentApi, true);
-    if (operation !== writeVersion || id.value !== productId || String(userStore.currentUser?.id) !== String(userId)) return;
+    if (!payPassword || !isCurrentWrite()) return;
+    const orderId = await submitKeyedFinancialOperation(userId, `finance-subscribe:${productId}`, undefined, createSubscriptionIntentApi(payPassword, isCurrentWrite), true);
+    if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
     await router.push({ name: 'finance-lockup-detail', params: { id: String(orderId) } });
   } catch (error) {
-    if (operation === writeVersion) Message.warning(error instanceof Error ? error.message : '原申购核对失败');
+    if (isCurrentWrite()) Message.warning(error instanceof Error ? error.message : '原申购核对失败');
   } finally {
-    activePayPassword = '';
     if (operation === writeVersion) { subscribing.value = false; refreshSubmissionIssue(); }
   }
 }

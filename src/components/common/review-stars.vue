@@ -7,8 +7,9 @@ interface Props {
   mode?: 'readonly' | 'input';
   size?: 'sm' | 'md' | 'lg';
   showScore?: boolean;
+  label?: string;
 }
-const props = withDefaults(defineProps<Props>(), { mode: 'readonly', size: 'md', showScore: false });
+const props = withDefaults(defineProps<Props>(), { mode: 'readonly', size: 'md', showScore: false, label: '选择评分' });
 const emit = defineEmits<{ (e: 'update:score', value: number): void }>();
 const stars = [1, 2, 3, 4, 5];
 const hoverScore = ref(0);
@@ -20,7 +21,7 @@ function select(score: number) { if (props.mode === 'input') emit('update:score'
 </script>
 
 <template>
-  <span class="stars" :class="mode" :role="mode === 'input' ? 'group' : 'img'" :aria-label="mode === 'input' ? '选择评分' : `${scoreText} / 5 星`" @mouseleave="hoverScore = 0">
+  <span class="stars" :class="mode" :role="mode === 'input' ? 'group' : 'img'" :aria-label="mode === 'input' ? label : `${scoreText} / 5 星`" @mouseleave="hoverScore = 0">
     <component
       :is="mode === 'input' ? 'button' : 'span'"
       v-for="star in stars"

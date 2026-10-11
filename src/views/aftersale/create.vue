@@ -41,6 +41,13 @@ const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
+function cancelCreate() {
+  const back = router.options.history.state.back;
+  const orderPath = orderId.value ? `/order/${encodeURIComponent(orderId.value)}` : '/order';
+  if (typeof back === 'string' && ['/order', orderPath].includes(back.split(/[?#]/)[0])) router.back();
+  else void router.replace(orderPath);
+}
+
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
@@ -156,12 +163,12 @@ const submitDisabledReason = computed(() => {
       <template v-if="order">
         <Alert v-if="recoveryError" class="notice"><AlertDescription>{{ recoveryError }}</AlertDescription></Alert>
         <Alert v-else-if="pendingIntent && !pendingIntent.receipt" class="notice"><AlertDescription>原退款申请待核对，将使用原原因、凭证和幂等键；回查未落地才按原参数重试。</AlertDescription><Button size="sm" variant="outline" :disabled="submitting || confirmationOpen" @click="submit(true)">恢复原申请</Button></Alert>
-        <header class="form-heading"><span class="eyebrow">REFUND REQUEST</span><h1>申请仅退款</h1><p>填写退款原因及凭证，提交后由平台审核。</p></header>
+        <header class="page-heading form-heading"><span class="eyebrow">REFUND REQUEST</span><h1>申请仅退款</h1><p>填写退款原因及凭证，提交后由平台审核。</p></header>
         <section class="order-card"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
         <Alert v-if="!eligible" class="notice"><AlertDescription>仅“待发货”或“待收货”订单可申请仅退款。</AlertDescription></Alert>
         <section class="step-card"><Label for="refund-reason" class="section-title">退款原因 <span aria-hidden="true">*</span></Label><Textarea id="refund-reason" v-model="form.reason" :disabled="submitting || confirmationOpen" maxlength="512" rows="5" placeholder="请说明退款原因，例如商品与描述不符" required /><small class="word-count">{{ form.reason.length }}/512</small></section>
         <section class="step-card"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></section>
-        <footer class="actions"><Button variant="outline" :disabled="submitting || confirmationOpen" @click="router.back()">取消</Button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><Button :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
+        <footer class="actions"><Button variant="outline" :disabled="submitting || confirmationOpen" @click="cancelCreate">取消</Button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><Button :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
       </template>
       <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-52" /><Skeleton class="h-44" /></div>
       <EmptyState v-else :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />

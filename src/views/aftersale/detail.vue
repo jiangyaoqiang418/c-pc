@@ -58,12 +58,14 @@ watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUs
   void load();
 });
 function cancel() {
-  if (!refund.value || cancelling.value || cancellationPending.value) return;
+  if (!refund.value || !canCancel.value || loading.value || cancelling.value || cancellationPending.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const refundId = refund.value.refundId;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === writeVersion
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && String(refund.value?.refundId) === String(refundId);
   cancellationPending.value = true;
   confirmationModal = Modal.confirm({
     title: '撤销仅退款申请？',
@@ -71,7 +73,10 @@ function cancel() {
     okButtonProps: { status: 'danger' },
     onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; },
     async onOk() {
-      if (!isCurrentWrite()) return;
+      if (!isCurrentWrite() || !canCancel.value || loading.value) {
+        if (operation === writeVersion) cancellationPending.value = false;
+        return;
+      }
       cancelling.value = true;
       try {
         await refundApi.cancelRefund(refundId);

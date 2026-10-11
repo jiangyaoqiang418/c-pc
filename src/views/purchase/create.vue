@@ -113,6 +113,7 @@ const budgetCny = computed(() => Number.isFinite(form.budgetAmount)
   : '—');
 
 function preventImplicitSubmit(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
   if (['text', 'number', 'search', 'tel', 'email'].includes(target.type)) {

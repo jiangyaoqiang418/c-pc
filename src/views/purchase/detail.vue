@@ -95,6 +95,8 @@ const aftersaleMeta = computed(() => (request.value ? getAftersaleMeta(request.v
 
 const isMyRequest = computed(() => userStore.currentUser?.id !== undefined && request.value?.customerId !== undefined
   && String(userStore.currentUser.id) === String(request.value.customerId));
+const canCancel = computed(() => isMyRequest.value && !!request.value
+  && ['pending_audit', 'pushing'].includes(request.value.status));
 const canClaim = computed(() => {
   if (!userStore.currentUser || !request.value) return false;
   if (request.value.status !== 'pushing') return false;
@@ -102,7 +104,7 @@ const canClaim = computed(() => {
 });
 
 async function claim() {
-  if (!request.value || !userStore.currentUser || claiming.value) return;
+  if (!request.value || !userStore.currentUser || !canClaim.value || loading.value || claiming.value) return;
   const requestedUserId = userStore.currentUser.id;
   const requestedRequestId = request.value.id;
   const operation = ++claimWriteVersion;
@@ -127,7 +129,7 @@ async function claim() {
 }
 
 function cancel() {
-  if (!request.value || canceling.value || cancellationPending.value) return;
+  if (!request.value || !canCancel.value || loading.value || canceling.value || cancellationPending.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedRequestId = request.value.id;
   if (requestedUserId === undefined) return;
@@ -146,7 +148,8 @@ function cancel() {
       cancellationPending.value = false;
     },
     async onOk() {
-      if (!isCurrentWrite()) {
+      if (!isCurrentWrite() || !canCancel.value || loading.value) {
+        if (operation === cancelWriteVersion) cancellationPending.value = false;
         return;
       }
       canceling.value = true;
@@ -190,7 +193,7 @@ watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; 
     <template v-else-if="request">
       <section class="paper hero-card">
         <div class="hero-row"><div><span v-if="statusMeta" class="status-pill" :data-status="request.status">{{ statusMeta.label }}</span><h1>{{ request.productTitle }}</h1><p class="category">{{ request.categoryPath || '—' }}</p><small class="code">{{ request.code }}</small></div><div class="budget-block"><small>求购预算</small><strong>{{ formatAmount(request.budgetAmount) }} <span>USDT</span></strong></div></div>
-        <div v-if="canClaim || (isMyRequest && ['pending_audit', 'pushing'].includes(request.status))" class="button-row"><Button v-if="canClaim" :disabled="claiming" @click="claim"><Icon v-if="claiming" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ claiming ? '接单中…' : '我接此单' }}</Button><Button v-if="isMyRequest && ['pending_audit', 'pushing'].includes(request.status)" variant="outline" class="danger" :disabled="canceling || cancellationPending" @click="cancel">{{ canceling || cancellationPending ? '正在撤销…' : '撤销求购' }}</Button></div>
+        <div v-if="canClaim || canCancel" class="button-row"><Button v-if="canClaim" :disabled="claiming" @click="claim"><Icon v-if="claiming" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ claiming ? '接单中…' : '我接此单' }}</Button><Button v-if="canCancel" variant="outline" class="danger" :disabled="canceling || cancellationPending" @click="cancel">{{ canceling || cancellationPending ? '正在撤销…' : '撤销求购' }}</Button></div>
       </section>
       <div v-if="request.status === 'rejected'" class="review-alert" role="alert"><Icon icon="lucide:circle-alert" width="20" /><div><strong>{{ request.reviewComment || '求购审核未通过' }}</strong><p>审核时间：{{ formatDateValue(request.reviewedAt) }}</p></div></div>
       <section class="paper"><h2>求购信息</h2><DescriptionList :columns="2" :items="[

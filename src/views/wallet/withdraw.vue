@@ -97,13 +97,17 @@ function formatMoney(value?: string | number) {
   return value === undefined || value === null ? '—' : `U ${formatAmount(value)}`;
 }
 
-let activePayPassword = '';
-const withdrawalIntentApi = {
-  lookup: realWalletApi.fetchWithdrawByKey,
-  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => realWalletApi.createWithdraw({
-    chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: Number(snapshot.amount), idempotencyKey, payPassword: activePayPassword
-  }, { showError: false })
-};
+function createWithdrawalIntentApi(payPassword: string, isCurrentWrite: () => boolean) {
+  return {
+    lookup: realWalletApi.fetchWithdrawByKey,
+    submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => {
+      if (!isCurrentWrite()) throw new Error('页面或账号已变化，原申请保留待核对');
+      return realWalletApi.createWithdraw({
+        chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: Number(snapshot.amount), idempotencyKey, payPassword
+      }, { showError: false });
+    }
+  };
+}
 
 async function restoreWithdrawal() {
   const userId = userStore.currentUser?.id;
@@ -114,16 +118,14 @@ async function restoreWithdrawal() {
   try {
     const payPassword = await requestPayPassword(route.fullPath);
     if (!payPassword || !isCurrentWrite()) return;
-    activePayPassword = payPassword;
-    const id = await submitKeyedFinancialOperation(userId, 'withdraw', undefined, withdrawalIntentApi, true);
+    const id = await submitKeyedFinancialOperation(userId, 'withdraw', undefined, createWithdrawalIntentApi(payPassword, isCurrentWrite), true);
     if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
     await openDetail(id);
     if (operation === writeVersion) await loadAll();
   } catch (error) {
-    if (operation === writeVersion) Message.warning(error instanceof Error ? error.message : '原申请核对失败');
+    if (isCurrentWrite()) Message.warning(error instanceof Error ? error.message : '原申请核对失败');
   } finally {
-    activePayPassword = '';
     if (operation === writeVersion) { submitting.value = false; refreshSubmissionIssue(); }
   }
 }
@@ -218,8 +220,7 @@ async function confirm() {
   try {
     const payPassword = await requestPayPassword(route.fullPath);
     if (!payPassword || !isCurrentWrite()) return;
-    activePayPassword = payPassword;
-    const id = await submitKeyedFinancialOperation(requestedUserId, 'withdraw', prepared.params, withdrawalIntentApi);
+    const id = await submitKeyedFinancialOperation(requestedUserId, 'withdraw', prepared.params, createWithdrawalIntentApi(payPassword, isCurrentWrite));
     if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
     let nextWithdrawal: Api.RealWallet.WithdrawVO | undefined;
@@ -253,7 +254,6 @@ async function confirm() {
       }
     }
   } finally {
-    activePayPassword = '';
     if (operation === writeVersion) submitting.value = false;
   }
 }

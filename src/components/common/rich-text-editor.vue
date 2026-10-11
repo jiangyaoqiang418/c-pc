@@ -18,6 +18,7 @@ const fileInput = ref<HTMLInputElement>();
 const uploading = ref(false);
 const linkOpen = ref(false);
 const linkDraft = ref('');
+let uploadVersion = 0;
 
 const editor = new Editor({
   content: sanitizeRichText(props.modelValue),
@@ -31,7 +32,11 @@ watch(() => props.modelValue, value => {
   const next = sanitizeRichText(value);
   if (next !== editor.getHTML()) editor.commands.setContent(next, { emitUpdate: false });
 });
-onBeforeUnmount(() => editor.destroy());
+onBeforeUnmount(() => {
+  uploadVersion += 1;
+  if (uploading.value) emit('uploading', false);
+  editor.destroy();
+});
 
 function setLink() {
   if (props.disabled) return;
@@ -56,17 +61,22 @@ async function uploadImage(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = '';
-  if (!file || uploading.value) return;
+  if (!file || props.disabled || uploading.value) return;
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return Message.warning('仅支持 JPG、PNG、WebP 图片');
   if (file.size > 10 * 1024 * 1024) return Message.warning('图片不能超过 10MB');
   if ((props.modelValue.match(/<img\b/gi) || []).length >= 30) return Message.warning('详情最多插入 30 张图片');
+  const operation = ++uploadVersion;
   uploading.value = true;
   emit('uploading', true);
   try {
     const uploaded = await uploadFile(file, 'PRODUCT');
+    if (operation !== uploadVersion || editor.isDestroyed) return;
     editor.chain().focus().setImage({ src: uploaded.url || uploaded.filePath, alt: file.name }).run();
-  } catch { Message.error('详情图片上传失败'); }
-  finally { uploading.value = false; emit('uploading', false); }
+  } catch {
+    if (operation === uploadVersion) Message.error('详情图片上传失败');
+  } finally {
+    if (operation === uploadVersion) { uploading.value = false; emit('uploading', false); }
+  }
 }
 </script>
 
