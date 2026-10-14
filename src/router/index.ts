@@ -22,6 +22,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '首页' }
   },
   {
+    path: '/brand',
+    name: 'brand',
+    component: () => import('@/views/brand/index.vue'),
+    meta: { layout: 'default', title: '品牌专区' }
+  },
+  {
     path: '/category',
     name: 'category',
     component: () => import('@/views/category/index.vue'),

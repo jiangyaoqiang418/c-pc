@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import BusinessPagination from '@/components/common/business-pagination.vue';
+import UmIcon from '@/components/common/um-icon.vue';
+import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
 import ProductCard from '@/components/product/product-card.vue';
-import EmptyState from '@/components/common/empty-state.vue';
 import * as productApi from '@/service/api/product';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -123,17 +121,21 @@ watch(() => userStore.currentUser?.id, () => {
 </script>
 
 <template>
-  <div class="favorites-page shop-container">
-    <header class="page-head"><div><span class="eyebrow">SAVED FOR LATER</span><h1>我的收藏 <small v-if="!loading">{{ total }} 件商品</small></h1></div><Button variant="outline" @click="router.push('/product/list')">浏览商品<Icon icon="lucide:arrow-up-right" width="16" /></Button></header>
-    <section :aria-busy="loading" aria-label="收藏商品列表">
-      <div v-if="loading && !list.length" class="product-grid"><Skeleton v-for="n in 4" :key="n" class="favorite-loading" /></div>
-      <div v-else-if="list.length" class="product-grid" :class="{ refreshing: loading }"><div v-for="p in list" :key="p.id" class="favorite-item"><ProductCard :product="p" /><Button class="cancel-button" size="sm" variant="ghost" :disabled="!!cancelingId || !!cancellationPendingId || loading" @click="cancelFavorite(p)"><Icon icon="lucide:heart-off" width="15" />{{ cancelingId === String(p.id) ? '取消中…' : '取消收藏' }}</Button></div></div>
-      <EmptyState v-else :title="loadError || '暂无收藏商品'" :description="loadError ? '请稍后重试。' : '在商品详情页点击收藏后会出现在这里'" :action-text="loadError ? '重新加载' : '去浏览商品'" @action="loadError ? load() : router.push('/product/list')" />
-    </section>
-    <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading || !!cancellationPendingId" @change="current = $event; load()" />
+  <div class="favorites-page">
+    <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">我的收藏</span></nav>
+    <div class="page-heading compact"><h1>我的收藏</h1><span class="heading-meta">{{ loading ? '正在加载…' : loadError ? '读取失败' : `${total} 件商品` }}</span></div>
+    <div class="catalog-layout"><section class="catalog-content" :aria-busy="loading" aria-label="收藏商品列表">
+      <span v-if="loading" class="catalog-sr-only" role="status">正在加载收藏</span>
+      <div v-if="loading && !list.length" class="product-grid"><div v-for="index in 4" :key="index" class="favorite-skeleton"><Skeleton class="aspect-square w-full rounded-[9px]" /><div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div></div></div>
+      <div v-else-if="list.length" class="product-grid" :class="{ refreshing: loading }"><ProductCard v-for="product in list" :key="product.id" :product="product" :saved="true" :favorite-handler="() => cancelFavorite(product)" :favorite-disabled="!!cancelingId || !!cancellationPendingId || loading" /></div>
+      <div v-else class="empty"><UmIcon name="heart" /><h2>{{ loadError || '还没有收藏的好物' }}</h2><p>{{ loadError ? '请稍后重试。' : '不妨换一个方向，发现新的喜欢。' }}</p><button type="button" class="primary" @click="loadError ? load() : router.push('/product/list')">{{ loadError ? '重新加载' : '去逛逛' }}</button></div>
+      <V47CatalogPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading || !!cancellationPendingId" @change="current = $event; load()" />
+    </section></div>
   </div>
 </template>
 
 <style scoped>
-.favorites-page { padding-top:32px; padding-bottom:48px; }.page-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 0; font-size:28px; font-weight:650; }h1 small { color:var(--yb-muted); font-size:13px; font-weight:400; margin-left:16px; }.product-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px; }.favorite-item { min-width:0; }.cancel-button { display:flex; margin:10px auto 0; color:var(--yb-muted); }.cancel-button:hover { color:var(--destructive); }.favorite-loading { height:390px; border-radius:10px; }.refreshing { opacity:.65; }@media(max-width:1200px) { .product-grid { grid-template-columns:repeat(4,minmax(0,1fr)); } }@media(max-width:1100px) { .product-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }@media(max-width:800px) { .product-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.favorite-skeleton { overflow:hidden; border:1px solid var(--line); background:var(--paper); border-radius:13px; padding:8px 8px 0; }
+.skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
+.refreshing { opacity:.55; }
 </style>

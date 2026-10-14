@@ -1,0 +1,33 @@
+/* Production-only v47 wallet additions. Reference geometry and typography
+   come from the single globally loaded original v47 stylesheet cascade. */
+
+.wallet-page { min-width: 0; }
+.wallet-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.wallet-status > span { flex: 1; }
+.wallet-status svg { width: 22px; height: 22px; }
+.wallet-status .outline { font-size: 13px; min-height: 38px; }
+.wallet-transaction, .asset-bucket { width: 100%; text-align: left; background: none; }
+.transaction-copy { min-width: 0; overflow-wrap: anywhere; }
+.wallet-transaction > b, .asset-bucket > b { flex-shrink: 0; }
+.wallet-transaction:hover, .asset-bucket:hover { background: var(--soft); }
+.transaction .ledger-caption { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.wallet-total { color: var(--muted); font-size: 13px; }
+.wallet-total b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wallet-cashflow { display: flex; flex-wrap: wrap; gap: 12px 28px; padding-bottom: 16px; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 13px; }
+.wallet-cashflow b { color: var(--ink); margin-left: 8px; font-weight: 600; }
+.asset-bucket > b small { display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }
+.bucket-ratio { margin-left: 14px; font-size: 12px; color: var(--muted); font-weight: 400; }
+.asset-bucket > svg:last-child { padding: 0; width: 17px; height: 17px; color: var(--muted); background: none; }
+.wallet-security-links { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.wallet-security-links .outline { min-height: 44px; }
+.wallet-security-links svg { width: 18px; height: 18px; }
+.wallet-safety > .status-banner { margin-bottom: 14px; }
+.wallet-safety > p { margin-top: 16px; font-size: 13px; }
+@media (max-width: 700px) {
+  .wallet-assets .section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .wallet-transaction > b, .asset-bucket > b { font-size: 12px; overflow-wrap: anywhere; }
+  .asset-bucket { gap: 10px; }
+  .asset-bucket > svg:first-child { width: 32px; height: 32px; padding: 7px; }
+  .asset-bucket > svg:last-child { display: none; }
+  .wallet-total, .wallet-cashflow { font-size: 12px; }
+}

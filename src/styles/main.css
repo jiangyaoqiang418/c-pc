@@ -6,6 +6,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import './umaomao.css';
+@import './umaomao-themes-v47.css';
+@import './umaomao-reference-v47.css';
+@import './umaomao-v47.css';
 
 @theme inline {
   --color-background: var(--background);
@@ -18,7 +21,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--yb-fill);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -66,7 +69,20 @@
   /* font */
   --font-display: var(--yb-font-display);
   --font-body: var(--yb-font-body);
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-mono: var(--yb-font-mono);
 }
 
 /* Tailwind utilities work: bg-yb-primary, rounded-card, shadow-glow, font-mono, etc. */
+
+/* Vue route entry follows the v47 MEME page treatment. Business results never depend on animation. */
+:root[data-ui-theme='web3-meme'] .um-page-enter-active {
+  transition: opacity 300ms cubic-bezier(.22, 1, .36, 1), transform 300ms cubic-bezier(.22, 1, .36, 1);
+}
+:root[data-ui-theme='web3-meme'] .um-page-enter-from {
+  opacity: .55;
+  transform: translateY(8px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .um-page-enter-active { transition: none !important; }
+  .um-page-enter-from { opacity: 1 !important; transform: none !important; }
+}

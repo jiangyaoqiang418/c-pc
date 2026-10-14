@@ -51,7 +51,7 @@ function onFocusOut(key: number, event: FocusEvent) {
 .um-notice-warning .um-notice-icon { color: #ad751f; }
 .um-notice-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .um-notice-close { border: 0; background: transparent; cursor: pointer; padding: 4px; color: var(--muted-foreground); }
-.um-notice-enter-active, .um-notice-leave-active { transition: opacity 180ms ease, transform 180ms ease; }
-.um-notice-enter-from, .um-notice-leave-to { opacity: 0; transform: translateY(-6px); }
+.um-notice-enter-active, .um-notice-leave-active { transition: opacity 200ms cubic-bezier(.22,1,.36,1), transform 200ms cubic-bezier(.22,1,.36,1); }
+.um-notice-enter-from, .um-notice-leave-to { opacity: 0; transform: translateY(-10px); }
 @media (prefers-reduced-motion: reduce) { .um-notice-enter-active, .um-notice-leave-active { transition: none; } }
 </style>

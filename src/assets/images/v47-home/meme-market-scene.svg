@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 440" role="img" aria-labelledby="scene-title scene-desc">
+<title id="scene-title">Umaomao 用 U 发现好物</title>
+<desc id="scene-desc">戴墨镜的小猫一手拿着 U 币，站在奶油色收藏票前，背景是浅紫圆形和两颗星花。</desc>
+<!-- Original Umaomao mascot, preserved as editable paths. -->
+<circle cx="259" cy="218" r="182" fill="#be9eff"/>
+<g transform="rotate(-7 249 233)" stroke="#10120f" stroke-linejoin="round">
+  <rect x="88" y="78" width="330" height="310" rx="24" fill="#10120f" stroke-width="3"/>
+  <rect x="80" y="68" width="330" height="310" rx="24" fill="#f2f5e8" stroke-width="4"/>
+  <path d="M100 321H390" fill="none" stroke="#c1c6b9" stroke-width="2" stroke-dasharray="7 8"/>
+  <path d="M100 86h23M100 86v23M390 86h-23M390 86v23" fill="none" stroke="#10120f" stroke-width="3"/>
+</g>
+<g transform="translate(96 69) scale(1.33)">
+<g stroke="#10120f" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+<path fill="#b6f36b" d="M166 183c49 24 61-20 43-30-10-6-17 3-12 10 6 10-9 15-22 4"/>
+<path fill="#f2f5e8" d="M59 159c-16 15-24 33-20 57h127c5-30-2-50-20-60"/>
+<path fill="#b6f36b" d="m60 177 25 19 54-21 16 41H49z"/>
+<path fill="#f2f5e8" d="m44 75 2-55 48 28c15-3 27-2 38 1l43-29 3 59c16 20 18 49 4 67-18 25-47 37-74 33-32 1-71-15-78-43-5-22 1-44 14-61z"/>
+<path fill="#be9eff" stroke="none" d="m55 40 2 33 24-19zM165 40l-23 17 24 16z"/>
+<path fill="#10120f" d="m44 91 56 3-5 27-37-2zM116 94l54-7-7 30-36 5z"/>
+<path d="m98 100 20-1M60 99l11 12M133 102l11 10" stroke="#b6f36b" stroke-width="4"/>
+<path fill="#10120f" d="m104 123 10-1-4 6z" stroke-width="3"/>
+<path d="M91 138q18 16 38-5M41 124l-22-4M42 136l-19 5" fill="none" stroke-width="4"/>
+<path fill="#f2f5e8" d="M149 177c-2-19 7-49 24-55 15-4 25 8 20 22l-15 42c-8 15-25 9-29-9z"/>
+<circle fill="#b6f36b" cx="189" cy="107" r="34"/>
+<circle fill="none" stroke-width="2" cx="189" cy="107" r="25"/>
+<path d="M177 93v17q0 14 12 14t12-14V93" stroke-width="7" fill="none"/>
+<path fill="#f2f5e8" d="m175 135 1-9c2-9 12-9 15-1l-1 16"/>
+</g><path d="m204 37 5 10 11 2-8 8 1 11-10-5-10 5 2-11-8-8 11-2z" fill="#be9eff"/>
+
+</g>
+<g fill="#b6f36b" stroke="#10120f" stroke-width="3" stroke-linejoin="round">
+  <path d="m68 152 8 19 19 8-19 8-8 19-8-19-19-8 19-8z"/>
+  <path d="m422 53 6 15 15 6-15 6-6 15-6-15-15-6 15-6z" fill="#f2f5e8"/>
+</g>
+<g transform="rotate(8 365 369)">
+  <path d="M307 346h126v48H307z" fill="#10120f"/>
+  <path d="M301 340h126v48H301z" fill="#b6f36b" stroke="#10120f" stroke-width="3"/>
+  <text x="364" y="373" text-anchor="middle" fill="#10120f" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="900" letter-spacing="1">U PICK</text>
+</g>
+</svg>

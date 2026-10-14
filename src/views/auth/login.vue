@@ -8,9 +8,8 @@ import { RequestError } from '@/service/request';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import PasswordInput from '@/components/common/password-input.vue';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -80,52 +79,26 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
 </script>
 
 <template>
-  <div class="login-page">
-    <h2 class="title">登录</h2>
-    <p class="hint">使用平台账号和邮箱密码登录。</p>
-
-    <Alert v-if="oauthConflictMessage" class="oauth-conflict"><AlertDescription>{{ oauthConflictMessage }}</AlertDescription></Alert>
-
+  <section class="auth-form paper login-page" :aria-busy="submitting">
+    <h1>登录账户</h1>
     <form novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
-      <div class="um-field"><Label for="login-email">邮箱</Label><Input id="login-email" ref="emailInput" v-model="form.email" autocomplete="username" inputmode="email" placeholder="请输入注册邮箱" /></div>
-      <div class="um-field"><Label for="login-password">密码</Label><PasswordInput id="login-password" v-model="form.password" autocomplete="current-password" placeholder="请输入登录密码" /></div>
-      <Button type="submit" size="lg" class="w-full" :disabled="submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" />{{ submitting ? '正在登录' : '登录' }}</Button>
+      <div class="field">
+        <Label for="login-email">邮箱</Label>
+        <Input id="login-email" ref="emailInput" v-model="form.email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com" :aria-describedby="oauthConflictMessage ? 'oauth-conflict' : undefined" />
+      </div>
+      <div class="field">
+        <Label for="login-password">密码</Label>
+        <PasswordInput id="login-password" v-model="form.password" :max-length="64" autocomplete="current-password" placeholder="请输入 6–64 位密码" />
+      </div>
+      <p v-if="oauthConflictMessage" id="oauth-conflict" class="error-text auth-error" role="alert">{{ oauthConflictMessage }}</p>
+      <Button type="submit" class="primary full auth-submit" :disabled="submitting">
+        {{ submitting ? '正在登录' : '登录' }}
+        <UmIcon :name="submitting ? 'clock' : 'arrow'" :class="{ 'auth-loading': submitting }" />
+      </Button>
     </form>
-
     <OAuthLoginOptions :disabled="submitting" :busy-provider="oauthProvider" @login="submitOAuth" />
-
-    <div class="bottom">
-      还没有账号？
-      <button type="button" class="auth-link" @click="goRegister">立即注册</button>
-    </div>
-  </div>
+    <p class="center auth-return">还没有账号？<button type="button" class="text-link" @click="goRegister">立即注册</button></p>
+  </section>
 </template>
 
-<style scoped>
-.login-page {
-  text-align: left;
-}
-.title {
-  font-size: 28px;
-  font-weight: 600;
-  margin: 0 0 6px;
-  color: var(--yb-ink);
-  text-align: center;
-}
-.hint {
-  color: var(--yb-muted);
-  font-size: 13px;
-  margin-bottom: 28px;
-  text-align: center;
-}
-.oauth-conflict {
-  margin-bottom: 16px;
-}
-.bottom {
-  margin-top: 24px;
-  font-size: 13px;
-  color: var(--yb-ink-2);
-  text-align: center;
-}
-.auth-link { border: 0; background: none; color: var(--yb-primary); font: inherit; padding: 0 4px; }
-</style>
+<style scoped src="./auth-form.css"></style>

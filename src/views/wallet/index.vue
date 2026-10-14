@@ -1,25 +1,23 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Icon } from '@iconify/vue';
-import { formatAmount } from '@shared';
+import { enums, formatAmount } from '@shared';
 import * as realWalletApi from '@/service/api/wallet';
-import BucketCard from '@/components/wallet/bucket-card.vue';
-import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
-import AssetCompositionChart from '@/components/wallet/asset-composition-chart.vue';
-import EmptyState from '@/components/common/empty-state.vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { formatDateValue } from '@/utils/date-range';
+import { getUsdtCnyRate } from '@shared/utils/currency';
+import type { BucketKey } from '@shared/enums/wallet';
+import type { WalletVisualFixture } from '@/components/wallet/v47-types';
+const props = defineProps<{ visualFixture?: WalletVisualFixture }>();
 
 const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 
-const recentTxns = ref<Api.RealWallet.Ledger[]>([]);
+const recentTxns = ref<Api.RealWallet.Ledger[]>(props.visualFixture?.recentTxns || []);
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
 const loading = ref(false);
@@ -27,6 +25,7 @@ const loadError = ref('');
 const requestGuard = createLatestRequestGuard();
 
 async function loadAll() {
+  if (props.visualFixture) return;
   const userId = userStore.currentUser?.id;
   if (!userId) {
     requestGuard.invalidate();
@@ -63,15 +62,76 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   loadError.value = '';
   void loadAll();
 });
+watch(() => userStore.sessionVersion, () => {
+  requestGuard.invalidate();
+  recentTxns.value = [];
+  drawerTxn.value = undefined;
+  drawerOpen.value = false;
+  void loadAll();
+});
 onBeforeUnmount(requestGuard.invalidate);
 
-import { getUsdtCnyRate } from '@shared/utils/currency';
 const cnyRate = getUsdtCnyRate();
+const account = computed(() => props.visualFixture ? props.visualFixture.account : walletStore.account);
+const totalAssets = computed(() => props.visualFixture ? props.visualFixture.totalAssets : walletStore.account ? walletStore.totalAssets : undefined);
+const today = computed(() => props.visualFixture ? props.visualFixture.today : walletStore.today);
+const showProductionDetails = computed(() => !props.visualFixture || props.visualFixture.showProductionDetails);
 const cnyEquiv = computed(() =>
-  walletStore.account ? formatAmount((Number(walletStore.account.available) * cnyRate).toFixed(2)) : '—'
+  account.value?.available === undefined ? '—' : formatAmount((Number(account.value.available) * cnyRate).toFixed(2))
 );
 
-const bucketsWithPct = computed(() => walletStore.bucketsWithPct);
+// The prototype's three overview cards do not contain all real balance buckets.
+// Keep the full production breakdown below its unchanged recent-transactions block.
+const assetBuckets = computed(() => {
+  if (!props.visualFixture) return walletStore.bucketsArray;
+  const keys: BucketKey[] = ['available', 'nonWithdrawable', 'lockedFinance', 'frozenOrder', 'frozenRisk', 'depositAvailable', 'depositGuaranteed'];
+  return keys.map(key => ({ key, ...enums.BUCKET_META[key], value: props.visualFixture!.account?.[key] }));
+});
+const bucketIcons: Record<BucketKey, string> = {
+  available: 'wallet', nonWithdrawable: 'sun', lockedFinance: 'vault',
+  frozenOrder: 'box', frozenRisk: 'shield', depositAvailable: 'wallet', depositGuaranteed: 'shield'
+};
+function goBucket(key: BucketKey) {
+  if (key === 'frozenOrder') void router.push('/order');
+  else if (key === 'lockedFinance') void router.push('/finance/my-lockups');
+  else void router.push({ name: 'wallet-history', query: { bucket: key } });
+}
+function bucketRatio(key: BucketKey, value?: string) {
+  if (value === undefined || !account.value || totalAssets.value === undefined) return;
+  const percentage = props.visualFixture
+    ? Number(totalAssets.value) > 0 ? Number(value) / Number(totalAssets.value) * 100 : Number(value) === 0 ? 0 : undefined
+    : walletStore.bucketsWithPct.find(bucket => bucket.key === key)?.pct;
+  return percentage === undefined || !Number.isFinite(percentage) ? undefined : Math.min(100, Math.max(0, percentage)).toFixed(1);
+}
+function transactionLabel(txn: Api.RealWallet.DisplayLedger) {
+  if (txn.testData) return '测试模拟到账';
+  return ('bizTypeText' in txn && txn.bizTypeText) || enums.TXN_TYPE_META[txn.type]?.label || txn.type;
+}
+function transactionIcon(txn: Api.RealWallet.DisplayLedger) {
+  const group = enums.TXN_TYPE_META[txn.type]?.group;
+  return group === 'chain' ? 'wallet' : group === 'finance' ? 'vault' : group === 'risk' || group === 'deposit' ? 'shield' : 'bag';
+}
+/** Display rounded cents without routing exact API decimals through Number(). */
+function money(value?: string | number): string {
+  if (value === undefined || value === null || value === '') return '—';
+  let text = String(value).trim();
+  const exponential = text.match(/^(-?)(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+  if (exponential) {
+    const exponent = Number(exponential[4]);
+    if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) return '—';
+    const digits = exponential[2] + (exponential[3] || '');
+    const point = exponential[2].length + exponent;
+    text = exponential[1] + (point <= 0 ? `0.${'0'.repeat(-point)}${digits}`
+      : point >= digits.length ? digits + '0'.repeat(point - digits.length) : `${digits.slice(0, point)}.${digits.slice(point)}`);
+  }
+  const match = text.match(/^(-?)(\d+)(?:\.(\d+))?$/);
+  if (!match) return '—';
+  const fraction = (match[3] || '').padEnd(3, '0');
+  let cents = BigInt(match[2]) * 100n + BigInt(fraction.slice(0, 2));
+  if (fraction[2] >= '5') cents += 1n;
+  const digits = cents.toString().padStart(3, '0');
+  return (match[1] && cents ? '-' : '') + digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + digits.slice(-2);
+}
 
 function openDetail(t: Api.RealWallet.DisplayLedger) {
   drawerTxn.value = t;
@@ -82,52 +142,45 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
 </script>
 
 <template>
-  <div class="wallet-page shop-container" :aria-busy="loading">
-    <header class="page-heading"><span class="eyebrow">YOUR WALLET</span><h1>我的钱包</h1></header>
-    <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">重新加载</Button></Alert>
-    <Alert v-if="walletStore.partialData" class="notice"><AlertDescription>钱包总额或今日收支尚未取得，请重新加载。</AlertDescription><Button variant="outline" size="sm" :disabled="loading" @click="loadAll">重新加载</Button></Alert>
-    <section class="hero">
-      <div><span class="balance-label">可用余额（USDT）</span><Skeleton v-if="loading && !walletStore.account" class="balance-loading" /><div v-else class="hero-total"><strong>{{ walletStore.account ? formatAmount(walletStore.account.available) : '—' }}</strong><span>USDT</span></div><p class="hero-sub">≈ ¥{{ cnyEquiv }}<small>本地参考折算 · 1 USDT = ¥{{ cnyRate.toFixed(2) }}（非实时，以 USDT 结算）</small></p>
-        <div class="hero-actions"><Button @click="router.push('/wallet/deposit')"><Icon icon="lucide:arrow-down-to-line" width="17" />转入 / 充值</Button><Button variant="outline" @click="router.push('/wallet/withdraw')"><Icon icon="lucide:arrow-up-from-line" width="17" />转出</Button><Button variant="ghost" @click="router.push('/wallet/history')">交易记录<Icon icon="lucide:chevron-right" width="15" /></Button></div>
-      </div>
-      <div class="wallet-decoration" aria-hidden="true"><Icon icon="lucide:wallet" width="138" /><span>U</span></div>
+  <div class="wallet-page" :aria-busy="loading">
+    <div class="page-heading compact"><h1>我的钱包</h1></div>
+    <div v-if="loadError" class="status-banner wallet-status" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
+    <div v-if="!visualFixture && walletStore.partialData" class="status-banner wallet-status" role="status"><UmIcon name="clock" /><span>钱包总额或今日收支尚未取得，请重新加载。</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
+    <section class="wallet-hero">
+      <div><span>可用余额 · USDT</span><h1>{{ money(account?.available) }}</h1><p>≈ ¥{{ cnyEquiv }} · 非实时参考折算</p></div>
+      <UmIcon name="wallet" />
+      <div class="button-row"><button class="gold" @click="router.push('/wallet/deposit')">转入 <UmIcon name="plus" /></button><button class="outline" @click="router.push('/wallet/withdraw')">转出 <UmIcon name="arrow" /></button><button @click="router.push('/wallet/history')">交易记录 ↗</button></div>
     </section>
-    <section class="wallet-stats" aria-label="钱包概况">
-      <article><span><Icon icon="lucide:lock-keyhole" width="18" />理财锁仓</span><strong>{{ walletStore.account ? formatAmount(walletStore.account.lockedFinance) : '—' }} <small>USDT</small></strong></article>
-      <article><span><Icon icon="lucide:arrow-up-right" width="18" />今日转出</span><strong>{{ walletStore.today ? formatAmount(walletStore.today.withdrawOut) : '—' }} <small>USDT</small></strong><p>今日转入 {{ walletStore.today ? formatAmount(walletStore.today.depositIn) : '—' }} USDT</p></article>
-      <article><span><Icon icon="lucide:circle-dollar-sign" width="18" />资产币种</span><strong>USDT</strong><p>资产总额 {{ walletStore.account ? formatAmount(walletStore.totalAssets) : '—' }} USDT</p></article>
+    <div class="stats-grid" aria-label="钱包概况">
+      <section class="paper"><span>锁仓余额</span><h2>{{ money(account?.lockedFinance) }} <small>USDT</small></h2></section>
+      <section class="paper"><span>今日支出</span><h2>{{ money(today?.withdrawOut) }} <small>USDT</small></h2></section>
+      <section class="paper"><span>资产币种</span><h2>USDT <small>稳定币</small></h2></section>
+    </div>
+    <section class="paper">
+      <div class="section-heading"><h2>最近交易</h2><button @click="router.push('/wallet/history')">查看全部 →</button></div>
+      <button v-for="txn in recentTxns.slice(0, 4)" :key="txn.id" type="button" class="transaction wallet-transaction" :aria-label="`${transactionLabel(txn)}，${txn.direction === 'in' ? '收入' : '支出'} ${money(txn.amount)} USDT，查看交易详情`" @click="openDetail(txn)">
+        <UmIcon :name="transactionIcon(txn)" />
+        <span class="transaction-copy"><b>{{ transactionLabel(txn) }}</b><small>{{ formatDateValue(txn.createdAt) }}</small><small v-if="showProductionDetails && txn.remark" class="ledger-caption">{{ txn.remark }}</small><small v-if="showProductionDetails && (txn.bucketFrom || txn.bucketTo)" class="ledger-caption">{{ txn.bucketFrom ? enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' : '' }}{{ txn.bucketFrom && txn.bucketTo ? ' → ' : '' }}{{ txn.bucketTo ? enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' : '' }}</small></span>
+        <b>{{ txn.direction === 'in' ? '+' : '−' }} {{ money(txn.amount) }} USDT</b>
+      </button>
+      <p v-if="!recentTxns.length" class="muted center" role="status">{{ loading ? '正在加载最近交易…' : loadError ? '最近交易暂不可用，请重新加载。' : visualFixture ? '暂无交易。完成一笔模拟余额支付后，这里会显示收支。' : '暂无交易。完成链上充值或商品消费后，这里会显示收支。' }}</p>
     </section>
-    <section class="panel"><header class="section-head"><div><span class="eyebrow">RECENT TRANSACTIONS</span><h2>最近交易</h2></div><Button variant="link" size="sm" @click="router.push('/wallet/history')">查看全部<Icon icon="lucide:arrow-up-right" width="16" /></Button></header><div v-if="loading && !recentTxns.length" class="txn-loading"><Skeleton v-for="n in 3" :key="n" class="h-20" /></div><div v-else-if="recentTxns.length" class="txn-list"><TxnRow v-for="t in recentTxns" :key="t.id" :txn="t" @detail="openDetail" /></div><EmptyState v-else icon="lucide:receipt" :title="loadError || '暂无交易'" :description="loadError ? '请稍后重试。' : '完成链上充值 / 消费后这里会显示资金动态'" :action-text="loadError ? '重新加载' : undefined" @action="loadError ? loadAll() : undefined" /></section>
-    <section class="panel"><header class="section-head"><div><span class="eyebrow">ASSET DISTRIBUTION</span><h2>资产分布</h2></div></header><div class="dist-body"><div class="dist-chart"><AssetCompositionChart v-if="walletStore.compositionReady" :breakdown="walletStore.compositionBreakdown" :total-assets="walletStore.totalAssets" :size="220" :show-legend="false" /><Skeleton v-else-if="walletStore.loading" class="chart-loading" /><p v-else>{{ walletStore.account ? '资产分布尚不完整，请重新加载' : '资产暂不可用，请重新加载' }}</p></div><div class="dist-list"><BucketCard v-for="b in bucketsWithPct" :key="b.key" :bucket-key="b.key" :amount="b.value" :pct="b.pct" variant="row" /></div></div></section>
+    <!-- v47 production supplement: real buckets and safety entry points have no complete prototype panel. -->
+    <section v-if="showProductionDetails" class="paper wallet-assets" :aria-busy="walletStore.loading">
+      <div class="section-heading"><h2>资产明细</h2><span class="wallet-total">资产总额 <b>{{ money(totalAssets) }}</b> USDT</span></div>
+      <div class="wallet-cashflow"><span>今日转入 <b>{{ money(today?.depositIn) }} USDT</b></span><span>今日转出 <b>{{ money(today?.withdrawOut) }} USDT</b></span></div>
+      <button v-for="bucket in assetBuckets" :key="bucket.key" type="button" class="transaction asset-bucket" @click="goBucket(bucket.key)"><UmIcon :name="bucketIcons[bucket.key]" /><span class="transaction-copy"><b>{{ bucket.label }}</b><small>{{ bucket.hint }}</small></span><b>{{ money(bucket.value) }} <small>USDT</small><span v-if="bucketRatio(bucket.key, bucket.value) !== undefined" class="bucket-ratio">{{ bucketRatio(bucket.key, bucket.value) }}%</span></b><UmIcon name="arrow" /></button>
+      <div v-if="!assetBuckets.length" class="empty"><UmIcon name="wallet" /><h2>{{ loading ? '正在读取资产…' : '资产暂不可用' }}</h2><p>重新加载后查看完整资产明细。</p><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
+    </section>
+    <section v-if="showProductionDetails" class="paper wallet-safety">
+      <div class="section-heading"><h2>支付安全</h2></div>
+      <div v-if="!visualFixture && userStore.currentUser?.status === '2'" class="status-banner" role="status"><UmIcon name="shield" /><span>当前账户受到限制，请核对账户状态后再操作。</span></div>
+      <div v-if="!visualFixture && userStore.currentUser?.withdrawRequiresAudit" class="status-banner" role="status"><UmIcon name="clock" /><span>转出申请需要审核，处理结果以申请记录为准。</span></div>
+      <div class="wallet-security-links"><button class="outline" @click="router.push('/kyc')"><UmIcon name="shield" />KYC 认证<UmIcon name="arrow" /></button><button class="outline" @click="router.push('/profile/pay-password')"><UmIcon name="wallet" />支付密码<UmIcon name="arrow" /></button><button class="text-link" @click="router.push('/wallet/history')">查看完整流水与导出<UmIcon name="arrow" /></button></div>
+      <p class="muted">转出申请的认证、支付密码及审核状态，可在对应操作中核对。</p>
+    </section>
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
   </div>
 </template>
 
-<style scoped>
-.wallet-page .hero { grid-template-columns: minmax(0, 1fr) 260px; background: var(--yb-brand-primary); color: var(--yb-paper); padding: 34px 40px; border: 0; border-radius: 10px; gap: 24px; }
-.balance-label { font-size: 14px; opacity: .8; }
-.wallet-page .hero-total { margin: 10px 0 4px; color: var(--yb-paper); gap: 12px; }
-.wallet-page .hero-total strong { font-family: var(--yb-font-body); font-size: 55px; font-weight: 600; line-height:1.35; letter-spacing: 0; }
-.wallet-page .hero-total span { font-size: 14px; opacity: .8; }
-.wallet-page .hero-sub { color: var(--yb-paper); opacity: .7; font-size: 13px; }
-.wallet-page .hero-sub small { font-size: 11px; }
-.wallet-page .hero-actions { justify-content: flex-start; margin-top: 24px; gap: 12px; }
-.wallet-page .hero-actions button { min-height: 48px; border-radius: 4px; }
-.wallet-page .hero-actions button:first-child { background: var(--yb-apricot); border-color: var(--yb-apricot); color: var(--yb-ink); }
-.wallet-page .hero-actions button:nth-child(2) { color: var(--yb-paper); background: transparent; border-color: rgba(255,255,255,.3); }
-.wallet-page .hero-actions button:nth-child(3) { color: var(--yb-paper); background: transparent; }
-.wallet-decoration { position: relative; display: grid; place-items: center; width: 200px; height: 150px; margin-left: auto; color: var(--yb-gold); opacity: .68; transform: rotate(-9deg); }
-.wallet-decoration span { position: absolute; font-size: 34px; font-weight: 650; top: 47px; left: 87px; }
-.wallet-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; margin-bottom: 24px; }
-.wallet-stats article { border: 1px solid var(--yb-hairline); border-radius: 8px; padding: 20px 24px; background: var(--yb-paper); }
-.wallet-stats article > span { display: flex; align-items: center; gap: 9px; color: var(--yb-muted); font-size: 14px; margin-bottom: 12px; }
-.wallet-stats article > span svg { color: var(--yb-gold); }
-.wallet-stats strong { font-size: 28px; font-weight: 650; }
-.wallet-stats strong small { color: var(--yb-muted); font-size: 12px; font-weight: 400; }
-.wallet-stats p { color: var(--yb-muted); margin: 6px 0 0; font-size: 12px; }
-.wallet-page .section-head .eyebrow { display: none; }
-.wallet-page .section-head h2 { font-size: 22px; margin: 0; }
-@media(max-width: 800px) { .wallet-page .hero { grid-template-columns: 1fr; padding: 28px; } .wallet-decoration { display: none; } .wallet-stats { grid-template-columns: 1fr; } }
-.wallet-page { padding-top:32px; padding-bottom:48px; }.page-heading { margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { font-size:28px; font-weight:650; margin:5px 0 0; }.notice { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-bottom:18px; }.hero { display:grid; grid-template-columns:1.3fr 1fr; gap:32px; align-items:center; background:var(--yb-primary-soft); border:1px solid var(--yb-hairline); border-radius:10px; padding:36px; margin-bottom:24px; }.hero-total { display:flex; align-items:baseline; gap:10px; margin:18px 0 12px; color:var(--yb-brand-primary); }.hero-total span { font-size:24px; }.hero-total strong { font-size:48px; font-weight:650; line-height:1.2; letter-spacing:-1px; overflow-wrap:anywhere; }.hero-sub { color:var(--yb-muted); font-size:14px; margin:0; }.hero-sub small { display:block; font-size:12px; margin-top:6px; }.hero-side { display:grid; justify-items:end; gap:24px; }.hero-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; }.today { display:flex; flex-wrap:wrap; gap:24px; margin:0; }.today>div { display:flex; align-items:center; gap:8px; }dt { color:var(--yb-muted); font-size:12px; }dd { margin:0; font-size:13px; font-weight:500; }.inbound { color:var(--yb-success); }.outbound { color:var(--yb-danger); }.panel { background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; padding:28px; margin-bottom:24px; }.section-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:24px; }h2 { margin:6px 0 0; font-size:22px; font-weight:600; }.dist-body { display:grid; grid-template-columns:350px minmax(0,1fr); gap:32px; align-items:center; }.dist-chart { display:flex; justify-content:center; }.dist-chart p { font-size:14px; color:var(--yb-muted); }.dist-list { border-top:1px solid var(--yb-hairline); }.balance-loading { width:280px; height:60px; margin:18px 0 12px; }.chart-loading { width:220px; height:220px; border-radius:50%; }.txn-loading { display:grid; gap:12px; }.txn-list { border-top:1px solid var(--yb-hairline); }@media(max-width:1100px) { .hero { grid-template-columns:1fr; }.hero-side { justify-items:start; }.hero-actions { justify-content:flex-start; }.dist-body { grid-template-columns:270px minmax(0,1fr); } }@media(max-width:800px) { .dist-body { grid-template-columns:1fr; }.hero,.panel { padding:24px; }.hero-total strong { font-size:40px; } }
-.dist-chart { align-self: start; min-width: 0; padding-block: 24px; }
-</style>
+<style scoped src="../../components/wallet/v47-wallet.css"></style>

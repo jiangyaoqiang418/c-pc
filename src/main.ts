@@ -1,14 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { MotionPlugin } from '@vueuse/motion';
-// 品牌字体（Inter + JetBrains Mono）
-import '@fontsource/inter/400.css';
-import '@fontsource/inter/500.css';
-import '@fontsource/inter/600.css';
-import '@fontsource/inter/700.css';
-import '@fontsource/jetbrains-mono/400.css';
-import '@fontsource/jetbrains-mono/500.css';
-import '@fontsource/jetbrains-mono/700.css';
+// v47 uses the system CJK and data font stacks from the frozen reference styles.
 import App from './App.vue';
 import BusinessDialog from './components/common/business-dialog.vue';
 import { router } from './router';

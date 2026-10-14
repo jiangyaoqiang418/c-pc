@@ -1,0 +1,272 @@
+/* Umaomao v47 content reference cascade. Unscoped preserves the original specificity.
+ * Only this component family is retained; generic native typography follows the reference.
+ */
+.tabs {
+  display: flex;
+  gap: 30px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 25px;
+  flex-shrink: 0;
+}
+.tabs button {
+  padding: 15px 2px 13px;
+  position: relative;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.tabs button:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  right: 50%;
+  height: 3px;
+  background: var(--gold);
+  transition: .25s;
+}
+.tabs button.active {
+  color: var(--green);
+  font-weight: 600;
+}
+.tabs button.active:after {
+  left: 0;
+  right: 0;
+}
+.tabs.small {
+  border: 0;
+  margin: 0;
+  gap: 21px;
+}
+.tabs.small button {
+  font-size: 12px;
+}
+@media (max-width:700px) {
+  .section-heading:has(.tabs) {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .tabs.small {
+    width: 100%;
+    gap: 27px;
+    margin-top: 0;
+  }
+  .tabs.small button {
+    padding: 7px 0 10px;
+    font-size: 11px;
+  }
+  .detail-bottom .tabs {
+    gap: 23px;
+    margin-right: -16px;
+    padding-right: 16px;
+    position: sticky;
+    top: 174px;
+    z-index: 15;
+    background: var(--bg);
+  }
+  .tabs button {
+    font-size: 11px;
+    padding: 13px 0;
+  }
+}
+:root[data-ui-theme="navy-coral"] .tabs>button.active {
+  color: var(--accent-text);
+}
+:root[data-ui-theme="navy-coral"] .tabs>button:after {
+  background: #d95b3f;
+}
+.product-content .product-nav-anchor {
+  margin-bottom: 26px;
+}
+.product-content .tabs.product-content-nav {
+  position: static;
+  top: auto;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  gap: 30px;
+  background: var(--bg);
+  z-index: 29;
+}
+.product-content .tabs.product-content-nav.is-pinned {
+  position: fixed;
+  box-shadow: 0 8px 16px -16px var(--ink);
+}
+.product-content .detail-panel {
+  animation: none;
+}
+.product-content .product-reviews-block {
+  margin-top: 42px;
+  padding-top: 30px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width:700px) {
+  .product-content .product-nav-anchor {
+    margin-bottom: 20px;
+  }
+  .product-content .tabs.product-content-nav {
+    grid-template-columns: repeat(5,minmax(0,1fr));
+    overflow: visible;
+  }
+  .product-content .product-content-nav button {
+    text-align: center;
+  }
+  .product-content .product-content-nav button:after {
+    left: 16%;
+    right: 16%;
+    opacity: 0;
+  }
+  .product-content .product-content-nav button.active:after {
+    opacity: 1;
+  }
+  .product-content .product-reviews-block {
+    margin-top: 28px;
+    padding-top: 24px;
+  }
+}
+.product-content .product-content-nav button {
+  font-size: 14px;
+  font-weight: 500;
+}
+.product-content :is(.detail-panel p,.spec-table) {
+  font-size: 15px;
+  line-height: 1.8;
+}
+.product-content .info-columns h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+@media (max-width:700px) {
+  .product-content .tabs.product-content-nav {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .product-content .product-content-nav button {
+    flex: 1 0 auto;
+    font-size: 13px;
+    line-height: 22px;
+    min-height: 46px;
+    padding: 12px 7px;
+    font-weight: 500;
+  }
+  .product-content .product-content-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .product-content :is(.detail-panel p,.spec-table) {
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  .product-content .info-columns h3 {
+    font-size: 17px;
+  }
+}
+@media (max-width:360px) {
+  .product-content .product-content-nav button {
+    padding-inline: 8px;
+  }
+}
+@media (min-width:901px) {
+  .customer-orders>.tabs {
+    margin-bottom: 16px;
+  }
+}
+:root[data-ui-theme="web3-meme"] .tabs {
+  border-color: var(--line);
+}
+:root[data-ui-theme="web3-meme"] .tabs button {
+  color: var(--muted);
+}
+:root[data-ui-theme="web3-meme"] .tabs button.active {
+  color: var(--meme-lime);
+  border-color: var(--meme-lime);
+  background: #b6f36b09;
+}
+:root[data-ui-theme="web3-meme"] .tabs button.active:after {
+  background: var(--meme-lime);
+}
+:root[data-ui-theme="web3-meme"] .product-content-nav {
+  background: #101411f5 !important;
+  backdrop-filter: blur(16px);
+  border-color: var(--line);
+}
+:root[data-ui-theme="web3-meme"] .product-content-nav button {
+  color: #9dab97;
+}
+:root[data-ui-theme="web3-meme"] .product-content-nav button.active {
+  color: var(--meme-lime);
+  border-color: var(--meme-lime);
+}
+@media (max-width:700px) {
+  :root[data-ui-theme="web3-meme"] .product-content-nav {
+    background: #0e140df5 !important;
+  }
+  :root[data-ui-theme="web3-meme"] .product-content-nav button {
+    font-size: 12px;
+  }
+}
+:root[data-ui-theme][data-ui-theme] body {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0;
+  -webkit-font-smoothing: auto;
+  text-rendering: auto;
+}
+:root[data-ui-theme][data-ui-theme] :is(button,input,select,textarea) {
+  font-family: var(--font-ui);
+}
+:root[data-ui-theme][data-ui-theme] :is(h1,h2,h3) {
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  line-height: 1.4;
+  font-weight: 700;
+}
+:root[data-ui-theme][data-ui-theme] :is(p,small) {
+  letter-spacing: 0;
+}
+:root[data-ui-theme][data-ui-theme] small {
+  font-size: 12px;
+}
+:root[data-ui-theme][data-ui-theme] :is(.primary,.gold,.outline,.text-link) {
+  font-size: 14px;
+  font-weight: 600;
+}
+:root[data-ui-theme][data-ui-theme] .product-content .product-content-nav button {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+@media (max-width:700px) {
+  :root[data-ui-theme][data-ui-theme] body {
+    font-size: 15px;
+  }
+  :root[data-ui-theme][data-ui-theme] :is(input,select,textarea) {
+    font-size: 16px;
+  }
+  :root[data-ui-theme][data-ui-theme] .product-content .product-content-nav button {
+    font-size: 14px;
+    min-height: 46px;
+    padding: 12px 8px;
+  }
+}
+:root[data-ui-theme="web3-meme"][data-ui-theme] .product-content .product-content-nav {
+  background: #111318f5;
+  border: 1px solid #363b43;
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  padding-inline: 4px;
+}
+:root[data-ui-theme="web3-meme"][data-ui-theme] .product-content-nav button.active {
+  color: #b6f36b;
+}
+@media (max-width:700px) {
+  :root[data-ui-theme="web3-meme"][data-ui-theme] .product-content .product-content-nav {
+    border-radius: 0;
+    border-inline: 0;
+  }
+}

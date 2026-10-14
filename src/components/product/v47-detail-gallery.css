@@ -1,0 +1,180 @@
+/* Umaomao v47 gallery reference cascade. Unscoped preserves the original specificity.
+ * Only this component family is retained; generic native typography follows the reference.
+ */
+.gallery {
+  position: sticky;
+  top: 175px;
+}
+.main-image {
+  aspect-ratio: 1/1;
+  width: 100%;
+  background: var(--ui-efeee5,#efeee5);
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.main-image>img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  transition: transform .6s;
+}
+.main-image:hover>img {
+  transform: scale(1.04);
+}
+.main-image>span {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  background: color-mix(in srgb,var(--ui-fffef1,#fffef1) 85.098%,transparent);
+  border-radius: 30px;
+  padding: 5px 10px;
+  font-size: 10px;
+}
+.main-image svg {
+  width: 13px;
+  height: 13px;
+}
+.thumbnails {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  align-items: center;
+}
+.thumbnails>button {
+  width: 70px;
+  height: 70px;
+  border: 2px solid transparent;
+  padding: 3px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: white;
+}
+.thumbnails>button.active {
+  border-color: var(--gold);
+}
+.thumbnails img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
+}
+.thumbnails>span {
+  font-size: 10px;
+  color: var(--ui-9aa28f,#9aa28f);
+  margin-left: auto;
+}
+.gallery-actions {
+  display: flex;
+  gap: 28px;
+  margin-top: 22px;
+}
+.gallery-actions button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+}
+.gallery-actions svg {
+  width: 17px;
+  height: 17px;
+}
+@media (max-width:960px) {
+  .product-detail .gallery {
+    top: 165px;
+  }
+  .thumbnails>span {
+    display: none;
+  }
+}
+@media (max-width:700px) {
+  .product-detail .gallery {
+    position: static;
+  }
+  .main-image {
+    aspect-ratio: 1.03/1;
+  }
+  .main-image>span {
+    font-size: 9px;
+    bottom: 12px;
+    right: 12px;
+  }
+  .thumbnails {
+    gap: 9px;
+    margin-top: 10px;
+  }
+  .thumbnails>button {
+    width: 55px;
+    height: 55px;
+  }
+  .thumbnails>span {
+    display: block;
+    font-size: 8px;
+  }
+  .gallery-actions {
+    display: none;
+  }
+}
+:root[data-ui-theme^="web3-"] .main-image {
+  background: #e6e9ed;
+}
+:root[data-ui-theme^="web3-"] .thumbnails>button {
+  background: #e6e9ed;
+}
+:root[data-ui-theme="forest"] .thumbnails>span {
+  color: var(--muted);
+}
+.product-info :is(.rating,.rating button,.rating small,.quantity-line small,.overseas-note small,.seller-card small,.gallery-actions button) {
+  font-size: 13px;
+}
+:root[data-ui-theme][data-ui-theme] body {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0;
+  -webkit-font-smoothing: auto;
+  text-rendering: auto;
+}
+:root[data-ui-theme][data-ui-theme] :is(button,input,select,textarea) {
+  font-family: var(--font-ui);
+}
+:root[data-ui-theme][data-ui-theme] :is(h1,h2,h3) {
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  line-height: 1.4;
+  font-weight: 700;
+}
+:root[data-ui-theme][data-ui-theme] :is(p,small) {
+  letter-spacing: 0;
+}
+:root[data-ui-theme][data-ui-theme] small {
+  font-size: 12px;
+}
+:root[data-ui-theme][data-ui-theme] :is(.primary,.gold,.outline,.text-link) {
+  font-size: 14px;
+  font-weight: 600;
+}
+:root[data-ui-theme][data-ui-theme] :is(.rating,.rating button,.rating small,.quantity-line small,.overseas-note small,.seller-card small,.gallery-actions button) {
+  font-size: 13px;
+}
+@media (max-width:700px) {
+  :root[data-ui-theme][data-ui-theme] body {
+    font-size: 15px;
+  }
+  :root[data-ui-theme][data-ui-theme] :is(input,select,textarea) {
+    font-size: 16px;
+  }
+}
+:root[data-ui-theme="web3-meme"][data-ui-theme] .main-image {
+  border-radius: 16px;
+  border-color: #373c45;
+  background: #ebeee6;
+}
+:root[data-ui-theme="web3-meme"][data-ui-theme] .thumbnails button {
+  border-radius: 9px;
+}
+:root[data-ui-theme="web3-meme"][data-ui-theme] .thumbnails button.active {
+  border-color: var(--meme-lime);
+  box-shadow: 0 0 0 1px var(--meme-lime);
+}

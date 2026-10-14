@@ -1,465 +1,352 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Skeleton } from '@/components/ui/skeleton';
-import EmptyState from '@/components/common/empty-state.vue';
-import { Message } from '@/lib/feedback';
+import UmIcon from '@/components/common/um-icon.vue';
 import ProductCard from '@/components/product/product-card.vue';
 import SideNav from '@/components/layout/side-nav.vue';
-import RightPanel from '@/components/layout/right-panel.vue';
-import * as realProductApi from '@/service/api/product';
+import V47Rail from '@/components/home/v47-rail.vue';
+import { useCategoryNavigation } from '@/composables/use-category-navigation';
+import { useUiTheme } from '@/composables/use-ui-theme';
+import { useUserStore, useWalletStore } from '@/stores';
+import { formatAmount } from '@shared';
+import { Message } from '@/lib/feedback';
+import * as productApi from '@/service/api/product';
+import * as orderApi from '@/service/api/order';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import digitalHeroImage from '@/assets/images/umaomao-hero.png';
-import homeHeroImage from '@/assets/images/home-hero-home.jpg';
-import lifeHeroImage from '@/assets/images/home-hero-life.jpg';
+import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
+import marketScene from '@/assets/images/v47-home/meme-market-scene.svg';
+import classicHero from '@/assets/images/v47-home/hero.png';
+import coatImage from '@/assets/images/v47-home/coat.jpg';
+import shoeImage from '@/assets/images/v47-home/shoe.jpg';
+import phoneImage from '@/assets/images/v47-home/phone.jpg';
+import coffeeImage from '@/assets/images/v47-home/coffee.jpg';
+import bagImage from '@/assets/images/v47-home/bag.jpg';
+import type { HomeVisualFixture } from '@/visual/types';
 
+const props = defineProps<{ visualFixture?: HomeVisualFixture }>();
 const router = useRouter();
-
-const hot = ref<Api.RealProduct.Record[]>([]);
-const newest = ref<Api.RealProduct.Record[]>([]);
-const flash = ref<Api.RealProduct.Record[]>([]);
-const recommendations = ref<Api.RealProduct.Record[]>([]);
-const banners = ref<Api.RealProduct.BannerDTO[]>([]);
-const flashEndAt = ref<string | number>();
-const now = ref(Date.now());
-let countdownTimer: ReturnType<typeof setInterval> | undefined;
-let heroTimer: ReturnType<typeof setTimeout> | undefined;
-let motionPreference: MediaQueryList | undefined;
-const homeStarted = ref(false);
-const heroHovered = ref(false);
-const pageVisible = ref(true);
-
+const userStore = useUserStore();
+const walletStore = useWalletStore();
+const { currentTheme } = useUiTheme();
+const categories = props.visualFixture ? computed(() => props.visualFixture!.categories) : useCategoryNavigation().categories;
+const isMeme = computed(() => String(currentTheme.value) === 'web3-meme');
+const buyerActive = computed(() => !props.visualFixture && userStore.isBuyerActive);
+const user = computed(() => props.visualFixture ? undefined : userStore.currentUser);
 type HomeSection = 'banners' | 'recommendations' | 'hot' | 'newest' | 'flash';
-const sectionErrors = reactive<Record<HomeSection, string>>({
-  banners: '',
-  recommendations: '',
-  hot: '',
-  newest: '',
-  flash: ''
-});
-const sectionLoading = reactive<Record<HomeSection, boolean>>({
-  banners: false,
-  recommendations: false,
-  hot: false,
-  newest: false,
-  flash: false
-});
-const sectionGuards: Record<HomeSection, ReturnType<typeof createLatestRequestGuard>> = {
-  banners: createLatestRequestGuard(),
-  recommendations: createLatestRequestGuard(),
-  hot: createLatestRequestGuard(),
-  newest: createLatestRequestGuard(),
-  flash: createLatestRequestGuard()
-};
-
-type HeroSlide = Api.RealProduct.BannerDTO & { showcase?: boolean };
-
-// 本地主题展示图只用于活动接口成功返回空列表的情况，不代表促销活动。
-const showcaseBanners: HeroSlide[] = [
-  { id: 'showcase-digital', image: digitalHeroImage, title: '精选科技，\n升级生活。', subtitle: '从一份灵感，到每一天的好生活。', tag: 'THE ART OF EVERYDAY', showcase: true },
-  { id: 'showcase-home', image: homeHeroImage, title: '品质家电，焕新日常', subtitle: '让每一天多一点舒适与从容', tag: '品质生活', showcase: true },
-  { id: 'showcase-life', image: lifeHeroImage, title: '生活好物，随心发现', subtitle: '从日常出发，探索更多好物', tag: '生活灵感', showcase: true }
-];
-const heroSlides = computed<HeroSlide[]>(() => {
-  if (!homeStarted.value || sectionLoading.banners || sectionErrors.banners) return [];
-  return banners.value.length ? banners.value : showcaseBanners;
-});
-const heroCurrent = ref(1);
-const heroPaused = ref(false);
-const heroFocused = ref(false);
-const reducedMotion = ref(false);
-const activeHero = computed(() => heroSlides.value[heroCurrent.value - 1]);
-const heroAutoPlay = computed(() => heroSlides.value.length > 1 && !heroPaused.value && !heroFocused.value
-  && !heroHovered.value && pageVisible.value && !reducedMotion.value);
-
-function restartHeroTimer() {
-  if (heroTimer !== undefined) window.clearTimeout(heroTimer);
-  heroTimer = undefined;
-  if (heroAutoPlay.value) heroTimer = window.setTimeout(() => moveHero(1), 5000);
-}
-watch([heroAutoPlay, heroCurrent, heroSlides], restartHeroTimer);
-function updateMotionPreference() { reducedMotion.value = !!motionPreference?.matches; }
-function updatePageVisibility() { pageVisible.value = !document.hidden; }
-
-watch(heroSlides, () => { heroCurrent.value = 1; });
-
-function moveHero(direction: number) {
-  const count = heroSlides.value.length;
-  if (count) heroCurrent.value = (heroCurrent.value - 1 + direction + count) % count + 1;
-}
-
-function onHeroFocusOut(event: FocusEvent) {
-  heroFocused.value = (event.currentTarget as HTMLElement).contains(event.relatedTarget as Node | null);
-}
-
-// 每张探索卡都对应已有路由或真实列表排序，不创建不存在的品牌频道。
-const channelCards = [
-  { title: '新品到货', subtitle: '发现刚刚上架的新商品', tag: 'NEW ARRIVALS', icon: 'lucide:sparkles', route: '/product/list?sort=NEW' },
-  { title: '人气热销', subtitle: '看看大家正在选什么', tag: 'BEST SELLERS', icon: 'lucide:trending-up', route: '/product/list?sort=SALES' },
-  { title: '精选好物', subtitle: '从真实商品中找到心头好', tag: 'DISCOVER', icon: 'lucide:shopping-bag', route: '/product/list' },
-  { title: '品类探索', subtitle: '按商品分类慢慢挑选', tag: 'CATEGORIES', icon: 'lucide:layers', route: '/category' },
-  { title: '求购大厅', subtitle: '寻找好物，也发布你的需求', tag: 'WANTED', icon: 'lucide:search', route: '/purchase/hall' },
-  { title: '我的钱包', subtitle: '查看余额、充值与资金记录', tag: 'WALLET', icon: 'lucide:wallet', route: '/wallet' }
-];
-const serviceLinks = [
-  { title: '数字支付', subtitle: 'USDT 支付与钱包管理', icon: 'lucide:wallet', route: '/wallet' },
-  { title: '全球好物', subtitle: '按真实品类发现商品', icon: 'lucide:globe', route: '/category' },
-  { title: '安心选购', subtitle: '了解平台规则与售后', icon: 'lucide:shield-check', route: '/help' },
-  { title: '沟通服务', subtitle: '查看消息与订单会话', icon: 'lucide:headphones', route: '/im' }
-];
+type FeedMode = 'curated' | 'popular' | 'new';
+const recommendations = ref<Api.RealProduct.Record[]>(props.visualFixture?.recommendations || []);
+const hot = ref<Api.RealProduct.Record[]>(props.visualFixture?.hot || []);
+const newest = ref<Api.RealProduct.Record[]>(props.visualFixture?.newest || []);
+const flash = ref<Api.RealProduct.Record[]>([]);
+const banners = ref<Api.RealProduct.BannerDTO[]>([]);
+const sectionErrors = reactive<Record<HomeSection, string>>({ banners: '', recommendations: '', hot: '', newest: '', flash: '' });
+const sectionLoading = reactive<Record<HomeSection, boolean>>({ banners: false, recommendations: false, hot: false, newest: false, flash: false });
+const sectionGuards = Object.fromEntries(['banners', 'recommendations', 'hot', 'newest', 'flash'].map(key => [key, createLatestRequestGuard()])) as Record<HomeSection, ReturnType<typeof createLatestRequestGuard>>;
+const feedMode = ref<FeedMode>('curated');
+const featuredSource = computed<HomeSection>(() => feedMode.value === 'popular' ? 'hot' : feedMode.value === 'new' ? 'newest' : 'recommendations');
+const featured = computed(() => (feedMode.value === 'popular' ? hot.value : feedMode.value === 'new' ? newest.value : recommendations.value).slice(0, 10));
+const radarModes = [{ id: 'curated', label: '买手精选' }, { id: 'popular', label: '人气好物' }, { id: 'new', label: '新发现' }] as const;
+const brandLabels = ['Apple', 'SONY', 'NIKE', 'COACH', 'OMEGA', 'BURBERRY'];
+const rankingProducts = computed(() => props.visualFixture?.rankingProducts || hot.value);
+const marketCount = computed(() => props.visualFixture ? props.visualFixture.feedRecords.length : recommendations.value.length);
 
 async function loadSection(section: HomeSection, task: (signal: AbortSignal, isCurrent: () => boolean) => Promise<void>) {
+  if (props.visualFixture) return;
   if (sectionLoading[section]) return;
   const isCurrent = sectionGuards[section].begin();
   sectionLoading[section] = true;
   sectionErrors[section] = '';
-  try {
-    await task(isCurrent.signal, isCurrent);
-  } catch {
+  try { await task(isCurrent.signal, isCurrent); }
+  catch {
     if (!isCurrent()) return;
-    clearSectionData(section);
-    sectionErrors[section] = '加载失败';
-  } finally {
-    if (isCurrent()) sectionLoading[section] = false;
-  }
+    if (section === 'banners') banners.value = [];
+    else if (section === 'recommendations') recommendations.value = [];
+    else if (section === 'hot') hot.value = [];
+    else if (section === 'newest') newest.value = [];
+    else flash.value = [];
+    sectionErrors[section] = '加载失败，请重试';
+  } finally { if (isCurrent()) sectionLoading[section] = false; }
 }
-
-function clearSectionData(section: HomeSection) {
-  if (section === 'banners') {
-    banners.value = [];
-    return;
-  }
-  if (section === 'recommendations') {
-    recommendations.value = [];
-    return;
-  }
-  if (section === 'hot') {
-    hot.value = [];
-    return;
-  }
-  if (section === 'newest') {
-    newest.value = [];
-    return;
-  }
-  flash.value = [];
-  flashEndAt.value = undefined;
-}
-
 const sectionLoaders: Record<HomeSection, () => Promise<void>> = {
+  // 保留运营供数；v47 固定主视觉为品牌设计，不用任意 Banner 覆盖冻结的文案和素材。
   banners: () => loadSection('banners', async (signal, isCurrent) => {
-    const value = await realProductApi.fetchHomeBanners({ signal });
-    if (isCurrent()) banners.value = value;
+    const result = await productApi.fetchHomeBanners({ signal });
+    if (isCurrent()) banners.value = result;
   }),
   recommendations: () => loadSection('recommendations', async (signal, isCurrent) => {
-    const value = await realProductApi.fetchHomeRecommendations(20, { signal });
-    if (isCurrent()) recommendations.value = value;
+    const revision = feedRevision;
+    const result = await productApi.fetchHomeRecommendations(20, { signal });
+    if (!isCurrent()) return;
+    recommendations.value = result;
+    if (homeCategory.value === '' && revision === feedRevision) {
+      feedRecords.value = result;
+      recommendationLimit.value = 20;
+      feedExhausted.value = result.length < 20;
+      feedError.value = '';
+    }
   }),
   hot: () => loadSection('hot', async (signal, isCurrent) => {
-    const value = await realProductApi.fetchBestSellers(20, { signal });
-    if (isCurrent()) hot.value = value;
+    const result = await productApi.fetchBestSellers(20, { signal });
+    if (isCurrent()) hot.value = result;
   }),
   newest: () => loadSection('newest', async (signal, isCurrent) => {
-    const value = await realProductApi.fetchNewArrivals(20, { signal });
-    if (isCurrent()) newest.value = value;
+    const result = await productApi.fetchNewArrivals(20, { signal });
+    if (isCurrent()) newest.value = result;
   }),
   flash: () => loadSection('flash', async (signal, isCurrent) => {
-    const result = await realProductApi.fetchFlashSale(20, { signal });
-    if (!isCurrent()) return;
-    flash.value = result.map(item => item.product);
-    flashEndAt.value = result.find(item => item.sessionEndTime)?.sessionEndTime;
+    const result = await productApi.fetchFlashSale(20, { signal });
+    if (isCurrent()) flash.value = result.map(item => item.product);
   })
 };
 
-function loadAllSections() {
-  return Promise.all(Object.values(sectionLoaders).map(load => load()));
+const hero = ref(0);
+const heroElement = ref<HTMLElement>();
+const heroImages = [classicHero, coatImage, shoeImage];
+const heroCategories = ['手机数码', '服饰箱包', '运动生活'];
+let heroGesture: { id: number; x: number; y: number; dragged: boolean } | undefined;
+const heroDragging = ref(false);
+let blockHeroClickUntil = 0;
+function moveHero(direction: number) { hero.value = (hero.value + direction + 3) % 3; }
+function startHeroGesture(event: PointerEvent) {
+  if (event.button !== 0 || (event.target as HTMLElement).closest('input,textarea,select,.edge-scroll-button')) return;
+  heroGesture = { id: event.pointerId, x: event.clientX, y: event.clientY, dragged: false };
 }
-
-const failedProductSections = computed(() => [
-  ['recommendations', '推荐'],
-  ['hot', '热销榜'],
-  ['newest', '新品'],
-  ['flash', '秒杀']
-].filter(([key]) => sectionErrors[key as HomeSection]).map(([, label]) => label));
-
-function retryProductSections() {
-  failedProductSections.value.forEach(label => {
-    const section = ({ 推荐: 'recommendations', 热销榜: 'hot', 新品: 'newest', 秒杀: 'flash' } as const)[label as '推荐' | '热销榜' | '新品' | '秒杀'];
-    void sectionLoaders[section]();
-  });
+function moveHeroGesture(event: PointerEvent) {
+  if (!heroGesture || heroGesture.id !== event.pointerId) return;
+  const dx = event.clientX - heroGesture.x;
+  const dy = event.clientY - heroGesture.y;
+  if (!heroGesture.dragged) {
+    if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) { heroGesture = undefined; return; }
+    if (Math.abs(dx) < 8) return;
+    heroGesture.dragged = true;
+    heroDragging.value = true;
+    window.getSelection()?.removeAllRanges();
+    heroElement.value?.setPointerCapture(event.pointerId);
+  }
+  event.preventDefault();
 }
+function finishHeroGesture(event: PointerEvent) {
+  if (!heroGesture || heroGesture.id !== event.pointerId) return;
+  const gesture = heroGesture;
+  heroGesture = undefined;
+  if (gesture.dragged) {
+    blockHeroClickUntil = performance.now() + 350;
+    if (event.type === 'pointerup' && Math.abs(event.clientX - gesture.x) > 35) moveHero(event.clientX < gesture.x ? 1 : -1);
+    if (heroElement.value?.hasPointerCapture(event.pointerId)) heroElement.value.releasePointerCapture(event.pointerId);
+  }
+  heroDragging.value = false;
+}
+function guardHeroClick(event: MouseEvent) {
+  if (event.isTrusted && performance.now() < blockHeroClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); }
+}
+function go(path: string) { void router.push(path); }
+function browseCategory(name: string) {
+  const category = categories.value.find(item => item.name === name);
+  if (!category) { Message.info('该分类暂未提供商品'); return; }
+  void router.push({ name: 'product-list', query: { categoryId: category.id } });
+}
+function openProduct(product: Api.RealProduct.Record) { void router.push({ name: 'product-detail', params: { id: String(product.id) } }); }
+function displayPrice(value: string) {
+  const match = value.trim().match(/^(-?)(\d+)(?:\.(\d+))?$/);
+  if (!match) return '—';
+  const fraction = match[3]?.replace(/0+$/, '');
+  return match[1] + match[2].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (fraction ? '.' + fraction : '');
+}
+function rankingCaption(product: Api.RealProduct.Record, index: number) {
+  return props.visualFixture ? ['声音里的小世界', '每一步，都有态度', '性能与美感兼得'][index] : product.summary || product.categoryPath;
+}
+function openBrand() { go('/brand'); }
+function goProductList(sort: productApi.StorefrontSort = 'DEFAULT') { void router.push({ name: 'product-list', query: { sort: sort === 'DEFAULT' ? undefined : sort } }); }
+function switchRole(role: 'customer' | 'buyer') {
+  if (props.visualFixture) return;
+  if (role === 'buyer' && !userStore.canSwitchToBuyer) {
+    go(user.value ? '/buyer/apply' : '/auth/login?redirect=%2Fbuyer%2Fapply');
+    return;
+  }
+  userStore.setAudience(role);
+}
+function login() { void router.push({ name: 'login', query: { redirect: '/' } }); }
+function ignoreVisualFavorite() { /* The independent visual entry must never submit a favorite. */ }
 
+const accountGuard = createLatestRequestGuard();
+const orderCounts = ref<Record<string, number>>({});
+const favoriteCount = ref<number>();
+const orderError = ref('');
+const walletError = ref(false);
+async function loadAccount() {
+  if (props.visualFixture) return;
+  const isCurrent = accountGuard.begin();
+  const userId = user.value?.id;
+  orderCounts.value = {};
+  favoriteCount.value = undefined;
+  orderError.value = '';
+  walletError.value = false;
+  if (userId === undefined) return;
+  await Promise.allSettled([
+    (async () => { try { await walletStore.fetchWallet(userId); } catch { if (isCurrent()) walletError.value = true; } })(),
+    (async () => {
+      if (buyerActive.value) return;
+      try {
+        const result = await orderApi.countMyOrdersByStatus({ signal: isCurrent.signal });
+        if (isCurrent() && String(user.value?.id) === String(userId)) orderCounts.value = result;
+      } catch { if (isCurrent()) orderError.value = '订单统计加载失败'; }
+    })(),
+    (async () => {
+      if (buyerActive.value) return;
+      try {
+        const result = await productApi.fetchMyFavorites({ size: 1, signal: isCurrent.signal });
+        if (isCurrent() && String(user.value?.id) === String(userId)) favoriteCount.value = result.total;
+      } catch { /* 未知收藏数保持空值，不以 0 替代加载失败。 */ }
+    })()
+  ]);
+}
+function orderCount(...statuses: string[]) {
+  const values = statuses.map(status => orderCounts.value[status]);
+  return values.some(value => value === undefined || !Number.isFinite(value) || value < 0) ? '—' : values.reduce((sum, value) => sum + value, 0);
+}
+const availableBalance = computed(() => walletError.value || walletStore.loading || !walletStore.account ? '—' : formatAmount(walletStore.account.available));
+
+const homeCategory = ref('');
+const feedRecords = ref<Api.RealProduct.Record[]>(props.visualFixture?.feedRecords || []);
+const feedLimit = ref(20);
+const recommendationLimit = ref(20);
+const feedTotal = ref<number>();
+const feedPage = ref(1);
+const feedLoading = ref(false);
+const feedError = ref('');
+const feedExhausted = ref(!!props.visualFixture);
+const feedGuard = createLatestRequestGuard();
+const feedRoot = ref<HTMLElement>();
+const feedSentinel = ref<HTMLElement>();
+let feedObserver: IntersectionObserver | undefined;
+let disposed = false;
+let feedRevision = 0;
+const visibleFeed = computed(() => feedRecords.value.slice(0, feedLimit.value));
+const hasMoreFeed = computed(() => feedLimit.value < feedRecords.value.length || !feedExhausted.value);
+const recommendationsLoading = computed(() => feedLoading.value || (homeCategory.value === '' && sectionLoading.recommendations));
+const recommendationCount = computed(() => feedTotal.value ?? feedRecords.value.length);
+async function loadFeed(reset = false) {
+  if (props.visualFixture) {
+    const selectedIds = new Set<string>();
+    const collectIds = (nodes: readonly Api.RealCategory.DisplayCategoryNode[]) => nodes.forEach(node => {
+      selectedIds.add(node.id);
+      if (node.children) collectIds(node.children);
+    });
+    const selectedCategory = props.visualFixture.categories.find(category => category.id === homeCategory.value);
+    if (selectedCategory) collectIds([selectedCategory]);
+    feedRecords.value = homeCategory.value ? props.visualFixture.feedRecords.filter(product => selectedIds.has(String(product.categoryId))) : props.visualFixture.feedRecords;
+    feedTotal.value = feedRecords.value.length;
+    feedLimit.value = 20;
+    feedExhausted.value = true;
+    return;
+  }
+  if (feedLoading.value && !reset) return;
+  const isCurrent = feedGuard.begin();
+  const categoryId = homeCategory.value;
+  feedLoading.value = true;
+  feedError.value = '';
+  if (reset) {
+    feedRecords.value = [];
+    feedPage.value = 1;
+    feedTotal.value = undefined;
+    feedLimit.value = 20;
+    feedExhausted.value = false;
+  }
+  try {
+    if (!categoryId) {
+      const limit = reset ? 20 : recommendationLimit.value + 10;
+      const result = await productApi.fetchHomeRecommendations(limit, { signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      feedRecords.value = result;
+      recommendationLimit.value = limit;
+      feedExhausted.value = result.length < limit;
+    } else {
+      const pageNo = reset ? 1 : feedPage.value + 1;
+      const result = await productApi.fetchStorefrontProducts({ current: pageNo, size: 20, categoryId, sort: 'DEFAULT', signal: isCurrent.signal });
+      if (!isCurrent()) return;
+      const merged = reset ? result.records : [...feedRecords.value, ...result.records];
+      feedRecords.value = [...new Map(merged.map(product => [String(product.id), product])).values()];
+      feedPage.value = pageNo;
+      feedTotal.value = result.total;
+      feedExhausted.value = feedRecords.value.length >= result.total || !result.records.length;
+    }
+  } catch { if (isCurrent()) feedError.value = '推荐商品加载失败，请重试'; }
+  finally { if (isCurrent()) feedLoading.value = false; }
+}
+async function loadMoreFeed() {
+  if (disposed || recommendationsLoading.value || feedError.value || !hasMoreFeed.value) return;
+  const currentCategory = homeCategory.value;
+  const revision = feedRevision;
+  if (feedLimit.value >= feedRecords.value.length) await loadFeed();
+  if (disposed || revision !== feedRevision || currentCategory !== homeCategory.value || feedError.value) return;
+  feedLimit.value = Math.min(feedLimit.value + 10, feedRecords.value.length);
+  await nextTick();
+  observeFeed();
+}
+function observeFeed() {
+  feedObserver?.disconnect();
+  if (!disposed && feedSentinel.value && hasMoreFeed.value && !feedError.value) feedObserver?.observe(feedSentinel.value);
+}
+watch(homeCategory, async () => {
+  feedRevision += 1;
+  feedObserver?.disconnect();
+  if (feedRoot.value && feedRoot.value.getBoundingClientRect().top < 120) feedRoot.value.scrollIntoView({ block: 'start', behavior: 'instant' });
+  await loadFeed(true);
+  await nextTick();
+  observeFeed();
+});
+watch([recommendationsLoading, hasMoreFeed, feedError], async () => { await nextTick(); observeFeed(); });
+watch([() => user.value?.id, buyerActive, () => userStore.sessionVersion], loadAccount);
 onMounted(() => {
-  homeStarted.value = true;
-  motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
-  updateMotionPreference();
-  updatePageVisibility();
-  motionPreference.addEventListener('change', updateMotionPreference);
-  document.addEventListener('visibilitychange', updatePageVisibility);
-  void loadAllSections();
-
-  countdownTimer = window.setInterval(() => {
-    now.value = Date.now();
-  }, 1000);
+  if (!props.visualFixture) {
+    void Promise.all(Object.values(sectionLoaders).map(load => load()));
+    void loadAccount();
+  }
+  if ('IntersectionObserver' in window) feedObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting)) void loadMoreFeed();
+  }, { rootMargin: '0px 0px 480px 0px' });
+  observeFeed();
 });
-
 onUnmounted(() => {
+  disposed = true;
   Object.values(sectionGuards).forEach(guard => guard.invalidate());
-  if (countdownTimer) window.clearInterval(countdownTimer);
-  if (heroTimer !== undefined) window.clearTimeout(heroTimer);
-  motionPreference?.removeEventListener('change', updateMotionPreference);
-  document.removeEventListener('visibilitychange', updatePageVisibility);
+  accountGuard.invalidate();
+  feedGuard.invalidate();
+  feedObserver?.disconnect();
 });
-
-const buyersPick = computed(() => recommendations.value.slice(0, 5));
-const flashCountdown = computed(() => {
-  if (!flashEndAt.value) return '进行中';
-  const raw = flashEndAt.value;
-  const endAt = typeof raw === 'number'
-    ? raw
-    : /^\d+$/.test(raw)
-      ? Number(raw)
-      : Date.parse(raw);
-  if (!Number.isFinite(endAt)) return '时间待确认';
-  const seconds = Math.max(0, Math.floor((endAt - now.value) / 1000));
-  return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60]
-    .map(value => String(value).padStart(2, '0'))
-    .join(':');
-});
-
-function goBanner(path?: string) {
-  if (!path) return;
-  const productDetail = path.match(/^\/product\/([^/?#]+)$/);
-  if (productDetail) {
-    router.push({ name: 'product-detail', params: { id: productDetail[1] } });
-    return;
-  }
-  if (/^https?:\/\//.test(path)) {
-    window.location.assign(path);
-    return;
-  }
-  Message.info('活动页面暂未开放');
-}
-
-function goProductList(sort: realProductApi.StorefrontSort = 'DEFAULT') {
-  router.push({ name: 'product-list', query: { sort: sort === 'DEFAULT' ? undefined : sort } });
-}
-
-const productLoading = computed(() => sectionLoading.recommendations || sectionLoading.hot || sectionLoading.newest || sectionLoading.flash);
-const hasProducts = computed(() => !!(hot.value.length || newest.value.length || flash.value.length || recommendations.value.length));
-const productSections = computed(() => [
-  { key: 'pick', source: 'recommendations', title: '今日值得逛', eyebrow: 'CURATED FOR YOU', records: buyersPick.value, sort: 'DEFAULT' },
-  { key: 'flash', source: 'flash', title: '限时秒杀', eyebrow: 'LIMITED TIME', records: flash.value.slice(0, 5), sort: 'DEFAULT' },
-  { key: 'hot', source: 'hot', title: '人气热销', eyebrow: 'BEST SELLERS', records: hot.value.slice(0, 10), sort: 'SALES' },
-  { key: 'newest', source: 'newest', title: '新品到货', eyebrow: 'NEW ARRIVALS', records: newest.value.slice(0, 10), sort: 'NEW' },
-  { key: 'recommendations', source: 'recommendations', title: '为你推荐', eyebrow: 'MORE TO DISCOVER', records: recommendations.value, sort: 'DEFAULT' }
-] satisfies { key: string; source: Exclude<HomeSection, 'banners'>; title: string; eyebrow: string; records: Api.RealProduct.Record[]; sort: realProductApi.StorefrontSort }[]);
 </script>
 
 <template>
-  <div class="home-page">
-    <section class="hero-band" aria-label="分类、精选活动与账户入口">
-      <SideNav class="hb-left" />
-      <div class="hb-center">
-        <div
-          v-if="activeHero"
-          class="hero-stage"
-          role="region"
-          aria-roledescription="轮播"
-          aria-label="首页精选"
-          :aria-live="heroAutoPlay ? 'off' : 'polite'"
-          @mouseenter="heroHovered = true"
-          @mouseleave="heroHovered = false"
-          @focusin="heroFocused = true"
-          @focusout="onHeroFocusOut"
-        >
-          <Transition name="hero-fade">
-            <div
-              v-if="activeHero"
-              :key="activeHero.id"
-              class="hero-single"
-              :class="{ 'hero-showcase': activeHero.showcase, 'hero-digital': activeHero.id === 'showcase-digital' }"
-              :style="{ backgroundImage: `url(${activeHero.image})` }"
-              :role="activeHero.pathTo ? 'link' : undefined"
-              :tabindex="activeHero.pathTo ? 0 : undefined"
-              :aria-label="activeHero.pathTo ? `查看活动：${activeHero.title}` : undefined"
-              @click="goBanner(activeHero.pathTo)"
-              @keydown.enter.self="goBanner(activeHero.pathTo)"
-              @keydown.space.self.prevent="goBanner(activeHero.pathTo)"
-            >
-              <div class="hero-overlay" />
-              <div class="hero-content">
-                <span v-if="activeHero.tag" class="hero-tag">{{ activeHero.tag }}</span>
-                <h1>{{ activeHero.title }}</h1>
-                <p v-if="activeHero.subtitle">{{ activeHero.subtitle }}</p>
-                <button v-if="activeHero.showcase" class="hero-cta" @click.stop="goProductList()">
-                  {{ activeHero.id === 'showcase-digital' ? '探索本期精选' : '浏览商品' }} <Icon icon="lucide:arrow-right" width="16" />
-                </button>
-                <button v-else-if="activeHero.pathTo" class="hero-cta" @click.stop="goBanner(activeHero.pathTo)">
-                  立即查看 <Icon icon="lucide:arrow-right" width="16" />
-                </button>
-              </div>
-            </div>
-          </Transition>
-          <div v-if="heroSlides.length > 1" class="hero-controls">
-            <button class="hero-control" aria-label="上一张" @click="moveHero(-1)"><Icon icon="lucide:chevron-left" width="16" /></button>
-            <div class="hero-dots">
-              <button v-for="(slide, index) in heroSlides" :key="slide.id" class="hero-dot" :class="{ active: heroCurrent === index + 1 }" :aria-label="`第 ${index + 1} 张：${slide.title}`" :aria-current="heroCurrent === index + 1 ? 'true' : undefined" @click="heroCurrent = index + 1"><span /></button>
-            </div>
-            <button class="hero-control" aria-label="下一张" @click="moveHero(1)"><Icon icon="lucide:chevron-right" width="16" /></button>
-            <button v-if="!reducedMotion" class="hero-control" :aria-label="heroPaused ? '播放轮播' : '暂停轮播'" :aria-pressed="heroPaused" @click="heroPaused = !heroPaused">
-              <Icon :icon="heroPaused ? 'lucide:play' : 'lucide:pause'" width="14" />
-            </button>
-          </div>
-        </div>
-        <div v-else class="hero-unavailable" :aria-busy="sectionLoading.banners || !homeStarted">
-          <Icon icon="lucide:image" width="32" aria-hidden="true" />
-          <h2>{{ !homeStarted || sectionLoading.banners ? '正在加载首页活动…' : '首页活动加载失败' }}</h2>
-          <p>下方商品栏目可独立浏览</p>
-          <Button v-if="sectionErrors.banners" variant="outline" size="sm" :disabled="sectionLoading.banners" @click="sectionLoaders.banners">重新加载</Button>
-        </div>
-      </div>
-      <RightPanel class="hb-right" />
-    </section>
-
-    <nav class="service-band" aria-label="平台服务">
-      <RouterLink v-for="service in serviceLinks" :key="service.route" :to="service.route" class="service-link">
-        <Icon :icon="service.icon" width="28" />
-        <div><strong>{{ service.title }}</strong><span>{{ service.subtitle }}</span></div>
-      </RouterLink>
-    </nav>
-
-    <Alert v-if="failedProductSections.length" variant="destructive" class="home-error">
-      <Icon icon="lucide:circle-alert" width="18" />
-      <AlertDescription class="home-error-content">
-        <span>{{ failedProductSections.join('、') }}加载失败，请稍后重试。</span>
-        <Button variant="outline" size="sm" @click="retryProductSections">重新加载</Button>
-      </AlertDescription>
-    </Alert>
-
-    <section class="channel-section" aria-labelledby="discovery-heading">
-      <header class="section-heading"><div><span class="eyebrow">FIND YOUR NEXT FAVORITE</span><h2 id="discovery-heading">随心发现</h2></div></header>
-      <div class="channel-grid">
-        <RouterLink v-for="channel in channelCards" :key="channel.route" :to="channel.route" class="channel-card">
-          <div><span class="channel-tag">{{ channel.tag }}</span><h3>{{ channel.title }}</h3><p>{{ channel.subtitle }}</p></div>
-          <Icon :icon="channel.icon" width="32" class="channel-icon" />
-          <Icon icon="lucide:arrow-up-right" width="16" class="channel-arrow" />
-        </RouterLink>
-      </div>
-    </section>
-
-    <template v-for="section in productSections" :key="section.key">
-      <section v-if="section.records.length || sectionLoading[section.source] || sectionErrors[section.source]" class="product-section" :aria-label="section.title" :aria-busy="sectionLoading[section.source]">
-        <header class="section-heading">
-          <div><span class="eyebrow">{{ section.eyebrow }}</span><h2>{{ section.title }}</h2></div>
-          <span v-if="section.key === 'flash' && flash.length" class="countdown"><Icon icon="lucide:clock" width="14" />{{ flashEndAt ? '距结束' : '' }} {{ flashCountdown }}</span>
-          <Button variant="ghost" size="sm" class="section-more" @click="goProductList(section.sort)">浏览全部商品 <Icon icon="lucide:arrow-right" width="16" /></Button>
-        </header>
-        <div v-if="sectionLoading[section.source] && !section.records.length" class="home-products" aria-hidden="true">
-          <div v-for="index in 5" :key="index" class="home-skeleton"><Skeleton class="aspect-square w-full" /><Skeleton class="mt-4 h-4 w-3/4" /><Skeleton class="mt-4 h-6 w-1/2" /></div>
-        </div>
-        <div v-else-if="section.records.length" class="home-products">
-          <ProductCard v-for="product in section.records" :key="product.id" :product="product" variant="home" />
-        </div>
-        <EmptyState v-else :title="`${section.title}加载失败`" description="请检查网络后重新加载。" action-text="重新加载" @action="sectionLoaders[section.source]" />
+  <div class="home-page home-main">
+    <div v-if="isMeme" class="meme-market-heading"><div><span class="meme-dot" /><b>好物发现</b><span>THE GOOD STUFF MARKET</span><small class="meme-market-count">{{ marketCount }} 件好物</small></div><button @click="go('/finance')"><UmIcon name="vault" />小金库<UmIcon name="arrow" /></button></div>
+    <div class="home-hero-layout">
+      <SideNav mode="home" />
+      <section ref="heroElement" class="hero" :class="[`slide-${hero}`, { 'meme-hero': isMeme, 'is-dragging': heroDragging }]" aria-label="首页精选主视觉" @pointerdown="startHeroGesture" @pointermove="moveHeroGesture" @pointerup="finishHeroGesture" @pointercancel="finishHeroGesture" @lostpointercapture="finishHeroGesture" @click.capture="guardHeroClick" @dragstart.prevent>
+        <template v-if="isMeme"><div class="meme-hero-grid" aria-hidden="true" /><span class="meme-hero-type" aria-hidden="true">GOOD<br>FINDS.</span><span class="meme-hero-index">UM / DROP 00{{ hero + 1 }}</span><div :key="hero" class="hero-content"><span class="eyebrow"><i class="meme-dot" />{{ ['GOOD FINDS. NO BORING STUFF.', 'YOUR NEXT COLLECTIBLE.', 'GET OUT. STAND OUT.'][hero] }}</span><h1>{{ ['有 U，', '好品味，', '不跟风，'][hero] }}<br><em>{{ ['就有好物。', '值得收藏。', '只跟热爱。'][hero] }}</em></h1><p>{{ ['把链上的 U，变成生活里的酷东西。', '从全球买手手中，发现你的下一件珍藏。', '数码、穿搭、生活好物，一起解锁。'][hero] }}</p><button class="gold" @click="browseCategory(heroCategories[hero])"><span>发现好物</span><UmIcon name="arrow" /></button></div><div class="meme-hero-art" aria-hidden="true"><img :src="marketScene" alt=""></div></template>
+        <template v-else><img class="hero-photo" :src="heroImages[hero]" alt="精选手机、笔记本与咖啡机"><div :key="hero" class="hero-content"><span class="eyebrow">{{ ['THE ART OF EVERYDAY', 'THE AUTUMN EDIT', 'MOVE YOUR EVERYDAY'][hero] }}</span><h1>{{ ['精选科技，', '经典风格，', '自在运动，'][hero] }}<br>{{ ['升级生活。', '融入日常。', '随心出发。'][hero] }}</h1><p>{{ ['从一份灵感，到每一天的好生活。', '在时光里，找到属于自己的从容。', '把热爱穿在身上，让日常充满能量。'][hero] }}</p><button class="gold" @click="browseCategory(heroCategories[hero])"><span class="hero-cta-desktop">探索本期精选</span><span class="hero-cta-mobile">去逛逛</span><UmIcon name="arrow" /></button><span class="hero-caption">全球好物 · 买手甄选 · USDT 结算</span></div></template>
+        <div class="hero-controls"><div><button v-for="i in 3" :key="i" :class="{ active: hero === i - 1 }" :aria-label="`切换第 ${i} 张主视觉`" :aria-pressed="hero === i - 1" @click="hero = i - 1" /></div><span>{{ isMeme ? 'GLOBAL FINDS / REAL LIFE' : `0${hero + 1}` }} <em>{{ isMeme ? `0${hero + 1} / 03` : '/ 03' }}</em></span></div><button class="edge-scroll-button edge-scroll-prev hero-edge-prev" aria-label="上一张主视觉" @click="moveHero(-1)"><UmIcon name="chevron" /></button><button class="edge-scroll-button edge-scroll-next hero-edge-next" aria-label="下一张主视觉" @click="moveHero(1)"><UmIcon name="chevron" /></button>
       </section>
-    </template>
-    <EmptyState v-if="homeStarted && !productLoading && !hasProducts && !failedProductSections.length" title="暂时没有可展示的商品" description="可查看全部商品或稍后再来。" action-text="浏览商品" @action="goProductList()" />
+      <aside class="home-account" aria-label="账户与身份切换">
+        <div class="account-welcome"><span class="account-avatar"><UmIcon name="user" /><i v-if="user" /></span><div><small>{{ user ? '很高兴又见到你' : '欢迎来到 Umaomao' }}</small><h3>{{ user ? userStore.displayName : isMeme ? 'GM，来点好东西' : '发现好物，悦享生活' }}</h3></div></div>
+        <div class="role-switch" role="group" aria-label="切换账户视角"><span :class="{ buyer: buyerActive }" /><button :aria-pressed="!buyerActive" @click="switchRole('customer')">顾客</button><button :aria-pressed="buyerActive" @click="switchRole('buyer')">买手<UmIcon name="arrow" /></button></div>
+        <template v-if="user"><div class="account-balance"><span>{{ buyerActive ? '买手工作台' : '我的可用余额' }}<small>{{ buyerActive ? 'BUYER' : 'USDT' }}</small></span><strong>{{ buyerActive ? '好物，由你精选' : availableBalance }}</strong><button @click="go(buyerActive ? '/buyer/wallet' : '/wallet')">{{ buyerActive ? '查看买手钱包' : '查看钱包' }}<UmIcon :name="buyerActive ? 'arrow' : 'plus'" /></button></div><div v-if="!buyerActive" class="account-shortcuts"><button @click="go('/order?tab=pending')"><b>{{ orderCount('PENDING_PAYMENT') }}</b>待付款</button><button @click="go('/order?tab=receiving')"><b>{{ orderCount('IN_TRANSIT', 'AFTERSALE_CONFIRM') }}</b>待收货</button><button @click="go('/favorites')"><b>{{ favoriteCount ?? '—' }}</b>收藏夹</button></div><div v-else class="account-shortcuts"><button @click="go('/buyer/products')"><UmIcon name="bag" />商品</button><button @click="go('/buyer/orders')"><UmIcon name="box" />订单</button><button @click="go('/buyer/claimable')"><UmIcon name="search" />接单</button></div><button v-if="orderError" class="account-retry" @click="loadAccount">{{ orderError }}，重新加载</button><button class="primary full account-enter" @click="go(buyerActive ? '/buyer/dashboard' : '/profile')">{{ buyerActive ? '进入买手中心' : '进入个人中心' }}<UmIcon name="arrow" /></button></template>
+        <template v-else><p class="account-intro">收藏你的心动，<br>让每一份期待都有回响。</p><div class="account-auth"><button class="primary" @click="login">登录</button><button class="outline" @click="go('/auth/register')">注册</button></div><div class="account-shortcuts"><button @click="go('/order')"><UmIcon name="box" />我的订单</button><button @click="go('/favorites')"><UmIcon name="heart" />我的收藏</button><button @click="go('/help')"><UmIcon name="headset" />帮助中心</button></div></template>
+        <button class="account-discover" @click="go(buyerActive ? '/buyer/products/create' : '/purchase/create')"><span><small>{{ buyerActive ? 'CURATE & SHARE' : 'FIND YOUR FAVORITE' }}</small><b>{{ buyerActive ? '发布你的精选好物' : '心仪好物，让买手帮你找' }}</b></span><UmIcon name="arrow" /></button>
+      </aside>
+      <section v-for="(group, index) in [{ title: '数码精选', tag: '科技好物' }, { title: '品质日常', tag: '悦享生活' }, { title: '人气推荐', tag: '买手甄选' }]" :key="group.title" class="home-discovery-cell" :aria-label="group.title"><div class="discovery-cell-heading"><h2>{{ group.title }}</h2><span>{{ group.tag }}</span></div><div class="discovery-cell-products"><button v-for="product in (index === 2 ? hot : recommendations).slice(index * 2, index * 2 + 2)" :key="product.id" class="discovery-product" @click="openProduct(product)"><span class="discovery-product-image"><img :src="product.images[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="product.title" @error="setImageFallback"></span><span class="discovery-product-name">{{ product.title }}</span><strong>{{ displayPrice(product.price) }}<small>USDT</small></strong></button></div></section>
+    </div>
+    <div class="trust-strip"><button @click="go('/help?topic=pay')"><UmIcon name="wallet" /><span>数字支付<small>USDT，轻松结算</small></span></button><button @click="go('/help?topic=delivery')"><UmIcon name="truck" /><span>全球好物<small>品质买手，为你精选</small></span></button><button @click="go('/help?topic=return')"><UmIcon name="shield" /><span>安心选购<small>售后规则，清晰透明</small></span></button><button @click="go('/im')"><UmIcon name="headset" /><span>专属服务<small>每一份期待，都被照顾</small></span></button></div>
+    <section class="section home-featured" :aria-busy="sectionLoading[featuredSource]"><div class="section-heading"><h2><template v-if="isMeme"><UmIcon name="fire" />好物雷达<small>THE PICKS</small></template><template v-else>热门好物</template></h2><div v-if="isMeme" class="meme-market-tabs" role="group" aria-label="好物雷达筛选"><button v-for="mode in radarModes" :key="mode.id" :aria-pressed="feedMode === mode.id" @click="feedMode = mode.id">{{ mode.label }}</button></div><button class="text-link" @click="goProductList()">全部商品<UmIcon name="arrow" /></button></div><div v-if="featured.length" class="product-grid featured-grid"><ProductCard v-for="product in featured" :key="product.id"  :product="product" variant="home" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div><div v-else class="empty home-section-state"><UmIcon :name="sectionLoading[featuredSource] ? 'clock' : 'bag'" /><h2>{{ sectionLoading[featuredSource] ? '正在发现好物…' : sectionErrors[featuredSource] ? '好物加载失败' : '暂无好物' }}</h2><button v-if="sectionErrors[featuredSource]" class="outline" @click="sectionLoaders[featuredSource]()">重新加载</button></div></section>
+    <section class="section"><div class="section-heading"><div><span class="eyebrow">CURATED FOR YOU</span><h2>{{ isMeme ? '你的风格，你说了算' : '把喜欢，融入日常' }}<span>{{ isMeme ? 'CURATED COLLECTIONS' : '值得探索的生活灵感' }}</span></h2></div><button class="text-link" @click="go('/category')">发现全部<UmIcon name="arrow" /></button></div><V47Rail class="editorials" label="生活灵感" cards><button class="editorial tech" @click="browseCategory('手机数码')"><img :src="phoneImage" alt="数码精选"><div><span>01 / DIGITAL</span><h3>科技有型<br>生活有趣</h3><p>发现数码新灵感</p><UmIcon name="arrow" /></div></button><button class="editorial home" @click="browseCategory('家用电器')"><img :src="coffeeImage" alt="品质居家"><div><span>02 / LIVING</span><h3>家的温度<br>从细节开始</h3><p>用好物，认真生活</p><UmIcon name="arrow" /></div></button><button class="editorial fashion" @click="openBrand"><img :src="bagImage" alt="经典包袋"><div><span>03 / STYLE</span><h3>经得起时光<br>也装得下日常</h3><p>探索经典品牌</p><UmIcon name="arrow" /></div></button></V47Rail></section>
+    <V47Rail class="brand-strip" label="品牌发现"><span>与喜爱的品牌相遇</span><button v-for="brand in brandLabels" :key="brand" :class="brand.toLowerCase()" @click="openBrand">{{ brand }}</button><button class="text-link" @click="openBrand">全部品牌<UmIcon name="arrow" /></button></V47Rail>
+    <section class="ranking section" :aria-busy="sectionLoading.hot"><div class="section-heading"><div><span class="eyebrow">MOST LOVED</span><h2>大家都在喜欢</h2></div><button class="text-link" @click="goProductList('SALES')">探索热销榜<UmIcon name="arrow" /></button></div><V47Rail v-if="rankingProducts.length" class="rank-grid" label="热销好物" cards><button v-for="(product, index) in rankingProducts.slice(0, 3)" :key="product.id" @click="openProduct(product)"><em>0{{ index + 1 }}</em><div><small>{{ rankingCaption(product, index) }}</small><h3>{{ product.title }}</h3><p>{{ displayPrice(product.price) }} <span>USDT</span></p></div><img :src="product.images[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="product.title" @error="setImageFallback"></button></V47Rail><div v-else class="empty home-section-state"><p>{{ sectionLoading.hot ? '正在加载热销好物…' : sectionErrors.hot ? '热销榜加载失败' : '暂无热销好物' }}</p><button v-if="sectionErrors.hot" class="outline" @click="sectionLoaders.hot()">重新加载</button></div></section>
+    <section class="join-banner"><div><span class="eyebrow">{{ isMeme ? 'YOUR WISHLIST. GLOBAL BUYERS.' : 'A WORLD OF POSSIBILITIES' }}</span><h2>{{ isMeme ? '想要的好物，全网帮你找。' : '世界的好物，离你更近。' }}</h2><p>没有找到心仪商品？告诉全球买手，让你的期待有回应。</p></div><button class="gold" @click="go('/purchase/create')">发起我的求购<UmIcon name="arrow" /></button></section>
+    <section class="section home-recommendations"><div class="section-heading"><h2>猜你喜欢</h2><span class="recommend-count">{{ recommendationCount }} 件好物</span></div><V47Rail class="recommend-tabs" label="推荐商品分类"><button :class="{ active: homeCategory === '' }" :aria-pressed="homeCategory === ''" @click="homeCategory = ''">为你推荐</button><button v-for="category in categories" :key="category.id" :class="{ active: homeCategory === category.id }" :aria-pressed="homeCategory === category.id" @click="homeCategory = category.id">{{ category.name }}</button></V47Rail><div ref="feedRoot" class="product-feed" :aria-busy="recommendationsLoading"><div v-if="visibleFeed.length" class="product-grid feed-grid home-feed-grid"><ProductCard v-for="product in visibleFeed" :key="product.id"  :product="product" variant="home" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div><div v-else class="empty home-section-state"><p>{{ recommendationsLoading ? '正在加载好物…' : feedError || sectionErrors.recommendations || '暂无推荐商品' }}</p><button v-if="feedError || sectionErrors.recommendations" class="outline" @click="loadFeed(true)">重新加载</button></div><div v-if="feedRecords.length" ref="feedSentinel" class="feed-status"><template v-if="hasMoreFeed"><span aria-live="polite">已展示 {{ visibleFeed.length }} / {{ recommendationCount }} 件</span><button :disabled="recommendationsLoading" @click="feedError ? loadFeed() : loadMoreFeed()">{{ feedError ? '重新加载' : recommendationsLoading ? '正在加载…' : '继续浏览' }}<UmIcon name="chevron" /></button></template><span v-else role="status">已展示全部 {{ recommendationCount }} 件好物</span></div></div></section>
   </div>
 </template>
 
 <style scoped>
-.home-page { display: flex; flex-direction: column; }
-.home-page .hero-band { grid-template-columns: 190px minmax(0, 1fr) 250px; gap: 16px; }
-.home-page .hero-stage,.home-page .hero-unavailable { border-radius: 6px; min-height: 390px; }
-.home-page .hero-showcase .hero-overlay { background: linear-gradient(90deg,rgba(var(--yb-primary-rgb),.82),rgba(var(--yb-primary-rgb),.04) 78%); }
-.home-page .hero-content { max-width: 510px; padding: 48px 32px 80px; justify-content: flex-start; }
-.home-page .hero-digital .hero-overlay { background: transparent; }
-.home-page .hero-content h1 { font-size: 38px; font-weight: 650; line-height: 1.35; max-width: 340px; white-space: pre-line; letter-spacing: -.5px; }
-.home-page .hero-content p { font-size: 14px; }
-.home-page .hero-tag { font-size: 10px; letter-spacing: 2px; margin-bottom: 20px; }
-.home-page .hero-cta { border-radius: 4px; padding: 13px 24px; background: var(--yb-apricot); }
-.home-page .channel-section { order: 2; }
-.home-page .hero-band,.home-page .service-band,.home-page .home-error,.home-page .product-section { order: 1; }
-.home-page .service-band { background: transparent; border: 0; border-top: 1px solid var(--yb-hairline); border-bottom: 1px solid var(--yb-hairline); border-radius: 0; margin-bottom: 32px; padding: 22px 0; }
-.home-page .section-heading .eyebrow { display: none; }
-.home-page .section-heading h2 { font-size: 24px; margin: 0; }
-.home-page .home-products { gap: 22px 16px; }
-@media(max-width:1100px) { .home-page .hero-band { grid-template-columns: 180px minmax(0,1fr); } .home-page .hero-content h1 { font-size: 32px; } }
-.home-page { padding-top: 0; padding-bottom: 48px; }
-.hero-band { display: grid; grid-template-columns: 220px minmax(0, 1fr) 260px; gap: 20px; align-items: stretch; margin-bottom: 24px; }
-.hb-left, .hb-center, .hb-right { min-width: 0; }
-.hb-center { display: flex; }
-.home-page :deep(.side-nav), .home-page :deep(.right-panel) { width: 100%; }
-.hero-stage, .hero-unavailable { position: relative; min-height: 370px; width: 100%; height: 100%; border-radius: 12px; overflow: hidden; }
-.hero-stage { background: var(--yb-deep); }
-.hero-single { position: absolute; inset: 0; background-size: cover; background-position: center; }
-.hero-single[role="link"] { cursor: pointer; }
-.hero-overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(var(--yb-primary-rgb), .88), rgba(var(--yb-primary-rgb), .3) 80%); }
-.hero-showcase .hero-overlay { background: linear-gradient(90deg, rgba(var(--yb-primary-rgb), .72), rgba(var(--yb-primary-rgb), .06) 90%); }
-.hero-content { position: relative; display: flex; flex-direction: column; justify-content: center; height: 100%; max-width: 90%; padding: 32px 32px 80px; color: #fff; }
-.hero-tag { display: inline-flex; align-self: flex-start; margin-bottom: 18px; color: var(--yb-apricot); font-size: 12px; letter-spacing: .08em; }
-.hero-content h1 { margin: 0 0 16px; font-size: clamp(26px, 2.4vw, 38px); font-weight: 600; line-height: 1.4; letter-spacing: -.7px; overflow-wrap: anywhere; }
-.hero-content p { margin: 0 0 24px; color: rgb(255 255 255 / 82%); font-size: 15px; line-height: 1.8; }
-.hero-cta { display: inline-flex; align-self: flex-start; align-items: center; gap: 16px; padding: 11px 18px; background: var(--yb-accent); color: var(--yb-accent-ink); border-radius: 6px; font-size: 14px; font-weight: 600; transition: background 150ms; }
-.hero-cta:hover { background: var(--yb-apricot); }
-.hero-controls { position: absolute; right: 18px; bottom: 18px; z-index: 2; display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 6px; background: rgba(var(--yb-primary-rgb), .68); }
-.hero-control, .hero-dot { display: inline-flex; justify-content: center; align-items: center; width: 30px; height: 30px; border-radius: 4px; color: #fff; transition: background 150ms; }
-.hero-control:hover, .hero-dot:hover { background: rgb(255 255 255 / 12%); }
-.hero-controls button:focus-visible, .hero-cta:focus-visible { outline-color: var(--yb-apricot); }
-.hero-dots { display: flex; }
-.hero-dot { width: 24px; }
-.hero-dot span { width: 6px; height: 6px; border-radius: 4px; background: rgb(255 255 255 / 50%); transition: width 150ms, background 150ms; }
-.hero-dot.active span { width: 18px; background: var(--yb-apricot); }
-.hero-fade-enter-active, .hero-fade-leave-active { transition: opacity 200ms var(--um-ease); }
-.hero-fade-enter-from, .hero-fade-leave-to { opacity: 0; }
-.hero-unavailable { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 32px; text-align: center; background: var(--yb-fill); border: 1px solid var(--yb-hairline); }
-.hero-unavailable h2 { font-size: 20px; font-weight: 600; }
-.hero-unavailable p { color: var(--yb-muted); font-size: 14px; }
-.service-band { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 22px 0; margin-bottom: 40px; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-surface); }
-.service-link { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 0 16px; color: var(--yb-primary); transition: color 150ms; }
-.service-link + .service-link { border-left: 1px solid var(--yb-hairline); }
-.service-link:hover { color: var(--yb-gold); }
-.service-link strong { display: block; font-size: 14px; font-weight: 500; color: var(--yb-ink); }
-.service-link span { display: block; margin-top: 4px; font-size: 12px; color: var(--yb-muted); }
-.home-error { margin-bottom: 32px; }
-.home-error-content { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.channel-section, .product-section { margin-bottom: 40px; }
-.section-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
-.eyebrow { color: var(--yb-muted); font-size: 11px; letter-spacing: .14em; }
-.section-heading h2 { margin-top: 6px; font-size: 24px; font-weight: 650; letter-spacing: -.4px; }
-.section-more { margin-left: auto; }
-.channel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-.channel-card { position: relative; display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 144px; padding: 24px; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; transition: transform 200ms var(--um-ease), border-color 150ms, box-shadow 200ms; }
-.channel-card:nth-child(3n + 1) { background: var(--yb-fill); }
-.channel-card:nth-child(3n + 2) { background: var(--yb-champagne); }
-.channel-card:hover { transform: translateY(-2px); border-color: var(--yb-hairline-2); box-shadow: var(--yb-shadow-1); }
-.channel-tag { color: var(--yb-muted); font-size: 10px; letter-spacing: .14em; }
-.channel-card h3 { margin: 6px 0; color: var(--yb-ink); font-size: 20px; font-weight: 600; }
-.channel-card p { color: var(--yb-muted); font-size: 13px; }
-.channel-icon { color: var(--yb-primary); flex-shrink: 0; }
-.channel-arrow { position: absolute; right: 16px; top: 16px; color: var(--yb-muted); }
-.home-products { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
-.home-skeleton { padding: 12px; background: var(--yb-surface); border-radius: 8px; }
-.countdown { display: inline-flex; align-items: center; gap: 8px; color: var(--yb-danger); font-size: 13px; font-variant-numeric: tabular-nums; }
-@media (max-width: 1200px) {
-  .hero-band { grid-template-columns: 190px minmax(0, 1fr) 240px; gap: 16px; }
-  .hero-content { padding-left: 24px; padding-right: 24px; }
-  .service-link { gap: 10px; padding: 0 12px; }
-  .home-products { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@media (max-width: 1024px) {
-  .hero-band { grid-template-columns: 180px minmax(0, 1fr); }
-  .hb-right { grid-column: 1 / -1; }
-  .home-page :deep(.right-panel) { display: grid; grid-template-columns: 240px minmax(0, 1fr); }
-  .service-band { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 20px; }
-  .service-link:nth-child(3) { border-left: 0; }
-  .home-products { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-fade-enter-active, .hero-fade-leave-active, .hero-control, .hero-dot, .hero-dot span, .hero-cta, .service-link, .channel-card { transition: none; }
-  .channel-card:hover { transform: none; }
-}
+.home-page { min-width: 0; }
+.account-retry { color: var(--muted); font-size: 12px; text-align: left; }
+.home-section-state { min-height: 200px; }
 </style>

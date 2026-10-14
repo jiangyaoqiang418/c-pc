@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -14,12 +14,14 @@ watch([() => route.name, () => route.query.keyword], ([name, value], previous) =
 }, { immediate: true });
 
 function submit() {
+  if (composing.value) return;
   const query = kw.value.trim();
   kw.value = query;
   router.push({ name: 'product-list', query: { keyword: query || undefined } });
 }
 
 function onSearchKeydown(event: KeyboardEvent) {
+  event.preventDefault();
   if (composing.value || event.isComposing || event.keyCode === 229) return;
   submit();
 }
@@ -27,80 +29,25 @@ function onSearchKeydown(event: KeyboardEvent) {
 
 <template>
   <div class="search-wrap">
-    <div class="search-box">
-      <Icon icon="lucide:search" class="search-leading" aria-hidden="true" />
+    <form class="search-bar search-box" @submit.prevent="submit">
+      <UmIcon name="search" class="search-leading" />
       <input
         v-model="kw"
         class="search-input"
-        placeholder="搜索商品 / 品牌 / 买手"
-        aria-label="搜索商品、品牌或买手"
+        placeholder="搜索商品、品牌"
+        aria-label="搜索商品"
         @compositionstart="composing = true"
         @compositionend="composing = false"
         @keydown.enter="onSearchKeydown"
       />
-      <button type="button" class="search-btn" @click="submit()">
-        <Icon icon="lucide:search" width="16" />
+      <button type="submit" class="search-btn" aria-label="搜索">
         <span>搜索</span>
+        <UmIcon name="search" />
       </button>
-    </div>
+    </form>
   </div>
 </template>
 
 <style scoped>
-.search-wrap {
-  position: relative;
-  flex: 1;
-  max-width: 640px;
-  display: flex;
-  flex-direction: column;
-}
-
-.search-box {
-  display: flex;
-  align-items: stretch;
-  height: 44px;
-  border: 1px solid var(--yb-hairline-2);
-  border-radius: 6px;
-  background: var(--yb-fill);
-  overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.search-box:focus-within {
-  border-color: var(--yb-primary);
-  box-shadow: 0 0 0 3px rgba(var(--yb-primary-rgb), 0.08);
-}
-
-.search-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  padding: 0 12px;
-  font-size: 15px;
-  background: transparent;
-  color: var(--yb-ink);
-  font-family: var(--yb-font-body);
-}
-.search-input::placeholder {
-  color: var(--yb-faint);
-}
-
-.search-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 24px;
-  background: var(--yb-brand-primary);
-  color: #fff;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background 0.15s;
-}
-.search-btn:hover {
-  background: var(--yb-brand-hover);
-}
-
-.search-leading { align-self: center; flex: none; width: 17px; height: 17px; margin-left: 14px; color: var(--yb-muted); }
+.search-wrap { width:100%; min-width:0; }
 </style>

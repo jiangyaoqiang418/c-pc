@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, readonly, ref } from 'vue';
+import { inject, onBeforeUnmount, onMounted, readonly, ref, type InjectionKey } from 'vue';
 import * as categoryApi from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
@@ -37,7 +37,16 @@ async function loadCategories(force = false): Promise<void> {
   return task;
 }
 
-export function useCategoryNavigation() {
+function realNavigation() {
+  return { categories: readonly(categories), loading: readonly(loading), loadError: readonly(loadError), activeMenu, loadCategories };
+}
+export type CategoryNavigation = ReturnType<typeof realNavigation>;
+// The separate development-only visual entry provides readonly reference data. Normal routes use real APIs.
+export const categoryNavigationKey: InjectionKey<CategoryNavigation> = Symbol('category-navigation');
+
+export function useCategoryNavigation(): CategoryNavigation {
+  const provided = inject(categoryNavigationKey, undefined);
+  if (provided) return provided;
   onMounted(() => {
     consumers += 1;
     void loadCategories();
@@ -53,5 +62,5 @@ export function useCategoryNavigation() {
     loadedAt = 0;
     pending = undefined;
   });
-  return { categories: readonly(categories), loading: readonly(loading), loadError: readonly(loadError), activeMenu, loadCategories };
+  return realNavigation();
 }

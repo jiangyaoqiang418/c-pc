@@ -1,0 +1,170 @@
+/* Generated from Umaomao-v47/dist. Preserve source cascade; regenerate with scripts/extract-v47-css.mjs. */
+
+/* styles.css */
+
+.brand-tabs {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  overflow-x: auto;
+  margin: 8px 0 22px;
+  scrollbar-width: none
+}
+.brand-tabs>span {
+  white-space: nowrap;
+  margin-right: 10px;
+  font-size: 12px
+}
+.brand-tabs button {
+  font-family: Georgia,serif;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 12px 24px;
+  border-radius: 5px;
+  font-size: 13px;
+  white-space: nowrap
+}
+.brand-tabs button.active {
+  background: var(--green);
+  color: var(--ui-fdfcf2,#fdfcf2);
+  border-color: var(--ui-c6a458,#c6a458)
+}
+.brand-hero {
+  height: 310px;
+  position: relative;
+  background: var(--green);
+  border-radius: 8px;
+  overflow: hidden;
+  color: var(--ui-faf8ec,#faf8ec);
+  margin-bottom: 30px
+}
+.brand-hero>div {
+  position: relative;
+  z-index: 2;
+  padding: 52px 45px;
+  width: 60%
+}
+.brand-hero h1 {
+  font-family: Georgia,'Noto Sans SC',serif;
+  font-size: 36px;
+  margin-top: 15px
+}
+.brand-hero p {
+  margin: 12px 0 20px;
+  color: var(--ui-e2e4d3,#e2e4d3)
+}
+.brand-hero img {
+  position: absolute;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  object-fit: cover;
+  top: 0
+}
+.brand-hero:after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,var(--green) 40%,transparent 70%)
+}
+@media(max-width:700px) {
+.brand-tabs {
+  gap: 8px;
+  margin: 7px -16px 17px 0;
+  padding-right: 16px
+}
+.brand-tabs>span {
+  display: none
+}
+.brand-tabs button {
+  font-size: 11px;
+  padding: 9px 17px
+}
+.brand-hero {
+  height: 295px;
+  margin-bottom: 22px
+}
+.brand-hero>div {
+  padding: 30px 24px;
+  width: 100%
+}
+.brand-hero h1 {
+  font-size: 28px;
+  max-width: 240px;
+  line-height: 1.5
+}
+.brand-hero .eyebrow {
+  font-size: 8px
+}
+.brand-hero p {
+  font-size: 11px;
+  margin: 10px 0 18px
+}
+.brand-hero img {
+  width: 100%;
+  opacity: .6;
+  object-position: 50% 60%
+}
+.brand-hero:after {
+  background: linear-gradient(90deg,color-mix(in srgb,var(--ui-214f41,#214f41) 90.196%,transparent),color-mix(in srgb,var(--ui-214f41,#214f41) 25.098%,transparent))
+}
+.brand-hero .gold {
+  font-size: 10px;
+  padding: 9px 15px;
+  min-height: 36px
+}
+}
+
+/* themes-web3.css */
+
+:root[data-ui-theme^="web3-"] .brand-tabs button.active {
+  color: var(--ink)
+}
+:root[data-ui-theme^="web3-"] .brand-hero {
+  color: var(--ink)
+}
+:root[data-ui-theme^="web3-"] .brand-hero p {
+  color: var(--muted)
+}
+:root[data-ui-theme^="web3-"] .brand-tabs button {
+  background: var(--paper)
+}
+
+/* ./themes-reference.css */
+
+:root[data-ui-theme="navy-coral"] .brand-hero .eyebrow {
+  color: #ffb49d
+}
+
+/* meme-design.css */
+
+:root[data-ui-theme="web3-meme"] .brand-tabs {
+  border-color: var(--line)
+}
+:root[data-ui-theme="web3-meme"] .brand-tabs button {
+  color: var(--muted)
+}
+:root[data-ui-theme="web3-meme"] .brand-tabs button.active {
+  color: var(--meme-lime);
+  border-color: var(--meme-lime);
+  background: #b6f36b09
+}
+:root[data-ui-theme="web3-meme"] .brand-hero {
+  background: #181421;
+  border: 1px solid #463654;
+  border-radius: 9px
+}
+:root[data-ui-theme="web3-meme"] .brand-hero h1 {
+  color: #dfcfff
+}
+:root[data-ui-theme="web3-meme"] .brand-hero p {
+  color: #ac9fba
+}
+:root[data-ui-theme="web3-meme"] .brand-hero img {
+  opacity: .8
+}
+:root[data-ui-theme="web3-meme"] .brand-tabs button.active {
+  background: #30223b;
+  color: #dbbaff;
+  border-color: #8d64ae
+}

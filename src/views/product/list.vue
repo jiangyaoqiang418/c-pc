@@ -7,13 +7,10 @@ import * as productApi from '@/service/api/product';
 import * as categoryApi from '@/service/api/category';
 import { useCategoryNavigation } from '@/composables/use-category-navigation';
 import ProductCard from '@/components/product/product-card.vue';
-import EmptyState from '@/components/common/empty-state.vue';
-import BusinessPagination from '@/components/common/business-pagination.vue';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
+import V47CatalogCategories from '@/components/product/v47-catalog-categories.vue';
+import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
@@ -30,6 +27,13 @@ const filter = reactive({
 });
 
 const expandedFilters = reactive({ aftersale: true, overseas: true, price: true });
+const filterOpen = ref(false);
+let previousOverflow = '';
+watch(filterOpen, value => {
+  if (value) { previousOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; }
+  else document.body.style.overflow = previousOverflow;
+});
+function closeFilters(event: KeyboardEvent) { if (event.key === 'Escape') filterOpen.value = false; }
 const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -63,6 +67,8 @@ function findCategoryPath(nodes: readonly CategoryPathNode[], id?: string): { id
 
 const categoryPath = computed(() => findCategoryPath(navigationCategories.value, filter.categoryId)
   || findCategoryPath(categoryTree.value, filter.categoryId) || []);
+const catalogCategories = computed(() => navigationCategories.value.some(node => node.id === categoryPath.value[0]?.id)
+  ? navigationCategories.value : categoryTree.value);
 const categoryLabel = computed(() => categoryPath.value.map(node => node.name).join(' / ')
   || (categoryLoading.value ? '正在加载分类…' : categoryError.value || '当前分类'));
 
@@ -246,10 +252,13 @@ function resetFilters() {
 }
 
 onMounted(() => {
+  window.addEventListener('keydown', closeFilters);
   if (syncFromQuery()) updateUrl(true);
   else load();
 });
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', closeFilters);
+  if (filterOpen.value) document.body.style.overflow = previousOverflow;
   requestGuard.invalidate();
   categoryRequestGuard.invalidate();
 });
@@ -295,161 +304,41 @@ function selectSort(value: unknown) {
 </script>
 
 <template>
-  <div class="list-page shop-container">
-    <nav class="bread" aria-label="当前位置">
-      <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" aria-hidden="true" />
-      <template v-if="filter.categoryId">
-        <RouterLink :to="categoryLocation()">商品列表</RouterLink>
-        <template v-for="(node, index) in categoryPath" :key="node.id">
-          <Icon icon="lucide:chevron-right" width="14" aria-hidden="true" />
-          <RouterLink v-if="index < categoryPath.length - 1" :to="categoryLocation(node.id)">{{ node.name }}</RouterLink>
-          <span v-else aria-current="page">{{ node.name }}</span>
-        </template>
-        <template v-if="!categoryPath.length">
-          <Icon icon="lucide:chevron-right" width="14" aria-hidden="true" /><span aria-current="page">{{ categoryLabel }}</span>
-        </template>
-      </template>
-      <span v-else aria-current="page">商品列表</span>
-    </nav>
+  <div class="list-page">
+    <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><template v-if="filter.categoryId"><RouterLink :to="categoryLocation()">精选商品</RouterLink><template v-for="(node, index) in categoryPath" :key="node.id"><UmIcon name="chevron" /><RouterLink v-if="index < categoryPath.length - 1" :to="categoryLocation(node.id)">{{ node.name }}</RouterLink><span v-else aria-current="page">{{ node.name }}</span></template><template v-if="!categoryPath.length"><UmIcon name="chevron" /><span aria-current="page">{{ categoryLabel }}</span></template></template><span v-else aria-current="page">精选商品</span></nav>
+    <h1 class="catalog-sr-only">{{ title }}</h1><p v-if="filter.keyword" class="catalog-search-caption">“{{ filter.keyword }}” 的搜索结果</p>
     <div class="catalog-layout">
-    <aside class="filter-bar" aria-label="商品筛选">
-      <header class="filter-heading"><h1>筛选商品</h1><Button variant="ghost" size="sm" @click="resetFilters">重置</Button></header>
-      <div class="filter-row">
-        <button type="button" class="filter-label filter-toggle" id="aftersale-filter-label" :aria-expanded="expandedFilters.aftersale" aria-controls="aftersale-filter-options" @click="expandedFilters.aftersale = !expandedFilters.aftersale">售后类型<span aria-hidden="true">{{ expandedFilters.aftersale ? '−' : '+' }}</span></button>
-        <div v-show="expandedFilters.aftersale" id="aftersale-filter-options" class="filter-options" role="group" aria-labelledby="aftersale-filter-label">
-          <label v-for="option in aftersaleOptions" :key="option.value" class="filter-choice">
-            <input type="radio" name="aftersale" :value="option.value" :checked="aftersaleSelection === option.value" @change="selectAftersale(option.value)" />
-            <span>{{ option.label }}</span>
-          </label>
-        </div>
+      <aside class="filters" :class="{ open: filterOpen }" aria-label="商品筛选">
+        <div class="section-heading"><h3>筛选商品</h3><button type="button" @click="resetFilters">重置</button><button type="button" class="mobile-only icon-btn" aria-label="关闭筛选" @click="filterOpen = false"><UmIcon name="close" /></button></div>
+        <details :open="expandedFilters.aftersale" @toggle="expandedFilters.aftersale = ($event.target as HTMLDetailsElement).open"><summary>售后服务</summary><label v-for="option in aftersaleOptions" :key="option.value"><input type="radio" name="service" :value="option.value" :checked="aftersaleSelection === option.value" @change="selectAftersale(option.value)" />{{ option.label }}</label></details>
+        <details :open="expandedFilters.overseas" @toggle="expandedFilters.overseas = ($event.target as HTMLDetailsElement).open"><summary>配送方式</summary><label><input type="checkbox" :checked="overseasSelection === 'overseas'" @change="selectOverseas(($event.target as HTMLInputElement).checked ? 'overseas' : 'all')" />仅海外直邮</label></details>
+        <details :open="expandedFilters.price" @toggle="expandedFilters.price = ($event.target as HTMLDetailsElement).open"><summary>价格范围 · USDT</summary><form class="price-inputs" @submit.prevent="applyToUrl"><input :value="filter.minPrice" type="number" min="0" step="any" placeholder="最低" aria-label="最低价格" @input="updatePrice('minPrice', ($event.target as HTMLInputElement).value)" /><span>–</span><input :value="filter.maxPrice" type="number" min="0" step="any" placeholder="最高" aria-label="最高价格" @input="updatePrice('maxPrice', ($event.target as HTMLInputElement).value)" /><button type="submit" class="catalog-sr-only" tabindex="-1">应用筛选</button></form></details>
+        <button type="button" class="primary full" @click="applyToUrl">应用筛选<UmIcon name="arrow" /></button>
+      </aside>
+      <div class="catalog-content">
+        <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />
+        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button type="button" class="filter-button outline" @click="filterOpen = true"><UmIcon name="filter" />筛选</button><select :value="filter.sort" aria-label="商品排序" @change="selectSort(($event.target as HTMLSelectElement).value)"><option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div></div>
+        <div v-if="filter.categoryId || filter.aftersaleType || filter.overseasCustoms" class="active-filters" role="group" aria-label="已选筛选条件"><button v-if="filter.categoryId" type="button" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">{{ categoryLabel }} ×</button><button v-if="filter.aftersaleType" type="button" aria-label="清除售后服务筛选" @click="selectAftersale('all')">{{ aftersaleOptions.find(option => option.value === filter.aftersaleType)?.label }} ×</button><button v-if="filter.overseasCustoms" type="button" aria-label="清除海外直邮筛选" @click="selectOverseas('all')">海外直邮 ×</button><button v-if="categoryError && !categoryLoading" type="button" @click="loadCategoryPath(true)">重试分类名称</button></div>
+        <section class="catalog-results product-feed" :aria-busy="loading" aria-label="商品列表">
+          <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
+          <div v-if="loading && !list.length" class="product-grid feed-grid" aria-hidden="true"><div v-for="index in 8" :key="index" class="product-skeleton"><Skeleton class="aspect-square w-full rounded-[9px]" /><div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div></div></div>
+          <div v-else-if="list.length" class="product-grid feed-grid" :class="{ 'is-updating': loading }"><ProductCard v-for="product in list" :key="product.id" :product="product" variant="catalog" /></div>
+          <div v-else class="empty"><UmIcon name="search" /><h2>{{ loadError || '暂时没有找到匹配商品' }}</h2><p>{{ loadError ? '请稍后重试。' : '不妨换一个方向，发现新的喜欢。' }}</p><button type="button" class="primary" @click="loadError ? load() : resetFilters()">{{ loadError ? '重新加载' : '重置筛选' }}</button></div>
+          <V47CatalogPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="onPageChange" />
+        </section>
       </div>
-      <div class="filter-row">
-        <button type="button" class="filter-label filter-toggle" id="overseas-filter-label" :aria-expanded="expandedFilters.overseas" aria-controls="overseas-filter-options" @click="expandedFilters.overseas = !expandedFilters.overseas">海外过关<span aria-hidden="true">{{ expandedFilters.overseas ? '−' : '+' }}</span></button>
-        <div v-show="expandedFilters.overseas" id="overseas-filter-options" class="filter-options" role="group" aria-labelledby="overseas-filter-label">
-          <label class="filter-choice"><input type="radio" name="overseas" :checked="overseasSelection === 'all'" @change="selectOverseas('all')" /><span>不限</span></label>
-          <label class="filter-choice"><input type="radio" name="overseas" :checked="overseasSelection === 'overseas'" @change="selectOverseas('overseas')" /><span>仅海外直邮</span></label>
-        </div>
-      </div>
-      <form class="filter-row price-filter" @submit.prevent="applyToUrl">
-        <button type="button" class="filter-label filter-toggle" :aria-expanded="expandedFilters.price" aria-controls="price-filter-options" @click="expandedFilters.price = !expandedFilters.price">价格区间（USDT）<span aria-hidden="true">{{ expandedFilters.price ? '−' : '+' }}</span></button>
-        <div v-show="expandedFilters.price" id="price-filter-options" class="price-range">
-        <Input :model-value="filter.minPrice" type="number" min="0" step="any" aria-label="最低价格（USDT）" placeholder="USDT 最低" class="price-input" @update:model-value="updatePrice('minPrice', $event)" />
-        <span class="price-dash" aria-hidden="true">—</span>
-        <Input :model-value="filter.maxPrice" type="number" min="0" step="any" aria-label="最高价格（USDT）" placeholder="USDT 最高" class="price-input" @update:model-value="updatePrice('maxPrice', $event)" />
-        </div>
-        <Button v-show="expandedFilters.price" type="submit" variant="outline" size="sm">应用筛选</Button>
-      </form>
-    </aside>
-    <div class="catalog-main">
-
-    <section class="result-bar" aria-label="搜索结果与排序">
-      <div class="result-title">{{ title }} <span class="muted">{{ loading ? '正在加载…' : loadError ? '读取失败' : `共 ${total} 件精选商品` }}</span></div>
-      <Select :model-value="filter.sort" @update:model-value="selectSort">
-        <SelectTrigger class="sort-select" aria-label="商品排序"><SelectValue placeholder="综合排序" /></SelectTrigger>
-        <SelectContent align="end">
-          <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</SelectItem>
-        </SelectContent>
-      </Select>
-    </section>
-
-    <div v-if="filter.categoryId" class="selected-filters" role="group" aria-label="已选筛选条件">
-      <span class="selected-filter-label">已选分类</span>
-      <Button variant="outline" size="sm" class="category-chip" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">
-        <Icon icon="lucide:folder-tree" width="14" aria-hidden="true" />
-        <span class="category-chip-text">{{ categoryLabel }}</span>
-        <Icon icon="lucide:x" width="14" aria-hidden="true" />
-      </Button>
-      <Button v-if="categoryError && !categoryLoading" variant="ghost" size="sm" @click="loadCategoryPath(true)">重试分类名称</Button>
-    </div>
-
-    <section class="catalog-results" :aria-busy="loading" aria-label="商品列表">
-      <span v-if="loading" class="sr-only" role="status">正在加载商品</span>
-      <div v-if="loading && !list.length" class="catalog-grid" aria-hidden="true">
-        <div v-for="index in 8" :key="index" class="product-skeleton">
-          <Skeleton class="aspect-[4/3] w-full rounded-none" />
-          <div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div>
-        </div>
-      </div>
-      <div v-else-if="list.length" class="catalog-grid" :class="{ 'is-updating': loading }">
-        <ProductCard v-for="product in list" :key="product.id" :product="product" variant="catalog" />
-      </div>
-      <EmptyState
-        v-else
-        :title="loadError || '没有找到符合条件的商品'"
-        :description="loadError ? '请稍后重试。' : '尝试调整筛选条件，或使用顶部搜索重新查找。'"
-        :action-text="loadError ? '重新加载' : undefined"
-        @action="load"
-      />
-      <BusinessPagination v-if="total > size" class="pagination-bar" :total="total" :current="current" :page-size="size" :loading="loading" @change="onPageChange" />
-    </section>
-    </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.filter-toggle { display:flex; justify-content:space-between; width:100%; text-align:left; cursor:pointer; }
-.filter-toggle:focus-visible { outline:2px solid var(--yb-primary); outline-offset:4px; }
-.sort-select { width:144px; flex-shrink:0; border-color:var(--yb-hairline); border-radius:4px; background:var(--yb-paper); font-size:13px; color:var(--yb-ink); }
-.catalog-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 32px; align-items: start; }
-.catalog-main { min-width: 0; }
-.list-page .filter-bar { position: sticky; top: 170px; padding:20px; border:1px solid var(--yb-hairline); border-radius:6px; background:var(--yb-paper); gap: 0; }
-.filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-.filter-heading h1 { font-size: 15px; font-weight: 600; }
-.filter-heading button { font-size: 12px; padding: 0; height: 30px; color: var(--yb-muted); }
-.list-page .filter-row { display: grid; gap: 16px; padding:18px 0; border-top: 1px solid var(--yb-hairline); }
-.list-page .filter-label { width: auto; color: var(--yb-ink); font-size: 14px; font-weight: 600; }
-.list-page .filter-options { display: grid; gap: 6px; }
-.filter-choice { display: flex; align-items: center; gap: 10px; color: var(--yb-muted); font-size: 13px; cursor: pointer; }
-.filter-choice input { width: 14px; height: 14px; accent-color: var(--yb-primary); }
-.filter-choice:has(input:checked) { color: var(--yb-ink); }
-.price-range { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.list-page .price-input { width: 0; flex: 1; height: 38px; min-width: 0; padding: 8px; font-size: 12px; }
-.list-page .price-filter > button { width: 100%; }
-.list-page .result-title { font-size: 14px; font-weight: 600; }
-.list-page .muted { font-size: 12px; }
-.list-page .catalog-grid { gap: 24px 16px; }
-@media (max-width: 1100px) { .catalog-layout { grid-template-columns: 180px minmax(0, 1fr); gap: 24px; } }
-@media (max-width: 800px) {
-  .catalog-layout { grid-template-columns: minmax(0, 1fr); }
-  .list-page .filter-bar { position: static; border-right: 0; padding: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .filter-heading { grid-column: 1 / -1; }
-}
-.list-page { margin-top:-8px; padding-top: 0; padding-bottom: 48px; }
-.bread { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px; color: var(--yb-muted); font-size: 12px; }
-.bread a, .bread span { min-width:0; overflow-wrap:anywhere; }
-.bread :deep(svg) { flex-shrink:0; }
-.bread a:hover { color: var(--yb-primary); }
-.bread [aria-current] { color: var(--yb-ink); }
-.selected-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
-.selected-filter-label { color:var(--yb-muted); font-size:12px; flex-shrink:0; }
-.category-chip { max-width:100%; height:auto; min-height:32px; padding:6px 10px; background:var(--yb-primary-soft); border-color:var(--yb-hairline); color:var(--yb-ink); font-size:12px; }
-.category-chip-text { min-width:0; text-align:left; white-space:normal; overflow-wrap:anywhere; }
-.category-chip :deep(svg) { flex-shrink:0; }
-.catalog-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
-.eyebrow { color: var(--yb-muted); font-size: 11px; letter-spacing: .14em; }
-.catalog-heading h1 { margin-top: 8px; font-size: 28px; font-weight: 650; letter-spacing: -.5px; }
-.catalog-heading p { color: var(--yb-muted); font-size: 14px; }
-.filter-bar { background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; padding: 22px 24px; margin-bottom: 24px; display: grid; gap: 16px; }
-.filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
-.filter-label { width: 76px; flex-shrink: 0; color: var(--yb-muted); font-size: 14px; }
-.filter-options { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
-.price-input { width: 144px; height: 36px; }
-.price-dash { color: var(--yb-muted); }
-.result-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 22px; }
-.result-title { min-width: 0; overflow-wrap: anywhere; font-size: 16px; font-weight: 600; color: var(--yb-ink); }
-.muted { font-size: 13px; color: var(--yb-muted); font-weight: 400; margin-left: 12px; }
-.catalog-results { min-height: 320px; }
-.catalog-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; transition: opacity 150ms; }
-.catalog-grid.is-updating { opacity: .55; }
-.product-skeleton { overflow: hidden; background: var(--yb-paper); border: 1px solid var(--yb-hairline); border-radius: 8px; }
-.skeleton-info { padding: 12px; display: grid; gap: 6px; }
-.pagination-bar { margin-top: 36px; }
-@media (max-width: 1100px) {
-  .catalog-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-  .result-bar { align-items: flex-start; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .catalog-grid { transition:none; }
-}
+.breadcrumb { flex-wrap:wrap; }
+.breadcrumb a,.breadcrumb span { min-width:0; overflow-wrap:anywhere; }
+.catalog-results { min-height:320px; }
+.feed-grid { transition:opacity .15s; }
+.feed-grid.is-updating { opacity:.55; }
+.product-skeleton { overflow:hidden; background:var(--paper); border:1px solid var(--line); border-radius:13px; padding:8px 8px 0; }
+.skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
+.active-filters button { max-width:100%; white-space:normal; text-align:left; }
+@media (prefers-reduced-motion:reduce) { .feed-grid { transition:none; } }
 </style>

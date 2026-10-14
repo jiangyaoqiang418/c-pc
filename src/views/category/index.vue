@@ -1,19 +1,18 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import UmIcon from '@/components/common/um-icon.vue';
+import ThemePicker from '@/components/layout/theme-picker.vue';
+import V47CategoryLeafRail from '@/components/layout/v47-category-leaf-rail.vue';
 import { useRoute, useRouter } from 'vue-router';
-import { TreeRoot, TreeItem } from 'reka-ui';
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as categoryApi from '@/service/api/category';
 import * as productApi from '@/service/api/product';
-import ProductCard from '@/components/product/product-card.vue';
-import EmptyState from '@/components/common/empty-state.vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface CategoryNode {
   id: string | number;
   name: string;
+  icon?: string;
   level: number;
   children?: CategoryNode[];
 }
@@ -30,6 +29,19 @@ interface TreeData {
 }
 
 const tree = ref<CategoryNode[]>([]);
+const fullTreeLoaded = ref(false);
+const rootElement = ref<HTMLElement>();
+const searchOpen = ref(false);
+const search = ref('');
+const searchInput = ref<HTMLInputElement>();
+const composing = ref(false);
+function openSearch() { searchOpen.value = true; void nextTick(() => searchInput.value?.focus()); }
+function doSearch() { if (!composing.value) void router.push({ name:'product-list', query:{ keyword:search.value.trim() || undefined } }); }
+function exitCategory() {
+  if (searchOpen.value) { searchOpen.value = false; return; }
+  const previous = router.options.history.state.back;
+  void router.push(typeof previous === 'string' && previous.startsWith('/') && !previous.startsWith('//') && !previous.startsWith('/category') ? previous : '/');
+}
 const selectedKeys = ref<string[]>([]);
 const expandedKeys = ref<string[]>([]);
 const products = ref<Api.RealProduct.Record[]>([]);
@@ -88,6 +100,7 @@ function restoreCategory() {
   if (!tree.value.length) return;
   const queryId = typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined;
   const matched = queryId ? findNode(tree.value, queryId) : undefined;
+  if (queryId && !matched && !fullTreeLoaded.value) { void loadTree(true); return; }
   const id = queryId === '' ? undefined : matched ? queryId : String(tree.value[0].id);
   syncingSelection = true;
   selectedKeys.value = id ? [id] : [];
@@ -106,14 +119,15 @@ function restoreCategory() {
   }
 }
 
-async function loadTree() {
+async function loadTree(complete = false) {
   const isCurrent = treeRequestGuard.begin();
   treeLoading.value = true;
   treeError.value = '';
   try {
-    const nextTree = (await categoryApi.fetchCategoryTree({ signal: isCurrent.signal })) as CategoryNode[];
+    const nextTree = (await (complete ? categoryApi.fetchRealCategoryTree({ signal:isCurrent.signal }) : categoryApi.fetchCategoryTree({ signal:isCurrent.signal }))) as CategoryNode[];
     if (!isCurrent()) return;
     tree.value = nextTree;
+    fullTreeLoaded.value = complete;
     if (tree.value.length) {
       expandedKeys.value = [String(tree.value[0].id)];
       restoreCategory();
@@ -165,122 +179,70 @@ watch(selectedKeys, keys => {
 }, { flush: 'sync' });
 watch(() => route.query.categoryId, restoreCategory);
 
-onMounted(loadTree);
+onMounted(() => { void loadTree(); });
 onBeforeUnmount(() => {
   productRequestGuard.invalidate();
   treeRequestGuard.invalidate();
 });
+const selectedPath = computed(() => selectedKeys.value[0] ? findNode(tree.value, selectedKeys.value[0]) : undefined);
+const rootId = computed(() => selectedPath.value?.ids[0]);
+function categoryIcon(node: CategoryNode) {
+  if (node.icon) return node.icon;
+  if (/手机|数码|平板/.test(node.name)) return 'phone';
+  if (/电脑|办公/.test(node.name)) return 'laptop';
+  if (/家电|电器/.test(node.name)) return 'sun';
+  if (/服饰|箱包/.test(node.name)) return 'bag';
+  if (/运动|户外/.test(node.name)) return 'globe';
+  if (/钟表|腕表/.test(node.name)) return 'clock';
+  if (/美妆|护肤/.test(node.name)) return 'star';
+  return 'grid';
+}
+function browse(id: string) { return { name:'product-list', query:{ categoryId:id } }; }
+function rootKeyboard(event: KeyboardEvent, index: number) {
+  const count = treeData.value.length;
+  if (!count) return;
+  const next = event.key === 'ArrowDown' ? (index + 1) % count : event.key === 'ArrowUp' ? (index + count - 1) % count : event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : undefined;
+  if (next === undefined) return;
+  event.preventDefault();
+  selectTreeNode(treeData.value[next]);
+  void nextTick(() => rootElement.value?.querySelectorAll<HTMLButtonElement>('.category-root-button')[next]?.focus());
+}
 </script>
 
 <template>
-  <div class="category-page shop-container">
-    <nav class="bread" aria-label="当前位置">
-      <RouterLink to="/">首页</RouterLink><Icon icon="lucide:chevron-right" width="14" /><span>全部分类</span><Icon icon="lucide:chevron-right" width="14" /><span aria-current="page">{{ breadcrumb }}</span>
-    </nav>
-
-
-    <div class="layout">
-      <aside class="side">
-        <div class="side-title"><Icon icon="lucide:layers" width="18" /> 全部分类</div>
-        <EmptyState v-if="treeError" :title="treeError" action-text="重新加载" @action="loadTree" />
-        <div v-else-if="treeLoading" class="tree-loading" role="status"><span class="sr-only">正在加载分类</span><Skeleton v-for="index in 6" :key="index" class="h-10 w-full" /></div>
-        <TreeRoot
-          v-else-if="treeData.length"
-          v-slot="{ flattenItems }"
-          :items="treeData"
-          :model-value="selectedTreeNode"
-          v-model:expanded="expandedKeys"
-          :get-key="treeKey"
-          selection-behavior="replace"
-          aria-label="商品分类树"
-          @update:model-value="selectTreeNode"
-        >
-          <TreeItem v-for="item in flattenItems" :key="item._id" v-slot="{ isExpanded, handleToggle }" v-bind="item.bind" class="category-node" :style="{ paddingLeft: `${12 + (item.level - 1) * 18}px` }" :title="item.value.title">
-            <button v-if="item.hasChildren" class="node-toggle" tabindex="-1" :aria-label="`${isExpanded ? '收起' : '展开'}${item.value.title}`" @click.stop="handleToggle">
-              <Icon icon="lucide:chevron-right" width="14" :class="{ expanded: isExpanded }" />
-            </button>
-            <span v-else class="node-leaf" aria-hidden="true" />
-            <span class="node-name">{{ item.value.title }}</span>
-          </TreeItem>
-        </TreeRoot>
-        <EmptyState v-else title="暂无商品分类" />
-      </aside>
-
-      <section class="content">
-        <section v-if="selectedTreeNode?.children?.length" class="taxonomy" aria-label="子分类">
-          <h1>{{ selectedTreeNode.title }}</h1>
-          <article v-for="group in selectedTreeNode.children" :key="group.key" class="taxonomy-group">
-            <button class="taxonomy-title" @click="selectTreeNode(group)">{{ group.title }}<Icon icon="lucide:chevron-right" width="14" /></button>
-            <div v-if="group.children?.length" class="taxonomy-links"><button v-for="leaf in group.children" :key="leaf.key" @click="selectTreeNode(leaf)">{{ leaf.title }}</button></div>
-          </article>
+  <div class="category-page">
+    <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">发现分类</span></nav>
+    <div class="category-focus-toolbar"><button type="button" :aria-label="searchOpen ? '收起分类搜索' : '返回上一页'" @click="exitCategory"><UmIcon name="chevron" /></button><form v-if="searchOpen" class="category-focus-search" @submit.prevent="doSearch"><input ref="searchInput" v-model="search" type="search" aria-label="分类页搜索商品" placeholder="搜索商品、品牌" enterkeyhint="search" @compositionstart="composing = true" @compositionend="composing = false" @keydown.esc.prevent="searchOpen = false" /></form><span v-else>全部分类</span><ThemePicker /><button type="button" :aria-label="searchOpen ? '提交商品搜索' : '打开分类搜索'" :aria-expanded="searchOpen" @click="searchOpen ? doSearch() : openSearch()"><UmIcon name="search" /></button></div>
+    <h1 class="catalog-sr-only">商品分类</h1>
+    <div ref="rootElement" class="category-browser category-browser-page">
+      <div class="category-menu-surface">
+        <nav class="category-root-list" aria-label="一级商品分类" :aria-busy="treeLoading"><span class="category-rail-label">商品分类</span><div v-if="treeError" class="category-status" role="alert"><p>{{ treeError }}</p><button type="button" @click="loadTree()">重新加载</button></div><div v-else-if="treeLoading && !treeData.length" class="tree-loading" role="status"><span class="catalog-sr-only">正在加载分类</span><Skeleton v-for="index in 6" :key="index" class="h-10 w-full" /></div><p v-else-if="!treeData.length" class="category-status">暂无商品分类</p><button v-for="(node, index) in treeData" :key="node.key" type="button" class="category-root-button" :class="{ active: rootId === node.key }" :aria-expanded="rootId === node.key" aria-controls="category-page-panel" @click="selectTreeNode(node)" @keydown="rootKeyboard($event, index)"><UmIcon :name="categoryIcon(node.raw)" /><span>{{ node.title }}</span><UmIcon name="chevron" /></button></nav>
+        <section id="category-page-panel" class="category-mega" :aria-label="`${selectedTreeNode?.title || '商品'}的下级分类`">
+          <template v-if="selectedTreeNode">
+            <nav v-if="(selectedPath?.ids.length || 0) > 1" class="category-path" aria-label="当前分类层级"><template v-for="(id, index) in selectedPath?.ids" :key="id"><UmIcon v-if="index" name="chevron" /><button v-if="index < (selectedPath?.ids.length || 0) - 1" type="button" @click="selectTreeNode(findTreeItem(treeData, id))">{{ selectedPath?.path[index] }}</button><span v-else>{{ selectedPath?.path[index] }}</span></template></nav>
+            <div class="category-mega-heading"><h2>{{ selectedTreeNode.title }}</h2><RouterLink :to="browse(selectedTreeNode.key)">查看全部<UmIcon name="arrow" /></RouterLink></div>
+            <div class="category-subgroups"><section v-for="group in selectedTreeNode.children" :key="group.key" class="category-subgroup"><h3><RouterLink :to="browse(group.key)">{{ group.title }}<UmIcon name="chevron" /></RouterLink></h3><V47CategoryLeafRail :label="`${group.title}细分商品`"><span v-for="leaf in group.children" :key="leaf.key" class="category-leaf"><RouterLink :to="browse(leaf.key)">{{ leaf.title }}</RouterLink><button v-if="leaf.children?.length" type="button" class="category-drill" :aria-label="`展开${leaf.title}的子分类`" @click="selectTreeNode(leaf)"><UmIcon name="chevron" /></button></span><button v-if="!group.children?.length" type="button" class="category-drill category-drill-link" @click="selectTreeNode(group)">查看{{ group.title }}<UmIcon name="arrow" /></button></V47CategoryLeafRail></section></div>
+            <div v-if="!selectedTreeNode.children?.length" class="category-status">该分类暂无下级分类，可点击“查看全部”浏览商品。</div>
+            <div v-if="productLoadError" class="category-status" role="alert"><p>{{ productLoadError }}</p><button type="button" :disabled="loading" @click="selectedKeys[0] && pick(selectedKeys[0])">重新加载</button></div><span v-else class="catalog-sr-only" role="status">{{ loading ? '正在加载分类商品' : `共 ${total} 件商品` }}</span>
+          </template><div v-else-if="!treeLoading && !treeError" class="category-status">请选择品类</div>
         </section>
-        <div class="content-bar">
-          <span class="content-title">{{ breadcrumb }}</span>
-          <span class="content-meta">共 {{ total }} 件商品</span>
-          <Button v-if="selectedKeys[0] && !treeError" variant="ghost" size="sm" :disabled="loading || treeLoading || !!productLoadError"
-            @click="router.push({ name: 'product-list', query: { categoryId: selectedKeys[0] } })">查看全部 <Icon icon="lucide:arrow-right" width="16" /></Button>
-        </div>
-        <div :aria-busy="loading || treeLoading">
-          <span v-if="loading || treeLoading" class="sr-only" role="status">正在加载分类商品</span>
-          <div v-if="(loading || treeLoading) && !products.length" class="category-grid" aria-hidden="true">
-            <div v-for="index in 6" :key="index" class="category-skeleton"><Skeleton class="aspect-square w-full" /><Skeleton class="mt-4 h-5 w-3/4" /><Skeleton class="mt-3 h-6 w-1/2" /></div>
-          </div>
-          <div v-else-if="products.length" class="category-grid" :class="{ 'is-updating': loading }">
-            <ProductCard v-for="p in products" :key="p.id" :product="p" />
-          </div>
-          <EmptyState
-            v-else
-            :title="productLoadError || '当前分类暂无商品'"
-            :description="productLoadError ? '请稍后重试。' : '试试其他分类或浏览推荐'"
-            :action-text="productLoadError ? '重新加载' : undefined"
-            @action="selectedKeys[0] && pick(selectedKeys[0])"
-          />
-        </div>
-      </section>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.category-page .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 32px; border: 1px solid var(--yb-hairline); border-radius: 10px; background: var(--yb-paper); overflow: hidden; }
-.category-page .side { border: 0; border-radius: 0; background: var(--yb-fill); padding: 20px 10px; min-height: 520px; }
-.category-page .content { padding: 28px 28px 28px 0; }
-.category-page .content-title { font-size: 18px; }
-.category-page .category-node[data-selected] { background: var(--yb-paper); }
-.taxonomy { padding-bottom: 28px; margin-bottom: 24px; border-bottom: 1px solid var(--yb-hairline); }
-.taxonomy h1 { margin: 0 0 24px; font-size: 24px; font-weight: 650; }
-.taxonomy-group { display: grid; grid-template-columns: 160px minmax(0,1fr); gap: 24px; padding: 18px 0; border-top: 1px solid var(--yb-hairline); align-items: baseline; }
-.taxonomy-title { display: flex; align-items: center; gap: 8px; text-align: left; font-size: 15px; font-weight: 600; }
-.taxonomy-links { display: flex; flex-wrap: wrap; gap: 14px 24px; }
-.taxonomy-links button { font-size: 13px; color: var(--yb-muted); }
-.taxonomy-links button:hover,.taxonomy-title:hover { color: var(--yb-brand-primary); }
-@media(max-width: 800px) { .category-page .layout { grid-template-columns: 180px minmax(0,1fr); gap: 20px; } .taxonomy-group { grid-template-columns: 1fr; gap: 14px; } }
-.category-page { padding-top: 24px; padding-bottom: 48px; }
-.bread { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; color: var(--yb-muted); font-size: 13px; }
-.bread a:hover { color: var(--yb-primary); }
-.bread [aria-current] { color: var(--yb-ink); }
-.category-heading { margin-bottom: 28px; }
-.category-heading > span { color: var(--yb-muted); font-size: 11px; letter-spacing: .14em; }
-.category-heading h1 { margin-top: 8px; font-size: 28px; font-weight: 650; }
-.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; align-items: start; }
-.side { background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; padding: 16px 10px; max-height: 720px; overflow-y: auto; }
-.side-title { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; padding: 0 12px 16px; margin-bottom: 8px; border-bottom: 1px solid var(--yb-hairline); }
-.tree-loading { display: grid; gap: 8px; padding: 8px; }
-.category-node { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 12px; border-radius: 6px; color: var(--yb-muted); font-size: 14px; cursor: pointer; transition: background 150ms, color 150ms; }
-.category-node:hover { background: var(--yb-fill); color: var(--yb-primary); }
-.category-node[data-selected] { background: var(--yb-primary-soft); color: var(--yb-primary); font-weight: 600; }
-.node-toggle { flex-shrink: 0; display: grid; place-items: center; width: 20px; height: 24px; }
-.node-toggle svg { transition: transform 150ms; }
-.node-toggle svg.expanded { transform: rotate(90deg); }
-.node-leaf { width: 20px; flex-shrink: 0; }
-.node-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.content { min-width: 0; }
-.content-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--yb-hairline); }
-.content-title { min-width: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 600; }
-.content-meta { color: var(--yb-muted); font-size: 13px; margin-left: auto; }
-.category-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; transition: opacity 150ms; }
-.category-grid.is-updating { opacity: .55; }
-.category-skeleton { padding: 12px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); }
-@media (max-width: 1100px) { .layout { grid-template-columns: 220px minmax(0, 1fr); gap: 20px; } .category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (prefers-reduced-motion: reduce) { .category-node, .category-grid, .node-toggle svg { transition: none; } }
+.category-status { padding:16px; color:var(--muted); font-size:13px; display:grid; gap:8px; }
+.category-status p { font-size:13px; margin:0; }
+.category-status button { justify-self:start; color:var(--green); }
+.tree-loading { display:grid; gap:8px; padding:8px; }
+.category-root-button { width:100%; }
+.category-leaf { display:flex; flex-shrink:0; }
+.category-leaf:has(> button) > a { border-right:0; border-top-right-radius:0; border-bottom-right-radius:0; }
+.category-drill { display:grid; place-items:center; min-width:32px; border:1px solid var(--line); border-radius:0 6px 6px 0; background:var(--soft); color:var(--green); }
+.category-drill svg { width:14px; height:14px; }
+.category-drill-link { display:flex; gap:8px; padding:7px 13px; border-radius:6px; font-size:12px; }
+.category-path { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:var(--muted); font-size:12px; }
+.category-path svg { width:12px; height:12px; } .category-path button { color:var(--green); }
+@media (max-width:700px) { .category-page > .breadcrumb { display:none; } }
 </style>

@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue';
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui';
 import { Button } from '@/components/ui/button';
 import { Message } from '@/lib/feedback';
+import UmIcon from '@/components/common/um-icon.vue';
 
 const props = withDefaults(defineProps<{
   visible?: boolean;
@@ -65,20 +66,20 @@ async function confirm() {
 <template>
   <DialogRoot :open="visible" @update:open="value => { if (!value) void cancel(); }">
     <DialogPortal>
-      <DialogOverlay class="um-dialog-mask" />
-      <DialogContent class="um-dialog" :style="{ width: dialogWidth }"
+      <DialogOverlay class="um-dialog-mask modal-overlay" />
+      <DialogContent class="um-dialog dialog" :style="{ width: dialogWidth }"
         @escape-key-down="event => { if (!escToClose || busy) event.preventDefault(); }"
         @pointer-down-outside="event => { if (!maskClosable || busy) event.preventDefault(); }">
         <header class="um-dialog-header">
           <DialogTitle class="um-dialog-title">{{ title }}</DialogTitle>
-          <button v-if="closable" type="button" class="um-dialog-close" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><Icon icon="lucide:x" /></button>
+          <button v-if="closable" type="button" class="um-dialog-close" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
         </header>
         <DialogDescription class="sr-only">请核对弹窗内容后继续操作。</DialogDescription>
         <div class="um-dialog-body"><slot /></div>
         <footer v-if="footer" class="um-dialog-footer">
           <slot name="footer">
-            <Button v-if="!hideCancel" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
-            <Button :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
+            <Button v-if="!hideCancel" class="outline" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
+            <Button :class="{ primary: okButtonProps?.status !== 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
               <Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ okText }}
             </Button>
           </slot>
@@ -89,16 +90,14 @@ async function confirm() {
 </template>
 
 <style>
-.um-dialog-mask { position: fixed; inset: 0; z-index: 1000; background: rgb(15 24 20 / .35); backdrop-filter: blur(2px); }
-.um-dialog { position: fixed; top: 50%; left: 50%; z-index: 1000; transform: translate(-50%, -50%); display: flex; flex-direction: column; max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow: hidden; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 24px 80px rgb(15 24 20 / .18); outline: none; }
-.um-dialog-mask[data-state="open"], .um-dialog[data-state="open"] { animation: um-dialog-enter 200ms ease-out; }
+.um-dialog-mask { position: fixed; inset: 0; z-index: 1000; }
+.um-dialog { position: fixed; top: 50%; left: 50%; z-index: 1000; transform: translate(-50%, -50%); display: flex; flex-direction: column; padding: 0; margin: 0; max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow: hidden; outline: none; }
 .um-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; padding: 24px 24px 16px; gap: 16px; }
-.um-dialog-title { margin: 0; font-size: 20px; font-weight: 650; }
+.um-dialog-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.4; }
 .um-dialog-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; color: var(--muted-foreground); }
-.um-dialog-close:hover { background: var(--muted); }
+.um-dialog-close:hover { background: var(--soft); }
 .um-dialog-close:disabled { opacity: .4; cursor: not-allowed; }
 .um-dialog-body { min-height: 0; overflow-y: auto; padding: 0 24px 24px; line-height: 1.65; overflow-wrap: anywhere; }
 .um-dialog-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 12px; padding: 16px 24px 24px; border-top: 1px solid var(--border); }
-@keyframes um-dialog-enter { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .um-dialog-mask[data-state="open"], .um-dialog[data-state="open"] { animation: none; } }
 </style>

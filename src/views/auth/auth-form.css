@@ -1,0 +1,21 @@
+/* Structural adapters for native-looking shadcn inputs; source geometry is centralized. */
+.auth-form { min-width:0; }
+.auth-form :deep(input) { height:auto; padding:12px 14px; }
+.auth-form :deep(input.pr-11) { padding-right:44px; }
+.auth-submit { height:auto; }
+/* Real account states missing from the demo reuse the v47 field and feedback roles. */
+.auth-return { margin-top:20px; }
+.auth-error { margin-bottom:15px; font-size:13px; line-height:1.6; }
+.auth-form :deep(.oauth-divider) { font-size:13px; color:var(--muted); }
+.auth-form :deep(.oauth-placeholder), .auth-form :deep(.oauth-busy) { background:var(--soft); color:var(--ink); border-color:var(--line); border-radius:7px; }
+.auth-form :deep(.oauth-failure) { border-radius:8px; }
+.auth-loading { animation:authPending 1s linear infinite; }
+@keyframes authPending { to { transform:rotate(360deg); } }
+@media (max-width:960px) { .auth-form { padding:30px; } }
+@media (max-width:700px) {
+  .auth-form { padding:22px 23px 27px; border-radius:0 0 8px 8px; }
+  .auth-form > h1 { font-size:21px; margin:0 0 8px; }
+  .auth-form .field { margin:17px 0; }
+  .auth-form .text-link.full { margin:16px 0; }
+}
+@media (prefers-reduced-motion:reduce) { .auth-loading { animation:none; } }

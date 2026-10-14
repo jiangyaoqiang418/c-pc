@@ -1,13 +1,13 @@
 # Umaomao C 端 PC
 
-基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。沿用既有请求、业务状态和权限流程，UI 参考本地 Umaomao v44 PC 版本，不引入原型的演示业务数据。
+基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。当前在 `feat/pc-ui-v47` 将 UI 迁移到 Umaomao v47，状态为部分完成；真实请求、业务状态和权限边界保留。准确进度和下一步见 [当前承接状态](./docs/api-integration-plan.md)，设计红线与后端缺口见 [迁移计划](./PC-v47-migration-plan.md) 和 [后端清单](./PC-v47-backend-requirements.md)。
 
 ## 环境与命令
 
 项目使用 `pnpm`。
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev
 pnpm build
 pnpm preview
@@ -16,6 +16,9 @@ pnpm typecheck
 
 - 开发服务端口由 `vite.config.ts` 配置为 `5173`。
 - 构建产物位于 `dist/`。
+- 换电脑承接本轮使用 `feat/pc-ui-v47`，不要拉取 main 覆盖进度；已有改动先检查再同步。缺少依赖时仅恢复已有锁定包，不新增或升级。
+- `http://localhost:5173/visual-v47.html` 是独立开发视觉验收页，仅使用只读原型数据；不进入正常生产构建，不作为接口错误回退。普通入口继续使用真实接口。
+- 原型引用素材、主题、生成 CSS 与视觉数据已保存在工程内；重新生成参考文件才需要旁侧 `Umaomao-v47/dist`，运行项目不依赖该目录。
 
 ## 目录
 
@@ -67,7 +70,7 @@ src/
 
 ## 主题配色
 
-- 六主题位于 `src/styles/umaomao.css`；默认森林绿，另保留 navy-coral、ocean、clay、graphite、plum 五套主题，由页头切换并本地保存。`tokens.scss` 保留既有业务变量别名，`main.css` 映射到 Tailwind 和 shadcn 语义变量。
+- 当前支持原型 27 主题，默认 `web3-meme`；`umaomao-themes-v47.css` 归并主题与旧变量别名，`main.css` 映射 Tailwind/shadcn 语义变量。`umaomao-reference-v47.css` 按原型 17 份 CSS 的级联顺序统一加载，来源哈希见 `v47-reference-manifest.json`。迁移中保留旧 `umaomao.css` 的兼容层，已有原型外观不能被库默认风格替换。
 - 主操作和链接使用 `--yb-brand-primary`，悬停使用 `--yb-brand-hover`，选中底色使用 `--yb-primary-soft`。
 - 活动背景使用 `--yb-accent` 并搭配 `--yb-accent-ink`；白底上的金色小字使用更深的 `--yb-gold`。
 - 旧 `--yb-brand-pink*`、`--yb-primary*` 和 `--bw-*` 保留兼容映射。Arco 入口、样式与依赖已移除；`AModal` / `a-modal` 是基于 Reka Dialog 的业务弹窗兼容名称，不再调用 Arco。
@@ -79,11 +82,11 @@ src/
 - 全局消息支持悬浮或聚焦暂停消失；弹窗、抽屉、下拉和 Tooltip 分层，抽屉保留左侧遮罩。
 - 既有筛选、分页、失败重试、上传、支付密码、未保存提示、实时消息及结果核对流程保留；原型缺失的业务操作沿用现有实现。
 - 帮助文章、公告和 AI 的真实接口缺口仍保留未开放状态；协议保留原有演示声明，不伪造已上线内容。
-- 本次 UI 重构按要求未运行测试、类型检查、构建或浏览器验证；源码迁移与真实运行验收是不同状态。
+- 2026-10-14 本批保存前类型检查、9 文件/203 项现有测试及生产构建通过；首页默认 MEME 关键节点已做 Chrome 同数据对照，整站像素、动画与真实写入验收仍未完成，详见 [design-qa](./design-qa.md)。
 
 ## 开发边界
 
-- 保留现有页面流程、筛选、分页、弹窗、路由 query、空态和权限跳转。
+- 界面按 v47 组织，保留真实筛选、分页、路由 query、错误恢复和权限边界；缺失生产状态沿原型设计语言补充并记录。
 - 优先在请求/API adapter 边界处理后端字段差异。
 - 不做无关重构、不升级依赖、不批量修改历史 Mock 或 ID 类型。
-- 默认不运行开发、类型检查或构建命令，除非任务明确要求。
+- 迁移与保存进度按计划执行适用的类型、测试、构建和 Chrome 检查；检查通过不等于整站或真实业务验收完成。

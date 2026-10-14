@@ -1,0 +1,25 @@
+/* v47 integration adapters. The authoritative reference cascade is loaded once before this file. */
+html, body, #app { background: var(--bg); color: var(--ink); font-family: var(--font-ui); }
+html.theme-changing * { transition: none !important; }
+
+/* Reka owns focus, scroll locking and presence; these rules reproduce reference motion. */
+.um-dialog-mask[data-state="open"] { animation: um-mask-in 200ms cubic-bezier(.22,1,.36,1); }
+.um-dialog-mask[data-state="closed"] { animation: um-mask-out 160ms cubic-bezier(.22,1,.36,1); }
+.um-dialog[data-state="open"] { animation: um-dialog-move-in 300ms cubic-bezier(.22,1,.36,1), um-mask-in 200ms cubic-bezier(.22,1,.36,1); }
+.um-dialog[data-state="closed"] { animation: um-dialog-move-out 160ms cubic-bezier(.22,1,.36,1), um-mask-out 160ms cubic-bezier(.22,1,.36,1); }
+.um-dialog-title { font-size: 24px; font-weight: 700; line-height: 1.4; }
+.um-dialog-close:hover { background: var(--soft); }
+@keyframes um-mask-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes um-mask-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes um-dialog-move-in {
+  from { transform: translate(-50%,calc(-50% + 18px)) scale(.97); }
+  to { transform: translate(-50%,-50%) scale(1); }
+}
+@keyframes um-dialog-move-out {
+  from { transform: translate(-50%,-50%) scale(1); }
+  to { transform: translate(-50%,calc(-50% + 8px)) scale(.985); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  :root[data-ui-theme="web3-meme"] :is(.product-card,.product-image img,.meme-hero-art > img) { transform: none !important; }
+}
