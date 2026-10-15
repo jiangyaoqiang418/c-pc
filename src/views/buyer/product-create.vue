@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -11,6 +11,7 @@ import * as productApi from '@/service/api/product';
 import { fetchBuyerDepositSummary } from '@/service/api/buyer';
 import { fetchCreateCategoryOptions, isSelectableCategory } from '@/service/api/category';
 import { useUserStore } from '@/stores';
+import { compareDecimalAmount } from '@/components/wallet/decimal-amount';
 
 const router = useRouter();
 const route = useRoute();
@@ -108,9 +109,9 @@ async function onSubmit(form: {
           }
           const productId = editProduct ? await productApi.updateProduct({
             id: editProduct.id, title: form.title.trim(), categoryId,
-            price: form.price === Number(editProduct.price) ? String(editProduct.price) : String(form.price),
-            shippingFee: form.shippingFee === Number(editProduct.shippingFee) ? String(editProduct.shippingFee) : String(form.shippingFee),
-            taxFee: form.tax === Number(editProduct.tax) ? String(editProduct.tax) : String(form.tax),
+            price: compareDecimalAmount(form.price, editProduct.price) === 0 ? String(editProduct.price) : String(form.price),
+            shippingFee: editProduct.shippingFee !== undefined && compareDecimalAmount(form.shippingFee, editProduct.shippingFee) === 0 ? String(editProduct.shippingFee) : String(form.shippingFee),
+            taxFee: editProduct.tax !== undefined && compareDecimalAmount(form.tax, editProduct.tax) === 0 ? String(editProduct.tax) : String(form.tax),
             stock: form.stock,
             afterSaleType: ({ 'none': 'NONE', '7day-no-reason': 'SEVEN_DAY_NO_REASON', 'shop-warranty': 'SHOP_WARRANTY', 'national-warranty': 'NATIONAL_WARRANTY' } as const)[form.aftersaleType],
             overseasClearance: form.overseasCustoms, brief: form.summary.trim(),
@@ -120,16 +121,16 @@ async function onSubmit(form: {
             summary: form.summary.trim() || form.title.trim(),
             description: form.description.trim() || '—',
             categoryId,
-            price: form.price.toFixed(2),
-            shippingFee: form.shippingFee.toFixed(2),
-            tax: form.tax.toFixed(2),
+            price: Number(form.price.toFixed(2)),
+            shippingFee: Number(form.shippingFee.toFixed(2)),
+            tax: Number(form.tax.toFixed(2)),
             stock: form.stock,
             aftersaleType: form.aftersaleType,
             overseasCustoms: form.overseasCustoms,
             images: form.images
           });
           if (!isCurrentWrite()) return;
-          formRef.value?.markSaved();
+          formRef.value?.markSubmitted();
           Message.success(`商品已提交审核（ID：${productId}）`);
           router.push('/buyer/products');
         } catch (error) {
@@ -168,8 +169,8 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
 
 <template>
   <div class="bp-create-page shop-container">
-    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/buyer/products">商品管理</RouterLink><span>/</span><span>{{ editing ? '编辑商品' : '创建商品' }}</span></nav><header class="page-heading"><div><span class="eyebrow">UMAOMAO / PRODUCT EDITOR</span><h1>{{ editing ? '编辑商品' : '创建商品' }}</h1><p>完善商品资料，提交平台审核后即可上架销售。</p></div><Button variant="outline" @click="router.push('/buyer/products')"><Icon icon="lucide:arrow-left" />返回商品管理</Button></header>
-    <Alert v-if="detailError" variant="destructive"><AlertDescription class="alert-row"><span>{{ detailError }}</span><Button variant="outline" size="sm" :disabled="detailLoading" @click="loadDetail">重新加载</Button></AlertDescription></Alert>
+    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/buyer/products">商品管理</RouterLink><span>/</span><span>{{ editing ? '编辑商品' : '创建商品' }}</span></nav><header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>{{ editing ? '编辑商品' : '创建商品' }}</h1><p>完善商品资料，提交平台审核后即可上架销售。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/products')"><UmIcon name="return" />返回商品管理</Button></header>
+    <Alert v-if="detailError" variant="destructive"><AlertDescription class="alert-row"><span>{{ detailError }}</span><Button class="outline" variant="outline" size="sm" :disabled="detailLoading" @click="loadDetail">重新加载</Button></AlertDescription></Alert>
     <div v-if="detailLoading" class="loading-form" aria-busy="true" aria-label="正在读取当前商品信息"><Skeleton v-for="n in 3" :key="n" class="form-skeleton" /></div>
     <Alert v-if="initialProduct?.draftAuditOpinion"><AlertDescription>驳回原因：{{ initialProduct.draftAuditOpinion }}</AlertDescription></Alert>
     <BuyerProductForm v-if="!editing || initialProduct" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${String(initialProduct?.id)}`" :initial-product="initialProduct" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
@@ -177,5 +178,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
 </template>
 
 <style scoped>
-.bp-create-page { display:grid; gap:24px; }.breadcrumb { display:flex; gap:12px; font-size:13px; color:var(--yb-muted); }.breadcrumb a:hover { color:var(--yb-primary); }.breadcrumb>span:last-child { color:var(--yb-ink); }.page-heading,.alert-row { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { font-size:13px; color:var(--yb-muted); margin:0; }.loading-form { display:grid; gap:24px; }.form-skeleton { height:240px; }@media(max-width:900px) { .page-heading { flex-wrap:wrap; } }
+.alert-row { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.loading-form { display:grid; gap:24px; }
+.form-skeleton { height:240px; }
 </style>

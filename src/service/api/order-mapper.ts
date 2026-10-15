@@ -1,4 +1,9 @@
 import { toIsoDate } from './date';
+import { readLedgerAmount } from './wallet';
+
+function optionalOrderAmount(value: unknown, label: string) {
+  return value === undefined || value === null ? undefined : readLedgerAmount(value, label);
+}
 
 export const statusMap: Record<string, Api.Order.OrderStatus> = {
   CREATED: 'PENDING_PAYMENT',
@@ -53,8 +58,9 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
   const shopperId = dto.sellerId || '';
   const productId = dto.productId || '';
   const createdAt = toIsoDate(dto.createdAt) || new Date().toISOString();
-  const unitPrice = String(dto.unitPrice ?? dto.originalAmount ?? dto.totalAmount ?? 0);
-  const totalAmount = String(dto.totalAmount ?? unitPrice);
+  const unitPrice = optionalOrderAmount(dto.unitPrice, '订单成交单价');
+  // 原价合计及单价都不能代替卖家改价后的当前应付金额。
+  const totalAmount = readLedgerAmount(dto.totalAmount, '订单当前应付金额');
 
   return {
     id,
@@ -70,8 +76,8 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     shopperId,
     shopperName: dto.sellerName || (shopperId ? `买手 ${shopperId}` : '买手'),
     price: unitPrice,
-    shippingFee: String(dto.shippingFee ?? 0),
-    tax: String(dto.taxAmount ?? dto.taxFee ?? 0),
+    shippingFee: optionalOrderAmount(dto.shippingFee, '订单运费'),
+    tax: optionalOrderAmount(dto.taxAmount ?? dto.taxFee, '订单税费'),
     totalAmount,
     paidAmount: dto.paidAt ? totalAmount : '0',
     status: statusMap[dto.status],

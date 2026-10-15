@@ -93,7 +93,20 @@ export function useUmScrollRail(element: Ref<HTMLElement | undefined>, options: 
     update();
   }
   onMounted(() => { resize = new ResizeObserver(update); connect(); });
-  watch(element, () => { void nextTick(connect); });
+  watch(element, (next, previous) => {
+    if (next !== previous) {
+      const pointerId = gesture?.id;
+      gesture = undefined;
+      isDragging.value = false;
+      if (pointerId !== undefined && previous?.hasPointerCapture(pointerId)) previous.releasePointerCapture(pointerId);
+      if (!next) {
+        overflow.value = false;
+        left.value = 0;
+        extent.value = 0;
+      }
+    }
+    void nextTick(connect);
+  });
   onUpdated(() => { connect(); });
   onBeforeUnmount(() => { resize?.disconnect(); gesture = undefined; });
 

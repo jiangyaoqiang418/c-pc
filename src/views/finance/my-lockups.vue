@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
+import V47VaultHeader from '@/components/finance/v47-vault-header.vue';
+import { formatAmount } from '@shared';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Icon } from '@iconify/vue';
 import BusinessPagination from '@/components/common/business-pagination.vue';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import * as financeApi from '@/service/api/finance';
@@ -29,12 +28,10 @@ const pageSize = ref(20);
 const total = ref(0);
 const loading = ref(false);
 const loadError = ref('');
-const allCounts = ref<Record<Api.RealFinance.OrderStatus, number>>({
-  HOLDING: 0,
-  SETTLED: 0,
-  REDEEMED: 0,
-  CANCELED: 0
-});
+const allCounts = ref<Partial<Record<Api.RealFinance.OrderStatus, number>>>({});
+const overview = ref<Api.RealFinance.FinanceOverviewVO>();
+const overviewError = ref(false);
+const overviewReading = ref(false);
 const unlockModalOpen = ref(false);
 const unlockTarget = ref<Api.RealFinance.FinanceOrderVO>();
 const unlocking = ref(false);
@@ -122,20 +119,19 @@ async function loadCounts() {
   if (disposed) return;
   const isCurrent = countsGuard.begin();
   if (!userStore.currentUser || disposed) return;
-  try {
-    const all = await Promise.all(
-      TABS.map(t => financeApi.fetchFinanceOrders(
-        { pageNo: 1, pageSize: 1, status: t.key },
-        { signal: isCurrent.signal }
-      ).then(r => ({ key: t.key, total: r.total })))
-    );
-    if (!isCurrent() || !userStore.currentUser) return;
-    all.forEach(({ key, total }) => {
-      allCounts.value[key] = total;
-    });
-  } catch {
-    // 数量徽标加载失败不影响当前列表的浏览与切换。
-  }
+  overviewReading.value = true;
+  const [counts, summary] = await Promise.allSettled([
+    Promise.all(TABS.map(t => financeApi.fetchFinanceOrders(
+      { pageNo: 1, pageSize: 1, status: t.key }, { signal: isCurrent.signal }
+    ).then(r => ({ key: t.key, total: r.total })))),
+    financeApi.fetchFinanceOverview({ signal: isCurrent.signal, showError: false })
+  ]);
+  if (!isCurrent() || !userStore.currentUser) return;
+  allCounts.value = counts.status === 'fulfilled'
+    ? Object.fromEntries(counts.value.map(item => [item.key, item.total])) : {};
+  overview.value = summary.status === 'fulfilled' ? summary.value : undefined;
+  overviewError.value = summary.status === 'rejected' || counts.status === 'rejected';
+  overviewReading.value = false;
 }
 
 onMounted(async () => {
@@ -163,7 +159,10 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   unlocking.value = false;
   unlockModalOpen.value = false;
   unlockTarget.value = undefined;
-  allCounts.value = { HOLDING: 0, SETTLED: 0, REDEEMED: 0, CANCELED: 0 };
+  allCounts.value = {};
+  overview.value = undefined;
+  overviewError.value = false;
+  overviewReading.value = false;
   syncQuery(true);
   void loadCounts();
 });
@@ -233,30 +232,24 @@ function handleEmptyAction() {
   router.push('/finance');
 }
 
-const tabBadgeCount = computed(() => (k: Api.RealFinance.OrderStatus) => allCounts.value[k]);
+
 
 
 </script>
 
 <template>
-
-  <div class="my-lockups-page">
-    <header class="page-heading"><div><span class="eyebrow">YOUR LOCKED VAULT</span><h1>我的锁仓</h1><p>查看每笔锁仓的进度与结算。</p></div><Button variant="outline" @click="router.push('/finance')">浏览锁仓产品<Icon icon="lucide:arrow-right" width="16" /></Button></header>
-    <nav class="page-links" aria-label="小金库导航"><RouterLink to="/finance">锁仓产品</RouterLink><RouterLink to="/finance/my-lockups" aria-current="page">我的锁仓</RouterLink></nav>
-    <Tabs :model-value="activeKey" @update:model-value="changeTab"><TabsList class="status-tabs"><TabsTrigger v-for="t in TABS" :key="t.key" :value="t.key">{{ t.label }}<span v-if="tabBadgeCount(t.key) > 0" class="tab-count">{{ tabBadgeCount(t.key) }}</span></TabsTrigger></TabsList><TabsContent :value="activeKey" class="list-wrap">
-      <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓列表"><Skeleton v-for="n in 3" :key="n" class="lockup-skeleton" /></div>
-      <EmptyState v-else-if="loadError" title="锁仓列表加载失败" :description="loadError" action-text="重新加载" @action="load" />
-      <div v-else-if="orders.length" class="lockup-list"><LockupCard v-for="o in orders" :key="o.id" :order="o" @unlock="onUnlock" /></div>
-      <EmptyState v-else title="该状态下没有锁仓" description="在这里查看每笔锁仓的进度与结算。" action-text="浏览锁仓产品" @action="handleEmptyAction" />
-      <BusinessPagination v-if="!loading && !loadError && total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />
-    </TabsContent></Tabs>
+  <div class="vault-workspace">
+    <V47VaultHeader section="holdings" :holding-count="overview?.holdingCount" />
+    <div v-if="overviewError" class="status-banner vault-production-notice" role="alert"><span>部分锁仓概览未能读取，列表仍可查看。</span><button class="outline" :disabled="overviewReading" @click="loadCounts">重新读取概览</button></div>
+    <div class="vault-holdings-summary"><span>锁仓本金<strong>{{ formatAmount(overview?.holdingPrincipal) }} <small>USDT</small></strong></span><span>累计利息<strong class="positive">{{ overview ? '+ ' + formatAmount(overview.totalInterest, { decimals: 4 }) : '—' }} <small>USDT</small></strong></span></div>
+    <div class="vault-status-tabs" role="group" aria-label="锁仓状态"><button v-for="t in TABS" :key="t.key" :class="{ active: activeKey === t.key }" :aria-pressed="activeKey === t.key" @click="changeTab(t.key)">{{ t.label }}<span v-if="allCounts[t.key] !== undefined">{{ allCounts[t.key] }}</span></button></div>
+    <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓列表"><Skeleton v-for="n in 3" :key="n" class="vault-lockup-skeleton" /></div>
+    <EmptyState v-else-if="loadError" title="锁仓列表加载失败" :description="loadError" action-text="重新读取" @action="load" />
+    <div v-else-if="orders.length" class="vault-position-list"><LockupCard v-for="o in orders" :key="o.id" :order="o" @unlock="onUnlock" /></div>
+    <EmptyState v-else title="该状态下没有锁仓" description="在这里查看每笔锁仓的进度与结算。" action-text="浏览锁仓产品" @action="handleEmptyAction" />
+    <BusinessPagination v-if="!loading && !loadError && total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />
     <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="unlockTarget" :submitting="unlocking" :pending="redemptionPending" @confirm="confirmUnlock" />
   </div>
-
 </template>
 
-<style scoped>
-
-.my-lockups-page { padding-bottom:32px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.page-heading h1 { font-size:30px; font-weight:650; margin:6px 0; }.page-heading p { font-size:14px; color:var(--yb-muted); margin:0; }.page-links { display:flex; gap:28px; margin-bottom:24px; border-bottom:1px solid var(--yb-hairline); }.page-links a { padding-bottom:13px; font-size:14px; color:var(--yb-muted); text-decoration:none; }.page-links [aria-current] { color:var(--yb-brand-primary); border-bottom:2px solid var(--yb-brand-primary); }.status-tabs { width:100%; height:auto; justify-content:flex-start; gap:8px; padding:8px; border:1px solid var(--yb-hairline); background:var(--yb-surface); border-radius:16px; }.status-tabs :deep(button) { padding:10px 20px; }.tab-count { margin-left:6px; font-size:12px; color:var(--yb-brand-primary); }.list-wrap { margin-top:24px; }.lockup-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; margin-bottom:24px; }.lockup-skeleton { height:260px; border-radius:20px; margin-bottom:20px; }
-
-</style>
+<style scoped src="./v47-vault.css"></style>

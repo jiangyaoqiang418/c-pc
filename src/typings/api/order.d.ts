@@ -15,6 +15,9 @@ declare namespace Api.RealOrder {
     | 'pledgeTxnId'
     | 'overseasCustoms'
     | 'aftersaleType'
+    | 'price'
+    | 'shippingFee'
+    | 'tax'
   > & {
     id: Id;
     groupId?: Id;
@@ -29,6 +32,9 @@ declare namespace Api.RealOrder {
     pledgeTxnId?: Id;
     overseasCustoms?: boolean;
     aftersaleType?: Api.Order.OrderRecord['aftersaleType'];
+    price?: string;
+    shippingFee?: string;
+    tax?: string;
     logisticsStatus?: LogisticsStatus;
     logisticsStatusText?: string;
     carrier?: Carrier;

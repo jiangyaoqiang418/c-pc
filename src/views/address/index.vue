@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message, Modal } from '@/lib/feedback';
 import * as realAddressApi from '@/service/api/address';
 import AddressForm from '@/components/profile/address-form.vue';
-import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { RequestError } from '@/service/request';
@@ -182,22 +180,34 @@ async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
 </script>
 
 <template>
-  <div class="address-page shop-container">
-    <header class="page-head"><div><span class="eyebrow">DELIVERY ADDRESS</span><h1>地址管理</h1></div><Button :disabled="submitting || deletionPending" @click="openAdd"><Icon icon="lucide:plus" width="18" />新增地址</Button></header>
+  <div class="address-page">
+    <div class="page-heading compact"><h1>收货地址</h1></div>
+    <div class="section-heading"><span>{{ loading ? '正在读取收货地址…' : loadError ? '地址读取失败' : `${list.length} 个收货地址` }}</span><button type="button" class="primary" :disabled="submitting || deletionPending" @click="openAdd">＋ 新增地址</button></div>
     <section :aria-busy="loading" aria-label="收货地址列表">
-      <div v-if="loading && !list.length" class="grid"><Skeleton v-for="n in 4" :key="n" class="address-loading" /></div>
-      <div v-else-if="list.length" class="grid" :class="{ refreshing: loading }">
-        <article v-for="a in list" :key="a.id" class="addr-card" :class="{ default: a.isDefault }"><header class="head"><div><strong>{{ a.receiverName }}</strong><span>{{ a.receiverPhone }}</span></div><small v-if="a.isDefault" class="default-tag">默认地址</small></header><p>{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}</p><footer class="actions"><Button v-if="!a.isDefault" size="sm" variant="ghost" :disabled="defaultingId !== undefined || loading" @click="setDefault(a)">{{ defaultingId === a.id ? '设置中…' : '设为默认' }}</Button><Button size="sm" variant="outline" :disabled="submitting || deletionPending" @click="openEdit(a)">编辑</Button><Button size="sm" variant="outline" class="danger" :disabled="deletingId !== undefined || deletionPending || loading" @click="onDelete(a)">{{ deletingId === a.id ? '删除中…' : '删除' }}</Button></footer></article>
-        <button type="button" class="add-address-tile" :disabled="submitting || deletionPending || loading" @click="openAdd"><Icon icon="lucide:plus" width="28" /><span>新增收货地址</span></button>
+      <div v-if="loading && !list.length" class="address-grid"><Skeleton v-for="n in 4" :key="n" class="address-loading" /></div>
+      <div v-else-if="loadError" class="empty paper" role="alert"><UmIcon name="pin" /><h2>收货地址读取失败</h2><p>{{ loadError }}</p><button type="button" class="primary" @click="load">重新加载</button></div>
+      <div v-else class="address-grid" :class="{ refreshing: loading }">
+        <article v-for="a in list" :key="a.id" class="paper address-card">
+          <span v-if="a.isDefault" class="pill">默认地址</span>
+          <h3>{{ a.receiverName }} <small>{{ a.receiverPhone }}</small></h3>
+          <p>{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }}<br />{{ a.detail }}<template v-if="a.postalCode"><br />{{ a.postalCode }}</template></p>
+          <div class="button-row">
+            <button type="button" :disabled="submitting || deletionPending" @click="openEdit(a)"><UmIcon name="edit" />编辑</button>
+            <button v-if="!a.isDefault" type="button" :disabled="defaultingId !== undefined || loading" @click="setDefault(a)">{{ defaultingId === a.id ? '设置中…' : '设为默认' }}</button>
+            <button type="button" :disabled="deletingId !== undefined || deletionPending || loading" @click="onDelete(a)">{{ deletingId === a.id ? '删除中…' : '删除' }}</button>
+          </div>
+        </article>
+        <button type="button" class="add-address" :disabled="submitting || deletionPending || loading" @click="openAdd"><UmIcon name="plus" />添加一个新地址</button>
       </div>
-      <EmptyState v-else :title="loadError || '还没有收货地址'" :description="loadError ? '请稍后重试。' : '添加地址后下单更快捷'" :action-text="loadError ? '重新加载' : '新增地址'" @action="loadError ? load() : openAdd()" />
     </section>
-    <AModal v-model:visible="modalOpen" :title="editing?.id ? '编辑地址' : '新增地址'" :footer="false" :width="640" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting"><AddressForm :key="modalVersion" :model-value="editing" :submitting="submitting" @submit="onSubmit" /></AModal>
+    <AModal v-model:visible="modalOpen" :title="editing?.id ? '编辑收货地址' : '添加收货地址'" :footer="false" :width="540" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting"><AddressForm :key="modalVersion" v47 :model-value="editing" :submitting="submitting" @submit="onSubmit" /></AModal>
   </div>
 </template>
 
 <style scoped>
-.add-address-tile { display:grid; align-content:center; justify-items:center; gap:14px; min-height:215px; border:1px dashed var(--yb-hairline-2); border-radius:8px; color:var(--yb-muted); background:transparent; cursor:pointer; }
-.add-address-tile:hover { border-color:var(--yb-primary); color:var(--yb-primary); }.add-address-tile:disabled { cursor:not-allowed; opacity:.5; }
-.address-page { padding-top:32px; padding-bottom:48px; }.page-head { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:5px 0 0; font-size:28px; font-weight:650; }.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }.addr-card { padding:26px; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; transition:border-color .2s,box-shadow .2s,transform .2s; }.addr-card.default { border-color:var(--yb-brand-primary); background:linear-gradient(120deg,var(--yb-primary-soft),var(--yb-paper)); }.addr-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgb(20 40 30 / 5%); }.head { display:flex; justify-content:space-between; align-items:center; gap:12px; }.head>div { display:flex; gap:16px; flex-wrap:wrap; align-items:baseline; }.head strong { font-size:17px; font-weight:600; }.head span { font-size:13px; color:var(--yb-muted); }.default-tag { background:var(--yb-brand-primary); color:var(--yb-paper); border-radius:4px; padding:3px 8px; white-space:nowrap; font-size:12px; }.addr-card p { margin:20px 0; min-height:48px; font-size:14px; line-height:1.8; color:var(--yb-ink-2); overflow-wrap:anywhere; }.actions { display:flex; justify-content:flex-end; gap:12px; padding-top:18px; border-top:1px solid var(--yb-hairline); }.danger { color:var(--destructive); }.address-loading { height:215px; border-radius:10px; }.refreshing { opacity:.65; }@media(max-width:800px) { .grid { grid-template-columns:1fr; } }@media(prefers-reduced-motion:reduce) { .addr-card { transition:none; }.addr-card:hover { transform:none; } }
+.address-card h3,.address-card p { overflow-wrap:anywhere; }
+.address-card .button-row { flex-wrap:wrap; }
+.address-card .button-row button { display:inline-flex; align-items:center; gap:6px; }
+.address-loading { height:215px; border-radius:10px; }
+.refreshing { opacity:.65; }
 </style>

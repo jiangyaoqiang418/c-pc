@@ -5,6 +5,7 @@
  * - formatPoints：积分整数 + 千分位
  * - formatRate：小数转百分比展示（0.1 → "10.00%"）
  */
+import { sumPaymentAmounts } from '@/utils/checkout';
 
 export interface FormatAmountOpts {
   /** 小数位数，默认 2 */
@@ -24,9 +25,29 @@ export interface FormatAmountOpts {
 export function formatAmount(value: string | number | null | undefined, opts: FormatAmountOpts = {}): string {
   const { decimals = 2, suffix = '', thousands = true, fallback = '—' } = opts;
   if (value === undefined || value === null || value === '') return fallback;
-  const num = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(num)) return fallback;
-  const fixed = num.toFixed(decimals);
+  let fixed: string;
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return fallback;
+    // A numeric input already carries JavaScript's floating-point semantics.
+    fixed = value.toFixed(decimals);
+  } else {
+    const match = value.trim().match(/^([+-]?)(\d+(?:\.\d*)?|\.\d+)(?:[eE]([+-]?\d+))?$/);
+    if (!match) return fallback;
+    // Only the decimal-point offset becomes a Number; the amount stays exact.
+    const power = match[3] === undefined ? 0 : Number(match[3]);
+    if (!Number.isSafeInteger(power) || Math.abs(power) > 10_000) return fallback;
+    const coefficient = match[2].replace(/^\./, '0.').replace(/\.$/, '.0');
+    const [integer, fraction = ''] = sumPaymentAmounts([coefficient]).split('.');
+    const units = BigInt(integer + fraction);
+    // Reuse toFixed's precision validation and integer coercion, without converting the amount.
+    const precision = (0).toFixed(decimals).split('.')[1]?.length ?? 0;
+    const shift = power + precision - fraction.length;
+    const divisor = shift < 0 ? 10n ** BigInt(-shift) : 1n;
+    const rounded = shift < 0 ? (units * 2n + divisor) / (divisor * 2n) : units * 10n ** BigInt(shift);
+    const digits = rounded.toString().padStart(precision + 1, '0');
+    const sign = match[1] === '-' && units !== 0n ? '-' : '';
+    fixed = sign + (precision ? `${digits.slice(0, -precision)}.${digits.slice(-precision)}` : digits);
+  }
   let out = fixed;
   if (thousands) {
     const [intPart, decPart] = fixed.split('.');

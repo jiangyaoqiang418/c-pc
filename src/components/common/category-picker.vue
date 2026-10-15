@@ -118,7 +118,7 @@ async function focusFirstResult() {
   <div class="category-picker">
     <PopoverRoot v-model:open="open">
       <PopoverTrigger as-child>
-        <Button :id="id || fallbackId" type="button" variant="outline" class="category-trigger" :disabled="blocked" :title="displayText" @keydown.down.prevent="open = !blocked; focusFirstResult()">
+        <Button :id="id || fallbackId" type="button" variant="outline" class="category-trigger outline" :disabled="blocked" :title="displayText" @keydown.down.prevent="open = !blocked; focusFirstResult()">
           <span :class="{ placeholder: !selected }">{{ displayText }}</span><Icon :icon="loading ? 'lucide:loader-circle' : 'lucide:chevron-down'" :class="{ 'animate-spin': loading }" width="16" />
         </Button>
       </PopoverTrigger>

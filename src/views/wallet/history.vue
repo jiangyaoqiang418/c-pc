@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import BusinessPagination from '@/components/common/business-pagination.vue';
-import { parseDateValue } from '@/utils/date-range';
+import { formatDateValue, parseDateValue } from '@/utils/date-range';
 import { resolvePageSize } from '@/service/api/page';
-import { enums } from '@shared';
+import { enums, formatAmount } from '@shared';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
-import TxnRow from '@/components/wallet/txn-row.vue';
 import TxnDetailDrawer from '@/components/wallet/txn-detail-drawer.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
@@ -193,6 +188,10 @@ function reset() {
 }
 
 function queryRecords() {
+  if (filter.dateRange?.[0] && filter.dateRange?.[1] && filter.dateRange[0] > filter.dateRange[1]) {
+    Message.warning('开始日期不能晚于结束日期');
+    return;
+  }
   current.value = 1;
   syncQuery();
 }
@@ -217,7 +216,7 @@ function exportCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `油宝资金流水-第${current.value}页-${list.value.length}条-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `Umaomao资金流水-第${current.value}页-${list.value.length}条-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -257,24 +256,43 @@ const toDate = computed({
 </script>
 
 <template>
-  <div class="history-page shop-container">
-    <header class="page-head"><div><span class="eyebrow">WALLET TRANSACTIONS</span><h1>资金流水</h1><p v-if="!loading && !loadError">共 {{ total }} 条；导出范围为当前页。</p></div><Button variant="outline" @click="router.push('/wallet')">返回钱包</Button></header>
-    <form class="filter-card" novalidate @submit.prevent="queryRecords" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
-      <div class="filter-fields">
-        <div class="field"><span class="field-label">类型</span><DropdownMenu><DropdownMenuTrigger as-child><Button type="button" variant="outline" class="type-trigger" aria-label="选择资金流水类型"><span>{{ filter.types.length ? `已选 ${filter.types.length} 种类型` : '全部类型' }}</span><Icon icon="lucide:chevron-down" width="15" /></Button></DropdownMenuTrigger><DropdownMenuContent align="start" :collision-padding="8" class="type-menu"><DropdownMenuItem @select="filter.types = []">不限 · 清除全部类型</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuGroup v-for="g in TYPE_GROUPS" :key="g.label"><DropdownMenuLabel>{{ g.label }}</DropdownMenuLabel><DropdownMenuCheckboxItem v-for="t in g.types" :key="t" :model-value="filter.types.includes(t)" @update:model-value="setType(t, $event)" @select.prevent>{{ enums.TXN_TYPE_META[t]?.label || '未知类型' }}</DropdownMenuCheckboxItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
-        <div class="field"><Label for="ledger-bucket">资产桶</Label><Select v-model="bucketFilter"><SelectTrigger id="ledger-bucket"><SelectValue placeholder="全部桶" /></SelectTrigger><SelectContent><SelectItem v-for="b in BUCKET_OPTIONS" :key="b.value || 'all'" :value="b.value || 'all'">{{ b.label }}</SelectItem></SelectContent></Select></div>
-        <div class="field date-field"><span class="field-label">日期</span><div class="date-range"><Input v-model="fromDate" type="date" aria-label="开始日期" :max="toDate || undefined" /><span>—</span><Input v-model="toDate" type="date" aria-label="结束日期" :min="fromDate || undefined" /></div></div>
-        <div class="field"><Label for="ledger-keyword">关键字</Label><Input id="ledger-keyword" v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" /></div>
+  <div class="history-page">
+    <div class="page-heading compact"><h1>资金流水</h1><span v-if="!loading && !loadError" class="heading-meta">共 {{ total }} 条 · 导出范围为当前页</span><button class="outline" @click="router.push(userStore.isBuyerActive ? '/buyer/wallet' : '/wallet')">返回钱包</button></div>
+    <form class="paper ledger-filter" novalidate @submit.prevent="queryRecords" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
+      <div class="ledger-filter-fields">
+        <div class="field"><span class="ledger-field-label">类型</span><DropdownMenu><DropdownMenuTrigger as-child><button type="button" class="outline ledger-type-trigger" aria-label="选择资金流水类型"><span>{{ filter.types.length ? `已选 ${filter.types.length} 种类型` : '全部类型' }}</span><UmIcon name="chevron" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" :collision-padding="8" class="ledger-type-menu"><DropdownMenuItem @select="filter.types = []">不限 · 清除全部类型</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuGroup v-for="g in TYPE_GROUPS" :key="g.label"><DropdownMenuLabel>{{ g.label }}</DropdownMenuLabel><DropdownMenuCheckboxItem v-for="t in g.types" :key="t" :model-value="filter.types.includes(t)" @update:model-value="setType(t, $event)" @select.prevent>{{ enums.TXN_TYPE_META[t]?.label || t }}</DropdownMenuCheckboxItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
+        <div class="field"><label for="ledger-bucket">资产桶</label><select id="ledger-bucket" v-model="bucketFilter"><option v-for="b in BUCKET_OPTIONS" :key="b.value || 'all'" :value="b.value || 'all'">{{ b.label }}</option></select></div>
+        <div class="field ledger-date-field"><span class="ledger-field-label">日期</span><div class="ledger-date-range"><input v-model="fromDate" type="date" aria-label="开始日期" :max="toDate || undefined" /><span>—</span><input v-model="toDate" type="date" aria-label="结束日期" :min="fromDate || undefined" /></div></div>
+        <div class="field"><label for="ledger-keyword">关键字</label><input id="ledger-keyword" v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" /></div>
       </div>
-      <div v-if="filter.types.length" class="type-chips"><button v-for="t in filter.types" :key="t" type="button" :aria-label="`取消筛选：${enums.TXN_TYPE_META[t]?.label || t}`" @click="setType(t, false)">{{ enums.TXN_TYPE_META[t]?.label || t }}<Icon icon="lucide:x" width="12" /></button></div>
-      <footer class="filter-actions"><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" :disabled="loading" @click="reset">重置</Button><Button type="button" variant="outline" class="export" :disabled="loading || !!loadError || !list.length" @click="exportCsv"><Icon icon="lucide:download" width="16" />导出当前页（{{ list.length }} 条）</Button></footer>
+      <div v-if="filter.types.length" class="ledger-type-chips"><button v-for="t in filter.types" :key="t" type="button" :aria-label="`取消筛选：${enums.TXN_TYPE_META[t]?.label || t}`" @click="setType(t, false)">{{ enums.TXN_TYPE_META[t]?.label || t }}<UmIcon name="close" /></button></div>
+      <footer class="button-row ledger-filter-actions"><button type="submit" class="primary" :disabled="loading">查询</button><button type="button" class="outline" :disabled="loading" @click="reset">重置</button><button type="button" class="outline ledger-export" :disabled="loading || !!loadError || !list.length" @click="exportCsv">导出当前页（{{ list.length }} 条）</button></footer>
     </form>
-    <section class="list-card" :aria-busy="loading" aria-label="资金流水列表"><div v-if="loading && !list.length" class="skeletons"><Skeleton v-for="n in 5" :key="n" class="h-20" /></div><div v-else-if="list.length" :class="{ refreshing: loading }"><TxnRow v-for="t in list" :key="t.id" :txn="t" @detail="openDetail" /></div><EmptyState v-else :title="loadError || '暂无符合条件的流水'" :description="loadError ? '不会展示不完整的流水数据。' : '充值、提现、订单支付或退款后会生成资金流水'" :action-text="loadError ? '重新加载' : '查看钱包'" @action="handleEmptyAction" /></section>
+    <section class="paper" :aria-busy="loading" aria-label="资金流水列表"><div v-if="loading && !list.length" class="ledger-skeletons"><Skeleton v-for="n in 5" :key="n" class="h-20" /></div><div v-else-if="list.length" :class="{ 'ledger-refreshing': loading }"><button v-for="t in list" :key="t.id" class="transaction wallet-transaction" :aria-label="'查看流水 ' + t.id" @click="openDetail(t)"><UmIcon :name="t.type === 'DEPOSIT_IN' || t.type === 'WITHDRAW_OUT' ? 'wallet' : t.type.startsWith('FINANCE') || t.type === 'INTEREST_ACCRUE' ? 'clock' : 'bag'" /><span class="transaction-copy"><b>{{ t.testData ? '测试模拟到账' : t.bizTypeText || enums.TXN_TYPE_META[t.type]?.label || t.type }} · {{ t.refId || t.id }}</b><small>{{ formatDateValue(t.createdAt) }}</small><small v-if="t.remark" class="ledger-caption">{{ t.remark }}</small><small v-if="t.bucketFrom || t.bucketTo" class="ledger-caption">{{ t.bucketFrom ? enums.BUCKET_META[t.bucketFrom]?.label || t.bucketFrom : '' }}{{ t.bucketFrom && t.bucketTo ? ' → ' : '' }}{{ t.bucketTo ? enums.BUCKET_META[t.bucketTo]?.label || t.bucketTo : '' }}</small></span><b>{{ t.direction === 'in' ? '+' : '−' }} {{ formatAmount(t.amount) }} USDT</b></button></div><EmptyState v-else :title="loadError || '暂无资金流水'" :description="loadError ? '请检查网络后重新读取。' : '充值、转出、订单支付或退款后会生成资金流水。'" :action-text="loadError ? '重新读取' : '返回钱包'" @action="handleEmptyAction" /></section>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
   </div>
 </template>
 
+<style scoped src="../../components/wallet/v47-wallet.css"></style>
 <style scoped>
-.history-page { padding-top:32px; padding-bottom:48px; }.page-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:24px; }.eyebrow { color:var(--yb-gold); letter-spacing:2px; font-size:11px; }h1 { margin:5px 0 8px; font-size:28px; font-weight:650; }.page-head p { margin:0; color:var(--yb-muted); font-size:13px; }.filter-card,.list-card { background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; margin-bottom:24px; padding:24px; }.filter-fields { display:grid; grid-template-columns:1fr 1fr 1.8fr 1.2fr; gap:20px; }.field { display:grid; gap:10px; min-width:0; }.field-label { font-size:14px; font-weight:500; }.type-trigger { justify-content:space-between; }:global(.type-menu) { max-height:min(400px,70dvh,var(--reka-dropdown-menu-content-available-height,70dvh)); overflow-y:auto; min-width:min(230px,calc(100vw - 32px)); }.date-range { display:flex; align-items:center; gap:8px; }.date-range input { min-width:0; }.date-range>span { color:var(--yb-muted); }.filter-actions { display:flex; gap:12px; margin-top:24px; }.export { margin-left:auto; }.type-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }.type-chips button { display:flex; align-items:center; gap:6px; padding:4px 9px; border:0; border-radius:4px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); font-size:12px; cursor:pointer; }.type-chips button:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.list-card { padding:12px 20px; }.skeletons { display:grid; gap:12px; padding:12px 0; }.refreshing { opacity:.65; }@media(max-width:1100px) { .filter-fields { grid-template-columns:1fr 1fr; } }@media(max-width:700px) { .filter-actions { flex-wrap:wrap; }.export { margin-left:0; }.date-field { grid-column:1/-1; } }
+.history-page { padding-bottom:48px; }
+.ledger-filter-fields { display:grid; grid-template-columns:1fr 1fr 1.8fr 1.2fr; gap:18px; }
+.ledger-filter .field { min-width:0; margin:0; }
+.ledger-field-label { font-size:12px; font-weight:500; }
+.ledger-type-trigger { justify-content:space-between; font-size:14px; padding:12px 14px; }
+.ledger-type-trigger svg { width:15px; height:15px; transform:rotate(90deg); }
+:global(.ledger-type-menu) { max-height:min(400px,70dvh,var(--reka-dropdown-menu-content-available-height,70dvh)); overflow:auto; min-width:min(230px,calc(100vw - 32px)); }
+.ledger-date-range { display:flex; align-items:center; gap:8px; }
+.ledger-date-range input { min-width:0; width:100%; }
+.ledger-date-range>span { color:var(--muted); }
+.ledger-filter-actions { margin-top:20px; }
+.ledger-export { margin-left:auto; }
+.ledger-type-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+.ledger-type-chips button { display:flex; align-items:center; gap:6px; padding:4px 9px; border:1px solid var(--line); border-radius:6px; background:var(--soft); color:var(--green); font-size:12px; }
+.ledger-type-chips svg { width:12px; height:12px; }
+.ledger-skeletons { display:grid; gap:12px; }
+.ledger-refreshing { opacity:.65; }
+@media(max-width:1100px) { .ledger-filter-fields { grid-template-columns:1fr 1fr; } }
+@media(max-width:700px) { .ledger-export { margin-left:0; }.ledger-date-field { grid-column:1/-1; } }
 </style>

@@ -6,7 +6,7 @@ declare namespace Api.RealPoint {
     behaviorName?: string;
   };
 
-  type Rule = Omit<Api.Point.Rule, 'code'> & { code: string };
+  type Rule = Omit<Api.Point.Rule, 'code' | 'capDaily' | 'capTotal'> & { code: string; capDaily?: number; capTotal?: number };
 
   interface VipBenefitItemVO {
     code: string;
@@ -26,7 +26,7 @@ declare namespace Api.RealPoint {
   }
 
   interface UserPointVO {
-    userId: string;
+    userId: string | number;
     points: string | number;
     customer?: VipRoleInfoVO;
     buyer?: VipRoleInfoVO;

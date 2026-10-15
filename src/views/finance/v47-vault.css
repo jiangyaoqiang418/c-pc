@@ -1,0 +1,20 @@
+.vault-workspace { padding-bottom:32px; }
+.vault-production-notice { margin-bottom:20px; align-items:flex-start; flex-wrap:wrap; }
+.vault-production-notice>span,.vault-production-notice>div { flex:1; min-width:160px; }
+.vault-production-notice p { margin:0; }
+.vault-production-notice small { overflow-wrap:anywhere; }
+.vault-production-notice .button-row { margin-top:12px; }
+.vault-overview-skeleton { height:244px; border-radius:16px; }
+.vault-plan-skeleton { height:300px; border-radius:14px; }
+.vault-detail-skeleton { min-height:500px; border-radius:16px; }
+.vault-lockup-skeleton { height:244px; border-radius:14px; margin-bottom:18px; }
+.vault-holdings-summary strong,.vault-position-metrics strong,.vault-detail-banner strong { overflow-wrap:anywhere; }
+.vault-product-info>p { white-space:pre-wrap; overflow-wrap:anywhere; }
+.vault-product-title>div,.vault-position-head>div { min-width:0; }
+.vault-product-title h2,.vault-position-head h3,.vault-detail-banner h2 { overflow-wrap:anywhere; }
+.vault-position-head small,.vault-detail-banner small { overflow-wrap:anywhere; }
+.vault-production-metadata { margin-top:24px; border-top:1px solid var(--line); padding-top:20px; }
+.vault-production-metadata h3 { margin-bottom:12px; }
+@media (max-width:700px) {
+  :root[data-ui-theme="web3-meme"] .vault-workspace .vault-plans { margin-right:-12px; padding-right:12px; }
+}

@@ -48,7 +48,13 @@ const featured = computed(() => (feedMode.value === 'popular' ? hot.value : feed
 const radarModes = [{ id: 'curated', label: '买手精选' }, { id: 'popular', label: '人气好物' }, { id: 'new', label: '新发现' }] as const;
 const brandLabels = ['Apple', 'SONY', 'NIKE', 'COACH', 'OMEGA', 'BURBERRY'];
 const rankingProducts = computed(() => props.visualFixture?.rankingProducts || hot.value);
-const marketCount = computed(() => props.visualFixture ? props.visualFixture.feedRecords.length : recommendations.value.length);
+const marketCount = computed(() => props.visualFixture ? props.visualFixture.feedRecords.length
+  : sectionLoading.recommendations || sectionErrors.recommendations ? '—' : recommendations.value.length);
+function discoveryProducts(index: number) {
+  if (props.visualFixture?.discoveryProducts) return props.visualFixture.discoveryProducts[index] || [];
+  return (index === 2 ? hot.value : recommendations.value).slice(index * 2, index * 2 + 2);
+}
+function discoverySection(index: number): HomeSection { return index === 2 ? 'hot' : 'recommendations'; }
 
 async function loadSection(section: HomeSection, task: (signal: AbortSignal, isCurrent: () => boolean) => Promise<void>) {
   if (props.visualFixture) return;
@@ -224,7 +230,8 @@ let feedRevision = 0;
 const visibleFeed = computed(() => feedRecords.value.slice(0, feedLimit.value));
 const hasMoreFeed = computed(() => feedLimit.value < feedRecords.value.length || !feedExhausted.value);
 const recommendationsLoading = computed(() => feedLoading.value || (homeCategory.value === '' && sectionLoading.recommendations));
-const recommendationCount = computed(() => feedTotal.value ?? feedRecords.value.length);
+const recommendationCount = computed(() => recommendationsLoading.value || feedError.value || sectionErrors.recommendations
+  ? '—' : feedTotal.value ?? feedRecords.value.length);
 async function loadFeed(reset = false) {
   if (props.visualFixture) {
     const selectedIds = new Set<string>();
@@ -258,6 +265,8 @@ async function loadFeed(reset = false) {
       const result = await productApi.fetchHomeRecommendations(limit, { signal: isCurrent.signal });
       if (!isCurrent()) return;
       feedRecords.value = result;
+      recommendations.value = result;
+      sectionErrors.recommendations = '';
       recommendationLimit.value = limit;
       feedExhausted.value = result.length < limit;
     } else {
@@ -333,7 +342,7 @@ onUnmounted(() => {
         <template v-else><p class="account-intro">收藏你的心动，<br>让每一份期待都有回响。</p><div class="account-auth"><button class="primary" @click="login">登录</button><button class="outline" @click="go('/auth/register')">注册</button></div><div class="account-shortcuts"><button @click="go('/order')"><UmIcon name="box" />我的订单</button><button @click="go('/favorites')"><UmIcon name="heart" />我的收藏</button><button @click="go('/help')"><UmIcon name="headset" />帮助中心</button></div></template>
         <button class="account-discover" @click="go(buyerActive ? '/buyer/products/create' : '/purchase/create')"><span><small>{{ buyerActive ? 'CURATE & SHARE' : 'FIND YOUR FAVORITE' }}</small><b>{{ buyerActive ? '发布你的精选好物' : '心仪好物，让买手帮你找' }}</b></span><UmIcon name="arrow" /></button>
       </aside>
-      <section v-for="(group, index) in [{ title: '数码精选', tag: '科技好物' }, { title: '品质日常', tag: '悦享生活' }, { title: '人气推荐', tag: '买手甄选' }]" :key="group.title" class="home-discovery-cell" :aria-label="group.title"><div class="discovery-cell-heading"><h2>{{ group.title }}</h2><span>{{ group.tag }}</span></div><div class="discovery-cell-products"><button v-for="product in (index === 2 ? hot : recommendations).slice(index * 2, index * 2 + 2)" :key="product.id" class="discovery-product" @click="openProduct(product)"><span class="discovery-product-image"><img :src="product.images[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="product.title" @error="setImageFallback"></span><span class="discovery-product-name">{{ product.title }}</span><strong>{{ displayPrice(product.price) }}<small>USDT</small></strong></button></div></section>
+      <section v-for="(group, index) in [{ title: '数码精选', tag: '科技好物' }, { title: '品质日常', tag: '悦享生活' }, { title: '人气推荐', tag: '买手甄选' }]" :key="group.title" class="home-discovery-cell" :aria-label="group.title"><div class="discovery-cell-heading"><h2>{{ group.title }}</h2><span>{{ group.tag }}</span></div><div class="discovery-cell-products"><button v-for="product in discoveryProducts(index)" :key="product.id" class="discovery-product" @click="openProduct(product)"><span class="discovery-product-image"><img :src="product.images[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="product.title" @error="setImageFallback"></span><span class="discovery-product-name">{{ product.title }}</span><strong>{{ displayPrice(product.price) }}<small>USDT</small></strong></button><div v-if="!discoveryProducts(index).length" class="discovery-cell-state" role="status"><p>{{ sectionLoading[discoverySection(index)] ? '正在发现好物…' : sectionErrors[discoverySection(index)] ? '好物读取失败' : '暂无好物' }}</p><button v-if="sectionErrors[discoverySection(index)]" type="button" class="text-link" @click="sectionLoaders[discoverySection(index)]()">重新加载</button></div></div></section>
     </div>
     <div class="trust-strip"><button @click="go('/help?topic=pay')"><UmIcon name="wallet" /><span>数字支付<small>USDT，轻松结算</small></span></button><button @click="go('/help?topic=delivery')"><UmIcon name="truck" /><span>全球好物<small>品质买手，为你精选</small></span></button><button @click="go('/help?topic=return')"><UmIcon name="shield" /><span>安心选购<small>售后规则，清晰透明</small></span></button><button @click="go('/im')"><UmIcon name="headset" /><span>专属服务<small>每一份期待，都被照顾</small></span></button></div>
     <section class="section home-featured" :aria-busy="sectionLoading[featuredSource]"><div class="section-heading"><h2><template v-if="isMeme"><UmIcon name="fire" />好物雷达<small>THE PICKS</small></template><template v-else>热门好物</template></h2><div v-if="isMeme" class="meme-market-tabs" role="group" aria-label="好物雷达筛选"><button v-for="mode in radarModes" :key="mode.id" :aria-pressed="feedMode === mode.id" @click="feedMode = mode.id">{{ mode.label }}</button></div><button class="text-link" @click="goProductList()">全部商品<UmIcon name="arrow" /></button></div><div v-if="featured.length" class="product-grid featured-grid"><ProductCard v-for="product in featured" :key="product.id"  :product="product" variant="home" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div><div v-else class="empty home-section-state"><UmIcon :name="sectionLoading[featuredSource] ? 'clock' : 'bag'" /><h2>{{ sectionLoading[featuredSource] ? '正在发现好物…' : sectionErrors[featuredSource] ? '好物加载失败' : '暂无好物' }}</h2><button v-if="sectionErrors[featuredSource]" class="outline" @click="sectionLoaders[featuredSource]()">重新加载</button></div></section>
@@ -346,6 +355,8 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.discovery-cell-state { grid-column:1 / -1; min-height:140px; display:grid; align-content:center; justify-items:center; gap:8px; color:var(--muted); }
+.discovery-cell-state p { font-size:13px; }
 .home-page { min-width: 0; }
 .account-retry { color: var(--muted); font-size: 12px; text-align: left; }
 .home-section-state { min-height: 200px; }

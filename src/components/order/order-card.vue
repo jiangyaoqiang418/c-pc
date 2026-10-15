@@ -3,7 +3,7 @@ import { computed, h, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
 import { Textarea } from '@/components/ui/textarea';
-import { formatCny, formatUsdt } from '@shared/utils/currency';
+import { formatAmount } from '@shared';
 import OrderStatusTag from './order-status-tag.vue';
 import OrderActions from './order-actions.vue';
 import OrderPaymentSelector from './order-payment-selector.vue';
@@ -27,6 +27,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const permissions = computed(() => getOrderCapabilities(props.order, userStore.currentUser?.id));
 const cover = computed(() => props.order.productCover || PRODUCT_IMAGE_PLACEHOLDER);
+const quantity = computed(() => 'quantity' in props.order ? props.order.quantity : undefined);
 const acting = ref(false);
 const paymentOpen = ref(false);
 const confirmationOpen = ref(false);
@@ -251,32 +252,15 @@ function viewLogistics() {
 </script>
 
 <template>
-  <article class="order-card" role="link" tabindex="0" :aria-label="`打开订单 ${order.code}`" @click="goDetail" @keydown.enter.self="goDetail" @keydown.space.self.prevent="goDetail">
-    <header class="head"><div class="order-reference"><span class="code">订单 {{ order.code }}</span><span class="time">{{ formatDateValue(order.createdAt) }}</span></div><OrderStatusTag :status="order.status" /></header>
-    <div class="body"><img :src="cover" :alt="order.productTitle" class="cover" @error="setImageFallback" /><div class="info"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }" class="title" @click.stop>{{ order.productTitle }}</RouterLink><p class="seller" :title="order.shopperName">买手 · {{ order.shopperName }}</p><p class="addr" :title="`收货：${order.receiverName} · ${order.shippingAddress}`">收货：{{ order.receiverName }} · {{ order.shippingAddress }}</p></div><div class="amount"><span class="amount-label">订单合计</span><strong>{{ formatUsdt(order.totalAmount) }}</strong><small>≈ {{ formatCny(order.totalAmount) }}</small></div></div>
-    <footer class="op" @click.stop><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" /></footer>
+  <article class="paper order-card" role="link" tabindex="0" :aria-label="`打开订单 ${order.code}`" @click="goDetail" @keydown.enter.self="goDetail" @keydown.space.self.prevent="goDetail">
+    <div class="order-head"><span>{{ formatDateValue(order.createdAt) }} <small>订单 {{ order.code }}</small></span><OrderStatusTag :status="order.status" plain /></div>
+    <div class="order-items"><div class="checkout-item"><img :src="cover" :alt="order.productTitle" @error="setImageFallback" /><div><h3><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }" @click.stop>{{ order.productTitle }}</RouterLink></h3><p>数量 {{ quantity ?? '待核对' }}<template v-if="order.shopperName"> · 买手 {{ order.shopperName }}</template></p></div><b>{{ formatAmount(order.price) }} USDT</b></div></div>
+    <div class="order-footer" @click.stop><span>合计 <b>{{ formatAmount(order.totalAmount) }} USDT</b></span><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" /></div>
   </article>
   <OrderPaymentSelector v-model:visible="paymentOpen" :order="order" @balance="payBalance" />
 </template>
 
 <style scoped>
-.order-card { padding: 20px 24px; margin-bottom: 16px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); cursor: pointer; transition: border-color 200ms var(--um-ease), box-shadow 200ms var(--um-ease); }
-.order-card:hover { border-color: var(--yb-hairline-2); box-shadow: var(--yb-shadow-1); }
-.head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--yb-hairline); }
-.order-reference { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
-.code { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.time { color: var(--yb-muted); font-size: 12px; }
-.body { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 20px 0; }
-.cover { width: 96px; height: 96px; border: 1px solid var(--yb-hairline); border-radius: 8px; object-fit: contain; background: var(--yb-fill); }
-.info { min-width: 0; }
-.title { display: block; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
-.title:hover { color: var(--yb-primary); }
-.seller { font-size: 13px; color: var(--yb-muted); margin: 6px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.addr { font-size: 13px; color: var(--yb-muted); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.amount { display: flex; flex-direction: column; gap: 3px; align-items: flex-end; padding-left: 20px; }
-.amount-label, .amount small { font-size: 12px; color: var(--yb-muted); }
-.amount strong { font-size: 23px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.op { padding-top: 16px; border-top: 1px solid var(--yb-hairline); }
-@media (max-width: 800px) { .body { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 12px; } .cover { width: 72px; height: 72px; } .amount { padding-left: 0; } }
-@media (prefers-reduced-motion: reduce) { .order-card { transition: none; } }
+.order-card { cursor:pointer; }
+.checkout-item h3 { overflow-wrap:anywhere; }
 </style>

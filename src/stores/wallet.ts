@@ -24,48 +24,73 @@ export const useWalletStore = defineStore('bw-wallet', () => {
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
   let requestVersion = 0;
+  let contextVersion = 0;
+  let requestedUserId: Api.RealSession.Id | undefined;
   const requestGuard = createLatestRequestGuard();
+  let inFlight: { userId: Api.RealSession.Id; version: number; promise: Promise<void> } | undefined;
 
-  async function fetchWallet(userId: Api.RealSession.Id) {
-    if (!userId) return;
+  function fetchWallet(userId: Api.RealSession.Id): Promise<void> {
+    if (!userId) return Promise.resolve();
+    if (String(requestedUserId) !== String(userId)) {
+      requestedUserId = userId;
+      contextVersion += 1;
+    }
+    if (inFlight && String(inFlight.userId) === String(userId) && inFlight.version === requestVersion) return inFlight.promise;
     const isCurrent = requestGuard.begin();
     const version = ++requestVersion;
-    loading.value = true;
-    try {
-      const overview = await realWalletApi.fetchWalletOverview(userId, { signal: isCurrent.signal });
-      const userStore = useUserStore();
-      if (!isCurrent() || version !== requestVersion || String(userStore.currentUser?.id) !== String(userId)) return;
-      summary.value = overview.summary;
-      buyerWallet.value = undefined;
-      totalAssets.value = overview.total;
-      today.value = overview.today;
-      account.value = overview.account;
-      lastFetchedAt.value = Date.now();
-    } catch (error) {
-      const userStore = useUserStore();
-      // 仅清理当前账号、当前请求仍有效时的旧快照；被切换/失效的请求不能影响新账号。
-      if (isCurrent() && version === requestVersion && String(userStore.currentUser?.id) === String(userId)) {
-        summary.value = undefined;
+    const promise = Promise.resolve().then(async () => {
+      try {
+        const overview = await realWalletApi.fetchWalletOverview(userId, { signal: isCurrent.signal });
+        const userStore = useUserStore();
+        if (!isCurrent() || version !== requestVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+        summary.value = overview.summary;
         buyerWallet.value = undefined;
-        totalAssets.value = '0';
-        today.value = undefined;
-        account.value = undefined;
-        lastFetchedAt.value = 0;
+        totalAssets.value = overview.total;
+        today.value = overview.today;
+        account.value = overview.account;
+        lastFetchedAt.value = Date.now();
+      } catch (error) {
+        const userStore = useUserStore();
+        // 仅清理当前账号、当前请求仍有效时的旧快照；被切换/失效的请求不能影响新账号。
+        if (isCurrent() && version === requestVersion && String(userStore.currentUser?.id) === String(userId)) {
+          summary.value = undefined;
+          buyerWallet.value = undefined;
+          totalAssets.value = '0';
+          today.value = undefined;
+          account.value = undefined;
+          lastFetchedAt.value = 0;
+        }
+        throw error;
+      } finally {
+        if (inFlight?.version === version) inFlight = undefined;
+        if (isCurrent() && version === requestVersion) loading.value = false;
       }
-      throw error;
-    } finally {
-      if (isCurrent() && version === requestVersion) loading.value = false;
-    }
+    });
+    inFlight = { userId, version, promise };
+    loading.value = true;
+    return promise;
   }
 
   async function refetch() {
     const userStore = useUserStore();
-    if (userStore.currentUser) await fetchWallet(userStore.currentUser.id);
+    if (!userStore.currentUser) return;
+    const userId = userStore.currentUser.id;
+    const context = contextVersion;
+    const pending = inFlight;
+    // 操作后的刷新不能复用操作前已在途的快照，也不主动取消其余读取者。
+    if (pending && String(pending.userId) === String(userId)) {
+      try { await pending.promise; } catch { /* 原读取者仍取得失败，操作后的新读取继续执行。 */ }
+      if (context !== contextVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+    }
+    await fetchWallet(userId);
   }
 
   function clear() {
     requestVersion += 1;
+    contextVersion += 1;
+    requestedUserId = undefined;
     requestGuard.invalidate();
+    inFlight = undefined;
     summary.value = undefined;
     buyerWallet.value = undefined;
     totalAssets.value = '0';
@@ -107,11 +132,9 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     || today.value?.depositIn === undefined || today.value?.withdrawOut === undefined));
   const bucketsWithPct = computed(() => bucketsArray.value.map(bucket => ({
     ...bucket,
-    // 缺失金额仅在资产分布展示中按零处理，不修改原始账户余额。
-    value: bucket.value ?? '0',
-    pct: totalAssets.value === undefined ? undefined
-      : Number(totalAssets.value) > 0 ? Number(bucket.value ?? '0') / Number(totalAssets.value) * 100
-        : Number(bucket.value ?? '0') === 0 ? 0 : undefined
+    pct: bucket.value === undefined || totalAssets.value === undefined ? undefined
+      : Number(totalAssets.value) > 0 ? Number(bucket.value) / Number(totalAssets.value) * 100
+        : Number(bucket.value) === 0 ? 0 : undefined
   })));
 
   const compositionBreakdown = computed(() => {

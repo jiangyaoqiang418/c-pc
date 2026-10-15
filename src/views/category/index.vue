@@ -49,6 +49,7 @@ const total = ref(0);
 const loading = ref(false);
 const treeLoading = ref(false);
 const treeError = ref('');
+const selectionError = ref('');
 const productLoadError = ref('');
 const breadcrumb = ref<string>('请选择品类');
 const productRequestGuard = createLatestRequestGuard();
@@ -98,14 +99,27 @@ function findNode(nodes: CategoryNode[], id: string, path: string[] = [], ids: s
 
 function restoreCategory() {
   if (!tree.value.length) return;
+  selectionError.value = '';
   const queryId = typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined;
   const matched = queryId ? findNode(tree.value, queryId) : undefined;
   if (queryId && !matched && !fullTreeLoaded.value) { void loadTree(true); return; }
+  if (route.query.categoryId !== undefined && route.query.categoryId !== '' && !matched) {
+    productRequestGuard.invalidate();
+    syncingSelection = true;
+    selectedKeys.value = [];
+    syncingSelection = false;
+    products.value = [];
+    total.value = 0;
+    loading.value = false;
+    productLoadError.value = '';
+    breadcrumb.value = '当前分类不可用';
+    selectionError.value = '当前分类不可用，请重新选择品类。';
+    return;
+  }
   const id = queryId === '' ? undefined : matched ? queryId : String(tree.value[0].id);
   syncingSelection = true;
   selectedKeys.value = id ? [id] : [];
   syncingSelection = false;
-  if (queryId && !matched) void router.replace({ query: { ...route.query, categoryId: id } });
   if (id) {
     expandedKeys.value = [...new Set([...expandedKeys.value, ...(findNode(tree.value, id)?.ids || [])])];
     void pick(id);
@@ -123,6 +137,7 @@ async function loadTree(complete = false) {
   const isCurrent = treeRequestGuard.begin();
   treeLoading.value = true;
   treeError.value = '';
+  selectionError.value = '';
   try {
     const nextTree = (await (complete ? categoryApi.fetchRealCategoryTree({ signal:isCurrent.signal }) : categoryApi.fetchCategoryTree({ signal:isCurrent.signal }))) as CategoryNode[];
     if (!isCurrent()) return;
@@ -224,7 +239,7 @@ function rootKeyboard(event: KeyboardEvent, index: number) {
             <div class="category-subgroups"><section v-for="group in selectedTreeNode.children" :key="group.key" class="category-subgroup"><h3><RouterLink :to="browse(group.key)">{{ group.title }}<UmIcon name="chevron" /></RouterLink></h3><V47CategoryLeafRail :label="`${group.title}细分商品`"><span v-for="leaf in group.children" :key="leaf.key" class="category-leaf"><RouterLink :to="browse(leaf.key)">{{ leaf.title }}</RouterLink><button v-if="leaf.children?.length" type="button" class="category-drill" :aria-label="`展开${leaf.title}的子分类`" @click="selectTreeNode(leaf)"><UmIcon name="chevron" /></button></span><button v-if="!group.children?.length" type="button" class="category-drill category-drill-link" @click="selectTreeNode(group)">查看{{ group.title }}<UmIcon name="arrow" /></button></V47CategoryLeafRail></section></div>
             <div v-if="!selectedTreeNode.children?.length" class="category-status">该分类暂无下级分类，可点击“查看全部”浏览商品。</div>
             <div v-if="productLoadError" class="category-status" role="alert"><p>{{ productLoadError }}</p><button type="button" :disabled="loading" @click="selectedKeys[0] && pick(selectedKeys[0])">重新加载</button></div><span v-else class="catalog-sr-only" role="status">{{ loading ? '正在加载分类商品' : `共 ${total} 件商品` }}</span>
-          </template><div v-else-if="!treeLoading && !treeError" class="category-status">请选择品类</div>
+          </template><div v-else-if="selectionError" class="category-status" role="alert">{{ selectionError }}</div><div v-else-if="!treeLoading && !treeError" class="category-status">请选择品类</div>
         </section>
       </div>
     </div>

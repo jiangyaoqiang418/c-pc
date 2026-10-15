@@ -7,6 +7,7 @@ import { fetchMyOrders, payOrder, withOrderPayment, fetchCarriers } from './orde
 import { fetchRechargePage, fetchWalletLedger, fetchWithdrawPage, fetchWalletOverview, prepareWithdrawal } from './wallet';
 import { fetchHall, fetchMyPurchases } from './purchase';
 import { fetchMyPointLogs, fetchPointRules } from './point';
+import { fetchBuyerDepositLedger } from './buyer';
 import { fetchCurrentUser, updateProfile, prepareRegistration } from './auth';
 import { prepareAddress } from './address';
 import { createAddress, updateAddress } from './address';
@@ -58,11 +59,31 @@ describe('本轮交互边界', () => {
     expect(tree[0].creatorType).toBe('buyer');
   });
   it('钱包桶和日期关键词透传服务端，返回总数和记录不再二次筛选', async () => {
-    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1 }] });
+    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1, toBalanceAfter: 0 }] });
     const result = await fetchWalletLedger({ current: 2, size: 10, bucket: 'lockedFinance', keyword: ' QA ', fromAt: '2026-09-05', toAt: '2026-09-05' });
     expect(post.mock.calls[0][1]).toMatchObject({ pageNo: 2, balanceType: 'FINANCE_LOCKED', keyword: 'QA', startAt: new Date('2026-09-05T00:00:00').getTime(), endAt: new Date('2026-09-05T23:59:59.999').getTime() });
     expect(result.total).toBe(21);
     expect(result.records[0].id).toBe('9007199254740993');
+  });
+  it('钱包及押金流水缺金额或余额时拒绝，不把异常响应补成零', async () => {
+    const request = vi.spyOn(realUserRequest, 'postQuery');
+    for (const read of [() => fetchWalletLedger({}), () => fetchBuyerDepositLedger()]) {
+      for (const row of [{ amount: 1 }, { balanceAfter: 0, toBalanceAfter: 0 }, { amount: '', balanceAfter: 0, toBalanceAfter: 0 }]) {
+        request.mockResolvedValue({ total: 1, records: [{ id: '9007199254740993', bizType: 'PAY', ...row }] });
+        await expect(read()).rejects.toThrow(/流水.*(?:尚未确认|格式异常)/);
+      }
+    }
+  });
+  it('钱包及押金流水保留零值、Long ID与小数原值，并启用原 token 解析', async () => {
+    const request = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 1, pageNo: 1, pageSize: 20, records: [{
+      id: '9007199254740993', userId: '9007199254740995', bizType: 'PAY',
+      amount: '9007199254740993.12345678', balanceAfter: 0, toBalanceAfter: 0
+    }] });
+    for (const read of [() => fetchWalletLedger({}), () => fetchBuyerDepositLedger()]) {
+      const result = await read();
+      expect(result.records[0]).toMatchObject({ id: '9007199254740993', userId: '9007199254740995', amount: '9007199254740993.12345678', balanceAfter: '0' });
+    }
+    expect(request.mock.calls.every(call => call[2]?.preserveDecimals === true)).toBe(true);
   });
   it('积分多行为、扣分 false 和零时间戳不丢失，登录人由后端限定', async () => {
     const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 0, records: [] });
@@ -362,8 +383,8 @@ describe('积分原始行为边界', () => {
     expect(result.records.map(record => record.id)).toEqual(['1', '2']);
     expect(result.records[0].behavior).toBe('QA_NEW_BEHAVIOR');
     vi.spyOn(realUserRequest, 'get').mockResolvedValue([
-      { behaviorCode: 'QA_NEW_BEHAVIOR', name: '测试新规则', score: 3 },
-      { behaviorCode: 'CONSUME', name: '消费规则', score: 1 }
+      { behaviorCode: 'QA_NEW_BEHAVIOR', name: '测试新规则', score: 3, identity: 'COMMON', enabled: true },
+      { behaviorCode: 'CONSUME', name: '消费规则', score: 1, identity: 'COMMON', enabled: true }
     ]);
     expect((await fetchPointRules()).map(rule => rule.code)).toEqual(['QA_NEW_BEHAVIOR', 'CONSUME']);
   });
@@ -432,6 +453,7 @@ describe('多条件分页实际页大小', () => {
       return { total: 8, pageSize: 2, records: Array.from({ length: 2 }, (_, i) => ({
         orderId: `${q.status}-900719925474099${offset + i}`,
         status: q.status,
+        totalAmount: '1',
         createdAt: new Date(Date.UTC(2026, 0, q.status === 'CREATED' ? 30 : 15) - (offset + i) * 1000).toISOString()
       })) } as never;
     });
@@ -448,6 +470,7 @@ describe('多条件分页实际页大小', () => {
       return { total: 8, size: 2, records: Array.from({ length: 2 }, (_, i) => ({
         id: `${q.bizType}-900719925474099${offset + i}`,
         bizType: q.bizType,
+        amount: 1, toBalanceAfter: 0,
         createdAt: new Date(Date.UTC(2026, 0, q.bizType === 'CHAIN_DEPOSIT' ? 30 : 15) - (offset + i) * 1000).toISOString()
       })) } as never;
     });

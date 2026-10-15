@@ -1,6 +1,7 @@
 import { realOrderRequest, realUserRequest } from '@/service/request';
-import { requireArray, toPageTotal } from './page';
+import { requireArray, resolvePageSize, toPageTotal } from './page';
 import { toIsoDate } from './date';
+import { readLedgerAmount } from './wallet';
 
 export function fetchBusinessStats(params: { startTime?: number; endTime?: number } = {}, options: { signal?: AbortSignal } = {}) {
   return realOrderRequest.get<Api.RealBuyer.BusinessStats | null>('/stats/mine', { params, ...options, showError: false });
@@ -11,7 +12,7 @@ export function fetchBuyerApplication(options: { signal?: AbortSignal } = {}) {
 }
 
 export function fetchBuyerDepositSummary(options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realUserRequest.get<Api.RealBuyer.DepositSummary>('/buyer/deposit/summary', options);
+  return realUserRequest.get<Api.RealBuyer.DepositSummary>('/buyer/deposit/summary', { ...options, preserveDecimals: true });
 }
 
 export function submitBuyerApplication(params: Api.RealBuyer.BuyerApplyParams, options: { showError?: boolean } = {}) {
@@ -30,8 +31,8 @@ function toDepositTxn(dto: Api.RealBuyer.DepositLedgerDTO): Api.RealBuyer.Deposi
     userName: '',
     type: isFreeze ? 'DEPOSIT_FREEZE' : isUnfreeze ? 'DEPOSIT_UNFREEZE' : isRelease ? 'DEPOSIT_RELEASE' : isDeduct ? 'DEPOSIT_FORFEIT' : 'DEPOSIT_PLEDGE',
     direction: isRelease || isUnfreeze ? 'in' : 'out',
-    amount: String(dto.amount ?? 0),
-    balanceAfter: String(dto.balanceAfter ?? 0),
+    amount: readLedgerAmount(dto.amount, '押金流水金额'),
+    balanceAfter: readLedgerAmount(dto.balanceAfter, '押金流水变动后余额'),
     bucketFrom: isFreeze ? 'depositAvailable' : isUnfreeze ? 'depositGuaranteed' : isRelease ? 'depositAvailable' : 'available',
     bucketTo: isFreeze ? 'depositGuaranteed' : isUnfreeze ? 'depositAvailable' : isRelease ? 'available' : 'depositAvailable',
     remark: dto.remark || dto.bizNo || dto.bizType,
@@ -46,12 +47,14 @@ export async function fetchBuyerDepositLedger(
   const page = await realUserRequest.postQuery<Api.RealBuyer.DepositPageResult, Api.RealBuyer.DepositLedgerPageQuery>(
     '/buyer/deposit/page',
     params,
-    options
+    { ...options, preserveDecimals: true }
   );
-
+  // 当前页码仅用于分页，preserveDecimals 下科学计数 token 也须验证为安全整数。
+  const current = Number(page.current ?? page.pageNo ?? params.pageNo ?? 1);
+  if (!Number.isSafeInteger(current) || current < 1) throw new Error('押金流水页码异常，请重新读取');
   return {
-    current: page.current || page.pageNo || params.pageNo || 1,
-    size: page.size || page.pageSize || params.pageSize || 20,
+    current,
+    size: resolvePageSize(page, params.pageSize ?? 20),
     total: toPageTotal(page.total),
     records: requireArray<Api.RealBuyer.DepositLedgerDTO>(page.records, '押金流水分页记录').map(toDepositTxn)
   };

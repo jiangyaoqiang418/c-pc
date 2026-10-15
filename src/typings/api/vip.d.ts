@@ -6,10 +6,15 @@ declare namespace Api.RealVip {
     vipLevel: Api.Vip.Level;
     points: number;
     nextThreshold?: number;
-    pointsToNext: number;
-    benefits: Api.Vip.CustomerBenefits | Api.Vip.BuyerBenefits;
-    config?: Api.Vip.LevelConfig;
+    pointsToNext?: number;
+    benefits: Partial<Api.Vip.CustomerBenefits> | Partial<Api.Vip.BuyerBenefits>;
+    config?: LevelConfig;
   }
+
+  type LevelConfig = Omit<Api.Vip.LevelConfig, 'customerBenefits' | 'buyerBenefits'> & {
+    customerBenefits?: Partial<Api.Vip.CustomerBenefits>;
+    buyerBenefits?: Partial<Api.Vip.BuyerBenefits>;
+  };
 
   interface VipDimMetaVO {
     code: string;

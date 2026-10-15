@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
+import UmIcon from './um-icon.vue';
 
 const props = withDefaults(defineProps<{
   total: number;
@@ -29,31 +28,33 @@ function change(page: number) {
 </script>
 
 <template>
-  <nav class="business-pagination" aria-label="分页">
+  <nav class="business-pagination pagination" aria-label="分页">
     <span class="pagination-total">共 {{ total }} 条</span>
-    <Button variant="outline" size="icon" aria-label="上一页" :disabled="loading || current <= 1" @click="change(current - 1)">
-      <Icon icon="lucide:chevron-left" width="16" />
-    </Button>
+    <button type="button" class="pagination-prev" aria-label="上一页" :disabled="loading || current <= 1" @click="change(current - 1)"><UmIcon name="chevron" /></button>
     <template v-for="page in pages" :key="page">
       <span v-if="typeof page !== 'number'" class="pagination-gap" aria-hidden="true">…</span>
-      <Button
+      <button
         v-else
-        :variant="page === current ? 'default' : 'ghost'"
-        size="icon"
+        type="button"
+        class="page-number"
+        :class="{ active: page === current }"
         :aria-label="`第 ${page} 页`"
         :aria-current="page === current ? 'page' : undefined"
         :disabled="loading"
         @click="change(page)"
-      >{{ page }}</Button>
+      >{{ page }}</button>
     </template>
-    <Button variant="outline" size="icon" aria-label="下一页" :disabled="loading || current >= pageCount" @click="change(current + 1)">
-      <Icon icon="lucide:chevron-right" width="16" />
-    </Button>
+    <span class="pagination-count">{{ current }} / {{ pageCount }}</span>
+    <button type="button" aria-label="下一页" :disabled="loading || current >= pageCount" @click="change(current + 1)"><UmIcon name="chevron" /></button>
   </nav>
 </template>
 
 <style scoped>
-.business-pagination { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.business-pagination { align-items:center; flex-wrap:wrap; }
+.business-pagination button { display:grid; place-items:center; }
+.business-pagination svg { width:16px; height:16px; }
+.pagination-prev svg { transform:rotate(180deg); }
 .pagination-total { margin-right: 12px; color: var(--yb-muted); font-size: 13px; }
 .pagination-gap { width: 28px; text-align: center; color: var(--yb-muted); }
+@media (max-width:700px) { .pagination-gap { display:none; } }
 </style>

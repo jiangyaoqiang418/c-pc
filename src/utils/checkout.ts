@@ -39,6 +39,26 @@ export function sumPaymentAmounts(values: Array<string | number>) {
   return scale ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}`.replace(/\.?0+$/, '') || '0' : digits;
 }
 
+/** 以安全整数数量乘十进制原金额，不先舍入到展示精度。 */
+export function multiplyPaymentAmount(value: string | number, quantity: number) {
+  if (!Number.isSafeInteger(quantity) || quantity < 0) throw new Error('商品数量无效，请重新核对');
+  const [integer, fraction = ''] = sumPaymentAmounts([value]).split('.');
+  const digits = (BigInt(integer + fraction) * BigInt(quantity)).toString().padStart(fraction.length + 1, '0');
+  return sumPaymentAmounts([fraction ? `${digits.slice(0, -fraction.length)}.${digits.slice(-fraction.length)}` : digits]);
+}
+
+/** 两位金额只用于展示；内部确认、合计和比较始终使用原精度。 */
+export function formatPaymentAmount(value: string | number | null | undefined) {
+  if (value === undefined || value === null || String(value).trim() === '') return '—';
+  try {
+    const [integer, fraction = ''] = sumPaymentAmounts([typeof value === 'string' ? value.trim() : value]).split('.');
+    const divisor = 10n ** BigInt(fraction.length);
+    const rounded = (BigInt(integer + fraction) * 200n + divisor) / (divisor * 2n);
+    const digits = rounded.toString().padStart(3, '0');
+    return `${digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${digits.slice(-2)}`;
+  } catch { return '—'; }
+}
+
 export function validateGroupPayResult(result: Api.RealOrder.OrderGroupPayResult, group: string, orderIds: Array<string | number>) {
   const ids = new Set(orderIds.map(String));
   if (!result || result.orderGroupNo !== group || !Array.isArray(result.items)

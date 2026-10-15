@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
@@ -315,39 +315,46 @@ onBeforeUnmount(() => {
 
 <template>
 
-  <div class="input-area">
-    <div class="toolbar">
+  <div class="message-input">
+    <div class="chat-quick media-toolbar">
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
       <input ref="videoInputRef" class="file-input" type="file" accept="video/mp4,video/webm,video/quicktime" @change="onVideoSelected" />
-      <Button type="button" variant="ghost" size="sm" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage"><Icon icon="lucide:image-plus" width="17" />图片</Button>
-      <Button type="button" variant="ghost" size="sm" aria-label="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo"><Icon icon="lucide:video" width="17" />视频</Button>
+      <button type="button" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage" class="text-link"><Icon icon="lucide:image-plus" width="17" />图片</button>
+      <button type="button" aria-label="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo" class="text-link"><Icon icon="lucide:video" width="17" />视频</button>
       <Tooltip>
         <TooltipTrigger as-child><span class="voice-trigger" tabindex="0">
-          <Button type="button" variant="ghost" size="sm" :class="{ 'is-recording': recording }" :aria-label="recording ? '结束录音并发送' : '录制语音'" :disabled="disabled || submitting || uploading || preparingVideo || startingRecording || !canRecord" @click="recording ? stopRecording() : startRecording()">
+          <button type="button" :class="{ 'is-recording': recording }" :aria-label="recording ? '结束录音并发送' : '录制语音'" :disabled="disabled || submitting || uploading || preparingVideo || startingRecording || !canRecord" @click="recording ? stopRecording() : startRecording()" class="text-link">
             <Icon :icon="recording ? 'lucide:square' : 'lucide:mic'" width="17" />{{ recording ? '结束录音 ' + recordingSeconds + 's' : startingRecording ? '正在开启麦克风' : '语音' }}
-          </Button>
+          </button>
         </span></TooltipTrigger>
         <TooltipContent>{{ disabled ? disabledText : submitting ? '上一条消息正在发送，请稍候' : uploading || preparingVideo ? '媒体正在处理，请稍候' : !canRecord ? '当前浏览器不支持语音录制，请使用支持麦克风录音的浏览器' : startingRecording ? '正在等待麦克风权限' : recording ? '结束录音后发送语音' : '需要允许浏览器使用麦克风' }}</TooltipContent>
       </Tooltip>
       <span v-if="uploading || preparingVideo" class="media-state" role="status"><Icon icon="lucide:loader-circle" width="15" class="animate-spin" />{{ preparingVideo ? '正在读取视频…' : '媒体上传中…' }}</span>
       <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音</span>
     </div>
-    <Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="disabled || submitting" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
-    <div class="footer">
-      <span class="hint">Enter 发送 · Shift+Enter 换行</span>
-      <Button type="button" size="sm" :disabled="disabled || submitting || mediaBusy || !text.trim()" @click="send"><Icon :icon="sending || submitting ? 'lucide:loader-circle' : 'lucide:send'" :class="{ 'animate-spin': sending || submitting }" width="16" />{{ sending || submitting ? '发送中' : '发送' }}</Button>
-    </div>
+    <div class="chat-compose"><Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="disabled || submitting" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
+
+      <button type="button" :disabled="disabled || submitting || mediaBusy || !text.trim()" @click="send" class="primary"><Icon v-if="sending || submitting" icon="lucide:loader-circle" class="animate-spin" width="16" /><UmIcon v-else name="arrow" />{{ sending || submitting ? '发送中' : '发送' }}</button>
+    </div><p class="message-input-hint">Enter 发送 · Shift+Enter 换行</p>
   </div>
 </template>
 
 <style scoped>
-
-.input-area { flex-shrink: 0; padding: 10px 16px; border-top: 1px solid var(--yb-hairline); background: var(--yb-surface); }
-.toolbar { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; min-height: 28px; flex-wrap: wrap; }
-.file-input { display: none; }.voice-trigger { display: inline-flex; border-radius: 6px; }.voice-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }
-.textarea { min-height: 56px; max-height: 96px; resize: vertical; background: var(--yb-bg); }
-.footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 6px; }
-.hint, .media-state { color: var(--yb-muted); font-size: 12px; }.media-state { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
-.is-recording, .recording-state { color: var(--yb-danger); }.recording-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
+.message-input { flex-shrink:0; margin-top:12px; border-top:1px solid var(--line); padding-top:16px; }
+.media-toolbar { align-items:center; flex-wrap:wrap; gap:8px; }
+.file-input { display:none; }
+.voice-trigger { display:inline-flex; }
+.chat-compose { align-items:flex-end; }
+.chat-compose .textarea { min-height:64px; max-height:128px; resize:vertical; flex:1; min-width:0; height:auto; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--paper); box-shadow:none; }
+.chat-compose>.primary { flex-shrink:0; }
+.message-input-hint { margin-top:8px; font-size:11px; color:var(--muted); }
+.media-state { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:var(--muted); font-size:11px; }
+.is-recording,.recording-state { color:var(--yb-danger); }.recording-dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+@media(max-width:700px) {
+  .message-input { margin-top:8px; padding-top:10px; }
+  .media-toolbar { gap:6px; margin-bottom:10px; }
+  .media-toolbar button { padding:5px 8px; gap:6px; }
+  .chat-compose .textarea { font-size:13px; padding:10px; }
+  .message-input-hint { margin-top:6px; }
+}
 </style>

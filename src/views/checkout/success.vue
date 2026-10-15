@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
+import UmIcon from '@/components/common/um-icon.vue';
+import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatAmount } from '@shared';
 import ProductCard from '@/components/product/product-card.vue';
@@ -105,63 +105,25 @@ watch([orderId, orderGroupNo, () => userStore.currentUser?.id], () => {
 
 <template>
   <div class="success-page" :aria-busy="loading">
-    <div v-if="loading" class="payment-result result-loading" role="status"><Skeleton class="result-icon-skeleton" /><Skeleton class="result-title-skeleton" /><Skeleton class="result-content-skeleton" /><span class="sr-only">正在核对付款结果</span></div>
-    <section v-else-if="order" class="payment-result">
-      <div class="result-icon" :class="{ confirmed: paymentConfirmed }"><Icon :icon="paymentConfirmed ? 'lucide:check' : 'lucide:circle-help'" width="32" /></div>
-      <h1>{{ resultTitle }}</h1><p class="result-description">{{ resultDescription }}</p>
-      <div class="payment-summary"><span class="amount-label">{{ paymentConfirmed ? '已付金额' : '订单金额' }}</span><div class="payment-amount">{{ formatAmount(displayAmount) }}<span>USDT</span></div><div v-if="groupResult" class="group-summary"><span>共 {{ groupResult.totalCount }} 笔订单</span><span>已付 {{ groupResult.paidCount }} 笔</span><span v-if="!paymentConfirmed" class="unpaid-amount">待付 {{ formatAmount(groupResult.unpaidAmount) }} USDT</span></div><div v-if="!groupResult || groupResult.totalCount === 1" class="order-reference">订单号 <span>{{ order.code }}</span></div></div>
-      <div class="result-actions"><Button size="lg" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })">查看订单 <Icon icon="lucide:arrow-right" width="16" /></Button><Button variant="outline" size="lg" @click="router.push('/')">继续购物</Button></div>
+    <div v-if="loading" class="success-view paper result-loading" role="status"><Skeleton class="result-icon-skeleton" /><Skeleton class="result-title-skeleton" /><Skeleton class="result-content-skeleton" /><span class="sr-only">正在核对付款结果</span></div>
+    <section v-else-if="order" class="success-view paper">
+      <div class="success-icon" :class="{ confirmed: paymentConfirmed }"><UmIcon :name="paymentConfirmed ? 'check' : 'clock'" /></div>
+      <span v-if="paymentConfirmed" class="eyebrow">THANK YOU FOR CHOOSING US</span><h1>{{ resultTitle }}</h1><p class="result-description">{{ resultDescription }}</p>
+      <div class="receipt"><span>订单编号</span><b>{{ order.code }}</b><span>{{ paymentConfirmed ? '实付金额' : '订单金额' }}</span><b>{{ formatAmount(displayAmount) }} USDT</b><span>订单状态</span><OrderStatusTag :status="order.status" plain /><template v-if="groupResult"><span>订单组</span><b>{{ groupResult.totalCount }} 笔 · 已付 {{ groupResult.paidCount }} 笔</b><template v-if="!paymentConfirmed"><span>待付金额</span><b>{{ formatAmount(groupResult.unpaidAmount) }} USDT</b></template></template></div>
+      <div class="button-row result-actions"><button type="button" class="primary" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })">查看订单 <UmIcon name="arrow" /></button><button type="button" class="outline" @click="router.push('/')">继续购物</button></div>
       <div v-if="groupResult" class="payment-details">
-        <button type="button" class="details-toggle" :aria-expanded="detailsExpanded" aria-controls="payment-details-content" @click="detailsExpanded = !detailsExpanded">{{ detailsExpanded ? '收起付款明细' : '查看付款明细' }}<Icon icon="lucide:chevron-down" width="16" :class="{ expanded: detailsExpanded }" /></button>
+        <button type="button" class="details-toggle" :aria-expanded="detailsExpanded" aria-controls="payment-details-content" @click="detailsExpanded = !detailsExpanded">{{ detailsExpanded ? '收起付款明细' : '查看付款明细' }}<UmIcon name="chevron" :class="{ expanded: detailsExpanded }" /></button>
         <Transition name="details"><div v-if="detailsExpanded" id="payment-details-content" class="details-content"><div class="group-reference">订单组 <span>{{ groupResult.orderGroupNo }}</span></div><div v-for="item in groupResult.items" :key="String(item.orderId)" class="payment-item"><div class="item-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(item.orderId) } }" class="item-order">订单 {{ item.orderNo || item.orderId }}</RouterLink><span class="item-status" :class="{ 'item-status--paid': item.success && ['PAID', 'SHIPPED', 'COMPLETED'].includes(item.status) }">{{ paymentStatusLabels[item.status] || '状态待核对' }}</span></div><div class="item-amount">{{ formatAmount(item.amount) }} USDT</div><p v-if="item.message" class="item-message">{{ item.message }}</p></div></div></Transition>
       </div>
     </section>
-    <section v-else-if="errorMessage" class="payment-result">
-      <div class="result-icon failed"><Icon icon="lucide:circle-alert" width="32" /></div><h1>订单加载失败</h1><p class="result-description">{{ errorMessage }}</p><div class="result-actions"><Button :disabled="loading" @click="load">重新核对付款结果</Button><Button variant="outline" @click="router.push({ name: 'order-list' })">查看我的订单</Button><Button variant="ghost" @click="router.push('/')">继续购物</Button></div>
+    <section v-else-if="errorMessage" class="success-view paper">
+      <div class="success-icon failed"><UmIcon name="shield" /></div><h1>订单加载失败</h1><p class="result-description">{{ errorMessage }}</p><div class="button-row result-actions"><button type="button" class="primary" :disabled="loading" @click="load">重新核对付款结果</button><button type="button" class="outline"  @click="router.push({ name: 'order-list' })">查看我的订单</button><button type="button" class="text-link"  @click="router.push('/')">继续购物</button></div>
     </section>
-    <section v-if="recommends.length" class="recommend-block"><h2>您可能也喜欢</h2><div class="shop-grid-4"><ProductCard v-for="product in recommends" :key="product.id" :product="product" /></div></section>
+    <section v-if="recommends.length" class="paper recommend-block"><h2>您可能也喜欢</h2><div class="product-grid"><ProductCard v-for="product in recommends" :key="product.id" :product="product" /></div></section>
   </div>
 </template>
 
 <style scoped>
-.success-page { width: min(1100px, calc(100% - 64px)); margin: 0 auto; padding: 32px 0 48px; }
-.payment-result { padding: 40px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); text-align: center; }
-.result-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; color: var(--yb-primary); background: var(--yb-primary-soft); margin: 0 auto 20px; }
-.result-icon.confirmed { color: white; background: var(--yb-primary); }
-.result-icon.failed { color: var(--yb-danger); background: color-mix(in srgb, var(--yb-danger) 8%, var(--yb-surface)); }
-h1 { font-size: 28px; font-weight: 650; margin: 0; }
-.result-description { margin: 8px 0 24px; color: var(--yb-muted); font-size: 14px; overflow-wrap: anywhere; }
-.amount-label { color: var(--yb-muted); font-size: 13px; }
-.payment-amount { display: flex; justify-content: center; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-top: 4px; font-size: 36px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.payment-amount span { font-size: 14px; font-weight: 500; }
-.group-summary { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; color: var(--yb-muted); font-size: 13px; }
-.unpaid-amount { color: var(--yb-danger); }
-.order-reference { margin-top: 10px; color: var(--yb-muted); font-size: 13px; overflow-wrap: anywhere; }
-.order-reference span { margin-left: 6px; font-variant-numeric: tabular-nums; }
-.result-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-.result-actions button { min-width: 120px; }
-.payment-details { max-width: 680px; margin: 24px auto 0; border-top: 1px solid var(--yb-hairline); }
-.details-toggle { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; color: var(--yb-muted); font-size: 14px; }
-.details-toggle:hover { color: var(--yb-primary); }
-.details-toggle svg { transition: transform 200ms var(--um-ease); }
-.details-toggle svg.expanded { transform: rotate(180deg); }
-.details-content { padding: 20px; border-radius: 8px; background: var(--yb-fill); text-align: left; }
-.group-reference { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; color: var(--yb-muted); font-size: 12px; overflow-wrap: anywhere; }
-.payment-item + .payment-item { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--yb-hairline); }
-.item-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; font-size: 14px; }
-.item-order { min-width: 0; overflow-wrap: anywhere; color: var(--yb-primary); }
-.item-status { color: var(--yb-muted); }
-.item-status--paid { color: var(--yb-primary); }
-.item-amount { margin-top: 8px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.item-message { margin: 8px 0 0; color: var(--yb-muted); font-size: 13px; overflow-wrap: anywhere; }
-.recommend-block { margin-top: 32px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); padding: 24px; }
-.recommend-block h2 { font-size: 24px; font-weight: 650; margin: 0 0 20px; }
-.result-loading { display: grid; justify-items: center; gap: 20px; }
-.result-icon-skeleton { width: 64px; height: 64px; border-radius: 50%; }
-.result-title-skeleton { width: 200px; height: 32px; }
-.result-content-skeleton { width: min(440px, 100%); height: 160px; }
-.details-enter-active { transition: opacity 200ms var(--um-ease); }
-.details-enter-from { opacity: 0; }
-@media (max-width: 640px) { .payment-result { padding: 24px; } .payment-amount { font-size: 28px; } }
-@media (prefers-reduced-motion: reduce) { .details-enter-active, .details-toggle svg { transition: none; } }
+.receipt b { overflow-wrap:anywhere; }.result-description { overflow-wrap:anywhere; }.result-actions { margin-top:24px; flex-wrap:wrap; }.payment-details { max-width:680px; margin:24px auto 0; border-top:1px solid var(--line); }.details-toggle { display:inline-flex; align-items:center; gap:8px; min-height:48px; color:var(--muted); font-size:14px; }.details-toggle svg { transition:transform 200ms var(--um-ease); }.details-toggle svg.expanded { transform:rotate(180deg); }.details-content { padding:20px; border-radius:8px; background:var(--soft); text-align:left; }.group-reference { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; font-size:12px; overflow-wrap:anywhere; }.payment-item + .payment-item { margin-top:16px; padding-top:16px; border-top:1px solid var(--line); }.item-heading { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; }.item-order { color:var(--green); overflow-wrap:anywhere; }.item-status { color:var(--muted); }.item-amount { margin-top:8px; font-size:15px; font-weight:600; }.item-message { margin-top:8px; font-size:13px; overflow-wrap:anywhere; }.recommend-block { margin-top:32px; }.recommend-block h2 { margin-bottom:20px; }.result-loading { display:grid; justify-items:center; gap:20px; }.result-icon-skeleton { width:70px; height:70px; border-radius:50%; }.result-title-skeleton { width:200px; height:32px; }.result-content-skeleton { width:min(440px,100%); height:160px; }.details-enter-active { transition:opacity 200ms var(--um-ease); }.details-enter-from { opacity:0; }
+@media (prefers-reduced-motion:reduce) { .details-enter-active,.details-toggle svg { transition:none; } }
 </style>

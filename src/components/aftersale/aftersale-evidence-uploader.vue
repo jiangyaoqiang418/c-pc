@@ -14,6 +14,7 @@ interface Props {
   max?: number;
   scene?: 'REVIEW' | 'DEMAND' | 'PRODUCT' | 'ORDER_VOUCHER';
   disabled?: boolean;
+  coverMode?: boolean;
 }
 const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [], scene: 'ORDER_VOUCHER' });
 const emit = defineEmits<{
@@ -103,6 +104,14 @@ function remove(i: number) {
   updateImages(next);
 }
 
+function setCover(index: number) {
+  if (!props.coverMode || props.disabled || uploading.value || index <= 0 || index >= props.modelValue.length) return;
+  const next = [...props.modelValue];
+  const [image] = next.splice(index, 1);
+  next.unshift(image!);
+  updateImages(next);
+}
+
 
 const previewOpen = ref(false);
 const previewIndex = ref(0);
@@ -115,14 +124,20 @@ watch(() => props.modelValue, () => { previewOpen.value = false; });
     <div v-for="(u, i) in modelValue" :key="`${u}:${i}`" class="cell">
       <button type="button" class="preview" :aria-label="`预览凭证 ${i + 1}`" @click="previewIndex = i; previewOpen = true"><img :src="u" :alt="`凭证 ${i + 1}`" @error="setImageFallback" /></button>
       <button class="remove" type="button" :disabled="disabled" :aria-label="`删除凭证 ${i + 1}`" :title="`删除凭证 ${i + 1}`" @click="remove(i)"><Icon icon="lucide:x" width="14" /></button>
+      <small v-if="coverMode && i === 0" class="cover-label">封面</small>
+      <button v-else-if="coverMode" type="button" class="set-cover cover-action" :disabled="disabled || uploading" :aria-label="`设第 ${i + 1} 张图片为封面`" @click="setCover(i)">设为封面</button>
     </div>
     <button v-if="modelValue.length < max" class="add" type="button" aria-label="添加凭证图片" :disabled="disabled || uploading" @click="pickFile"><Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:plus'" width="22" :class="{ 'animate-spin': uploading }" /><span>{{ uploading ? '上传中…' : '添加图片' }}</span></button>
-    <Alert v-if="failedFiles.length" class="failure"><AlertDescription>{{ failedFiles.length }} 张图片上传失败，成功图片已保留。</AlertDescription><Button type="button" variant="outline" size="sm" :disabled="disabled || modelValue.length >= max || uploading" @click="uploadFiles([...failedFiles])">重试失败图片</Button></Alert>
+    <Alert v-if="failedFiles.length" class="failure"><AlertDescription>{{ failedFiles.length }} 张图片上传失败，成功图片已保留。</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="disabled || modelValue.length >= max || uploading" @click="uploadFiles([...failedFiles])">重试失败图片</Button></Alert>
     <small class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</small>
     <ImagePreview v-model="previewOpen" :images="modelValue" :start-index="previewIndex" title="凭证图片" />
   </div>
 </template>
 
 <style scoped>
+.cover-label,.cover-action { position:absolute; bottom:4px; left:4px; padding:2px 5px; border:0; border-radius:4px; font-size:10px; background:var(--paper); color:var(--ink); }
+.cover-label { background:var(--yb-primary-soft); color:var(--yb-brand-primary); }
+.cover-action { cursor:pointer; }
+.cover-action:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:2px; }
 .file-input { display:none; }.evidence { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }.cell { position:relative; width:96px; height:96px; border-radius:6px; border:1px solid var(--yb-hairline); background:var(--yb-fill); }.preview { display:block; width:100%; height:100%; border:0; border-radius:6px; overflow:hidden; padding:0; cursor:zoom-in; }.cell img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }.preview:hover img { transform:scale(1.03); }.remove { position:absolute; top:5px; right:5px; display:grid; place-items:center; background:rgb(20 30 25 / 65%); color:#fff; border:none; width:24px; height:24px; border-radius:50%; cursor:pointer; }.preview:focus-visible,.remove:focus-visible,.add:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.add { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; width:96px; height:96px; background:var(--yb-fill); border:1px dashed var(--yb-hairline-2); border-radius:6px; color:var(--yb-muted); cursor:pointer; font-size:13px; transition:border-color .15s,color .15s,background .15s; }.add:hover:not(:disabled) { border-color:var(--yb-brand-primary); color:var(--yb-brand-primary); background:var(--yb-primary-soft); }.add:disabled,.remove:disabled { cursor:not-allowed; opacity:.5; }.hint { flex-basis:100%; font-size:12px; color:var(--yb-muted); }.failure { flex-basis:100%; display:flex; align-items:center; flex-wrap:wrap; gap:12px; }@media(prefers-reduced-motion:reduce) { .cell img,.add { transition:none; }.preview:hover img { transform:none; } }
 </style>

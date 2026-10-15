@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Icon } from '@iconify/vue';
 import ImagePreview from '@/components/common/image-preview.vue';
 import { setImageFallback } from '@/utils/image-placeholder';
 import { formatUsdt } from '@shared/utils/currency';
@@ -179,6 +178,10 @@ const events = computed<TimelineEvent[]>(() => {
   return result;
 });
 
+const matchedLogistics = computed(() => props.logistics && String(props.logistics.orderId) === String(props.order.id) ? props.logistics : undefined);
+const carrierName = computed(() => matchedLogistics.value?.carrierName || matchedLogistics.value?.carrier || props.order.carrierName || props.order.logisticsCompany);
+const trackingNumber = computed(() => matchedLogistics.value?.trackingNo || props.order.trackingNumber);
+
 const rows = computed(() => {
   let previousDate = '';
   return events.value.map(event => {
@@ -202,65 +205,18 @@ const rows = computed(() => {
 </script>
 
 <template>
-  <ol class="order-timeline" aria-label="订单进度">
-    <li v-for="(event, index) in rows" :key="event.key" class="event" :class="{ 'event--latest': index === 0, 'event--exception': event.exceptional }">
-      <div class="stamp">
-        <span class="date">{{ event.date }}</span>
-        <time class="time" :datetime="event.datetime">{{ event.time }}</time>
-      </div>
-      <div class="rail">
-        <span v-if="event.major" class="node node--major"><Icon :icon="event.icon || 'lucide:package'" width="16" /></span>
-        <span v-else class="node node--minor" />
-      </div>
-      <div class="content">
-        <div class="event-title" :class="{ 'event-title--major': event.major }">{{ event.title }}</div>
-        <div v-if="event.detail" class="event-detail">{{ event.detail }}</div>
-        <div v-if="event.location || event.source || event.shippingInfo" class="event-meta">{{ [event.location, event.source, event.shippingInfo].filter(Boolean).join(' · ') }}</div>
-        <div v-if="event.trackTrackingNo || event.registeredAt" class="event-meta">{{ [event.trackTrackingNo, event.registeredAt].filter(Boolean).join(' · ') }}</div>
-        <div v-if="event.shippingFees" class="event-meta">{{ event.shippingFees }}</div>
-        <div v-if="event.shippedRemark" class="event-detail">发货备注：{{ event.shippedRemark }}</div>
-        <div v-if="event.eta" class="event-meta">预计送达：{{ event.eta }}</div>
-        <div v-if="event.exceptionSummary" class="event-exception">物流异常：{{ event.exceptionSummary }}</div>
-        <div v-if="event.shipVouchers?.length" class="event-vouchers">
-          <span class="event-meta">发货凭证</span>
-          <button v-for="(url, voucherIndex) in event.shipVouchers" :key="url" type="button" class="voucher-button" :aria-label="`查看发货凭证 ${voucherIndex + 1}`" @click="previewImages = event.shipVouchers || []; previewIndex = voucherIndex; previewOpen = true"><img :src="url" alt="发货凭证" @error="setImageFallback" /></button>
-        </div>
-      </div>
-    </li>
-  </ol>
+  <div class="logistics-layout">
+    <aside class="logistics-package"><div class="logistics-carrier"><span>承运商</span><strong>{{ carrierName || '待确认' }}</strong></div><div class="logistics-number"><span>运单号</span><div><code>{{ trackingNumber || '暂无运单号' }}</code></div></div><div class="logistics-recipient"><div>{{ order.receiverName }} {{ order.receiverPhone }}<small>{{ order.shippingAddress }}</small></div></div></aside>
+    <section aria-label="订单与物流动态"><ol class="logistics-events">
+      <li v-for="(event,index) in rows" :key="event.key" :class="{ latest:index === 0,warning:event.exceptional }">
+        <time :datetime="event.datetime"><span v-if="event.date">{{ event.date }}<br /></span>{{ event.time }}</time><span class="logistics-event-dot" aria-hidden="true" />
+        <div><b class="event-title" :class="{ 'event-title--major':event.major }">{{ event.title }}</b><p v-if="event.detail">{{ event.detail }}</p><p v-if="event.location || event.source || event.shippingInfo" class="event-meta">{{ [event.location,event.source,event.shippingInfo].filter(Boolean).join(' · ') }}</p><p v-if="event.trackTrackingNo || event.registeredAt" class="event-meta">{{ [event.trackTrackingNo,event.registeredAt].filter(Boolean).join(' · ') }}</p><p v-if="event.shippingFees" class="event-meta">{{ event.shippingFees }}</p><p v-if="event.shippedRemark">发货备注：{{ event.shippedRemark }}</p><p v-if="event.eta" class="event-meta">预计送达：{{ event.eta }}</p><p v-if="event.exceptionSummary" class="warning">物流异常：{{ event.exceptionSummary }}</p><div v-if="event.shipVouchers?.length" class="event-vouchers"><span class="event-meta">发货凭证</span><button v-for="(url,voucherIndex) in event.shipVouchers" :key="url" type="button" class="voucher-button" :aria-label="`查看发货凭证 ${voucherIndex + 1}`" @click="previewImages = event.shipVouchers || []; previewIndex = voucherIndex; previewOpen = true"><img :src="url" alt="发货凭证" @error="setImageFallback" /></button></div></div>
+      </li>
+    </ol></section>
+  </div>
   <ImagePreview v-model="previewOpen" :images="previewImages" :start-index="previewIndex" title="发货凭证" />
 </template>
 
 <style scoped>
-.order-timeline { margin: 0; padding: 4px 0 0; list-style: none; }
-.event { display: grid; grid-template-columns: 156px 36px minmax(0, 1fr); min-height: 76px; }
-.stamp { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 4px 16px 0 0; color: var(--yb-muted); font-size: 13px; white-space: nowrap; }
-.date { text-align: right; }
-.time { font-variant-numeric: tabular-nums; }
-.rail { position: relative; display: flex; justify-content: center; align-items: flex-start; }
-.rail::before { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: var(--yb-hairline-2); content: ''; transform: translateX(-50%); }
-.event:first-child .rail::before { top: 17px; }
-.event:last-child .rail::before { bottom: calc(100% - 17px); }
-.node { position: relative; z-index: 1; flex: none; }
-.node--major { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; background: var(--yb-hairline-2); color: var(--yb-muted); }
-.node--minor { width: 8px; height: 8px; margin-top: 10px; border: 2px solid var(--yb-surface); border-radius: 50%; background: var(--yb-faint); box-sizing: content-box; }
-.event--latest .node--major { background: var(--bw-brand-primary); color: #fff; }
-.event--exception .node--major { background: #f53f3f; color: #fff; }
-.content { min-width: 0; padding: 4px 0 22px 24px; }
-.event-title { color: var(--yb-ink-2); font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
-.event-title--major { color: var(--yb-ink); font-weight: 600; }
-.event-detail { margin-top: 3px; color: var(--yb-ink-2); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.event-meta { margin-top: 5px; color: var(--yb-muted); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
-.event-exception { margin-top: 3px; color: #f53f3f; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.event-vouchers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
-.voucher-button { width: 72px; height: 72px; border: 1px solid var(--yb-hairline); border-radius: 6px; overflow: hidden; }
-.voucher-button img { width: 100%; height: 100%; object-fit: cover; transition: transform 200ms; }
-.voucher-button:hover img { transform: scale(1.03); }
-@media (max-width: 720px) {
-  .event { grid-template-columns: 92px 30px minmax(0, 1fr); }
-  .stamp { align-items: flex-start; gap: 2px; padding-top: 2px; font-size: 12px; }
-  .date { text-align: left; white-space: normal; }
-  .content { padding-left: 12px; }
-}
-@media (prefers-reduced-motion: reduce) { .voucher-button img { transition: none; } }
+.event-title { overflow-wrap:anywhere; }.event-title:not(.event-title--major) { font-weight:400; }.event-meta { color:var(--muted); }.event-vouchers { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }.voucher-button { width:72px; height:72px; border:1px solid var(--line); border-radius:6px; overflow:hidden; }.voucher-button img { width:100%; height:100%; object-fit:cover; }
 </style>

@@ -2,21 +2,19 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import PaymentMethodSelector from '@/components/order/payment-method-selector.vue';
 import { Message, Modal } from '@/lib/feedback';
-import { formatAmount } from '@shared';
-import { formatCny, formatUsdt, priceSet, TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
+import { TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import * as realOrderApi from '@/service/api/order';
 import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
 import * as realWalletApi from '@/service/api/wallet';
 import * as productApi from '@/service/api/product';
 import { readCheckoutIntent, clearCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout,
-  readPendingCheckout, pendingCheckoutStorageKey as pendingStorageKey, sumPaymentAmounts, validateGroupPayResult, isGroupPaymentComplete, type PendingCheckout } from '@/utils/checkout';
+  readPendingCheckout, pendingCheckoutStorageKey as pendingStorageKey, sumPaymentAmounts, formatPaymentAmount as formatAmount, validateGroupPayResult, isGroupPaymentComplete, type PendingCheckout } from '@/utils/checkout';
 import { withSubmissionLock } from '@/utils/financial-submission';
 import { RequestError } from '@/service/request';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
@@ -86,10 +84,10 @@ const checkoutItems = computed(() => route.query.contextId !== undefined
   : cart.enrichedItems.filter(item => item.selected));
 const items = computed(() => checkoutItems.value.filter(item => item.available));
 const overseasItems = computed(() => items.value.filter(i => i.product?.overseasCustoms));
-const subTotal = computed(() => items.value.reduce((sum, item) => sum + Number(item.subtotal), 0).toFixed(2));
-const shippingFeeTotal = computed(() => items.value.reduce((sum, item) => sum + Number(item.shippingFee), 0).toFixed(2));
-const taxTotal = computed(() => items.value.reduce((sum, item) => sum + Number(item.tax), 0).toFixed(2));
-const grandTotal = computed(() => (Number(subTotal.value) + Number(shippingFeeTotal.value) + Number(taxTotal.value)).toFixed(2));
+const subTotal = computed(() => checkoutItems.value.some(item => !item.available) ? '' : sumPaymentAmounts(items.value.map(item => item.subtotal)));
+const shippingFeeTotal = computed(() => checkoutItems.value.some(item => !item.available) ? '' : sumPaymentAmounts(items.value.map(item => item.shippingFee)));
+const taxTotal = computed(() => checkoutItems.value.some(item => !item.available) ? '' : sumPaymentAmounts(items.value.map(item => item.tax)));
+const grandTotal = computed(() => checkoutItems.value.some(item => !item.available) ? '' : sumPaymentAmounts(items.value.map(item => item.lineTotal)));
 const selfSoldItems = computed(() => {
   const currentUserId = userStore.currentUser?.id;
   const backendRejectedIds = new Set(backendSelfPurchaseProductIds.value);
@@ -103,8 +101,12 @@ const selfSoldItems = computed(() => {
 });
 const selfSoldTitles = computed(() => selfSoldItems.value.map(item => item.product?.title || String(item.productId)).join('、'));
 
-const availableBalance = computed(() => wallet.value?.available === undefined ? undefined : Number(wallet.value.available));
-const balanceEnough = computed(() => availableBalance.value !== undefined && availableBalance.value >= Number(grandTotal.value));
+const availableBalance = computed(() => {
+  const value = wallet.value?.available;
+  if (value === undefined || value === null || String(value).trim() === '') return undefined;
+  try { return sumPaymentAmounts([value]); } catch { return undefined; }
+});
+const balanceEnough = computed(() => availableBalance.value !== undefined && !!grandTotal.value && amountAtLeast(availableBalance.value, grandTotal.value));
 const walletSelected = computed(() => walletPayEntryEnabled && paymentMethod.value === 'wallet');
 const submitDisabledReason = computed(() => {
   if (submitting.value || confirmationPending.value) return '订单正在处理，请勿重复提交';
@@ -833,9 +835,9 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 
 <template>
   <div class="checkout-page">
-    <header class="page-heading"><p class="eyebrow">SECURE CHECKOUT</p><h1>确认订单</h1><p>核对商品、收货信息与支付方式后提交。</p></header>
-    <Alert v-if="loadError" variant="destructive" class="load-alert"><AlertTitle>结算信息未能读取</AlertTitle><AlertDescription>{{ loadError }}</AlertDescription><Button variant="outline" :disabled="loading" @click="load"><Icon v-if="loading" icon="lucide:loader-circle" width="16" class="animate-spin" />重新加载</Button></Alert>
-    <section v-if="hasCreatedOrders" class="panel pending-checkout" :aria-busy="loading">
+    <div class="checkout-steps"><span class="done">01 购物袋</span><UmIcon name="arrow" /><span class="active">02 确认订单</span><UmIcon name="arrow" /><span>03 完成支付</span></div><div class="page-heading compact"><h1>确认订单</h1></div>
+    <Alert v-if="loadError" variant="destructive" class="load-alert"><AlertTitle>结算信息未能读取</AlertTitle><AlertDescription>{{ loadError }}</AlertDescription><button type="button" class="outline"  :disabled="loading" @click="load"><Icon v-if="loading" icon="lucide:loader-circle" width="16" class="animate-spin" />重新加载</button></Alert>
+    <section v-if="hasCreatedOrders" class="paper panel pending-checkout" :aria-busy="loading">
       <div class="section-heading"><span class="step-number"><Icon icon="lucide:clipboard-list" width="18" /></span><h2>继续已创建订单</h2></div>
       <p class="section-description">以下为上次下单生成的真实订单，不使用当前购物车的商品、地址或金额。已付款或已结束的订单不会再次付款。</p>
       <Skeleton v-if="loading && !pendingOrders.length" class="orders-skeleton" />
@@ -843,53 +845,52 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
         <article v-for="order in pendingOrders" :key="String(order.id)" class="pending-order"><div class="order-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">订单 {{ order.code }}</RouterLink><OrderStatusTag :status="order.status" /></div><p>{{ order.productTitle }} · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p><p class="muted">收货地址：{{ order.shippingAddress }}</p></article>
       </div>
       <div class="pending-total">本次待付款 <strong>{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</strong></div>
-      <Alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" class="notice"><AlertDescription>钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。</AlertDescription><Button variant="outline" class="notice-action" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</Button></Alert>
+      <Alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" class="notice"><AlertDescription>钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。</AlertDescription><button type="button"  class="notice-action outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</button></Alert>
       <Alert v-if="pendingCheckout?.paymentResult" class="notice"><AlertTitle>上次核对回执（当前状态以上方订单为准）</AlertTitle><AlertDescription><div v-for="item in pendingCheckout.paymentResult.items" :key="String(item.orderId)" class="receipt-item">{{ item.orderNo || item.orderId }} · U {{ item.amount }} · {{ item.status }} {{ item.message || '' }}</div></AlertDescription></Alert>
       <PaymentMethodSelector v-if="walletPayEntryEnabled && walletChains.length && unpaidOrders.length" v-model="paymentMethod" v-model:selected-chain="selectedChain" class="pending-methods" :chains="walletChains" :wallet-enabled="walletPayEntryEnabled" :disabled="submitting || loading" :chain-available="chain => chain.enabled && amountAtLeast(pendingTotal || '0', chain.minAmount)" />
-      <Alert v-if="walletPayEntryEnabled && walletChainsError" class="notice"><AlertDescription>{{ walletChainsError }}</AlertDescription><Button variant="link" class="notice-action" :disabled="walletChainsLoading || submitting" @click="loadWalletChains">重新读取支付网络</Button></Alert>
-      <label v-if="unpaidOrders.length" class="agree-row"><Checkbox :model-value="agreed" :disabled="submitting || loading" aria-label="已核对上述订单及待付金额" @update:model-value="value => agreed = value === true" />已核对上述订单及待付金额</label>
+      <Alert v-if="walletPayEntryEnabled && walletChainsError" class="notice"><AlertDescription>{{ walletChainsError }}</AlertDescription><button type="button"  class="notice-action text-link" :disabled="walletChainsLoading || submitting" @click="loadWalletChains">重新读取支付网络</button></Alert>
+      <label v-if="unpaidOrders.length" class="agreement agree-row"><input type="checkbox" :checked="agreed" :disabled="submitting || loading" aria-label="已核对上述订单及待付金额" @change="agreed = ($event.target as HTMLInputElement).checked" />已核对上述订单及待付金额</label>
       <div class="pending-actions">
-        <TooltipProvider v-if="unpaidOrders.length"><Tooltip><TooltipTrigger as-child><span :tabindex="pendingDisabledReason ? 0 : undefined"><Button :disabled="!!pendingDisabledReason" @click="payPendingOrders"><Icon v-if="submitting" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}</Button></span></TooltipTrigger><TooltipContent v-if="pendingDisabledReason">{{ pendingDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
-        <Button variant="outline" :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</Button><Button variant="ghost" @click="router.push({ name: 'order-list' })">查看我的订单</Button>
+        <TooltipProvider v-if="unpaidOrders.length"><Tooltip><TooltipTrigger as-child><span :tabindex="pendingDisabledReason ? 0 : undefined"><button type="button" class="primary" :disabled="!!pendingDisabledReason" @click="payPendingOrders"><Icon v-if="submitting" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ walletSelected ? '创建钱包支付单' : '支付上述待付款订单' }}</button></span></TooltipTrigger><TooltipContent v-if="pendingDisabledReason">{{ pendingDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+        <button type="button" class="outline"  :disabled="submitting" @click="startNewCheckout">开始新的结算（保留已有订单）</button><button type="button" class="text-link"  @click="router.push({ name: 'order-list' })">查看我的订单</button>
       </div>
     </section>
-    <section v-else-if="hasUnconfirmedOrder" class="panel recovery-panel">
+    <section v-else-if="hasUnconfirmedOrder" class="paper panel recovery-panel">
       <div class="section-heading"><span class="step-number"><Icon icon="lucide:circle-alert" width="18" /></span><h2>上次下单结果待确认</h2></div>
       <p class="section-description">浏览器保存了上次提交的 {{ pendingCheckout?.orderItems.length }} 种商品，但还没有收到订单号；这不代表订单已创建。当前购物车和地址可能已经变化。</p>
       <ul class="recovery-items"><li v-for="item in pendingCheckout?.orderItems" :key="String(item.productId)">商品编号 {{ item.productId }} · 数量 {{ item.quantity ?? 1 }}</li></ul>
       <Alert class="notice"><AlertDescription>恢复时只使用上次保存的商品和地址，可能创建上次的订单；恢复后会先展示订单供你核对，不会自动付款。</AlertDescription></Alert>
-      <div class="pending-actions"><Button :disabled="submitting || confirmationPending" @click="confirmRecoverUnconfirmedOrder"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />恢复上次订单</Button><Button variant="outline" :disabled="submitting || confirmationPending" @click="router.push({ name: 'order-list' })">查看我的订单</Button></div>
+      <div class="pending-actions"><button type="button" class="primary" :disabled="submitting || confirmationPending" @click="confirmRecoverUnconfirmedOrder"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />恢复上次订单</button><button type="button" class="outline"  :disabled="submitting || confirmationPending" @click="router.push({ name: 'order-list' })">查看我的订单</button></div>
     </section>
     <div v-else-if="loading && !items.length" class="checkout-layout" aria-label="正在读取结算信息"><div class="main-sections"><Skeleton class="section-skeleton" /><Skeleton class="section-skeleton" /></div><Skeleton class="summary-skeleton" /></div>
     <div v-else-if="items.length" class="checkout-layout" :aria-busy="loading || submitting">
       <div class="main-sections">
-        <section class="panel"><div class="section-heading"><span class="step-number">1</span><h2>收货信息</h2></div><AddressSelector v-if="userStore.currentUser" v-model="addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @changed="address => selectedAddr = address" /></section>
-        <section class="panel">
-          <div class="section-heading"><span class="step-number">2</span><h2>商品清单</h2><span class="section-meta">{{ items.length }} 种 · {{ items.reduce((sum, item) => sum + item.qty, 0) }} 件</span></div>
+        <section class="paper panel"><AddressSelector v-if="userStore.currentUser" v-model="addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @changed="address => selectedAddr = address"><template #heading><h2><em>01</em> 收货信息</h2></template></AddressSelector></section>
+        <section class="paper panel">
+          <div class="section-heading"><h2><em>02</em> 商品清单</h2><span class="section-meta">{{ items.length }} 种 · {{ items.reduce((sum, item) => sum + item.qty, 0) }} 件</span></div>
           <Alert v-if="overseasItems.length" class="notice overseas-notice"><AlertDescription>以下 {{ overseasItems.length }} 种商品来自海外直邮，过关后不可退货退款。</AlertDescription></Alert>
-          <div class="goods-list"><article v-for="item in items" :key="item.productId" class="goods-row">
-            <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" class="cover" @error="setImageFallback" />
-            <div class="goods-info"><RouterLink :to="`/product/${item.productId}`" class="goods-title">{{ item.product?.title }}</RouterLink><div class="tags"><span v-if="item.product" class="tag">{{ productApi.getAftersaleMeta(item.product.aftersaleType).label }}</span><span v-if="item.product?.overseasCustoms" class="tag overseas-tag">海外直邮</span></div><p class="seller">买手 · {{ item.product?.sellerName || '—' }}</p></div>
-            <span class="quantity">× {{ item.qty }}</span><div class="line-amount"><strong>{{ formatUsdt(item.lineTotal) }}</strong><small>≈ {{ formatCny(item.lineTotal) }}</small></div>
+          <div class="goods-list"><article v-for="item in items" :key="item.productId" class="checkout-item">
+            <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" @error="setImageFallback" />
+            <div><small>买手 {{ item.product?.sellerName || '—' }}</small><h3><RouterLink :to="`/product/${item.productId}`">{{ item.product?.title }}</RouterLink></h3><p><template v-if="item.product">{{ productApi.getAftersaleMeta(item.product.aftersaleType).label }} · </template>数量 {{ item.qty }}<span v-if="item.product?.overseasCustoms"> · 海外直邮</span></p></div><b>{{ formatAmount(item.subtotal) }} <small>USDT</small></b>
           </article></div>
         </section>
-        <section class="panel">
-          <div class="section-heading"><span class="step-number">3</span><h2>选择支付方式</h2></div>
+        <section class="paper panel">
+          <div class="section-heading"><h2><em>03</em> 支付方式</h2></div>
           <PaymentMethodSelector v-model="paymentMethod" v-model:selected-chain="selectedChain" :chains="walletChains" :wallet-enabled="walletPayEntryEnabled" :disabled="submitting || confirmationPending" :chain-available="chain => chain.enabled && amountAtLeast(grandTotal, chain.minAmount)">
             <template #balance><div class="balance-row"><span>钱包可用余额</span><span :class="{ insufficient: availableBalance !== undefined && !balanceEnough }">{{ availableBalance === undefined ? '余额待确认' : `U ${formatAmount(availableBalance)}` }}{{ availableBalance !== undefined && !balanceEnough ? ' · 余额不足' : '' }}</span></div></template>
           </PaymentMethodSelector>
-          <Alert v-if="walletPayEntryEnabled && walletChainsError" class="notice"><AlertDescription>{{ walletChainsError }}</AlertDescription><Button variant="link" class="notice-action" :disabled="walletChainsLoading || submitting || confirmationPending" @click="loadWalletChains">重新读取支付网络</Button></Alert>
-          <Alert v-if="walletError" class="notice"><AlertDescription>{{ walletError }}；商品、收货地址及协议选择保持不变。</AlertDescription><Button variant="outline" class="notice-action" :disabled="loading || submitting || confirmationPending || walletLoading" @click="loadWallet"><Icon v-if="walletLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新读取余额</Button></Alert>
+          <Alert v-if="walletPayEntryEnabled && walletChainsError" class="notice"><AlertDescription>{{ walletChainsError }}</AlertDescription><button type="button"  class="notice-action text-link" :disabled="walletChainsLoading || submitting || confirmationPending" @click="loadWalletChains">重新读取支付网络</button></Alert>
+          <Alert v-if="walletError" class="notice"><AlertDescription>{{ walletError }}；商品、收货地址及协议选择保持不变。</AlertDescription><button type="button"  class="notice-action outline" :disabled="loading || submitting || confirmationPending || walletLoading" @click="loadWallet"><Icon v-if="walletLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新读取余额</button></Alert>
           <Alert v-if="selfSoldItems.length" variant="destructive" class="notice"><AlertTitle>不能购买自己发布的商品：{{ selfSoldTitles }}</AlertTitle><AlertDescription>请返回购物车移除该商品，或选择其他买手的商品后再结算。</AlertDescription></Alert>
         </section>
       </div>
-      <aside class="panel payment-summary">
-        <h2>金额明细</h2>
-        <dl class="amount-list"><div><dt>商品合计</dt><dd>{{ formatUsdt(subTotal) }}<small>≈ {{ formatCny(subTotal) }}</small></dd></div><div><dt>运费合计</dt><dd>{{ formatUsdt(shippingFeeTotal) }}</dd></div><div><dt>税费合计 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="13" /></dt><dd>{{ formatUsdt(taxTotal) }}</dd></div></dl>
-        <div class="grand-total"><span>应付总额</span><strong>{{ formatUsdt(grandTotal) }}</strong><small>≈ {{ formatCny(grandTotal) }}</small></div>
-        <div class="agree-row"><Checkbox id="checkout-agreement" :model-value="agreed" :disabled="submitting || confirmationPending" aria-label="同意用户协议及隐私政策" @update:model-value="value => agreed = value === true" /><div><label for="checkout-agreement">我已阅读并同意</label><RouterLink :to="{ path: '/help', query: { agreement: 'user' } }">《用户协议》</RouterLink><RouterLink :to="{ path: '/help', query: { agreement: 'privacy' } }">《隐私政策》</RouterLink></div></div>
-        <TooltipProvider><Tooltip><TooltipTrigger as-child><span class="submit-trigger" :tabindex="submitDisabledReason ? 0 : undefined"><Button class="submit-button" size="lg" :disabled="!!submitDisabledReason" @click="submit"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ walletSelected ? '提交订单并前往钱包支付' : '提交订单' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
-        <p class="rate-note">{{ priceSet(grandTotal).rateLabel }}<br />本地参考折算，以 USDT 结算</p><RouterLink to="/cart" class="return-cart"><Icon icon="lucide:arrow-left" width="14" />返回购物车</RouterLink>
+      <aside class="paper summary-card payment-summary">
+        <h2>订单明细</h2>
+        <div class="money-row"><span>商品合计</span><b>{{ formatAmount(subTotal) }} USDT</b></div><div class="money-row"><span>运费</span><b>{{ formatAmount(shippingFeeTotal) }} USDT</b></div><div class="money-row"><span>税费 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="13" /></span><b>{{ formatAmount(taxTotal) }} USDT</b></div>
+        <div class="summary-total"><span>应付金额</span><b>{{ formatAmount(grandTotal) }}<small> USDT</small></b></div>
+        <div class="agreement agree-row"><input id="checkout-agreement" type="checkbox" :checked="agreed" :disabled="submitting || confirmationPending" aria-label="同意用户协议及隐私政策" @change="agreed = ($event.target as HTMLInputElement).checked" /><div><label for="checkout-agreement">我已阅读并同意</label><RouterLink :to="{ path: '/help', query: { agreement: 'user' } }">《用户协议》</RouterLink><RouterLink :to="{ path: '/help', query: { agreement: 'privacy' } }">《隐私政策》</RouterLink></div></div>
+        <TooltipProvider><Tooltip><TooltipTrigger as-child><span class="submit-trigger" :tabindex="submitDisabledReason ? 0 : undefined"><button type="button" class="submit-button gold full" :disabled="!!submitDisabledReason" @click="submit"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ walletSelected ? '提交订单并前往钱包支付' : '提交订单' }}</button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+        <RouterLink to="/cart" class="text-link full return-cart">返回购物袋</RouterLink>
       </aside>
     </div>
     <EmptyState v-else-if="!loadError" title="没有选中要结算的商品" action-text="回到购物车" @action="router.push('/cart')" />
@@ -897,71 +898,8 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
 </template>
 
 <style scoped>
-.checkout-page { width:100%; margin:0 auto; padding:0 0 32px; }
-.page-heading { margin-bottom: 24px; }
-.eyebrow { margin: 0 0 4px; color: var(--yb-gold); font-size: 12px; letter-spacing: .12em; font-weight: 600; }
-.page-heading h1 { font-size: 28px; font-weight: 650; margin: 0; }
-.page-heading > p:last-child { margin: 8px 0 0; font-size: 14px; color: var(--yb-muted); }
-.checkout-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
-.main-sections { display: grid; gap: 24px; min-width: 0; }
-.panel { padding: 24px; background: var(--yb-surface); border: 1px solid var(--yb-hairline); border-radius: 12px; min-width: 0; }
-.section-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-.step-number { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: var(--yb-primary-soft); color: var(--yb-primary); font-size: 13px; font-weight: 600; }
-h2 { font-size: 20px; font-weight: 650; margin: 0; }
-.section-meta, .section-description { color: var(--yb-muted); font-size: 13px; }
-.section-meta { margin-left: auto; }
-.section-description { margin: 0 0 20px; }
-.goods-row { display: grid; grid-template-columns: 80px minmax(0, 1fr) 40px auto; align-items: center; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--yb-hairline); }
-.goods-row:first-child { padding-top: 0; }
-.goods-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.cover { width: 80px; height: 80px; object-fit: contain; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-fill); }
-.goods-title { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
-.goods-title:hover { color: var(--yb-primary); }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.tag { font-size: 12px; padding: 1px 6px; border-radius: 4px; color: var(--yb-primary); background: var(--yb-fill); }
-.overseas-tag { color: var(--yb-gold); background: var(--yb-champagne); }
-.seller { font-size: 12px; color: var(--yb-muted); margin: 6px 0 0; }
-.quantity { font-size: 14px; color: var(--yb-muted); text-align: center; }
-.line-amount { text-align: right; font-variant-numeric: tabular-nums; }
-.line-amount strong { font-size: 16px; font-weight: 600; }
-.line-amount small, .amount-list small { display: block; font-size: 12px; font-weight: 400; color: var(--yb-muted); }
-.balance-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
-.insufficient { color: var(--yb-danger); }
-.payment-summary { position: sticky; top:170px; }
-.amount-list { display: grid; gap: 18px; margin: 24px 0; }
-.amount-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.amount-list dt { display: inline-flex; align-items: center; gap: 4px; color: var(--yb-muted); font-size: 14px; }
-.amount-list dd { margin: 0; font-size: 14px; font-weight: 600; text-align: right; }
-.grand-total { display: grid; gap: 5px; padding-top: 20px; border-top: 1px solid var(--yb-hairline); }
-.grand-total > span { font-size: 14px; }
-.grand-total strong { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.grand-total small, .rate-note { font-size: 12px; color: var(--yb-muted); }
-.agree-row { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0; font-size: 13px; color: var(--yb-muted); line-height: 1.8; }
-.agree-row > button { margin-top: 3px; flex-shrink: 0; }
-.agree-row label { cursor: pointer; }
-.agree-row a { color: var(--yb-primary); }
-.submit-trigger, .submit-button { width: 100%; }
-.submit-button { white-space: normal; height: auto; min-height: 44px; text-align: center; }
-.rate-note { margin: 14px 0; }
-.return-cart { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 13px; color: var(--yb-muted); }
-.pending-order { border: 1px solid var(--yb-hairline); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-.order-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.order-heading a { color: var(--yb-primary); font-size: 14px; font-weight: 600; }
-.pending-order p { margin: 8px 0 0; font-size: 14px; overflow-wrap: anywhere; }
-.pending-total { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 16px 0; font-size: 14px; }
-.pending-total strong { font-size: 20px; font-weight: 650; }
-.notice { margin: 16px 0; background: var(--yb-fill); }
-.notice-action { margin-top: 10px; }
-.receipt-item { margin-top: 8px; overflow-wrap: anywhere; }
-.pending-methods { margin: 20px 0; }
-.pending-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
-.recovery-items { margin: 0; padding-left: 20px; font-size: 13px; color: var(--yb-muted); }
-.load-alert { margin-bottom: 20px; }
-.load-alert button { margin-top: 12px; }
-.section-skeleton { height: 280px; }
-.summary-skeleton { height: 440px; }
-.orders-skeleton { height: 200px; margin-bottom: 20px; }
-.reading { opacity: .55; }
-@media (max-width: 1100px) { .checkout-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; } .panel { padding: 20px; } .goods-row { gap: 12px; grid-template-columns: 64px minmax(0, 1fr) 30px auto; } .cover { width: 64px; height: 64px; } }
-@media (max-width: 800px) { .checkout-layout { grid-template-columns: 1fr; } .payment-summary { position: static; } }
+.panel { min-width:0; }.main-sections { min-width:0; }.section-heading { flex-wrap:wrap; }.section-meta { font-size:13px; color:var(--muted); margin-left:auto; }.section-description { font-size:13px; color:var(--muted); margin-bottom:20px; }.checkout-item h3 { overflow-wrap:anywhere; }
+.balance-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; }.insufficient { color:var(--yb-danger); }.agree-row { display:flex; align-items:flex-start; gap:10px; margin:20px 0; }.agree-row > button { flex-shrink:0; margin-top:3px; }.agree-row a { color:var(--green); }.submit-trigger { display:block; width:100%; }.return-cart { margin-top:20px; }
+.pending-order { border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:12px; }.order-heading { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }.order-heading a { color:var(--green); font-size:14px; }.pending-order p { margin-top:8px; overflow-wrap:anywhere; }.pending-total { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:16px 0; }.pending-total strong { font-size:20px; }.notice { margin:16px 0; }.notice-action { margin-top:10px; }.receipt-item { margin-top:8px; overflow-wrap:anywhere; }.pending-methods { margin:20px 0; }.pending-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:12px; margin-top:20px; }.recovery-items { padding-left:20px; font-size:13px; color:var(--muted); }.load-alert { margin-bottom:20px; }.load-alert button { margin-top:12px; }
+.section-skeleton { height:280px; margin-bottom:22px; }.summary-skeleton { height:440px; }.orders-skeleton { height:200px; margin-bottom:20px; }.reading { opacity:.55; }
 </style>

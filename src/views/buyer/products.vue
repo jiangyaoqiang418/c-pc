@@ -2,9 +2,8 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import CategoryPicker from '@/components/common/category-picker.vue';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
@@ -28,12 +27,13 @@ interface TabDef {
   label: string;
   status?: Api.Product.ProductStatus;
   shelf?: Api.Product.ShelfStatus;
+  unavailable?: boolean;
 }
 
 const TABS: TabDef[] = [
   { key: 'all', label: '全部' },
   { key: 'on-shelf', label: '在售', status: 'NORMAL', shelf: 'on-shelf' },
-  { key: 'pending', label: '待审核', status: 'PENDING_AUDIT' },
+  { key: 'pending', label: '待审核', status: 'PENDING_AUDIT', unavailable: true },
   { key: 'in-audit', label: '审核中', status: 'IN_AUDIT' },
   { key: 'rejected', label: '审核驳回', status: 'REJECTED' },
   { key: 'off-shelf', label: '已下架', status: 'NORMAL', shelf: 'off-shelf' },
@@ -111,6 +111,12 @@ async function load() {
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
+    if (tab?.unavailable) {
+      products.value = [];
+      total.value = 0;
+      loadError.value = '当前接口尚未提供独立待审核阶段，请查看审核中商品。';
+      return;
+    }
     const r = await productApi.fetchMyProducts({
       current: current.value,
       size: size.value,
@@ -313,22 +319,25 @@ async function savePrice() {
 
 <template>
   <div class="bp-page shop-container">
-    <header class="page-head"><div><span class="eyebrow">UMAOMAO / PRODUCTS</span><h1>商品管理</h1><p>认真完善每一件商品，让好物被看见。</p></div><div class="head-actions"><Button variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button @click="router.push('/buyer/products/create')"><Icon icon="lucide:plus" />发布商品</Button></div></header>
-    <Tabs v-model="activeKey"><TabsList class="product-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key">{{ tab.label }}</TabsTrigger></TabsList></Tabs>
-    <form class="filter-card" @submit.prevent="queryProducts"><Input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /><CategoryPicker v-model="categoryId" :options="categoryOptions" :loading="categoryLoading" /><Button type="submit" :disabled="loading">查询</Button><Button type="button" variant="outline" @click="resetFilters">重置</Button></form>
-    <div v-if="products.length" class="grid"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>
-    <div v-else-if="loading" class="grid" aria-busy="true" aria-label="正在读取商品列表"><Skeleton v-for="n in 6" :key="n" class="product-skeleton" /></div>
+    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>商品管理</h1><p>清晰掌握每一步，从容经营每一天。</p></div><div class="head-actions"><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button class="primary" @click="router.push('/buyer/products/create')"><UmIcon name="plus" />发布商品</Button></div></header>
+    <div class="buyer-tabs" role="group" aria-label="商品状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" :disabled="tab.unavailable" :title="tab.unavailable ? '当前接口尚未提供独立待审核阶段' : undefined" @click="activeKey = tab.key">{{ tab.label }}</button></div>
+    <form class="buyer-filter" @submit.prevent="queryProducts"><label><UmIcon name="search" /><input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /></label><CategoryPicker v-model="categoryId" :options="categoryOptions" :loading="categoryLoading" /><Button class="outline" type="submit" :disabled="loading">查询</Button><Button class="outline" type="button" variant="outline" @click="resetFilters">重置</Button></form>
+    <div v-if="products.length" class="buyer-products"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>
+    <div v-else-if="loading" class="buyer-products" aria-busy="true" aria-label="正在读取商品列表"><Skeleton v-for="n in 6" :key="n" class="product-skeleton" /></div>
     <EmptyState v-else :title="loadError ? '商品列表加载失败' : '该状态下没有商品'" :description="loadError || '点击右上角「发布商品」开始售卖'" :action-text="loadError ? '重新加载' : '发布商品'" @action="loadError ? load() : router.push('/buyer/products/create')" />
-    <a-modal v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving"><form class="price-form" @submit.prevent="savePrice"><p class="product-name">{{ priceProduct?.title }}</p><Label for="quick-product-price">售价（USDT）<span>*</span></Label><Input id="quick-product-price" v-model="newPrice" inputmode="decimal" :disabled="priceSaving" placeholder="请输入新的商品售价" /><p class="hint">改价立即生效，已下单订单的价格不受影响。最多 8 位小数。</p><div class="modal-actions"><Button type="button" variant="outline" :disabled="priceSaving" @click="priceVisible = false">取消</Button><Button type="submit" :disabled="priceSaving">{{ priceSaving ? '正在提交…' : '确认改价' }}</Button></div></form></a-modal>
+    <a-modal content-class="buyer-dialog" v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving"><form class="price-form" @submit.prevent="savePrice"><p class="product-name">{{ priceProduct?.title }}</p><Label for="quick-product-price">售价（USDT）<span>*</span></Label><Input id="quick-product-price" v-model="newPrice" inputmode="decimal" :disabled="priceSaving" placeholder="请输入新的商品售价" /><p class="hint">改价立即生效，已下单订单的价格不受影响。最多 8 位小数。</p><div class="modal-actions"><Button class="outline" type="button" variant="outline" :disabled="priceSaving" @click="priceVisible = false">取消</Button><Button class="primary" type="submit" :disabled="priceSaving">{{ priceSaving ? '正在提交…' : '确认改价' }}</Button></div></form></a-modal>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" />
   </div>
 </template>
 
 <style scoped>
-.bp-page .product-tabs { background: transparent; border-radius: 0; border-bottom: 1px solid var(--yb-hairline); padding: 0; gap: 18px; }
-.bp-page .product-tabs :deep(button) { background: transparent; box-shadow: none; border-radius: 0; border-bottom: 3px solid transparent; padding: 12px 14px; font-size: 14px; }
-.bp-page .product-tabs :deep(button[data-state='active']) { border-bottom-color: var(--yb-gold); color: var(--yb-brand-primary); }
-.bp-page .filter-card { grid-template-columns: minmax(180px,1fr) 160px auto auto; background: transparent; border: 0; padding: 0; }
-@media (min-width: 701px) and (max-width: 1150px) { .bp-page .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-.bp-page { display:grid; gap:24px; }.page-head { display:flex; justify-content:space-between; align-items:center; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-head h1 { font-size:28px; margin:8px 0; font-weight:650; }.page-head p { font-size:13px; color:var(--yb-muted); margin:0; }.head-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:10px; }.product-tabs { display:flex; width:100%; justify-content:flex-start; overflow-x:auto; height:auto; padding:6px; gap:4px; }.product-tabs :deep(button) { flex-shrink:0; padding:10px 13px; }.filter-card { display:grid; grid-template-columns:minmax(140px,1fr) minmax(160px,1fr) auto auto; gap:12px; padding:20px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:10px; }.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }.focused-product { outline:2px solid var(--yb-primary); outline-offset:3px; }.product-skeleton { height:490px; }.price-form { display:grid; gap:12px; }.price-form label>span { color:var(--yb-danger); }.product-name { margin:0 0 10px; font-size:16px; font-weight:600; overflow-wrap:anywhere; }.hint { color:var(--yb-muted); font-size:12px; line-height:1.8; margin:0; }.modal-actions { display:flex; justify-content:flex-end; gap:16px; margin-top:12px; }@media(max-width:1150px) { .page-head { flex-wrap:wrap; }.head-actions { justify-content:flex-start; }.filter-card { grid-template-columns:minmax(140px,1fr) minmax(160px,1fr); } }@media(max-width:700px) { .grid { grid-template-columns:1fr; } }
+.head-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.buyer-filter { flex-wrap:wrap; }
+.buyer-filter > :deep(.category-picker) { min-width:160px; }
+.focused-product { outline:2px solid var(--green); outline-offset:3px; }
+.product-skeleton { height:490px; }
+.price-form { display:grid; gap:12px; }
+.price-form label > span { color:var(--yb-danger); }
+.product-name { overflow-wrap:anywhere; }
+.modal-actions { display:flex; justify-content:flex-end; gap:16px; margin-top:12px; }
 </style>

@@ -2,22 +2,29 @@
 html, body, #app { background: var(--bg); color: var(--ink); font-family: var(--font-ui); }
 html.theme-changing * { transition: none !important; }
 
-/* Reka owns focus, scroll locking and presence; these rules reproduce reference motion. */
-.um-dialog-mask[data-state="open"] { animation: um-mask-in 200ms cubic-bezier(.22,1,.36,1); }
-.um-dialog-mask[data-state="closed"] { animation: um-mask-out 160ms cubic-bezier(.22,1,.36,1); }
-.um-dialog[data-state="open"] { animation: um-dialog-move-in 300ms cubic-bezier(.22,1,.36,1), um-mask-in 200ms cubic-bezier(.22,1,.36,1); }
-.um-dialog[data-state="closed"] { animation: um-dialog-move-out 160ms cubic-bezier(.22,1,.36,1), um-mask-out 160ms cubic-bezier(.22,1,.36,1); }
-.um-dialog-title { font-size: 24px; font-weight: 700; line-height: 1.4; }
-.um-dialog-close:hover { background: var(--soft); }
-@keyframes um-mask-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes um-mask-out { from { opacity: 1; } to { opacity: 0; } }
-@keyframes um-dialog-move-in {
-  from { transform: translate(-50%,calc(-50% + 18px)) scale(.97); }
-  to { transform: translate(-50%,-50%) scale(1); }
-}
-@keyframes um-dialog-move-out {
-  from { transform: translate(-50%,-50%) scale(1); }
-  to { transform: translate(-50%,calc(-50% + 8px)) scale(.985); }
+/* Portal placement is explicit; timings and trajectories follow the reference Vue transitions. */
+.um-dialog-mask[data-state="open"] { animation:um-mask-in .22s; }
+.um-dialog-mask[data-state="closed"] { animation:um-mask-out .22s; }
+.um-dialog[data-state="open"] { animation:um-dialog-move-in .28s; }
+.um-dialog[data-state="closed"] { animation:um-dialog-move-out .28s; }
+:root[data-ui-theme="web3-meme"] .um-dialog-mask[data-state] { animation-duration:.2s; }
+:root[data-ui-theme="web3-meme"] .um-dialog[data-state="open"] { animation:um-dialog-meme-in .3s var(--meme-ease); }
+:root[data-ui-theme="web3-meme"] .um-dialog[data-state="closed"] { animation:um-dialog-meme-out .16s; }
+@keyframes um-mask-in { from { opacity:0; } to { opacity:1; } }
+@keyframes um-mask-out { from { opacity:1; } to { opacity:0; } }
+@keyframes um-dialog-move-in { from { opacity:0; transform:translate(-50%,calc(-50% + 20px)) scale(.98); } to { opacity:1; transform:translate(-50%,-50%); } }
+@keyframes um-dialog-move-out { from { opacity:1; transform:translate(-50%,-50%); } to { opacity:0; transform:translate(-50%,calc(-50% + 20px)) scale(.98); } }
+@keyframes um-dialog-meme-in { from { opacity:0; transform:translate(-50%,calc(-50% + 18px)) scale(.97); } to { opacity:1; transform:translate(-50%,-50%); } }
+@keyframes um-dialog-meme-out { from { opacity:1; transform:translate(-50%,-50%); } to { opacity:0; transform:translate(-50%,calc(-50% + 8px)) scale(.985); } }
+@media (max-width:700px) {
+  .um-dialog[data-state="open"] { animation:um-dialog-sheet-in .28s; }
+  .um-dialog[data-state="closed"] { animation:um-dialog-sheet-out .28s; }
+  :root[data-ui-theme="web3-meme"] .um-dialog[data-state="open"] { animation:um-dialog-meme-sheet-in .32s var(--meme-ease); }
+  :root[data-ui-theme="web3-meme"] .um-dialog[data-state="closed"] { animation:um-dialog-meme-sheet-out .22s ease-in; }
+  @keyframes um-dialog-sheet-in { from { opacity:0; transform:translate(-50%,100%); } to { opacity:1; transform:translateX(-50%); } }
+  @keyframes um-dialog-sheet-out { from { opacity:1; transform:translateX(-50%); } to { opacity:0; transform:translate(-50%,100%); } }
+  @keyframes um-dialog-meme-sheet-in { from { transform:translateY(100%); } to { transform:none; } }
+  @keyframes um-dialog-meme-sheet-out { from { transform:none; } to { transform:translateY(100%); } }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

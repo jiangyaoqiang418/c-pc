@@ -2,9 +2,8 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import AmountInput from '@/components/common/amount-input.vue';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
@@ -29,14 +28,18 @@ interface TabDef {
   key: string;
   label: string;
   statuses?: Api.Order.OrderStatus[];
+  unavailable?: boolean;
 }
 
 const TABS: TabDef[] = [
   { key: 'all', label: '全部' },
   { key: 'pending-payment', label: '待付款', statuses: ['PENDING_PAYMENT'] },
   { key: 'procuring', label: '采购中', statuses: ['PROCURING'] },
+  { key: 'pending-shipment', label: '待发货', unavailable: true },
   { key: 'shipping', label: '运输中', statuses: ['IN_TRANSIT', 'AFTERSALE_CONFIRM'] },
-  { key: 'done', label: '已完成', statuses: ['COMPLETED', 'WARRANTY', 'ARCHIVED'] }
+  { key: 'done', label: '已完成', statuses: ['COMPLETED', 'WARRANTY', 'ARCHIVED'] },
+  { key: 'aftersale-confirm', label: '售后确认', unavailable: true },
+  { key: 'cancelled', label: '已取消', statuses: ['CANCELLED'] }
 ];
 
 const activeKey = ref('all');
@@ -104,6 +107,12 @@ async function load() {
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
+    if (tab?.unavailable) {
+      orders.value = [];
+      total.value = 0;
+      loadError.value = '当前接口尚未提供独立' + tab.label + '阶段，请查看其他订单状态。';
+      return;
+    }
     const r = await realOrderApi.fetchMyOrders({
       shopperId: user.id,
       current: current.value,
@@ -327,18 +336,22 @@ function selectTab(value: unknown) {
 
 <template>
   <div class="buyer-orders-page shop-container">
-    <header class="page-heading"><div><span class="eyebrow">UMAOMAO / FULFILLMENT</span><h1>买手订单</h1><p>从采购到交付，清晰掌握每一步。</p></div><Button variant="outline" :disabled="loading" @click="load"><Icon icon="lucide:refresh-cw" />刷新</Button></header>
-    <Tabs :model-value="activeKey" @update:model-value="selectTab"><TabsList class="order-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key">{{ tab.label }}</TabsTrigger></TabsList></Tabs>
+    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>买手订单</h1><p>从采购到交付，清晰掌握每一步。</p></div><Button class="outline" variant="outline" :disabled="loading" @click="load"><UmIcon name="return" />刷新</Button></header>
+    <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" :disabled="tab.unavailable" :title="tab.unavailable ? '当前接口尚未提供独立' + tab.label + '阶段' : undefined" @click="selectTab(tab.key)">{{ tab.label }}</button></div><div class="buyer-filter"><label><UmIcon name="search" /><input aria-label="搜索订单，暂未开放" placeholder="搜索订单号或商品名称" disabled title="当前接口尚未提供订单搜索" /></label><button type="button" :disabled="loading" @click="activeKey = 'all'; onTabChange()">重置</button></div>
     <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @manage-logistics="manageLogistics" /></div>
     <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取买手订单"><Skeleton v-for="n in 3" :key="n" class="order-skeleton" /></div>
     <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
-    <a-modal v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :closable="!priceSubmitting" :mask-closable="!priceSubmitting" :esc-to-close="!priceSubmitting" :on-before-cancel="() => !priceSubmitting" :on-before-ok="changePrice"><div class="price-form"><div class="field"><Label for="buyer-order-code">订单号</Label><Input id="buyer-order-code" :model-value="priceOrder?.code" disabled /></div><div class="field"><Label for="buyer-order-amount">订单金额（USDT）<span>*</span></Label><AmountInput id="buyer-order-amount" v-model="priceAmount" :disabled="priceSubmitting" :min="0.01" :precision="2" placeholder="请输入调整后的金额" /></div></div></a-modal>
+    <a-modal content-class="buyer-dialog" v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :closable="!priceSubmitting" :mask-closable="!priceSubmitting" :esc-to-close="!priceSubmitting" :on-before-cancel="() => !priceSubmitting" :on-before-ok="changePrice"><div class="price-form"><div class="buyer-field"><Label for="buyer-order-code">订单号</Label><Input id="buyer-order-code" :model-value="priceOrder?.code" disabled /></div><div class="buyer-field"><Label for="buyer-order-amount">订单金额（USDT）<span>*</span></Label><AmountInput id="buyer-order-amount" v-model="priceAmount" :disabled="priceSubmitting" :min="0.01" :precision="2" placeholder="请输入调整后的金额" /></div></div></a-modal>
     <ShippingUploadModal v-model:visible="shippingModalOpen" :order="shippingOrder" :submitting="shippingSubmitting" @confirm="shipOrder" />
     <LogisticsManageModal v-model:visible="logisticsModalOpen" :order="logisticsOrder" :submitting="logisticsSubmitting" @create-track="createLogisticsTrack" @mark-exception="markLogisticsException" />
   </div>
 </template>
 
 <style scoped>
-.buyer-orders-page { display:grid; gap:24px; }.page-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; }.eyebrow { font-size:10px; letter-spacing:1.8px; color:var(--yb-gold); }.page-heading h1 { font-size:28px; font-weight:650; margin:8px 0; }.page-heading p { color:var(--yb-muted); font-size:13px; margin:0; }.order-tabs { width:100%; justify-content:flex-start; height:auto; padding:6px; gap:5px; overflow-x:auto; }.order-tabs :deep(button) { flex-shrink:0; padding:10px 16px; }.order-list,.loading-list { display:grid; gap:20px; }.order-list :deep(.buyer-order-card) { margin-bottom:0; }.order-skeleton { height:235px; }.price-form { display:grid; gap:22px; }.field { display:grid; gap:10px; }.field label>span { color:var(--yb-danger); }
+.loading-list { display:grid; gap:16px; }
+.order-skeleton { height:180px; }
+.price-form { display:grid; gap:22px; }
+.field { display:grid; gap:10px; }
+.field label > span { color:var(--yb-danger); }
 </style>

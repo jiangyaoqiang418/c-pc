@@ -1,0 +1,755 @@
+{
+  "date": "2026-10-15",
+  "browser": "Chrome on macOS",
+  "dpr": 2,
+  "scope": "Only DOM viewport bounds and visible-state text at each sample; not pixel or real-write acceptance.",
+  "samples": [
+    {
+      "sample": "buyer-flash-sales-650-verified",
+      "route": "/buyer/flash-sales",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-aftersales-650-verified",
+      "route": "/buyer/aftersales",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "profile-650",
+      "route": "/profile",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "approved-buyer-dashboard-650",
+      "route": "/buyer/dashboard",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "approved-buyer-orders-650",
+      "route": "/buyer/orders",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "approved-buyer-deposit-650",
+      "route": "/buyer/deposit",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "address-650",
+      "route": "/address",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "cart-650",
+      "route": "/cart",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "wallet-650",
+      "route": "/wallet",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "wallet-history-650",
+      "route": "/wallet/history",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "finance-650",
+      "route": "/finance",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "finance-holdings-650",
+      "route": "/finance/my-lockups",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "kyc-650",
+      "route": "/kyc",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "vip-650",
+      "route": "/vip",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "points-650",
+      "route": "/points",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "aftersale-650",
+      "route": "/aftersale",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "purchase-hall-650",
+      "route": "/purchase/hall",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "purchase-create-650",
+      "route": "/purchase/create",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "purchase-mine-650",
+      "route": "/purchase",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "review-650",
+      "route": "/review",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "notifications-650",
+      "route": "/notifications",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "im-650",
+      "route": "/im",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "help-650",
+      "route": "/help",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "announcement-650",
+      "route": "/announcement",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "ai-guide-650",
+      "route": "/ai-guide",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "brand-650",
+      "route": "/brand",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "category-650",
+      "route": "/category",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "product-list-650",
+      "route": "/product/list",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "favorites-650",
+      "route": "/favorites",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "checkout-empty-650",
+      "route": "/cart",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "product-detail-650",
+      "route": "/product/:id",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "cart-nonempty-650",
+      "route": "/cart",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "checkout-nonempty-650",
+      "route": "/checkout",
+      "viewport": [
+        650,
+        600
+      ],
+      "visualWidth": 650,
+      "documentScrollWidth": 650,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "checkout-nonempty-320",
+      "route": "/checkout",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "cart-restored-320",
+      "route": "/cart",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-products-320",
+      "route": "/buyer/products",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "im-320-fixed",
+      "route": "/im",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-products-meme-320",
+      "route": "/buyer/products",
+      "viewport": [
+        320,
+        704
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 322,
+      "horizontalOverflow": true,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-products-meme-320-width-fixed",
+      "route": "/buyer/products",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-create-meme-320",
+      "route": "/buyer/products/create",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-products-meme-1440",
+      "route": "/buyer/products",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "buyer-dashboard-meme-1440",
+      "route": "/buyer/dashboard",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "order-meme-1440",
+      "route": "/order",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "wallet-meme-1440",
+      "route": "/wallet",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "finance-meme-1440",
+      "route": "/finance",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "deposit-meme-1440",
+      "route": "/wallet/deposit",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": true
+    },
+    {
+      "sample": "withdraw-meme-1440",
+      "route": "/wallet/withdraw",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": true
+    },
+    {
+      "sample": "pay-password-meme-1440",
+      "route": "/profile/pay-password",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "im-final-meme-320-origin-verified",
+      "route": "/im",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "im-final-desktop",
+      "route": "/im",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "order-final-desktop",
+      "route": "/order",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "finance-final-desktop",
+      "route": "/finance",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "order-detail-real-id-320",
+      "route": "/order/:id",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "login-password-final-320",
+      "route": "/profile",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "pay-password-final-320",
+      "route": "/profile/pay-password",
+      "viewport": [
+        320,
+        700
+      ],
+      "visualWidth": 320,
+      "documentScrollWidth": 320,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "home-final-desktop",
+      "route": "/",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    },
+    {
+      "sample": "home-final-forest-desktop",
+      "route": "/",
+      "viewport": [
+        1440,
+        900
+      ],
+      "visualWidth": 1440,
+      "documentScrollWidth": 1440,
+      "horizontalOverflow": false,
+      "loadingAtSample": false,
+      "retryTextAtSample": false
+    }
+  ],
+  "notes": [
+    "Final IM physical outer-scroll reaches media controls, textarea and disabled empty-send button at 320x700; no message was sent.",
+    "Manual route using displayed order number was excluded; actual page href preserves internal order ID and loads successfully.",
+    "Login-password request redirects an account with an existing login password to profile; redirected route is recorded.",
+    "Forest theme restored after theme-entry QA. Buyer product price 9007199254740993 remains unchanged with an explicit precision error; normal 12.34 updates preview. Inputs were discarded via the leave dialog, with no draft save or product submission."
+  ]
+}

@@ -69,5 +69,14 @@
       "file": "meme-assets-v47.css",
       "sha256": "7355e41232b00580450334587e1a438b2eaa3bbd86690e1f8168ec3c434b60a7"
     }
+  ],
+  "runtimeAssets": [
+    {
+      "file": "assets/qrcode.js",
+      "sha256": "18ae399f81182bc9de916e9c77b195df20cc58d6f2d55a62b085a299f1bf1780",
+      "implementation": "src/components/wallet/vendor/qrcode.js",
+      "implementationSha256": "4f85ed75756673cfac94e9012bcde05d1c09610a074572e36c3225760c250e48",
+      "adaptation": "Original v47 MIT QR runtime asset with ESM export; no package installation."
+    }
   ]
 }

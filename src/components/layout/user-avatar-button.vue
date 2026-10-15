@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { DialogRoot, DialogTrigger, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui';
 import { Message } from '@/lib/feedback';
 import { useNotifyStore, useUserStore, useWalletStore } from '@/stores';
 import { formatAmount } from '@shared';
 import UmIcon from '@/components/common/um-icon.vue';
+import V47SheetGrip from '@/components/common/v47-sheet-grip.vue';
 
+defineProps<{ workspace?: boolean }>();
 const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 const notify = useNotifyStore();
 const open = ref(false);
+const menuId = `mobile-account-menu-${useId()}`;
 let lastTrigger: HTMLElement | undefined;
 const walletError = ref(false);
 const role = computed(() => userStore.isBuyerActive ? 'buyer' : 'customer');
@@ -50,12 +53,31 @@ watch([open, () => userStore.currentUser?.id], ([, id], previous) => {
 onBeforeUnmount(() => { requestVersion += 1; });
 function go(to: string) { open.value = false; void router.push(to); }
 function rememberTrigger(event: MouseEvent) { if (event.currentTarget instanceof HTMLElement) lastTrigger = event.currentTarget; }
-function restoreTrigger(event: Event) { event.preventDefault(); if (lastTrigger?.isConnected) lastTrigger.focus({ preventScroll:true }); }
+function canFocus(element?: HTMLElement): element is HTMLElement {
+  return !!element?.isConnected && !element.matches(':disabled') && !element.closest('[inert]')
+    && element.getClientRects().length > 0 && getComputedStyle(element).visibility === 'visible';
+}
+function restoreTrigger(event: Event) {
+  event.preventDefault();
+  const previous = lastTrigger;
+  lastTrigger = undefined;
+  void nextTick(() => {
+    const account = [...document.querySelectorAll<HTMLElement>('.header .account-trigger, .header .mobile-account-trigger')].find(canFocus);
+    const main = document.getElementById('main-content');
+    const target = canFocus(previous) ? previous : account || (canFocus(main || undefined) ? main : undefined);
+    if (target && target === main && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target?.focus({ preventScroll:true });
+  });
+}
 function switchRole(next: 'customer' | 'buyer') {
   if (next === role.value) return;
   if (next === 'buyer' && !userStore.isLoggedIn) { go('/auth/login?redirect=/buyer/dashboard'); return; }
   if (next === 'buyer' && !userStore.canSwitchToBuyer) { go('/buyer/apply'); return; }
-  userStore.setAudience(next);
+  const path = router.currentRoute.value.path;
+  const wasBuyerWorkspace = userStore.isBuyerActive && (path.startsWith('/buyer/') || ['/wallet/deposit', '/wallet/withdraw'].includes(path));
+  if (!userStore.setAudience(next)) return;
+  if (next === 'customer' && wasBuyerWorkspace) go('/profile');
+  else if (path === '/profile' || path === '/buyer/dashboard') go(next === 'buyer' ? '/buyer/dashboard' : '/profile');
 }
 function logout() {
   open.value = false;
@@ -67,14 +89,15 @@ function logout() {
 
 <template>
   <DialogRoot v-model:open="open">
-    <DialogTrigger as-child><button type="button" class="account-trigger" aria-label="打开账户功能与身份切换" @click="rememberTrigger"><UmIcon name="user" /><span>{{ userStore.isLoggedIn ? (userStore.isBuyerActive ? '买手账户' : '我的账户') : '登录 / 注册' }}</span></button></DialogTrigger>
-    <DialogTrigger as-child><button type="button" class="mobile-account-trigger" :class="{ buyer: role === 'buyer' }" :aria-label="`打开${role === 'buyer' ? '买手' : '顾客'}功能与身份切换`" aria-controls="mobile-account-menu" @click="rememberTrigger"><span class="mobile-account-avatar"><UmIcon :name="role === 'buyer' ? 'bag' : 'user'" /><i v-if="userStore.isLoggedIn" /></span><span class="mobile-account-label">{{ role === 'buyer' ? '买手' : '顾客' }}<UmIcon name="chevron" /></span></button></DialogTrigger>
+    <DialogTrigger v-if="!workspace" as-child><button type="button" class="account-trigger" aria-label="打开账户功能与身份切换" @click="rememberTrigger"><UmIcon name="user" /><span>{{ userStore.isLoggedIn ? (userStore.isBuyerActive ? '买手账户' : '我的账户') : '登录 / 注册' }}</span></button></DialogTrigger>
+    <DialogTrigger as-child><button type="button" :class="[workspace ? 'workspace-account-trigger' : 'mobile-account-trigger', { buyer: role === 'buyer' }]" :aria-label="`打开${role === 'buyer' ? '买手' : '顾客'}功能与身份切换`" :aria-controls="menuId" @click="rememberTrigger"><span class="mobile-account-avatar"><UmIcon :name="role === 'buyer' ? 'bag' : 'user'" /><i v-if="userStore.isLoggedIn" /></span><span class="mobile-account-label">{{ role === 'buyer' ? '买手' : '顾客' }}<UmIcon name="chevron" /></span></button></DialogTrigger>
     <DialogPortal>
-      <DialogOverlay class="modal-overlay account-menu-overlay" />
-      <DialogContent as="section" class="dialog account-menu-dialog" aria-label="账户功能与身份切换" @close-auto-focus="restoreTrigger">
+      <DialogOverlay class="modal-overlay account-menu-overlay v47-reference-mask" />
+      <DialogContent as="section" class="dialog account-menu-dialog v47-reference-dialog" aria-label="账户功能与身份切换" @close-auto-focus="restoreTrigger">
+        <V47SheetGrip :open="open" @dismiss="open = false" />
         <DialogTitle class="sr-only">账户功能与身份切换</DialogTitle><DialogDescription class="sr-only">查看账户资料、切换视角，以及打开订单、钱包等常用功能。</DialogDescription>
         <DialogClose as-child><button type="button" class="dialog-close" aria-label="关闭对话框"><UmIcon name="close" /></button></DialogClose>
-        <div id="mobile-account-menu">
+        <div :id="menuId">
         <div class="menu-profile"><span class="menu-profile-avatar" :class="{ buyer: role === 'buyer' }"><UmIcon :name="role === 'buyer' ? 'bag' : 'user'" /></span><div><span class="eyebrow">{{ role === 'buyer' ? 'CURATE YOUR WORLD' : 'YOUR EVERYDAY FINDS' }}</span><h2 :title="userStore.displayName">{{ userStore.isLoggedIn ? userStore.displayName : '欢迎来到 Umaomao' }}</h2><p>{{ userStore.currentUser?.accountInfoUnavailable ? '账户资料暂未更新' : userStore.isLoggedIn ? (role === 'buyer' ? '买手视角 · 精选好物，分享生活' : '顾客视角 · 发现你的心仪好物') : '登录后，管理订单与切换买手身份' }}</p></div></div>
         <div class="menu-role-choices" role="group" aria-label="选择顾客或买手身份"><button v-for="item in [{ id: 'customer' as const, name: '顾客', icon: 'user', note: '选购与收藏' }, { id: 'buyer' as const, name: '买手', icon: 'bag', note: '商品与订单' }]" :key="item.id" type="button" :class="{ active: role === item.id }" :aria-pressed="role === item.id" @click="switchRole(item.id)"><span class="menu-role-avatar"><UmIcon :name="item.icon" /></span><span><b>{{ item.name }}</b><small>{{ item.note }}</small></span><UmIcon v-if="role === item.id" name="check" class="role-check" /></button></div>
         <div v-if="userStore.isLoggedIn" class="menu-account-summary"><span>{{ role === 'buyer' ? '买手工作台' : '可用余额' }}<b>{{ role === 'buyer' ? '好物，由你精选' : walletStore.loading ? '正在加载…' : `${balance} USDT` }}</b><small v-if="role !== 'buyer' && (walletError || (!walletStore.loading && !walletStore.account))">暂不可用，前往钱包重试</small></span><button type="button" @click="go(role === 'buyer' ? '/buyer/products/create' : '/wallet')">{{ role === 'buyer' ? '发布商品' : '查看钱包' }}<UmIcon name="plus" /></button></div>
@@ -88,8 +111,9 @@ function logout() {
   </DialogRoot>
 </template>
 
+<style scoped src="../product/v47-detail-dialog-adapter.css"></style>
 <style scoped>
-.account-menu-dialog { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:171; }
+.account-menu-dialog { z-index:171; width:380px; max-width:calc(100vw - 32px); }
 .account-menu-overlay { z-index:170; }
 .account-trigger { white-space:nowrap; }
 .menu-profile > div { min-width:0; }
@@ -97,10 +121,15 @@ function logout() {
 .menu-account-summary small { display:block; font-size:10px; }
 .menu-account-summary button { white-space:nowrap; }
 .unread { display:grid; place-items:center; min-width:15px; height:15px; padding:0 3px; border-radius:4px; background:var(--green); color:var(--on-primary,#fff); font-size:9px; }
-.account-menu-overlay[data-state="open"] { animation:accountFadeIn .2s; } .account-menu-overlay[data-state="closed"] { animation:accountFadeOut .2s; }
-.account-menu-dialog[data-state="open"] { animation:accountIn .3s cubic-bezier(.22,1,.36,1); } .account-menu-dialog[data-state="closed"] { animation:accountOut .16s; }
-@keyframes accountFadeIn { from { opacity:0; } to { opacity:1; } } @keyframes accountFadeOut { from { opacity:1; } to { opacity:0; } }
-@keyframes accountIn { from { opacity:0; transform:translate(-50%,calc(-50% + 18px)) scale(.97); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } } @keyframes accountOut { from { opacity:1; transform:translate(-50%,-50%) scale(1); } to { opacity:0; transform:translate(-50%,calc(-50% + 8px)) scale(.985); } }
-@media (max-width:700px) { .account-menu-dialog { top:24px; left:auto; right:24px; transform:none; } }
+@media (max-width:700px) {
+  .header .header-actions > .mobile-account-trigger { display:flex; }
+  :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog { top:92px; bottom:auto; left:auto; right:14px; transform:none; width:360px; max-width:calc(100vw - 28px); }
+  :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog[data-state="open"] { animation:accountMenuDropdownIn .28s; }
+  :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog[data-state="closed"] { animation:accountMenuDropdownOut .28s; }
+}
+@media (max-width:370px) { :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog { top:88px; right:10px; max-width:calc(100vw - 20px); } }
+@media (max-height:600px) and (max-width:700px) { :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog { top:18px; } }
+@keyframes accountMenuDropdownIn { from { opacity:0; transform:translateY(-8px) scale(.97); } to { opacity:1; transform:none; } }
+@keyframes accountMenuDropdownOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(-8px) scale(.97); } }
 @media (prefers-reduced-motion:reduce) { .account-menu-overlay[data-state],.account-menu-dialog[data-state] { animation:none; } }
 </style>

@@ -23,6 +23,15 @@ const { currentTheme } = useUiTheme();
 const { categories } = useCategoryNavigation();
 const isMeme = computed(() => currentTheme.value === 'web3-meme');
 const isMessaging = computed(() => ['im', 'im-order-group'].includes(String(route.name)));
+const isBuyerWalletOperation = computed(() => user.isBuyerActive && ['wallet-deposit', 'wallet-withdraw'].includes(String(route.name)));
+const isBuyerWorkspace = computed(() => user.isBuyerActive && (route.path.startsWith('/buyer/') || isBuyerWalletOperation.value));
+const mobileLinks = computed(() => isBuyerWorkspace.value ? [
+  { label:'工作台', icon:'grid', to:'/buyer/dashboard' }, { label:'商品', icon:'bag', to:'/buyer/products' },
+  { label:'订单', icon:'box', to:'/buyer/orders' }, { label:'接单', icon:'search', to:'/buyer/claimable' }, { label:'钱包', icon:'wallet', to:'/buyer/wallet' }
+] : [
+  { label:'首页', icon:'home', to:'/' }, { label:'分类', icon:'grid', to:'/category' },
+  { label:'求购', icon:'search', to:'/purchase/hall' }, { label:'购物袋', icon:'bag', to:'/cart' }, { label:'我的', icon:'user', to:'/profile' }
+]);
 const isCatalog = computed(() => route.name === 'product-list');
 const topCategories = computed(() => {
   const names = ['手机数码', '电脑办公', '家用电器', '运动生活'];
@@ -43,7 +52,7 @@ function categoryActive(id: string) {
   return !!root && (root.id === target || includes(root.children || []));
 }
 const categoryLink = (id: string) => ({ name: 'product-list', query: { categoryId: id } });
-const showBreadcrumb = computed(() => !route.meta.requiresBuyer && !['home', 'brand', 'product-list', 'product-detail', 'category', 'order-detail', 'purchase-detail', 'aftersale-detail', 'aftersale-create', 'review-write', 'pay-password', 'login-password', 'finance-detail', 'finance-lockup-detail'].includes(String(route.name)));
+const showBreadcrumb = computed(() => !route.meta.requiresBuyer && !['home', 'brand', 'product-list', 'product-detail', 'category', 'order-detail', 'purchase-detail', 'aftersale-detail', 'aftersale-create', 'review-write', 'pay-password', 'login-password', 'finance-detail', 'finance-lockup-detail', 'buyer-apply', 'wallet-deposit', 'wallet-withdraw'].includes(String(route.name)));
 const main = ref<HTMLElement>();
 const navRail = ref<HTMLElement>();
 const rail = useUmScrollRail(navRail);
@@ -67,8 +76,9 @@ watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ prev
 </script>
 
 <template>
-  <div class="layout-default" :class="{ 'is-messaging': isMessaging, 'is-meme': isMeme, 'category-focus-mode': route.name === 'category' }">
+  <div class="layout-default" :class="{ 'is-messaging': isMessaging, 'is-meme': isMeme, 'category-focus-mode': route.name === 'category', 'buyer-workspace-mode': isBuyerWorkspace }">
     <UtilityBar />
+    <header v-if="isBuyerWorkspace" class="buyer-focus-header"><button type="button" aria-label="退出工作台，返回商城" @click="router.push('/')"><UmIcon name="chevron" /><span>返回商城</span></button><div><b>买手工作台</b><small>UMAOMAO STUDIO</small></div><div class="buyer-focus-actions"><ThemePicker /><button type="button" aria-label="买手消息" @click="router.push('/im')"><UmIcon name="chat" /></button><UserAvatarButton workspace /></div></header>
     <header class="header">
       <div class="header-main wrap um-wrap"><BrandLogo /><SearchBar class="header-search" /><div class="header-actions"><UserAvatarButton /><ThemePicker /></div></div>
       <nav class="desktop-nav wrap um-wrap" aria-label="主导航">
@@ -85,9 +95,10 @@ watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ prev
     </header>
     <main id="main-content" ref="main" class="main main-container wrap um-wrap" :class="{ 'home-main': route.name === 'home' }" :data-page="route.path" tabindex="-1">
       <nav v-if="showBreadcrumb && !isMessaging" class="breadcrumb global-breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">{{ route.meta.title }}</span></nav>
-      <slot><BuyerWorkspace :enabled="!!route.meta.requiresBuyer"><RouterView v-slot="{ Component }"><Transition :name="isMeme ? 'um-page' : undefined"><component :is="Component" :key="route.path" /></Transition></RouterView></BuyerWorkspace></slot>
+      <slot><BuyerWorkspace :enabled="!!route.meta.requiresBuyer || isBuyerWalletOperation || (isBuyerWorkspace && route.name === 'buyer-apply')"><RouterView v-slot="{ Component }"><Transition :name="isMeme ? 'um-page' : undefined"><component :is="Component" :key="route.path" /></Transition></RouterView></BuyerWorkspace></slot>
     </main>
     <footer v-if="!isMessaging" class="footer"><div class="wrap um-wrap"><div class="footer-callout"><UmIcon name="globe" /><span>有 U，自在买。<small>用 USDT，连接你与全球好物。</small></span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>全球好物 / 用 U 探索<br />把喜欢，融入日常。</p><span>GOOD FINDS. BETTER DAYS.</span></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button></div></div></div></footer>
+    <nav class="mobile-nav" :aria-label="isBuyerWorkspace ? '买手工作台导航' : '手机主导航'"><button v-for="link in mobileLinks" :key="link.to" type="button" :class="{ active: route.path === link.to }" :aria-current="route.path === link.to ? 'page' : undefined" @click="router.push(link.to)"><span><UmIcon :name="link.icon" /><b v-if="link.to === '/cart' && cart.count">{{ cart.count }}</b></span>{{ link.label }}</button></nav>
     <div v-if="!isMessaging" class="floating-tools"><button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button><button type="button" aria-label="回到顶部" @click="scrollTop">↑</button></div>
   </div></template>
 
@@ -101,4 +112,6 @@ watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ prev
 .nav-rail-host { min-width:0; position:relative; height:100%; }
 .edge-scroll-layer { inset:0; }
 @media (max-width:700px) { .category-focus-mode > .main { width:100%; padding:0; } }
+@media (max-width:700px) { .buyer-workspace-mode .buyer-focus-header { grid-template-columns:auto minmax(0,1fr) auto; } .buyer-focus-header>div { min-width:0; } }
+@media (max-width:700px) { .is-messaging .main-container { padding-bottom:calc(76px + env(safe-area-inset-bottom)); } }
 </style>

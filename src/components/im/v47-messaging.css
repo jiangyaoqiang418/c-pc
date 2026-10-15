@@ -1,0 +1,65 @@
+/* v47 consultation panel plus production conversation navigation and states. */
+.im-page,.im-group-page { display:flex; flex-direction:column; flex:1; width:100%; min-height:0; }
+.im-page>.page-heading,.im-group-page>.page-heading { flex-shrink:0; }
+.im-layout { display:grid; grid-template-columns:260px minmax(0,900px); gap:20px; flex:1; min-height:0; width:100%; max-width:1180px; margin:20px auto; }
+.sidebar { display:flex; flex-direction:column; min-height:0; margin:0; padding:16px; }
+.sidebar-alert { margin-bottom:12px; padding:12px; border-radius:8px; background:var(--soft); color:var(--muted); font-size:12px; }
+.sidebar-alert.error { color:var(--yb-danger); }
+.sync-bar { display:flex; justify-content:space-between; align-items:center; color:var(--muted); font-size:11px; margin-bottom:12px; }
+.sidebar-tabs { display:flex; flex-direction:column; flex:1; min-height:0; gap:0; }
+.tab-list { width:100%; min-height:44px; gap:16px; margin-bottom:14px; }
+.tab-list>button { flex:1; font-size:12px; gap:5px; }
+.conv-list { overflow-y:auto; flex:1; min-height:0; }
+.conv-row { display:flex; align-items:flex-start; gap:10px; width:100%; text-align:left; padding:14px 10px; margin-bottom:5px; border:1px solid transparent; border-radius:8px; }
+.conv-row:hover { background:var(--soft); }.conv-row.active { background:var(--soft); border-color:var(--green); }
+.conv-row .avatar { width:36px; height:36px; object-fit:cover; flex-shrink:0; }
+.conv-row .info { display:block; flex:1; min-width:0; }
+.conv-title-row { display:flex; align-items:center; gap:8px; }
+.conv-name { flex:1; min-width:0; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.unread-badge { padding:1px 5px; border-radius:20px; background:var(--green); color:var(--paper); font-size:10px; text-align:center; }
+.preview { display:block; margin-top:5px; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.conv-time { display:block; margin-top:5px; font-size:10px; color:var(--muted); overflow-wrap:anywhere; }
+.sidebar-loading { display:grid; gap:14px; color:var(--muted); font-size:12px; }
+.conversation-skeleton { height:72px; width:100%; }
+.sidebar-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:12px; margin-top:12px; border-top:1px solid var(--line); font-size:11px; color:var(--muted); }
+.sidebar-footer .outline { min-height:34px; padding:7px 10px; font-size:11px; }
+.chat-pane { position:relative; min-width:0; min-height:0; width:100%; margin:0; }
+.im-group-page>.chat-pane { flex:1; margin:20px auto; }
+.conversation { display:flex; flex-direction:column; flex:1; height:100%; min-height:0; }
+.conversation-header { flex-shrink:0; flex-wrap:wrap; align-items:center; gap:12px; }
+.header-main { display:flex; flex:1; min-width:0; align-items:center; justify-content:space-between; gap:12px; }
+.conversation-header .header-main { width:100%; min-height:0; padding:0; }
+.header-product { display:flex; flex:1; align-items:center; gap:12px; min-width:0; }
+.header-product>div { min-width:0; }
+.header-product img { width:42px; height:42px; object-fit:cover; border-radius:8px; flex-shrink:0; }
+.header-product h2 { font-size:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.header-product p { margin-top:4px; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.header-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.header-actions .outline { padding:8px 12px; min-height:36px; font-size:12px; }
+.header-actions .text-link { font-size:12px; }
+.action-trigger { display:inline-flex; }
+.delete-action { color:var(--yb-danger); }
+.order-strip { display:flex; flex-shrink:0; align-items:center; gap:8px; padding-bottom:12px; border-bottom:1px solid var(--line); overflow:auto; }
+.order-chip { white-space:nowrap; min-height:34px; padding:7px 10px; font-size:11px; }
+.notice { display:flex; flex-shrink:0; align-items:center; gap:8px; padding:12px; margin:12px 0; border-radius:8px; background:var(--soft); color:var(--muted); font-size:12px; flex-wrap:wrap; }
+.notice>span { flex:1; min-width:160px; }
+.warning { color:var(--yb-warning); background:color-mix(in srgb,var(--yb-warning) 8%,var(--paper)); }
+.messages { flex:1 1 auto; min-height:0; max-height:none; overflow:auto; overscroll-behavior:contain; }
+.load-older { text-align:center; }
+.empty-msg { text-align:center; color:var(--muted); padding:60px 0; font-size:13px; }
+.placeholder { display:grid; place-items:center; height:100%; min-height:300px; }
+.new-message-bar { display:flex; justify-content:center; padding:8px 0; }
+.chat-loading { position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--green); background:color-mix(in srgb,var(--paper) 85%,transparent); border-radius:inherit; font-size:13px; }
+@media(max-width:1100px) { .im-layout { grid-template-columns:230px minmax(0,1fr); }.header-actions .action-text { display:none; }.header-product h2 { font-size:18px; } }
+@media(max-width:700px) { .im-layout { display:flex; flex-direction:column; overflow:auto; gap:14px; }.sidebar { max-height:280px; flex-shrink:0; }.im-layout>.chat-pane { height:max(500px,100%); min-height:500px; flex-shrink:0; }.im-group-page>.chat-pane { min-height:0; flex-shrink:1; }.header-main { flex-wrap:wrap; }.header-product { flex-basis:100%; }.header-product h2 { font-size:18px; }.messages { min-height:0; }.sidebar-footer { margin-top:8px; } }
+@media(max-width:700px) {
+  /* v47 starts with 320px of mobile messages. Production headers/media need a bounded panel too. */
+  .im-layout>.chat-pane:has(.conversation),.im-group-page>.chat-pane:has(.conversation) { height:max(760px,100%); flex:0 0 auto; }
+  .im-group-page { overflow:auto; }
+  .chat-pane:has(.conversation) .messages { min-height:320px; max-height:450px; }
+  .conversation-header.section-heading { gap:8px; margin-bottom:12px; padding-bottom:12px; }
+  .conversation-header .header-main { flex:0 0 100%; gap:6px; }
+  .conversation-header .header-actions { width:100%; margin:0; gap:6px; }
+  .conversation-header .header-actions .outline { min-height:32px; padding:6px 8px; }
+  .conversation-header .header-actions .text-link { width:32px; min-height:32px; padding:6px; gap:0; }
+}

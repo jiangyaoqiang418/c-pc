@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useId } from 'vue';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { WalletPayChain } from '@/service/api/wallet-pay';
 
@@ -23,16 +23,16 @@ const groupId = useId();
   <div class="payment-selector">
     <fieldset :disabled="disabled" class="payment-options">
       <legend class="sr-only">选择支付方式</legend>
-      <label class="payment-option" :class="{ selected: modelValue === 'balance' }">
+      <label class="payment-option" :class="{ active: modelValue === 'balance' }">
         <input type="radio" :name="groupId" value="balance" :checked="modelValue === 'balance'" @change="emit('update:modelValue', 'balance')" />
-        <Icon icon="lucide:wallet" width="20" /><span><strong>站内余额支付</strong><small>使用平台钱包可用余额</small></span>
+        <UmIcon name="wallet" /><span><b>站内余额支付</b><small>使用平台钱包可用余额</small></span>
       </label>
-      <label v-if="walletEnabled && chains.length" class="payment-option" :class="{ selected: modelValue === 'wallet' }">
+      <label v-if="walletEnabled && chains.length" class="payment-option" :class="{ active: modelValue === 'wallet' }">
         <input type="radio" :name="groupId" value="wallet" :checked="modelValue === 'wallet'" @change="emit('update:modelValue', 'wallet')" />
-        <Icon icon="lucide:link" width="20" /><span><strong>USDT 钱包直付</strong><small>连接钱包，在链上确认转账</small></span>
+        <UmIcon name="globe" /><span><b>USDT 钱包直付</b><small>连接钱包，在链上确认转账</small></span>
       </label>
     </fieldset>
-    <div v-if="walletEnabled && modelValue === 'wallet'" class="chain-field">
+    <div v-if="walletEnabled && modelValue === 'wallet'" class="field chain-field">
       <label :for="`${groupId}-chain`">支付网络</label>
       <Select :model-value="selectedChain" :disabled="disabled" @update:model-value="value => emit('update:selectedChain', String(value))">
         <SelectTrigger :id="`${groupId}-chain`"><SelectValue placeholder="请选择支付链" /></SelectTrigger>
@@ -45,16 +45,5 @@ const groupId = useId();
 </template>
 
 <style scoped>
-.payment-options { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; border: 0; }
-.payment-option { display: flex; align-items: center; gap: 10px; min-width: 240px; flex: 1; padding: 16px; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-surface); cursor: pointer; transition: border-color 150ms, background 150ms; }
-.payment-option:hover, .payment-option.selected { border-color: var(--yb-primary); background: var(--yb-primary-soft); }
-.payment-options:disabled .payment-option { opacity: .55; cursor: not-allowed; }
-.payment-option input { accent-color: var(--yb-primary); width: 16px; height: 16px; margin: 0; }
-.payment-option strong { display: block; font-size: 14px; font-weight: 600; }
-.payment-option small { display: block; margin-top: 3px; font-size: 12px; color: var(--yb-muted); }
-.chain-field { display: grid; gap: 8px; max-width: 420px; margin-top: 16px; }
-.chain-field label { font-size: 14px; font-weight: 500; }
-.chain-field p { margin: 0; font-size: 12px; color: var(--yb-muted); }
-.balance-meta { margin-top: 14px; font-size: 13px; color: var(--yb-muted); }
-@media (prefers-reduced-motion: reduce) { .payment-option { transition: none; } }
+fieldset { border:0; padding:0; }.payment-options:disabled label { opacity:.55; cursor:not-allowed; }.chain-field { max-width:420px; }.chain-field p { font-size:13px; color:var(--muted); }.balance-meta { margin-top:14px; font-size:13px; color:var(--muted); }
 </style>

@@ -1,8 +1,9 @@
 import { realOrderRequest } from '@/service/request';
-import { requireArray, toPageTotal } from './page';
+import { requireArray, resolvePageSize, toPageTotal } from './page';
 import { fetchCategoryTree } from './category';
 import { toIsoDate } from './date';
 import { toAfterSaleType } from './product';
+import { readLedgerAmount } from './wallet';
 
 let categoryPathCache: Map<string, string> | undefined;
 let categoryPathCachePromise: Promise<Map<string, string>> | undefined;
@@ -57,9 +58,15 @@ async function getCategoryPath(id?: string) {
 }
 
 async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promise<Api.RealPurchase.Record> {
+  const status = toStatus(dto.status);
   const id = dto.id;
   const categoryId = dto.categoryId;
   const claimedBuyerId = dto.takenBy;
+  const budget = readLedgerAmount(dto.budget, '求购预算');
+  // 天数是展示/筛选统计，不是业务 ID；禁止将缺字段当作零天。
+  const expectedDays = (typeof dto.expectDeliveryDays !== 'string' && typeof dto.expectDeliveryDays !== 'number') || String(dto.expectDeliveryDays).trim() === ''
+    ? NaN : Number(dto.expectDeliveryDays);
+  if (!Number.isSafeInteger(expectedDays) || expectedDays < 0) throw new Error('求购期望发货天数尚未确认，请重新读取');
 
   return {
     id,
@@ -70,14 +77,14 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     productDescription: dto.description || '',
     categoryId,
     categoryPath: await getCategoryPath(dto.categoryId),
-    budgetAmount: String(dto.budget ?? 0),
-    expectedDays: dto.expectDeliveryDays || 0,
+    budgetAmount: budget,
+    expectedDays,
     overseasCustoms: !!dto.overseasClearance,
     aftersaleType: toAfterSaleType(dto.afterSaleType),
     rawAfterSaleType: dto.afterSaleType,
     evidenceUrls: dto.images || [],
     appeal: dto.demandNote || dto.description || '',
-    status: toStatus(dto.status),
+    status,
     reviewComment: dto.reviewComment,
     reviewedAt: toIsoDate(dto.reviewedAt),
     assignedBy: dto.assignedBy,
@@ -93,9 +100,11 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
 }
 
 async function mapPage(page: Api.Common.PaginatingQueryRecord<Api.RealPurchase.PurchaseDemandVO> & { pageNo?: number; pageSize?: number }) {
+  const current = Number(page.current ?? page.pageNo ?? 1);
+  if (!Number.isSafeInteger(current) || current < 1) throw new Error('求购页码异常，请重新读取');
   return {
-    current: page.current || page.pageNo || 1,
-    size: page.size || page.pageSize || 20,
+    current,
+    size: resolvePageSize(page, 20),
     total: toPageTotal(page.total),
     records: await Promise.all(requireArray<Api.RealPurchase.PurchaseDemandVO>(page.records, '求购分页记录').map(toPurchaseRequest))
   };
@@ -114,7 +123,7 @@ export async function fetchHall(q: Omit<Api.RealPurchase.PurchaseDemandPageQuery
     maxBudget: q.maxBudget,
     minDeliveryDays: q.minDeliveryDays,
     maxDeliveryDays: q.maxDeliveryDays
-  }, { signal: q.signal });
+  }, { signal: q.signal, preserveDecimals: true });
   return mapPage(page);
 }
 
@@ -130,7 +139,7 @@ export async function fetchMyPurchases(
     pageNo: q.current || 1,
     pageSize: q.size || 30,
     statuses: statuses?.flatMap(status => ({ pending_audit: ['PENDING_REVIEW'], rejected: ['REJECTED'], pushing: ['OPEN'], claimed: ['TAKEN'], cancelled: ['VOID', 'CANCELED'] })[status])
-  }, { signal: q.signal });
+  }, { signal: q.signal, preserveDecimals: true });
   const mapped = await mapPage(page);
   mapped.records = mapped.records.map(item => ({ ...item, customerId }));
   return mapped;
@@ -143,7 +152,7 @@ export async function fetchPurchaseProgress(id: string | number, options: { sign
 }
 
 export async function fetchPurchaseDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  const dto = await realOrderRequest.get<Api.RealPurchase.PurchaseDemandVO>('/demands/detail', { params: { id }, signal: options.signal });
+  const dto = await realOrderRequest.get<Api.RealPurchase.PurchaseDemandVO>('/demands/detail', { params: { id }, signal: options.signal, preserveDecimals: true });
   return toPurchaseRequest(dto);
 }
 

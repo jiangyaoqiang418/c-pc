@@ -2,11 +2,16 @@ declare namespace Api.RealProduct {
   type Id = string | number;
 
   type DisplayAfterSaleType = Api.Product.AftersaleType | 'unknown';
-  type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId' | 'aftersaleType'> & {
+  type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId' | 'aftersaleType' | 'salesCount' | 'viewCount' | 'favoriteCount' | 'shippingFee' | 'tax'> & {
     id: Id;
     sellerId: Id;
     categoryId: Id;
     aftersaleType: DisplayAfterSaleType;
+    salesCount?: number;
+    viewCount?: number;
+    favoriteCount?: number;
+    shippingFee?: string;
+    tax?: string;
     rawAfterSaleType?: string;
     rawStatus?: ProductStatus;
     imageFiles?: ProductImageDTO[];

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue';
-import { formatAmount } from '@shared';
+import { computed, ref, watch } from 'vue';
+
+import { formatFinanceAmount as formatAmount, knownFinanceDecimal, simpleFinanceInterest } from './v47-interest-math';
 
 interface Props {
   lockupDays: number;
-  effectiveRatePct: number; // 年化 %
+  annualRate: string | number;
   principal: string;
   accruedDays?: number;
   accruedInterest?: string | number;
@@ -12,164 +13,47 @@ interface Props {
   width?: number;
   height?: number;
 }
-const props = withDefaults(defineProps<Props>(), { width: 720, height: 220, markerLabel: '实际利息' });
-const gradientId = useId();
-
-const safeLockupDays = computed(() => Number.isFinite(props.lockupDays) && props.lockupDays > 0 ? props.lockupDays : 1);
-const safeRatePct = computed(() => Number.isFinite(props.effectiveRatePct) ? props.effectiveRatePct : 0);
-const safeAccruedDays = computed(() => typeof props.accruedDays === 'number'
-  && Number.isFinite(props.accruedDays) && props.accruedDays >= 0 ? props.accruedDays : undefined);
-const actualInterest = computed(() => {
-  const value = props.accruedInterest;
-  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+const props = withDefaults(defineProps<Props>(), { markerLabel: '实际利息' });
+const safeDays = computed(() => Number.isSafeInteger(props.lockupDays) && props.lockupDays > 0 ? props.lockupDays : undefined);
+const actualDay = computed(() => props.accruedDays !== undefined && Number.isSafeInteger(props.accruedDays) && props.accruedDays >= 0 ? props.accruedDays : undefined);
+const projectionDay = ref(0);
+watch([() => props.principal, () => props.lockupDays, () => props.accruedDays], () => {
+  if (safeDays.value !== undefined) projectionDay.value = Math.max(0, Math.min(safeDays.value, actualDay.value ?? 0));
+}, { immediate: true });
+const projected = computed(() => simpleFinanceInterest(props.principal, props.annualRate, projectionDay.value));
+const finalInterest = computed(() => safeDays.value === undefined ? undefined : simpleFinanceInterest(props.principal, props.annualRate, safeDays.value));
+const actualInterest = computed(() => knownFinanceDecimal(props.accruedInterest));
+const canProject = computed(() => safeDays.value !== undefined && projected.value !== undefined && finalInterest.value !== undefined
+  && Number.isFinite(Number(finalInterest.value)) && Number.isFinite(Number(projected.value)));
+const axisDays = computed(() => Math.max(safeDays.value ?? 0, actualDay.value ?? 0));
+// SVG positions alone use floating-point ratios. Financial labels retain decimal strings.
+const axisInterest = computed(() => {
+  const actual = Number(actualInterest.value);
+  const final = Number(finalInterest.value);
+  return Math.max(Number.isFinite(final) ? final : 0, Number.isFinite(actual) ? actual : 0);
 });
-const dailyRate = computed(() => safeRatePct.value / 100 / 365);
-const principalNum = computed(() => {
-  const parsed = Number(props.principal);
-  return Number.isFinite(parsed) ? parsed : 0;
-});
-
-function interestAtDay(day: number): number {
-  return principalNum.value * dailyRate.value * day;
-}
-
-const totalExpected = computed(() => interestAtDay(safeLockupDays.value));
-const axisDays = computed(() => Math.max(safeLockupDays.value, safeAccruedDays.value ?? 0));
-const axisInterest = computed(() => Math.max(totalExpected.value, actualInterest.value ?? 0, 0));
-
-const padL = 56;
-const padR = 24;
-const padT = 16;
-const padB = 28;
-
-const innerW = computed(() => props.width - padL - padR);
-const innerH = computed(() => props.height - padT - padB);
-
-const path = computed(() => {
-  const steps = Math.max(1, Math.min(safeLockupDays.value, 60));
-  const stepDay = safeLockupDays.value / steps;
-  const parts: string[] = [];
-  for (let i = 0; i <= steps; i += 1) {
-    const day = i * stepDay;
-    const x = padL + (day / axisDays.value) * innerW.value;
-    const y = padT + innerH.value - (interestAtDay(day) / axisInterest.value || 0) * innerH.value;
-    parts.push(`${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`);
-  }
-  return parts.join(' ');
-});
-
-const areaPath = computed(() => `${path.value} L ${padL + (safeLockupDays.value / axisDays.value) * innerW.value} ${padT + innerH.value} L ${padL} ${padT + innerH.value} Z`);
-
-const currentPoint = computed(() => {
-  const day = safeAccruedDays.value;
-  const interest = actualInterest.value;
-  if (day === undefined || interest === undefined) return undefined;
-  const x = padL + (day / axisDays.value) * innerW.value;
-  const y = padT + innerH.value - (interest / axisInterest.value || 0) * innerH.value;
-  const labelOnLeft = x > padL + innerW.value / 2;
-  return { x, y, day, interest, labelX: x + (labelOnLeft ? -8 : 8), labelY: Math.max(padT + 12, y - 8), labelOnLeft };
-});
-
-const yTicks = computed(() => [0, 0.25, 0.5, 0.75, 1].map(r => ({
-  y: padT + innerH.value - r * innerH.value,
-  label: `U ${formatAmount((axisInterest.value * r).toFixed(2))}`
-})));
-
-const xTicks = computed(() => {
-  const count = 5;
-  return Array.from({ length: count + 1 }, (_, i) => {
-    const day = (axisDays.value / count) * i;
-    return {
-      x: padL + (day / axisDays.value) * innerW.value,
-      label: `D${Math.round(day)}`
-    };
-  });
-});
+const xAt = (day: number) => 20 + 560 * (axisDays.value > 0 ? day / axisDays.value : 0);
+const yAt = (interest: string | undefined) => 150 - 130 * (axisInterest.value ? Number(interest) / axisInterest.value : 0);
+const previewPoint = computed(() => ({ x: xAt(projectionDay.value), y: yAt(projected.value) }));
+const finalPoint = computed(() => ({ x: xAt(safeDays.value ?? 0), y: yAt(finalInterest.value) }));
+const actualPoint = computed(() => actualDay.value === undefined || actualInterest.value === undefined || !Number.isFinite(Number(actualInterest.value))
+  ? undefined : { x:xAt(actualDay.value), y:yAt(actualInterest.value) });
 </script>
 
 <template>
-  <div class="curve-chart">
-    <svg :viewBox="`0 0 ${width} ${height}`" :width="width" :height="height" role="img" aria-label="按日单利理论收益曲线，实际利息点采用订单返回值，不代表每日到账流水">
-      <!-- Y axis ticks + grid -->
-      <g class="grid">
-        <line v-for="t in yTicks" :key="'y' + t.y" :x1="padL" :x2="padL + innerW" :y1="t.y" :y2="t.y" />
-      </g>
-      <g class="y-labels">
-        <text v-for="t in yTicks" :key="'yl' + t.y" :x="padL - 8" :y="t.y + 4" text-anchor="end">
-          {{ t.label }}
-        </text>
-      </g>
-      <!-- X axis labels -->
-      <g class="x-labels">
-        <text v-for="t in xTicks" :key="'xl' + t.x" :x="t.x" :y="padT + innerH + 18" text-anchor="middle">
-          {{ t.label }}
-        </text>
-      </g>
-      <!-- Area + line -->
-      <path :d="areaPath" :fill="`url(#${gradientId})`" stroke="none" />
-      <path :d="path" stroke="var(--yb-brand-primary)" stroke-width="2" fill="none" />
-      <!-- Current point -->
-      <g v-if="currentPoint">
-        <circle :cx="currentPoint.x" :cy="currentPoint.y" r="5" fill="var(--yb-brand-primary)" />
-        <line :x1="currentPoint.x" :y1="padT" :x2="currentPoint.x" :y2="padT + innerH" stroke="var(--yb-brand-primary)" stroke-dasharray="3 3" stroke-width="1" opacity="0.6" />
-        <text :x="currentPoint.labelX" :y="currentPoint.labelY" :text-anchor="currentPoint.labelOnLeft ? 'end' : 'start'" class="current-label" fill="var(--yb-brand-primary)">
-          {{ markerLabel }} U {{ formatAmount(accruedInterest) }}
-        </text>
-      </g>
-      <defs>
-        <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--yb-brand-primary)" stop-opacity="0.35" />
-          <stop offset="100%" stop-color="var(--yb-brand-primary)" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-    </svg>
-    <div class="legend">
-      <span class="dot" />
-      理论收益参考 · 年化 {{ safeRatePct.toFixed(2) }}% · 锁定 {{ safeLockupDays }} 天 · 本金 U {{ formatAmount(principal) }}
-    </div>
-  </div>
+  <template v-if="canProject || actualPoint">
+  <div class="vault-curve-head"><h3>{{ canProject ? '收益进度预览' : '订单实际收益' }}</h3><span v-if="canProject">第 {{ projectionDay }} 天 · + {{ formatAmount(projected, { decimals: 4 }) }} USDT</span><span v-else>第 {{ actualDay }} 天 · {{ markerLabel }}</span></div>
+  <svg class="vault-curve" viewBox="0 0 600 190" role="img" :aria-label="canProject ? '按日单利理论收益曲线，实际利息点采用订单返回值，不代表每日到账流水' : '订单实际利息点，理论收益参数尚未确认'">
+    <path d="M20 20H580M20 85H580M20 150H580" stroke="var(--line)" fill="none" />
+    <path v-if="canProject" :d="`M20 150L${finalPoint.x} ${finalPoint.y}L${finalPoint.x} 150Z`" fill="var(--soft)" />
+    <path v-if="canProject" :d="`M20 150L${finalPoint.x} ${finalPoint.y}`" stroke="var(--muted)" stroke-width="3" stroke-dasharray="7 6" fill="none" />
+    <path v-if="canProject" :d="`M20 150L${previewPoint.x} ${previewPoint.y}`" stroke="var(--green)" stroke-width="3" fill="none" />
+    <circle v-if="canProject" :cx="previewPoint.x" :cy="previewPoint.y" r="6" fill="var(--green)" stroke="var(--paper)" stroke-width="3"><title>第 {{ projectionDay }} 天理论利息 {{ formatAmount(projected, { decimals: 8 }) }} USDT</title></circle>
+    <circle v-if="actualPoint" :cx="actualPoint.x" :cy="actualPoint.y" r="4" fill="var(--gold)" stroke="var(--paper)" stroke-width="2"><title>{{ markerLabel }} {{ formatAmount(accruedInterest, { decimals: 8 }) }} USDT</title></circle>
+    <text x="20" y="181">第 0 天</text><text x="580" y="181" text-anchor="end">第 {{ axisDays }} 天</text>
+  </svg>
+  <input v-if="canProject" v-model.number="projectionDay" class="vault-day-slider" type="range" min="0" :max="safeDays" step="1" aria-label="预览计息天数" />
+  </template>
+  <p v-if="!canProject" class="vault-formula" role="status">本金、年化利率或锁仓期限尚未确认，暂无法测算收益曲线。</p>
+  <p v-if="actualInterest !== undefined" class="vault-formula">订单{{ markerLabel }}：{{ formatAmount(accruedInterest, { decimals: 8 }) }} USDT</p>
 </template>
-
-<style scoped>
-.curve-chart {
-  width: 100%;
-}
-.curve-chart svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-.grid line {
-  stroke: var(--yb-hairline);
-  stroke-width: 1;
-}
-.y-labels text,
-.x-labels text {
-  fill: var(--yb-muted);
-  font-size: 11px;
-  font-family: var(--yb-font-mono);
-}
-.current-label {
-  font-size: 11px;
-  font-weight: 600;
-}
-.legend {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--yb-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  line-height: 1.7;
-  flex-wrap: wrap;
-}
-.legend .dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: var(--yb-brand-primary);
-  display: inline-block;
-}
-</style>

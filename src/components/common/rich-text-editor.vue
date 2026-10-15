@@ -12,8 +12,8 @@ import { Message } from '@/lib/feedback';
 import { uploadFile } from '@/service/api/product';
 import { sanitizeRichText } from '@/utils/rich-text';
 
-const props = withDefaults(defineProps<{ modelValue: string; disabled?: boolean }>(), { disabled: false });
-const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'uploading', value: boolean): void }>();
+const props = withDefaults(defineProps<{ modelValue: string; disabled?: boolean; contextKey?: string | number }>(), { disabled: false });
+const emit = defineEmits<{ (e: 'update:modelValue', value: string): void; (e: 'uploading', value: boolean): void; (e: 'uploaded', value: Api.RealProduct.FileUploadResult[]): void }>();
 const fileInput = ref<HTMLInputElement>();
 const uploading = ref(false);
 const linkOpen = ref(false);
@@ -28,6 +28,13 @@ const editor = new Editor({
 });
 
 watch(() => props.disabled, value => editor.setEditable(!value));
+watch(() => props.contextKey, () => {
+  uploadVersion += 1;
+  uploading.value = false;
+  emit('uploading', false);
+  linkOpen.value = false;
+  linkDraft.value = '';
+});
 watch(() => props.modelValue, value => {
   const next = sanitizeRichText(value);
   if (next !== editor.getHTML()) editor.commands.setContent(next, { emitUpdate: false });
@@ -70,8 +77,9 @@ async function uploadImage(event: Event) {
   emit('uploading', true);
   try {
     const uploaded = await uploadFile(file, 'PRODUCT');
-    if (operation !== uploadVersion || editor.isDestroyed) return;
-    editor.chain().focus().setImage({ src: uploaded.url || uploaded.filePath, alt: file.name }).run();
+    if (operation !== uploadVersion || editor.isDestroyed || props.disabled) return;
+    if ((props.modelValue.match(/<img\b/gi) || []).length >= 30) return Message.warning('详情最多插入 30 张图片');
+    if (editor.chain().focus().setImage({ src: uploaded.url || uploaded.filePath, alt: file.name }).run()) emit('uploaded', [uploaded]);
   } catch {
     if (operation === uploadVersion) Message.error('详情图片上传失败');
   } finally {

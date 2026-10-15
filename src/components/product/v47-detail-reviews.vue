@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import UmIcon from '@/components/common/um-icon.vue';
-import BusinessPagination from '@/components/common/business-pagination.vue';
+import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUmScrollRail } from '@/composables/use-um-scroll-rail';
 import { formatDateValue } from '@/utils/date-range';
@@ -10,6 +10,8 @@ import { setImageFallback } from '@/utils/image-placeholder';
 const props = defineProps<{
   rows: Api.RealReview.ReviewDTO[];
   summary?: Api.RealReview.ReviewSummaryDTO;
+  summaryLoading?: boolean;
+  summaryError?: string;
   total: number;
   current: number;
   pageSize: number;
@@ -18,7 +20,7 @@ const props = defineProps<{
   stars: number;
   hasImage: boolean;
 }>();
-const emit = defineEmits<{ filter: [value: { stars: number; hasImage: boolean }]; page: [value: number]; photo: [images: string[], index: number, title: string] }>();
+const emit = defineEmits<{ filter: [value: { stars: number; hasImage: boolean }]; page: [value: number]; photo: [images: string[], index: number, title: string]; 'retry-summary': [] }>();
 const rail = ref<HTMLElement>();
 const scrollRail = useUmScrollRail(rail, { cardStep:true });
 const railHeight = ref<number>();
@@ -67,7 +69,8 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
 <template>
   <section class="reviews-section" aria-label="用户评价" :aria-busy="loading">
     <div class="reviews-heading"><div><span class="eyebrow">VOICES OF EVERYDAY</span><h2>好不好用，听听他们说。</h2></div></div>
-    <div class="reviews-overview">
+    <div v-if="summaryError" class="status-banner review-summary-error" role="alert"><span>{{ summaryError }}</span><button type="button" class="outline" :disabled="summaryLoading" @click="emit('retry-summary')">重新加载统计</button></div>
+    <div class="reviews-overview" :aria-busy="summaryLoading">
       <div class="reviews-score"><strong>{{ average }}</strong><div><span class="review-stars aggregate-stars" :style="{ '--rating-fill':ratingFill + '%' }" aria-hidden="true">★★★★★</span><p>{{ summary?.totalCount ?? '—' }} 条评价 · 满分 5 分</p></div></div>
       <div class="review-distribution" aria-label="按星级筛选"><button v-for="item in distribution" :key="item.stars" type="button" :aria-label="item.stars + ' 星，' + (item.count ?? '未知') + ' 条评价'" :aria-pressed="stars === item.stars" :class="{ selected:stars === item.stars }" @click="toggleStars(item.stars)"><span>{{ item.stars }} <em>★</em></span><i><b :style="{ width:(summary?.totalCount ? Math.min(100, (item.count || 0) / summary.totalCount * 100) : 0) + '%' }"></b></i><small>{{ item.count ?? '—' }}</small></button></div>
       <div class="review-summary-note"><UmIcon name="chat" /><h3>每一种体验，都值得被看见</h3><p>从商品质感到配送细节，<br />找到对你有用的购买参考。</p></div>
@@ -77,7 +80,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
       <select aria-label="评价排序，暂未开放" disabled><option>排序暂未开放</option></select>
     </div>
     <div class="review-topics" aria-label="评价主题"><button type="button" :class="{ active:!hasImage }" :aria-pressed="!hasImage" @click="setImages(false)">全部<span>{{ summary?.totalCount ?? '—' }}</span></button><button type="button" :class="{ active:hasImage }" :aria-pressed="hasImage" @click="setImages(true)">有图<span>{{ summary?.withImageCount ?? '—' }}</span></button></div>
-    <div class="reviews-result-line"><span role="status">{{ stars ? stars + ' 星 · ' : '' }}{{ loading ? '正在加载评价' : '共 ' + total + ' 条评价' }}</span><button v-if="stars || hasImage" type="button" @click="reset">清除筛选</button><small>星级分布可点击筛选</small></div>
+    <div class="reviews-result-line"><span role="status">{{ stars ? stars + ' 星 · ' : '' }}{{ loading ? '正在加载评价' : error ? '评价读取失败' : '共 ' + total + ' 条评价' }}</span><button v-if="stars || hasImage" type="button" @click="reset">清除筛选</button><small>星级分布可点击筛选</small></div>
     <div v-if="loading" class="review-loading" role="status"><Skeleton v-for="index in 3" :key="index" class="h-40 w-full" /></div>
     <div v-else-if="error" class="reviews-empty" role="alert"><UmIcon name="chat" /><h3>{{ error }}</h3><button type="button" class="outline" @click="emit('page', current)">重新加载</button></div>
     <div v-else-if="rows.length" class="reviews-rail-host">
@@ -95,7 +98,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
       <div v-if="scrollRail.overflow.value" class="edge-scroll-layer"><button type="button" class="edge-scroll-button edge-scroll-prev" :disabled="!scrollRail.canPrev.value" aria-label="向左滑动评价" @click="scrollRail.step(-1)"><UmIcon name="chevron" /></button><button type="button" class="edge-scroll-button edge-scroll-next" :disabled="!scrollRail.canNext.value" aria-label="向右滑动评价" @click="scrollRail.step(1)"><UmIcon name="chevron" /></button></div>
     </div>
     <div v-else class="reviews-empty"><UmIcon :name="stars || hasImage ? 'search' : 'chat'" /><h3>{{ stars || hasImage ? '没有找到匹配的评价' : '期待第一份使用感受' }}</h3><p>{{ stars || hasImage ? '调整筛选，或查看所有购买感受。' : '完成订单后，即可从订单详情分享评价。' }}</p><button v-if="stars || hasImage" type="button" class="outline" @click="reset">查看全部评价</button></div>
-    <BusinessPagination v-if="total > pageSize" class="review-pagination" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="emit('page', $event)" />
+    <V47CatalogPagination v-if="!error && !loading && total > pageSize" class="review-pagination" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="emit('page', $event)" />
   </section>
 </template>
 
@@ -104,5 +107,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
 .reviews-rail-host > .edge-scroll-layer { inset:0; }
 .review-loading { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
 .review-pagination { margin-top:28px; }
+.review-summary-error { flex-wrap:wrap; }
+.review-summary-error > span { flex:1; }
 @media (max-width:700px) { .review-loading { grid-template-columns:1fr; } }
 </style>

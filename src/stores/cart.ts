@@ -4,6 +4,7 @@ import { Message } from '@/lib/feedback';
 import { STORAGE_KEY } from '@shared';
 import * as productApi from '@/service/api/product';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { multiplyPaymentAmount, sumPaymentAmounts } from '@/utils/checkout';
 
 export interface CartItem {
   productId: string | number;
@@ -30,8 +31,9 @@ function sameBusinessId(left: string | number | undefined, right: string | numbe
 }
 
 function finiteNonNegative(value: string | number | undefined) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+  if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') return undefined;
+  try { return sumPaymentAmounts([typeof value === 'string' ? value.trim() : value]); }
+  catch { return undefined; }
 }
 
 function finiteQuantity(value: unknown, fallback = 0) {
@@ -150,16 +152,15 @@ export const useCartStore = defineStore('bw-cart', () => {
     const available = loadState === 'ready' && !!product
       && product.status === 'NORMAL'
       && product.shelfStatus === 'on-shelf'
+      && Number.isSafeInteger(product.stock)
       && product.stock > 0
       && qty > 0
       && qty <= product.stock
       && price !== undefined
       && shipping !== undefined
-      && tax !== undefined
-      && Number.isFinite(price * qty)
-      && Number.isFinite(price * qty + shipping + tax);
-    const subtotal = available ? (price! * qty).toFixed(2) : '';
-    const lineTotal = available ? (price! * qty + shipping! + tax!).toFixed(2) : '';
+      && tax !== undefined;
+    const subtotal = available ? multiplyPaymentAmount(price!, qty) : '';
+    const lineTotal = available ? sumPaymentAmounts([subtotal, shipping!, tax!]) : '';
     return {
       ...item,
       qty,
@@ -168,8 +169,8 @@ export const useCartStore = defineStore('bw-cart', () => {
       loadState,
       confirmedInvalid,
       subtotal,
-      shippingFee: shipping === undefined ? '' : shipping.toFixed(2),
-      tax: tax === undefined ? '' : tax.toFixed(2),
+      shippingFee: shipping ?? '',
+      tax: tax ?? '',
       lineTotal
     };
   }
@@ -195,11 +196,11 @@ export const useCartStore = defineStore('bw-cart', () => {
 
   function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord) {
     if (product) upsertProduct(product);
-    const safeQty = finiteQuantity(qty, 1);
+    const safeQty = finiteQuantity(qty);
     const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     const nextQty = (exist ? finiteQuantity(exist.qty) : 0) + safeQty;
     const currentProduct = products.value[String(productId)];
-    if (!safeQty || !currentProduct || nextQty > currentProduct.stock) return false;
+    if (!safeQty || !Number.isSafeInteger(nextQty) || !currentProduct || !Number.isSafeInteger(currentProduct.stock) || nextQty > currentProduct.stock) return false;
     if (exist) {
       exist.qty = nextQty;
       exist.selected = true;
@@ -214,7 +215,7 @@ export const useCartStore = defineStore('bw-cart', () => {
     const exist = items.value.find(i => sameBusinessId(i.productId, productId));
     if (exist) {
       const stock = products.value[String(productId)]?.stock;
-      if (!stock || stock < 1) return;
+      if (!stock || !Number.isSafeInteger(stock) || stock < 1 || !Number.isSafeInteger(qty)) return;
       exist.qty = Math.min(stock, Math.max(1, finiteQuantity(qty, 1)));
       persist();
     }
@@ -270,14 +271,10 @@ export const useCartStore = defineStore('bw-cart', () => {
   const selectedQty = computed(() => selectedItems.value.reduce((s, i) => s + finiteQuantity(i.qty), 0));
   const allSelected = computed(() => validItems.value.length > 0 && validItems.value.every(i => i.selected));
 
-  const subTotal = computed(() => selectedItems.value.reduce((s, i) => s + Number(i.subtotal), 0).toFixed(2));
-  const shippingFeeTotal = computed(() =>
-    selectedItems.value.reduce((s, i) => s + Number(i.shippingFee), 0).toFixed(2)
-  );
-  const taxTotal = computed(() => selectedItems.value.reduce((s, i) => s + Number(i.tax), 0).toFixed(2));
-  const grandTotal = computed(() =>
-    (Number(subTotal.value) + Number(shippingFeeTotal.value) + Number(taxTotal.value)).toFixed(2)
-  );
+  const subTotal = computed(() => sumPaymentAmounts(selectedItems.value.map(i => i.subtotal)));
+  const shippingFeeTotal = computed(() => sumPaymentAmounts(selectedItems.value.map(i => i.shippingFee)));
+  const taxTotal = computed(() => sumPaymentAmounts(selectedItems.value.map(i => i.tax)));
+  const grandTotal = computed(() => sumPaymentAmounts(selectedItems.value.map(i => i.lineTotal)));
 
   return {
     items,

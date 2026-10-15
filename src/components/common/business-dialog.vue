@@ -5,11 +5,13 @@ import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Message } from '@/lib/feedback';
 import UmIcon from '@/components/common/um-icon.vue';
+import V47SheetGrip from './v47-sheet-grip.vue';
 
 const props = withDefaults(defineProps<{
   visible?: boolean;
   title?: string;
   width?: string | number;
+  contentClass?: string;
   footer?: boolean;
   closable?: boolean;
   maskClosable?: boolean;
@@ -33,6 +35,7 @@ const emit = defineEmits<{
 }>();
 const pending = ref(false);
 const busy = computed(() => pending.value || props.okLoading);
+const buyerDialog = computed(() => props.contentClass?.split(/\s+/).includes('buyer-dialog'));
 const dialogWidth = computed(() => typeof props.width === 'number' || /^\d+$/.test(props.width)
   ? `${props.width}px` : props.width);
 
@@ -67,19 +70,20 @@ async function confirm() {
   <DialogRoot :open="visible" @update:open="value => { if (!value) void cancel(); }">
     <DialogPortal>
       <DialogOverlay class="um-dialog-mask modal-overlay" />
-      <DialogContent class="um-dialog dialog" :style="{ width: dialogWidth }"
+      <DialogContent class="um-dialog dialog" :class="contentClass" :style="{ width: dialogWidth }"
         @escape-key-down="event => { if (!escToClose || busy) event.preventDefault(); }"
         @pointer-down-outside="event => { if (!maskClosable || busy) event.preventDefault(); }">
+        <V47SheetGrip v-if="closable" :open="visible" :disabled="busy" @dismiss="cancel" />
         <header class="um-dialog-header">
           <DialogTitle class="um-dialog-title">{{ title }}</DialogTitle>
-          <button v-if="closable" type="button" class="um-dialog-close" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
+          <button v-if="closable" type="button" class="um-dialog-close icon-btn dialog-close" :class="{ 'buyer-dialog-close': buyerDialog }" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
         </header>
         <DialogDescription class="sr-only">请核对弹窗内容后继续操作。</DialogDescription>
         <div class="um-dialog-body"><slot /></div>
-        <footer v-if="footer" class="um-dialog-footer">
+        <footer v-if="footer" class="um-dialog-footer" :class="{ 'buyer-dialog-footer': buyerDialog }">
           <slot name="footer">
             <Button v-if="!hideCancel" class="outline" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
-            <Button :class="{ primary: okButtonProps?.status !== 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
+            <Button class="primary" :class="{ 'um-dialog-danger': okButtonProps?.status === 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
               <Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ okText }}
             </Button>
           </slot>
@@ -90,14 +94,18 @@ async function confirm() {
 </template>
 
 <style>
-.um-dialog-mask { position: fixed; inset: 0; z-index: 1000; }
-.um-dialog { position: fixed; top: 50%; left: 50%; z-index: 1000; transform: translate(-50%, -50%); display: flex; flex-direction: column; padding: 0; margin: 0; max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); overflow: hidden; outline: none; }
-.um-dialog-header { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; padding: 24px 24px 16px; gap: 16px; }
-.um-dialog-title { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.4; }
-.um-dialog-close { display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; color: var(--muted-foreground); }
-.um-dialog-close:hover { background: var(--soft); }
-.um-dialog-close:disabled { opacity: .4; cursor: not-allowed; }
-.um-dialog-body { min-height: 0; overflow-y: auto; padding: 0 24px 24px; line-height: 1.65; overflow-wrap: anywhere; }
-.um-dialog-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 12px; padding: 16px 24px 24px; border-top: 1px solid var(--border); }
-@media (prefers-reduced-motion: reduce) { .um-dialog-mask[data-state="open"], .um-dialog[data-state="open"] { animation: none; } }
+.um-dialog-mask.modal-overlay { position:fixed; inset:0; z-index:1000; }
+.um-dialog.dialog { position:fixed; top:50%; left:50%; z-index:1000; transform:translate(-50%,-50%); display:block; max-width:calc(100vw - 32px); overflow:auto; outline:none; }
+.um-dialog-header { display:flex; align-items:center; gap:16px; }
+.um-dialog:not(.buyer-dialog) .um-dialog-title { font-size:23px; }
+:root .um-dialog .um-dialog-danger { background:var(--yb-danger)!important; border-color:var(--yb-danger)!important; color:#fff!important; }
+:root .um-dialog .um-dialog-danger:hover { background:color-mix(in srgb,var(--yb-danger) 85%,var(--ink))!important; }
+.um-dialog-close:disabled { opacity:.4; cursor:not-allowed; }
+.um-dialog-body { min-height:0; overflow-wrap:anywhere; }
+.um-dialog-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:24px; padding:20px 0 0; border-top:1px solid var(--line); }
+@media (max-width:700px) {
+  .um-dialog.dialog { top:auto; bottom:0; left:50%; transform:translateX(-50%); width:100%!important; max-width:100%; }
+  .um-dialog:not(.buyer-dialog) .um-dialog-title { font-size:21px; }
+  :root[data-ui-theme="web3-meme"] .um-dialog.dialog { left:0; transform:none; }
+}
 </style>

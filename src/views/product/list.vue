@@ -137,13 +137,16 @@ const overseasSelection = computed({
 });
 
 function optionalQueryNumber(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
 function syncFromQuery() {
-  filter.keyword = (route.query.keyword as string) || '';
-  filter.categoryId = (route.query.categoryId as string) || undefined;
+  const queryKeyword = route.query.keyword;
+  const queryCategoryId = route.query.categoryId;
+  filter.keyword = typeof queryKeyword === 'string' ? queryKeyword : '';
+  filter.categoryId = typeof queryCategoryId === 'string' ? queryCategoryId || undefined : undefined;
   const rawAftersaleType = Array.isArray(route.query.aftersaleType) ? route.query.aftersaleType[0] : route.query.aftersaleType;
   const validAftersaleType = typeof rawAftersaleType === 'string'
     && aftersaleOptions.some(option => option.value !== 'all' && option.value === rawAftersaleType);
@@ -163,7 +166,9 @@ function syncFromQuery() {
   const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
   const validPage = Number.isSafeInteger(page) && page > 0;
   current.value = validPage ? page : 1;
-  return Array.isArray(route.query.sort)
+  return (queryKeyword !== undefined && typeof queryKeyword !== 'string')
+    || (queryCategoryId !== undefined && typeof queryCategoryId !== 'string')
+    || Array.isArray(route.query.sort)
     || (querySort !== undefined && querySort !== filter.sort)
     || (route.query.aftersaleType !== undefined && (Array.isArray(route.query.aftersaleType) || !validAftersaleType))
     || (Array.isArray(rawOverseas) || !validOverseas)
@@ -173,6 +178,14 @@ function syncFromQuery() {
 }
 
 async function load() {
+  if (filter.minPrice !== undefined && filter.maxPrice !== undefined && filter.minPrice > filter.maxPrice) {
+    requestGuard.invalidate();
+    loading.value = false;
+    list.value = [];
+    total.value = 0;
+    loadError.value = '最低价格不能高于最高价格，请调整筛选条件。';
+    return;
+  }
   const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';

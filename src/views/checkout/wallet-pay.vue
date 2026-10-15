@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -300,19 +300,20 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
 
 <template>
   <div class="wallet-pay-page">
-    <header class="page-heading"><p>WALLET PAYMENT</p><h1>USDT 钱包直付</h1><span>链上交易与平台付款分别核对，避免重复转账。</span></header>
-    <section class="wallet-pay-card" :aria-busy="loading || busy">
+
+    <section class="paper narrow wallet-pay-card" :aria-busy="loading || busy">
+      <span class="eyebrow">SECURE CHECKOUT</span><h1>USDT 钱包直付</h1>
       <Alert v-if="errorMessage" variant="destructive" class="notice"><AlertDescription>{{ errorMessage }}</AlertDescription></Alert>
       <Skeleton v-if="loading && !pay" class="pay-skeleton" />
       <template v-if="pay">
-        <div class="payment-top"><div><span class="amount-label">应转 USDT</span><strong>{{ pay.payAmount }} <small>USDT</small></strong><p>{{ pay.chainLabel || pay.chain }} · {{ pay.network }}</p></div><span class="pay-status" :class="{ confirmed: pay.status === 'SUCCESS' }"><Icon v-if="pay.status === 'SUBMITTED'" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ pay.statusText || pay.status }}</span></div>
+        <p>订单组 {{ pay.orderGroupNo }}</p><div class="payment-amount">{{ pay.payAmount }} <small>USDT</small></div><div class="status-banner"><UmIcon :name="pay.status === 'SUCCESS' ? 'check' : 'clock'" /><span>{{ pay.statusText || pay.status }}<small>{{ pay.chainLabel || pay.chain }} · {{ pay.network }}</small></span></div>
         <Alert v-if="pay.status === 'PENDING'" class="notice"><AlertDescription>请核对链、金额和收款地址后再打开钱包；准备对应网络的 Gas 币。只有平台确认到账才算付款成功。</AlertDescription></Alert>
         <Alert v-else-if="chainRetryable" class="notice"><AlertDescription>原链上交易执行失败，资金未转出。请核对钱包记录后，使用本支付单原链、金额和收款地址重新转账并上报新哈希。</AlertDescription></Alert>
         <Alert v-else-if="pay.status === 'SUBMITTED'" class="notice" aria-live="polite"><AlertDescription>{{ chainProgressText || `交易已提交，正在等待链上确认${minConfirmations ? `（至少 ${minConfirmations} 个确认）` : ''}和平台入账。` }}请勿重复转账。</AlertDescription></Alert>
         <Alert v-else-if="pay.status === 'CLOSED'" class="notice"><AlertDescription>支付单已关闭，仍可能收到延迟到账回调。请先核对链上交易，再决定是否重新发起。</AlertDescription></Alert>
         <Alert v-else-if="pay.status === 'FAILED'" class="notice"><AlertDescription>链上到账未能完成订单支付，资金将按后端规则入平台余额。请前往订单核对，勿重复链上转账。</AlertDescription></Alert>
         <Alert v-if="transferAmountInsufficient" class="notice"><AlertDescription>已识别转入金额低于应付金额，到账后可能存入平台余额；最终付款结果以支付单状态为准。</AlertDescription></Alert>
-        <dl class="pay-details">
+        <dl class="spec-table pay-details">
           <div><dt>订单组号</dt><dd>{{ pay.orderGroupNo }}</dd></div><div><dt>支付单号</dt><dd>{{ pay.payNo }}</dd></div>
           <div class="address-detail"><dt>收款地址</dt><dd>{{ pay.toAddress }}</dd></div><div><dt>USDT 合约</dt><dd>{{ pay.tokenContract }}</dd></div>
           <div><dt>有效期至</dt><dd>{{ formatExpiry(pay.expireAt) }}</dd></div><div><dt>钱包账户</dt><dd>{{ walletAccount || progress?.fromAddress || '尚未连接' }}</dd></div>
@@ -320,55 +321,26 @@ watch([orderGroupNo, () => userStore.currentUser?.id], () => { void load(); });
           <div v-if="pay.chainTx"><dt>链上进度</dt><dd>{{ chainProgressText }}</dd></div><div v-if="pay.chainTx?.blockHeight"><dt>区块高度</dt><dd>{{ pay.chainTx.blockHeight }}</dd></div><div v-if="pay.chainTx?.transferAmount"><dt>已识别转入</dt><dd>{{ pay.chainTx.transferAmount }} USDT</dd></div>
         </dl>
         <div v-if="(pay.status === 'PENDING' && !progress?.started || chainRetryable) && !recoveryBlocked" class="pay-operations">
-          <div class="wallet-field"><Label for="payment-wallet">选择已安装的钱包</Label><Select v-model="walletKey" :disabled="busy || loading"><SelectTrigger id="payment-wallet"><SelectValue placeholder="选择已安装的钱包" /></SelectTrigger><SelectContent><SelectItem v-for="item in wallets" :key="item.key" :value="item.key">{{ item.label }}</SelectItem></SelectContent></Select></div>
-          <Button :disabled="!walletKey || loading || busy" @click="transfer"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ chainRetryable ? '重新连接钱包并转账' : '连接钱包并转账' }}</Button>
+          <div class="field wallet-field"><Label for="payment-wallet">选择已安装的钱包</Label><Select v-model="walletKey" :disabled="busy || loading"><SelectTrigger id="payment-wallet"><SelectValue placeholder="选择已安装的钱包" /></SelectTrigger><SelectContent><SelectItem v-for="item in wallets" :key="item.key" :value="item.key">{{ item.label }}</SelectItem></SelectContent></Select></div>
+          <button type="button" class="gold full" :disabled="!walletKey || loading || busy" @click="transfer"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />{{ chainRetryable ? '重新连接钱包并转账' : '连接钱包并转账' }}</button>
           <div v-if="!wallets.length" class="wallet-install"><span>未检测到当前链可用的浏览器钱包，请从官方页面安装：</span><div><a v-for="item in walletInstallLinks" :key="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.label }} <Icon icon="lucide:external-link" width="12" /></a></div><span>安装并解锁后，请刷新本页重新连接。</span></div>
         </div>
         <div v-if="progress?.started && !progress.txHash && pay.status === 'PENDING'" class="recovery-operations">
           <Alert class="notice"><AlertDescription>本机曾打开钱包签名，但未取得交易哈希。请先在钱包中核对交易记录，勿再次转账。</AlertDescription></Alert>
-          <form class="hash-form" @submit.prevent="reportManualHash"><Label for="manual-transaction-hash">原交易哈希</Label><Input id="manual-transaction-hash" v-model="manualHash" :disabled="busy" autocomplete="off" spellcheck="false" placeholder="核对后填写原交易哈希" /><Button type="submit" variant="outline" :disabled="busy"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />上报原交易哈希</Button></form>
+          <form class="field hash-form" @submit.prevent="reportManualHash"><Label for="manual-transaction-hash">原交易哈希</Label><Input id="manual-transaction-hash" v-model="manualHash" :disabled="busy" autocomplete="off" spellcheck="false" placeholder="核对后填写原交易哈希" /><button class="outline" type="submit"  :disabled="busy"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />上报原交易哈希</button></form>
         </div>
-        <div v-if="progress?.txHash && pay.status === 'PENDING'" class="retry-report"><Button variant="outline" :disabled="busy" @click="retryReport"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />重试上报同一交易</Button></div>
-        <Button v-if="pay.status === 'CLOSED'" variant="outline" class="restart" :disabled="busy" @click="restartClosed">核对后返回结算页</Button>
-        <Button v-if="pay.status === 'FAILED'" variant="outline" class="restart" :disabled="busy" @click="router.push({ name: 'checkout' })">返回结算页使用余额</Button>
+        <div v-if="progress?.txHash && pay.status === 'PENDING'" class="retry-report"><button type="button" class="outline"  :disabled="busy" @click="retryReport"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />重试上报同一交易</button></div>
+        <button type="button" v-if="pay.status === 'CLOSED'"  class="restart outline" :disabled="busy" @click="restartClosed">核对后返回结算页</button>
+        <button type="button" v-if="pay.status === 'FAILED'"  class="restart outline" :disabled="busy" @click="router.push({ name: 'checkout' })">返回结算页使用余额</button>
         <p v-if="pay.failReason" class="failure-reason">{{ pay.failReason }}</p>
       </template>
       <EmptyState v-else-if="!loading && !errorMessage" title="暂无钱包支付单" />
-      <footer class="actions"><Button variant="outline" :disabled="loading || busy" @click="pay ? refreshDetail() : load()"><Icon icon="lucide:refresh-cw" width="16" />刷新状态</Button><Button variant="ghost" @click="router.push({ name: 'order-list' })">查看我的订单</Button></footer>
+      <footer class="button-row actions"><button type="button" class="outline"  :disabled="loading || busy" @click="pay ? refreshDetail() : load()"><Icon icon="lucide:refresh-cw" width="16" />刷新状态</button><button type="button" class="text-link"  @click="router.push({ name: 'order-list' })">查看我的订单</button></footer>
     </section>
   </div>
 </template>
 
 <style scoped>
-.wallet-pay-page { width: min(840px, calc(100% - 64px)); margin: 32px auto 64px; }
-.page-heading { margin-bottom: 24px; }
-.page-heading > p { font-size: 12px; color: var(--yb-gold); font-weight: 600; letter-spacing: .12em; margin: 0 0 4px; }
-.page-heading h1 { font-size: 28px; font-weight: 650; margin: 0 0 8px; }
-.page-heading > span { color: var(--yb-muted); font-size: 14px; }
-.wallet-pay-card { padding: 32px; border: 1px solid var(--yb-hairline); border-radius: 12px; background: var(--yb-surface); }
-.payment-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-bottom: 8px; }
-.amount-label { display: block; font-size: 13px; color: var(--yb-muted); }
-.payment-top strong { display: block; font-size: 32px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.payment-top strong small { font-size: 14px; }
-.payment-top p { margin: 4px 0; color: var(--yb-muted); font-size: 13px; }
-.pay-status { display: inline-flex; align-items: center; gap: 8px; background: var(--yb-primary-soft); color: var(--yb-primary); border-radius: 6px; padding: 6px 12px; font-size: 13px; }
-.pay-status.confirmed { background: var(--yb-primary); color: white; }
-.notice { margin: 16px 0; }
-.pay-details { margin: 24px 0; display: grid; gap: 0; font-size: 14px; }
-.pay-details > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--yb-hairline); }
-.pay-details dt { color: var(--yb-muted); }
-.pay-details dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.address-detail dd { color: var(--yb-primary); font-weight: 600; }
-.pay-operations { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-.wallet-field { display: grid; gap: 8px; width: 260px; }
-.wallet-install { width: 100%; display: grid; gap: 8px; color: var(--yb-muted); font-size: 13px; background: var(--yb-fill); border-radius: 8px; padding: 16px; }
-.wallet-install > div { display: flex; flex-wrap: wrap; gap: 16px; }
-.wallet-install a { display: inline-flex; align-items: center; gap: 4px; color: var(--yb-primary); text-decoration: underline; }
-.hash-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
-.hash-form label { grid-column: 1 / -1; }
-.restart, .retry-report { margin-top: 20px; }
-.failure-reason { margin: 16px 0 0; font-size: 13px; color: var(--yb-danger); overflow-wrap: anywhere; }
-.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--yb-hairline); }
-.pay-skeleton { height: 360px; }
-@media (max-width: 600px) { .wallet-pay-card { padding: 20px; } .pay-details > div { grid-template-columns: 1fr; gap: 6px; } }
+.wallet-pay-card > h1 { margin:10px 0; }.wallet-pay-card > p { margin-top:12px; }.notice { margin:16px 0; }.pay-details > div { display:contents; }.pay-details dd { overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }.address-detail dd { color:var(--green); font-weight:600; }.pay-operations { display:grid; gap:12px; margin-top:24px; }.wallet-field { margin:0; }.wallet-install { display:grid; gap:8px; padding:16px; border-radius:8px; background:var(--soft); font-size:13px; }.wallet-install > div { display:flex; flex-wrap:wrap; gap:16px; }.wallet-install a { display:inline-flex; align-items:center; gap:4px; color:var(--green); text-decoration:underline; }.hash-form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; }.hash-form label { grid-column:1 / -1; }.restart,.retry-report { margin-top:20px; }.failure-reason { margin-top:16px; font-size:13px; color:var(--yb-danger); overflow-wrap:anywhere; }.actions { justify-content:flex-end; flex-wrap:wrap; margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }.pay-skeleton { height:360px; }
+@media (max-width:700px) { .hash-form { grid-template-columns:1fr; } }
 </style>

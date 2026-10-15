@@ -1,5 +1,6 @@
 import { realUserRequest } from '@/service/request';
-import { toFiniteNumber, toOptionalFiniteNumber } from './number';
+import { requireArray } from './page';
+import { pointDataError, readPointNumber } from './point';
 
 const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.Vip.BuyerBenefits> = {
   interestRateBonus: 'interestRateBonus',
@@ -21,60 +22,28 @@ const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.
 };
 
 function normalizeAudience(role?: string): Api.Vip.Audience {
-  return role?.toUpperCase() === 'BUYER' ? 'buyer' : 'customer';
+  if (role?.toUpperCase() === 'BUYER') return 'buyer';
+  if (role?.toUpperCase() === 'CUSTOMER') return 'customer';
+  throw pointDataError('VIP 角色');
 }
 
 function normalizeLevel(level?: string): Api.Vip.Level {
-  if (level === 'VIP1' || level === 'VIP2') return level;
-  return 'VIP0';
+  if (level === 'VIP0' || level === 'VIP1' || level === 'VIP2') return level;
+  throw pointDataError('VIP 等级');
 }
 
-function emptyCustomerBenefits(): Api.Vip.CustomerBenefits {
-  return {
-    interestRateBonus: 0,
-    purchaseConcurrent: 0,
-    purchasePriority: 0,
-    aftersaleResponse: 0,
-    withdrawFeeDiscount: 0
-  };
-}
-
-function emptyBuyerBenefits(): Api.Vip.BuyerBenefits {
-  return {
-    pushIntervalMinutes: 0,
-    transactionFeeDiscount: 0,
-    productSlotsMax: 0
-  };
-}
-
-function toConfig(role: Api.RealVip.VipRoleGridVO, row: Api.RealVip.VipLevelRowVO): Api.Vip.LevelConfig {
-  const audience = normalizeAudience(role.role);
-  const benefits = row.benefits || {};
-  const target = audience === 'buyer' ? emptyBuyerBenefits() : emptyCustomerBenefits();
-
-  Object.entries(benefits).forEach(([code, value]) => {
-    const key = benefitCodeMap[code];
-    if (key && key in target) {
-      (target as unknown as Record<string, number>)[key] = toFiniteNumber(value || 0);
-    }
-  });
-
-  return {
-    audience,
-    level: normalizeLevel(row.level),
-    label: normalizeLevel(row.level),
-    threshold: toFiniteNumber(row.threshold || 0),
-    customerBenefits: audience === 'customer' ? target as Api.Vip.CustomerBenefits : undefined,
-    buyerBenefits: audience === 'buyer' ? target as Api.Vip.BuyerBenefits : undefined
-  };
-}
-
-function roleInfoToBenefits(info?: Api.RealPoint.VipRoleInfoVO, audience: Api.Vip.Audience = 'customer') {
-  const target = audience === 'buyer' ? emptyBuyerBenefits() : emptyCustomerBenefits();
-  info?.benefits?.forEach(item => {
+function toBenefits(benefits: Api.RealVip.VipBenefitVO[] | undefined, audience: Api.Vip.Audience) {
+  const allowed = audience === 'buyer' ? ['pushIntervalMinutes', 'transactionFeeDiscount', 'productSlotsMax']
+    : ['interestRateBonus', 'purchaseConcurrent', 'purchasePriority', 'aftersaleResponse', 'withdrawFeeDiscount'];
+  const target: Record<string, number> = {};
+  if (benefits === undefined || benefits === null) return target;
+  requireArray<Api.RealVip.VipBenefitVO>(benefits, 'VIP 权益').forEach(item => {
     const key = benefitCodeMap[item.code];
-    if (key && key in target) {
-      (target as unknown as Record<string, number>)[key] = toFiniteNumber(item.value || 0);
+    if (key && allowed.includes(key)) {
+      const value = readPointNumber(item.value, 'VIP 权益值', {
+        integer: !['interestRateBonus', 'withdrawFeeDiscount', 'transactionFeeDiscount'].includes(key), minimum: 0, optional: true
+      });
+      if (value !== undefined) target[key] = value;
     }
   });
   return target;
@@ -86,31 +55,45 @@ export async function fetchVipConfigs(options: { signal?: AbortSignal } = {}) {
     showError: false,
     skipAuthRedirect: true
   });
-  return (config.roles || []).flatMap(role => (role.levels || []).map(row => toConfig({ role: role.role, roleText: role.roleText }, {
-    level: row.level,
-    threshold: row.threshold,
-    benefits: Object.fromEntries((row.benefits || []).map(item => [item.code, item.value || 0]))
-  })));
+  return requireArray<Api.RealVip.VipCatalogRoleVO>(config.roles, 'VIP 角色配置').flatMap(role => {
+    const audience = normalizeAudience(role.role);
+    return requireArray<Api.RealVip.VipCatalogLevelVO>(role.levels, 'VIP 等级配置').map((row): Api.RealVip.LevelConfig => {
+      const level = normalizeLevel(row.level);
+      const benefits = toBenefits(row.benefits, audience);
+      return {
+        audience, level, label: level,
+        threshold: readPointNumber(row.threshold, 'VIP 积分阈值', { integer: true, minimum: 0 })!,
+        customerBenefits: audience === 'customer' ? benefits : undefined,
+        buyerBenefits: audience === 'buyer' ? benefits : undefined
+      };
+    });
+  });
 }
 
-export async function fetchMyVipStatus(userId: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}): Promise<Api.RealVip.Status> {
-  const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', options);
-  const customer = account.customer;
-  const buyer = account.buyer;
-  const audience: Api.Vip.Audience = buyer ? 'buyer' : 'customer';
-  const current = audience === 'buyer' ? buyer : customer;
-  const nextThreshold = toOptionalFiniteNumber(current?.nextThreshold);
-  const points = toFiniteNumber(account.points || 0);
+export async function fetchMyVipStatus(userId: string | number, options: { signal?: AbortSignal; showError?: boolean; audience?: Api.Vip.Audience } = {}): Promise<Api.RealVip.Status> {
+  // The endpoint returns both VIP dimensions; their presence does not grant buyer qualification.
+  const { audience = 'customer', ...requestOptions } = options;
+  const account = await realUserRequest.get<Api.RealPoint.UserPointVO>('/points/account', requestOptions);
+  if (!account || (typeof account.userId !== 'string' && typeof account.userId !== 'number') || String(account.userId).trim() === ''
+    || (typeof account.userId === 'number' && !Number.isSafeInteger(account.userId))
+    || String(account.userId) !== String(userId)) throw pointDataError('积分账户归属');
+  const current = audience === 'buyer' ? account.buyer : account.customer;
+  if (!current || normalizeAudience(current.role) !== audience) throw pointDataError('当前视角 VIP 角色');
+  const level = normalizeLevel(current.level);
+  const nextThreshold = readPointNumber(current.nextThreshold, 'VIP 下一等级阈值', { integer: true, minimum: 0, optional: true });
+  const points = readPointNumber(account.points, '当前积分', { integer: true })!;
+  const pointsToNext = nextThreshold !== undefined ? Math.max(0, nextThreshold - points) : undefined;
+  if (pointsToNext !== undefined && !Number.isSafeInteger(pointsToNext)) throw pointDataError('升级剩余积分');
 
   return {
-    userId: account.userId || userId,
+    userId: account.userId,
     audience,
-    level: normalizeLevel(current?.level),
-    vipLevel: normalizeLevel(current?.level),
+    level,
+    vipLevel: level,
     points,
     nextThreshold,
-    pointsToNext: nextThreshold != null ? Math.max(0, nextThreshold - points) : 0,
-    benefits: roleInfoToBenefits(current, audience),
+    pointsToNext,
+    benefits: toBenefits(current.benefits, audience),
     config: undefined
   };
 }

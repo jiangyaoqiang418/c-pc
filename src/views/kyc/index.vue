@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -281,23 +279,23 @@ const submitDisabledReason = computed(() => {
 </script>
 
 <template>
-  <div class="kyc-page shop-container">
-    <header class="page-head"><span class="eyebrow">IDENTITY VERIFICATION</span><h1>实名认证</h1><p>认证资料、必填项和重新提交条件以平台当前配置为准。</p></header>
+  <div class="kyc-page v47-kyc">
+
     <div v-if="loading" class="skeletons"><Skeleton class="h-40" /><Skeleton class="h-56" /></div>
-    <section v-else class="panel">
+    <section v-else class="paper narrow"><h1>实名认证</h1><p class="kyc-intro">认证资料、必填项和重新提交条件以平台当前配置为准。</p>
       <header class="status-head"><div class="status-icon" :data-status="status"><Icon :icon="statusView.icon" width="32" /></div><div><span class="status-tag" :class="meta.color">{{ meta.label }}</span><h2>{{ statusView.title }}</h2><p>{{ statusView.description }}</p></div></header>
-      <Alert v-if="loadError" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>{{ loadError }}<div class="notice-actions"><Button variant="outline" :disabled="submitting" @click="load">重新加载</Button></div></AlertDescription></Alert>
+      <div v-if="loadError" class="status-banner notice warning" role="alert"><Icon icon="lucide:triangle-alert" /><span>{{ loadError }}<div class="notice-actions"><button :disabled="submitting" @click="load" class="outline">重新加载</button></div></span></div>
       <DescriptionList :columns="2" :items="[{ label: '当前账号', value: userStore.currentUser?.nickname || userStore.currentUser?.email || '—' }, { label: '手机号', value: userStore.currentUser?.phone || '—' }, { label: '账号身份', value: userStore.currentUser?.isBuyer ? '买手' : '顾客' }, { label: '认证姓名', value: kycDetail?.realName || '—' }, { label: '认证证件', value: kycDetail?.idNo || '—' }, { label: '提交时间', value: formatTime(kycDetail?.submittedAt) }, { label: '审核时间', value: formatTime(kycDetail?.reviewedAt) }, { label: '证件预览有效期', value: formatTime(kycDetail?.photoUrlExpireAt) }]" />
       <div v-if="kycDetail" class="private-previews"><div v-for="key in previewKeys" :key="key" class="private-preview"><span>{{ key === 'front' ? '证件人像面' : key === 'back' ? '证件国徽面' : '手持证件照' }}</span><button v-if="previewUrls[key]" type="button" :aria-label="key === 'front' ? '预览证件人像面' : key === 'back' ? '预览证件国徽面' : '预览手持证件照'" @click="previewPrivate(previewUrls[key])"><img :src="previewUrls[key]" :alt="key === 'front' ? '证件人像面' : key === 'back' ? '证件国徽面' : '手持证件照'" @error="previewUrls[key] = ''" /><Icon icon="lucide:expand" width="16" /></button><span v-else class="preview-unavailable">暂无可用预览</span></div></div>
       <template v-if="status !== 'approved' && status !== 'pending'">
         <div class="form-divider"></div>
-        <Alert class="notice" :variant="status === 'rejected' ? 'destructive' : 'default'"><Icon :icon="status === 'rejected' ? 'lucide:circle-alert' : 'lucide:info'" /><AlertDescription>{{ status === 'rejected' ? statusView.description : '请填写真实资料并上传清晰的证件图片；提交后由平台审核。' }}</AlertDescription></Alert>
-        <Alert v-if="schema?.noticeText" class="notice"><Icon icon="lucide:info" /><AlertDescription>{{ schema.noticeText }}</AlertDescription></Alert>
-        <Alert v-if="status === 'rejected' && schema && !schema.resubmitAfterRejectAllowed" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>当前配置不允许驳回后重新提交，请联系平台。</AlertDescription></Alert>
+        <div class="status-banner notice" role="alert"><Icon :icon="status === 'rejected' ? 'lucide:circle-alert' : 'lucide:info'" /><span>{{ status === 'rejected' ? statusView.description : '请填写真实资料并上传清晰的证件图片；提交后由平台审核。' }}</span></div>
+        <div v-if="schema?.noticeText" class="status-banner notice" role="alert"><Icon icon="lucide:info" /><span>{{ schema.noticeText }}</span></div>
+        <div v-if="status === 'rejected' && schema && !schema.resubmitAfterRejectAllowed" class="status-banner notice warning" role="alert"><Icon icon="lucide:triangle-alert" /><span>当前配置不允许驳回后重新提交，请联系平台。</span></div>
         <form class="kyc-form" novalidate @submit.prevent="submit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
-          <div class="fields"><div class="field"><Label for="kyc-real-name">真实姓名 <span class="required">*</span></Label><Input id="kyc-real-name" v-model="form.realName" placeholder="请输入证件上的真实姓名" :maxlength="64" :disabled="formDisabled" /></div><div class="field"><Label for="kyc-nationality">国籍 <span v-if="schema?.nationalityRequired" class="required">*</span></Label><Input id="kyc-nationality" v-model="form.nationality" placeholder="如：中国" :maxlength="64" :disabled="formDisabled" /></div><div class="field"><Label for="kyc-id-type">证件类型 <span class="required">*</span></Label><Select v-model="form.idType" :disabled="formDisabled"><SelectTrigger id="kyc-id-type"><SelectValue placeholder="请选择证件类型" /></SelectTrigger><SelectContent><SelectItem v-for="type in schema?.allowedIdTypes || []" :key="type" :value="type">{{ type === 'ID_CARD' ? '身份证' : '护照' }}</SelectItem></SelectContent></Select></div><div class="field"><Label for="kyc-id-number">证件号码 <span class="required">*</span></Label><Input id="kyc-id-number" v-model="form.idNo" placeholder="请输入证件号码" :maxlength="64" :disabled="formDisabled" /></div></div>
+          <div class="fields"><div class="field"><Label for="kyc-real-name">真实姓名 <span class="required">*</span></Label><Input id="kyc-real-name" v-model="form.realName" placeholder="请输入证件上的真实姓名" :maxlength="64" :disabled="formDisabled" /></div><div class="field"><Label for="kyc-nationality">国籍 <span v-if="schema?.nationalityRequired" class="required">*</span></Label><Input id="kyc-nationality" v-model="form.nationality" placeholder="如：中国" :maxlength="64" :disabled="formDisabled" /></div><div class="field"><Label for="kyc-id-type">证件类型 <span class="required">*</span></Label><Select v-model="form.idType" :disabled="formDisabled"><SelectTrigger id="kyc-id-type"><SelectValue placeholder="请选择证件类型" /></SelectTrigger><SelectContent><SelectItem v-for="type in schema?.allowedIdTypes || []" :key="type" :value="type">{{ type === 'ID_CARD' ? '身份证' : type === 'PASSPORT' ? '护照' : type }}</SelectItem></SelectContent></Select></div><div class="field"><Label for="kyc-id-number">证件号码 <span class="required">*</span></Label><Input id="kyc-id-number" v-model="form.idNo" placeholder="请输入证件号码" :maxlength="64" :disabled="formDisabled" /></div></div>
           <div class="upload-section"><h3>证件图片 <span class="required">*</span></h3><p>资料页必填；背面{{ schema?.idCardBackRequired ? '必填' : '选填' }}；手持照{{ schema?.holdingPhotoRequired ? '必填' : '选填' }}。请勿上传与本人无关的证件。</p><div class="uploaders"><IdCardUploader v-model="form.idCardFrontFileId" :context-key="uploadContext" :disabled="formDisabled" :label="form.idType === 'PASSPORT' ? '护照资料页' : '身份证人像面'" side="front" @uploading="uploadStates.front = $event" /><IdCardUploader v-model="form.idCardBackFileId" :context-key="uploadContext" :disabled="formDisabled" label="证件背面" side="back" @uploading="uploadStates.back = $event" /><IdCardUploader v-model="form.holdingPhotoFileId" :context-key="uploadContext" :disabled="formDisabled" side="face" @uploading="uploadStates.holding = $event" /></div></div>
-          <footer class="actions"><Tooltip><TooltipTrigger as-child><span tabindex="0"><Button type="submit" :disabled="uploading || formDisabled">{{ submitting ? '正在提交…' : '提交认证' }}</Button></span></TooltipTrigger><TooltipContent v-if="uploading || formDisabled">{{ submitDisabledReason }}</TooltipContent></Tooltip></footer>
+          <footer class="actions"><Tooltip><TooltipTrigger as-child><span tabindex="0"><button type="submit" :disabled="uploading || formDisabled" class="primary">{{ submitting ? '正在提交…' : '提交认证' }}</button></span></TooltipTrigger><TooltipContent v-if="uploading || formDisabled">{{ submitDisabledReason }}</TooltipContent></Tooltip></footer>
         </form>
       </template>
     </section>
@@ -306,10 +304,33 @@ const submitDisabledReason = computed(() => {
 </template>
 
 <style scoped>
-.kyc-page .uploaders { grid-template-columns: 1fr; }
-.kyc-page .fields { grid-template-columns: 1fr; }
-.kyc-page .panel { padding: 28px; }
-.kyc-page .status-icon { width: 60px; height: 60px; }
-.kyc-page .status-head { gap: 18px; }
-.kyc-page { padding-top:32px; padding-bottom:48px; max-width:680px; }.page-head { margin-bottom:28px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { font-size:28px; font-weight:650; margin:5px 0 10px; }.page-head p { margin:0; color:var(--yb-muted); font-size:14px; }.panel { background:var(--yb-paper); padding:32px; border:1px solid var(--yb-hairline); border-radius:10px; }.skeletons { display:grid; gap:24px; }.status-head { display:flex; align-items:center; gap:24px; padding-bottom:28px; margin-bottom:20px; border-bottom:1px solid var(--yb-hairline); }.status-icon { display:grid; place-items:center; width:76px; height:76px; border-radius:10px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); flex-shrink:0; }.status-icon[data-status='rejected'],.status-icon[data-status='expired'] { background:#fcecea; color:#ad453e; }.status-head h2 { margin:12px 0 8px; font-size:23px; font-weight:600; }.status-head p { color:var(--yb-muted); font-size:14px; line-height:1.8; margin:0; }.status-tag { display:inline-flex; border-radius:4px; padding:4px 9px; font-size:12px; background:var(--yb-fill); color:var(--yb-muted); }.green { color:#326b43; background:#e9f3eb; }.red { color:#ad453e; background:#fcecea; }.orange { color:#9a5709; background:#fff3df; }.notice { margin-bottom:20px; }.notice.warning { background:#fff7e6; border-color:#fff7e6; }.notice-actions { margin-top:14px; }.private-previews { display:flex; flex-wrap:wrap; gap:24px; margin-top:24px; }.private-preview { display:grid; align-content:start; gap:12px; color:var(--yb-muted); font-size:13px; }.private-preview button { position:relative; padding:0; width:180px; height:116px; border:1px solid var(--yb-hairline); border-radius:6px; overflow:hidden; cursor:pointer; background:var(--yb-fill); }.private-preview button:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.private-preview img { width:100%; height:100%; object-fit:cover; }.private-preview button svg { position:absolute; right:10px; bottom:10px; color:#fff; filter:drop-shadow(0 1px 2px #000); }.preview-unavailable { display:grid; place-items:center; width:180px; height:116px; border-radius:6px; background:var(--yb-fill); color:var(--yb-muted); font-size:12px; }.form-divider { height:1px; background:var(--yb-hairline); margin:32px 0; }.fields { display:grid; grid-template-columns:1fr 1fr; gap:24px; }.field { display:grid; gap:10px; }.required { color:var(--yb-danger); }.upload-section { margin-top:30px; }.upload-section h3 { font-size:15px; font-weight:600; margin:0 0 10px; }.upload-section>p { color:var(--yb-muted); font-size:13px; margin:0 0 22px; }.uploaders { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; }.actions { display:flex; justify-content:flex-end; margin-top:32px; }@media(max-width:800px) { .uploaders { grid-template-columns:1fr 1fr; }.fields { grid-template-columns:1fr; } }@media(max-width:700px) { .panel { padding:22px; }.status-head { align-items:start; }.status-head h2 { font-size:20px; }.uploaders { grid-template-columns:1fr; } }
+.kyc-page { padding-bottom:48px; }
+.kyc-intro { margin-bottom:22px; font-size:13px; color:var(--muted); }
+.skeletons { display:grid; gap:22px; max-width:670px; margin:20px auto; }
+.status-head { display:flex; gap:18px; align-items:center; border-bottom:1px solid var(--line); margin-bottom:22px; padding-bottom:22px; }
+.status-icon { display:grid; place-items:center; width:54px; height:54px; border-radius:10px; background:var(--soft); color:var(--green); flex-shrink:0; }
+.status-icon[data-status='rejected'],.status-icon[data-status='expired'] { color:var(--yb-danger); background:color-mix(in srgb,var(--yb-danger) 10%,var(--paper)); }
+.status-head h2 { font-size:21px; margin:8px 0; }
+.status-head p { color:var(--muted); font-size:13px; }
+.status-tag { padding:4px 9px; border-radius:5px; font-size:12px; background:var(--soft); color:var(--muted); }
+.status-tag.green { color:var(--yb-success); }.status-tag.red { color:var(--yb-danger); }.status-tag.orange { color:var(--yb-warning); }
+.notice { margin-bottom:20px; align-items:flex-start; flex-wrap:wrap; }
+.notice>span { flex:1; min-width:160px; }
+.notice-actions { margin-top:12px; }
+.private-previews { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:24px; }
+.private-preview { display:grid; gap:10px; min-width:0; font-size:12px; color:var(--muted); }
+.private-preview button,.preview-unavailable { width:100%; aspect-ratio:1.6; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--soft); }
+.private-preview button { position:relative; }.private-preview img { width:100%; height:100%; object-fit:cover; }
+.private-preview button svg { position:absolute; right:10px; bottom:10px; padding:3px; background:var(--paper); color:var(--ink); border-radius:4px; }
+.preview-unavailable { display:grid; place-items:center; font-size:12px; }
+.form-divider { height:1px; background:var(--line); margin:28px 0; }
+.fields,.uploaders { display:grid; grid-template-columns:1fr; }
+.required { color:var(--yb-danger); }
+.upload-section { margin-top:24px; }
+.upload-section h3 { font-size:16px; margin-bottom:10px; }
+.upload-section>p { font-size:13px; color:var(--muted); margin-bottom:18px; }
+.uploaders { gap:20px; }
+.actions { margin-top:24px; }.actions>span,.actions :deep(button) { width:100%; }
+.field :deep(input),.field :deep(button[role='combobox']) { height:auto; min-height:44px; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--paper); box-shadow:none; }
+@media(max-width:700px) { .private-previews { grid-template-columns:1fr; }.status-head { align-items:flex-start; }.status-head h2 { font-size:20px; } }
 </style>

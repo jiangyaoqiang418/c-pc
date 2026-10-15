@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Icon } from '@iconify/vue';
 import { Message, Modal } from '@/lib/feedback';
+import UmIcon from '@/components/common/um-icon.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
@@ -113,12 +110,12 @@ function formatTime(value?: string | number) {
 
 function iconFor(notification: Api.RealNotify.NotificationVO) {
   const code = String(notification.templateCode || '').toLowerCase();
-  if (code.startsWith('product_')) return 'lucide:package-check';
-  if (code.startsWith('demand_')) return 'lucide:clipboard-list';
-  if (code.includes('paid') || code.includes('settled')) return 'lucide:circle-dollar-sign';
-  if (code.includes('ship')) return 'lucide:truck';
-  if (code.includes('refund')) return 'lucide:rotate-ccw';
-  return 'lucide:bell';
+  if (code.startsWith('product_')) return 'box';
+  if (code.startsWith('demand_')) return 'search';
+  if (code.includes('paid') || code.includes('settled')) return 'wallet';
+  if (code.includes('ship')) return 'truck';
+  if (code.includes('refund')) return 'return';
+  return 'bell';
 }
 
 function categoryFor(notification: Api.RealNotify.NotificationVO) {
@@ -132,18 +129,21 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
   return { label: '平台通知', color: 'gray' as const };
 }
 
+async function markNotificationRead(notification: Api.RealNotify.NotificationVO) {
+  if (disposed || notification.readFlag) return;
+  const requestedUserId = userStore.currentUser?.id;
+  const read = await notifyStore.readNotification(notification.id);
+  if (!read || disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+  notification.readFlag = true;
+  const current = records.value.find(item => sameBusinessId(item.id, notification.id));
+  if (current) current.readFlag = true;
+  if (unreadOnly.value) void load();
+}
+
 async function openNotification(notification: Api.RealNotify.NotificationVO) {
   if (disposed) return;
   const requestedUserId = userStore.currentUser?.id;
-  if (!notification.readFlag) {
-    void notifyStore.readNotification(notification.id).then(read => {
-      if (!read || disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-      notification.readFlag = true;
-      const current = records.value.find(item => sameBusinessId(item.id, notification.id));
-      if (current) current.readFlag = true;
-      if (unreadOnly.value) void load();
-    });
-  }
+  if (!notification.readFlag) void markNotificationRead(notification);
   let target = notificationRoute(notification);
   if (notification.templateCode === 'demand_taken' && notification.bizId != null) {
     try {
@@ -308,18 +308,30 @@ const notificationFilter = computed({
 </script>
 
 <template>
-  <div class="notification-page shop-container">
-    <header class="page-header"><div><span class="eyebrow">NOTIFICATIONS</span><h1>站内通知</h1><p>订单状态、退款和资金结算等平台提醒</p></div><div class="header-actions"><Tooltip><TooltipTrigger as-child><span tabindex="0"><Button variant="outline" :disabled="!hasUnread || readingAll || clearing" @click="readAll"><Icon icon="lucide:check-check" width="16" />{{ readingAll ? '正在标记…' : '全部已读' }}</Button></span></TooltipTrigger><TooltipContent v-if="!hasUnread">没有待处理的未读通知</TooltipContent></Tooltip><Button variant="outline" class="danger-button" :disabled="!records.length || clearing || clearConfirmationOpen" @click="clearAll"><Icon icon="lucide:trash-2" width="16" />{{ clearing ? '正在清空…' : '清空通知' }}</Button></div></header>
-    <section class="notification-card" :aria-busy="loading">
-      <header class="filter-row"><Tabs v-model="notificationFilter" class="page-tabs"><TabsList><TabsTrigger value="all">全部通知</TabsTrigger><TabsTrigger value="unread">仅未读</TabsTrigger></TabsList></Tabs><span v-if="!loading && !loadError" class="count">共 {{ total }} 条</span></header>
-      <div v-if="loading && !records.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-28" /></div>
-      <div v-else-if="records.length" class="notification-list" :class="{ refreshing: loading }"><article v-for="notification in records" :key="notification.id" class="notification-row" :class="{ unread: !notification.readFlag }"><div class="notification-icon"><Icon :icon="iconFor(notification)" width="22" /></div><button type="button" class="notification-main" @click="openNotification(notification)"><span class="title-row"><strong>{{ notification.title || '平台通知' }}</strong><span class="category-tag" :class="categoryFor(notification).color">{{ categoryFor(notification).label }}</span><span v-if="!notification.readFlag" class="unread-dot" aria-label="未读"></span></span><span class="notification-content">{{ notification.content || '—' }}</span><time>{{ formatTime(notification.createdAt) }}</time></button><Button type="button" variant="ghost" size="sm" class="delete-button" :disabled="deletingId !== undefined || clearing" @click="remove(notification)"><Icon :icon="sameBusinessId(deletingId, notification.id) ? 'lucide:loader-circle' : 'lucide:trash-2'" width="15" />{{ sameBusinessId(deletingId, notification.id) ? '删除中…' : '删除' }}</Button></article></div>
-      <EmptyState v-else :title="loadError || '暂无站内通知'" :description="loadError ? '请稍后重试。' : '订单和退款状态变化后会在这里提醒你'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
+  <div class="notification-page">
+    <div class="page-heading compact"><h1>站内通知</h1><span v-if="!loading && !loadError" class="heading-meta">共 {{ total }} 条</span><div class="notification-actions"><button class="outline" :disabled="!hasUnread || readingAll || clearing" @click="readAll"><UmIcon name="check" />{{ readingAll ? '正在标记…' : '全部已读' }}</button><button class="outline notification-danger" :disabled="!records.length || clearing || clearConfirmationOpen" @click="clearAll"><UmIcon name="trash" />{{ clearing ? '正在清空…' : '清空通知' }}</button></div></div>
+    <nav class="tabs" aria-label="通知筛选"><button :class="{ active: notificationFilter === 'all' }" :aria-pressed="notificationFilter === 'all'" @click="notificationFilter = 'all'">全部通知</button><button :class="{ active: notificationFilter === 'unread' }" :aria-pressed="notificationFilter === 'unread'" @click="notificationFilter = 'unread'">仅未读</button></nav>
+    <section class="paper" :aria-busy="loading">
+      <div v-if="loading && !records.length" class="notification-skeletons"><Skeleton v-for="n in 4" :key="n" class="h-28" /></div>
+      <div v-else-if="records.length" :class="{ 'notification-refreshing': loading }"><article v-for="notification in records" :key="notification.id" class="notice-item" :class="{ unread: !notification.readFlag }"><UmIcon :name="iconFor(notification)" /><div class="notification-copy"><button class="notification-main" @click="openNotification(notification)"><h3>{{ notification.title || '平台通知' }}<span v-if="!notification.readFlag" class="notification-unread" aria-label="未读" /></h3><p>{{ notification.content || '—' }}</p><small>{{ formatTime(notification.createdAt) }}</small></button><span class="notification-category">{{ categoryFor(notification).label }}</span></div><div class="notification-item-actions"><button v-if="!notification.readFlag" class="text-link" @click="markNotificationRead(notification)">标记已读</button><button class="text-link notification-danger" :disabled="deletingId !== undefined || clearing" @click="remove(notification)">{{ sameBusinessId(deletingId, notification.id) ? '删除中…' : '删除' }}</button></div></article></div>
+      <EmptyState v-else :title="loadError || '暂无站内通知'" :description="loadError ? '请稍后重试。' : '订单和退款状态变化后会在这里提醒你。'" :action-text="loadError ? '重新读取' : undefined" @action="load" />
       <BusinessPagination v-if="total > pageSize" :current="pageNo" :total="total" :page-size="pageSize" :loading="loading" @change="changePage" />
     </section>
   </div>
 </template>
 
 <style scoped>
-.notification-page { padding-top:32px; padding-bottom:48px; }.page-header { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.eyebrow { display:none; }h1 { margin:0 0 8px; font-size:24px; font-weight:650; }.page-header p { color:var(--yb-muted); font-size:14px; margin:0; }.header-actions { display:flex; gap:12px; }.danger-button,.delete-button { color:var(--yb-danger); }.notification-card { padding:0 26px 26px; border:1px solid var(--yb-hairline); background:var(--yb-paper); border-radius:10px; }.filter-row { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:0 0 14px; border-bottom:1px solid var(--yb-hairline); }.count { color:var(--yb-muted); font-size:13px; }.skeletons { display:grid; gap:20px; padding-top:24px; }.refreshing { opacity:.65; }.notification-row { display:grid; grid-template-columns:36px minmax(0,1fr) auto; align-items:start; gap:16px; padding:20px 0; border-bottom:1px solid var(--yb-hairline); transition:background .15s; }.notification-row:last-child { border-bottom:0; }.notification-row:hover { background:var(--yb-primary-soft); }.notification-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:8px; background:var(--yb-fill); color:var(--yb-muted); }.unread .notification-icon { background:var(--yb-primary-soft); color:var(--yb-brand-primary); }.notification-main { display:block; min-width:0; width:100%; padding:0; text-align:left; border:0; background:transparent; cursor:pointer; color:inherit; }.notification-main:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:5px; border-radius:4px; }.title-row { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }.title-row strong { font-size:16px; font-weight:550; }.unread .title-row strong { font-weight:650; }.category-tag { display:inline-flex; padding:3px 8px; background:var(--yb-fill); color:var(--yb-muted); font-size:12px; border-radius:4px; }.purple { color:#704a8d; background:#f2ebf7; }.orange { color:#9a5709; background:#fff3df; }.orangered { color:#ad453e; background:#fcecea; }.arcoblue,.blue { color:#315a96; background:#edf3fc; }.green { color:#326b43; background:#e9f3eb; }.unread-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--yb-brand-primary); flex-shrink:0; }.notification-content { display:block; margin:8px 0; line-height:1.7; color:var(--yb-muted); font-size:14px; overflow-wrap:anywhere; white-space:pre-wrap; }time { color:var(--yb-muted); font-size:12px; }.delete-button { margin-top:2px; }@media(max-width:700px) { .page-header { flex-direction:column; align-items:start; }.notification-card { padding:0 16px 20px; }.notification-row { grid-template-columns:36px minmax(0,1fr); gap:14px; }.notification-icon { width:36px; height:36px; }.delete-button { grid-column:2; justify-self:end; padding-right:0; } }@media(prefers-reduced-motion:reduce) { .notification-row { transition:none; } }
+.notification-page { padding-bottom:48px; }
+.notification-actions { display:flex; gap:12px; margin-left:auto; flex-wrap:wrap; }
+.notification-danger { color:var(--yb-danger); }
+.notification-skeletons { display:grid; gap:20px; }
+.notification-refreshing { opacity:.65; }
+.notification-copy { min-width:0; flex:1; }
+.notification-main { display:block; width:100%; text-align:left; }
+.notification-main p { overflow-wrap:anywhere; white-space:pre-wrap; }
+.notification-unread { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); margin-left:10px; vertical-align:middle; }
+.notification-category { display:inline-block; margin-top:8px; padding:3px 8px; border:1px solid var(--line); border-radius:5px; background:var(--soft); color:var(--muted); font-size:11px; }
+.notification-item-actions { display:flex; gap:14px; align-items:center; margin-left:auto; flex-shrink:0; }
+.notification-item-actions button { font-size:12px; }
+@media(max-width:700px) { .notification-actions { margin-left:0; }.notice-item { flex-wrap:wrap; }.notification-copy { flex-basis:calc(100% - 44px); }.notification-item-actions { margin-left:44px; } }
 </style>

@@ -2,6 +2,15 @@ import { realUserRequest } from '@/service/request';
 import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { parseDateValue } from '@/utils/date-range';
+import { sumPaymentAmounts } from '@/utils/checkout';
+
+/** 流水金额必须有权威值；校验十进制格式后保留原值，不转换金额或业务 ID。 */
+export function readLedgerAmount(value: unknown, label: string) {
+  if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') throw new Error(`${label}尚未确认，请重新读取`);
+  const text = String(value).trim();
+  try { sumPaymentAmounts([text]); } catch { throw new Error(`${label}格式异常，请重新读取`); }
+  return text;
+}
 
 const bucketMap: Record<string, Api.RealWallet.BalanceKey> = {
   AVAILABLE: 'available',
@@ -172,8 +181,8 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
     bizGroupText: dto.bizGroupText,
     type,
     direction,
-    amount: String(dto.amount ?? 0),
-    balanceAfter: String(dto.toBalanceAfter ?? dto.fromBalanceAfter ?? 0),
+    amount: readLedgerAmount(dto.amount, '钱包流水金额'),
+    balanceAfter: readLedgerAmount(dto.toBalanceAfter ?? dto.fromBalanceAfter, '钱包流水变动后余额'),
     bucketFrom,
     bucketTo,
     remark,
@@ -184,7 +193,7 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
 }
 
 export async function fetchWalletOverview(userId: Api.RealSession.Id, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  const wallet = await realUserRequest.get<Api.RealWallet.WalletVO>('/wallet/overview', options);
+  const wallet = await realUserRequest.get<Api.RealWallet.WalletVO>('/wallet/overview', { ...options, preserveDecimals: true });
   const account = toAccount(userId, wallet);
 
   return {
@@ -241,7 +250,7 @@ export async function fetchWalletLedger(q: {
     keyword: q.keyword?.trim() || undefined,
     startAt: parseDateValue(q.fromAt),
     endAt: parseDateValue(q.toAt, true)
-  }, { signal: q.signal });
+  }, { signal: q.signal, preserveDecimals: true });
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealWallet.WalletLedgerDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
   if (selectors.length > 1) {
@@ -313,7 +322,7 @@ export function fetchRechargeAddress(chain: string, options: { signal?: AbortSig
 }
 
 export function fetchRechargeDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { ...options, params: { id } });
+  return realUserRequest.get<Api.RealWallet.RechargeVO>('/recharge/detail', { ...options, params: { id }, preserveDecimals: true });
 }
 
 export async function fetchRechargePage(
@@ -323,11 +332,13 @@ export async function fetchRechargePage(
   const page = await realUserRequest.postQuery<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
     '/recharge/page',
     params,
-    options
+    { ...options, preserveDecimals: true }
   );
+  const current = Number(page.current ?? page.pageNo ?? params.pageNo ?? 1);
+  if (!Number.isSafeInteger(current) || current < 1) throw new Error('充值记录页码异常，请重新读取');
   return {
-    current: page.current || page.pageNo || params.pageNo || 1,
-    size: page.size || page.pageSize || params.pageSize || 10,
+    current,
+    size: resolvePageSize(page, params.pageSize ?? 10),
     total: toPageTotal(page.total),
     records: requireArray<Api.RealWallet.RechargeVO>(page.records, '充值记录分页记录')
   };
@@ -360,7 +371,7 @@ export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams, opti
 }
 
 export function fetchWithdrawDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  return realUserRequest.get<Api.RealWallet.WithdrawVO>('/withdraw/detail', { ...options, params: { id } });
+  return realUserRequest.get<Api.RealWallet.WithdrawVO>('/withdraw/detail', { ...options, params: { id }, preserveDecimals: true });
 }
 
 export async function fetchWithdrawPage(
@@ -370,11 +381,13 @@ export async function fetchWithdrawPage(
   const page = await realUserRequest.postQuery<Api.RealWallet.PageResult<Api.RealWallet.WithdrawVO>, Api.RealWallet.WithdrawPageQuery>(
     '/withdraw/page',
     params,
-    options
+    { ...options, preserveDecimals: true }
   );
+  const current = Number(page.current ?? page.pageNo ?? params.pageNo ?? 1);
+  if (!Number.isSafeInteger(current) || current < 1) throw new Error('提现记录页码异常，请重新读取');
   return {
-    current: page.current || page.pageNo || params.pageNo || 1,
-    size: page.size || page.pageSize || params.pageSize || 10,
+    current,
+    size: resolvePageSize(page, params.pageSize ?? 10),
     total: toPageTotal(page.total),
     records: requireArray<Api.RealWallet.WithdrawVO>(page.records, '提现记录分页记录')
   };

@@ -3,6 +3,8 @@ import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
 import { enums } from '@shared';
+import { sumPaymentAmounts } from '@/utils/checkout';
+import { exactDecimalNumber } from '@/components/wallet/decimal-amount';
 
 export function toAfterSaleType(value?: string): Api.RealProduct.DisplayAfterSaleType {
   if (value === 'SEVEN_DAY_NO_REASON') return '7day-no-reason';
@@ -35,6 +37,32 @@ function toShelfStatus(status?: string): Api.Product.ShelfStatus {
   return status === 'ON_SALE' ? 'on-shelf' : 'off-shelf';
 }
 
+/** 缺失或无效统计保持未知，不让未提供的数据显示为零。 */
+function toProductCount(value: unknown) {
+  if (value === undefined || value === null || String(value).trim() === '') return undefined;
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined;
+  if (typeof value === 'string' && !/^\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value.trim())) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+/** 售价是商品读取的必需值；缺值不代表免费，真实零价仍保留。 */
+function requireProductPrice(value: unknown) {
+  if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') {
+    throw new Error('商品价格缺失或格式无效，请重新读取后核对');
+  }
+  try {
+    return sumPaymentAmounts([typeof value === 'string' ? value.trim() : value]);
+  } catch {
+    throw new Error('商品价格缺失或格式无效，请重新读取后核对');
+  }
+}
+
+function readProductFee(value: unknown) {
+  if (value === undefined || value === null || String(value).trim() === '') return undefined;
+  try { return requireProductPrice(value); } catch { return undefined; }
+}
+
 export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduct.Record {
   const id = dto.id;
   const sellerId = dto.sellerId;
@@ -51,10 +79,10 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     sellerName: dto.sellerName || '商品买手',
     categoryId,
     categoryPath: dto.categoryName || '',
-    price: String(dto.price ?? 0),
+    price: requireProductPrice(dto.price),
     stock: toFiniteNumber(dto.stock || 0),
-    shippingFee: String(dto.shippingFee ?? 0),
-    tax: String(dto.taxFee ?? 0),
+    shippingFee: readProductFee(dto.shippingFee),
+    tax: readProductFee(dto.taxFee),
     images: (dto.images || []).map((url, sort) => ({ url, name: `图${sort + 1}`, type: 'image', sort })),
     summary: dto.brief || '',
     description: dto.description || '',
@@ -65,9 +93,9 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     overseasCustoms: !!dto.overseasClearance,
     status,
     shelfStatus: toShelfStatus(dto.status),
-    salesCount: toFiniteNumber(dto.salesCount || 0),
-    viewCount: toFiniteNumber(dto.viewCount || 0),
-    favoriteCount: toFiniteNumber(dto.favoriteCount || 0),
+    salesCount: toProductCount(dto.salesCount),
+    viewCount: toProductCount(dto.viewCount),
+    favoriteCount: toProductCount(dto.favoriteCount),
     draftAuditOpinion: dto.reviewComment,
     createdAt,
     submittedAt: createdAt,
@@ -85,10 +113,10 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
     sellerName: dto.sellerName || '商品买手',
     categoryId: dto.categoryId || '',
     categoryPath: dto.categoryName || '',
-    price: String(dto.price ?? 0),
+    price: requireProductPrice(dto.price),
     stock: toFiniteNumber(dto.stock ?? 0),
-    shippingFee: '0',
-    tax: '0',
+    shippingFee: undefined,
+    tax: undefined,
     images: dto.coverImage ? [{ url: dto.coverImage, name: '商品图', type: 'image', sort: 0 }] : [],
     summary: '',
     description: '',
@@ -97,9 +125,9 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
     overseasCustoms: !!dto.overseasClearance,
     status: 'NORMAL',
     shelfStatus: 'on-shelf',
-    salesCount: toFiniteNumber(dto.salesCount || 0),
-    viewCount: 0,
-    favoriteCount: 0,
+    salesCount: toProductCount(dto.salesCount),
+    viewCount: undefined,
+    favoriteCount: undefined,
     createdAt: '',
     submittedAt: '',
     updatedAt: ''
@@ -110,7 +138,8 @@ export async function fetchProductDetail(id: string | number, options: { showErr
   const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/storefront/product/detail', {
     params: { id },
     showError: options.showError,
-    signal: options.signal
+    signal: options.signal,
+    preserveDecimals: true
   });
   return toProductRecord(dto);
 }
@@ -159,7 +188,7 @@ export async function fetchStorefrontProducts(q: {
     afterSaleType: q.aftersaleType ? fromAfterSaleType(q.aftersaleType) : undefined,
     overseasClearance: q.overseasCustoms,
     sortBy: normalizeStorefrontSort(q.sort)
-  }, { signal: q.signal });
+  }, { signal: q.signal, preserveDecimals: true });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
@@ -172,7 +201,7 @@ async function fetchStorefrontPage(url: string, pageSize = 20, options: { signal
   const page = await realOrderRequest.postQuery<Api.Common.PaginatingQueryRecord<Api.RealProduct.ProductDTO>, { pageNo: number; pageSize: number }>(
     url,
     { pageNo: 1, pageSize },
-    options
+    { ...options, preserveDecimals: true }
   );
   return requireArray<Api.RealProduct.ProductDTO>(page.records, '商品分页记录').map(toProductRecord);
 }
@@ -187,10 +216,11 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
     sellerName: '',
     categoryId: '',
     categoryPath: '限时秒杀',
-    price: String(dto.flashPrice ?? dto.price ?? 0),
+    // Published flashPrice semantics: an unset promotion price uses the original price.
+    price: requireProductPrice(dto.flashPrice ?? dto.price),
     stock: toFiniteNumber(dto.stock ?? dto.flashStock ?? 0),
-    shippingFee: '0',
-    tax: '0',
+    shippingFee: undefined,
+    tax: undefined,
     images: dto.image ? [{ url: dto.image, name: '商品图', type: 'image', sort: 0 }] : [],
     summary: '',
     description: '',
@@ -198,9 +228,9 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
     overseasCustoms: false,
     status: 'NORMAL',
     shelfStatus: 'on-shelf',
-    salesCount: toFiniteNumber(dto.salesCount || 0),
-    viewCount: 0,
-    favoriteCount: 0,
+    salesCount: toProductCount(dto.salesCount),
+    viewCount: undefined,
+    favoriteCount: undefined,
     createdAt,
     submittedAt: createdAt,
     publishedAt: createdAt || undefined,
@@ -210,7 +240,7 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
 
 export function fetchHomeRecommendations(limit = 20, options: { signal?: AbortSignal } = {}) {
   return realOrderRequest
-    .get<Api.RealProduct.ProductDTO[]>('/storefront/recommend', { params: { limit }, ...options })
+    .get<Api.RealProduct.ProductDTO[]>('/storefront/recommend', { params: { limit }, ...options, preserveDecimals: true })
     .then(records => requireArray<Api.RealProduct.ProductDTO>(records, '推荐商品').map(toProductRecord));
 }
 
@@ -223,7 +253,7 @@ export function fetchNewArrivals(pageSize = 20, options: { signal?: AbortSignal 
 }
 
 export async function fetchFlashSale(limit = 20, options: { signal?: AbortSignal } = {}) {
-  const records = await realOrderRequest.get<Api.RealProduct.FlashSaleItemVO[]>('/storefront/flash-sale', { params: { limit }, ...options });
+  const records = await realOrderRequest.get<Api.RealProduct.FlashSaleItemVO[]>('/storefront/flash-sale', { params: { limit }, ...options, preserveDecimals: true });
   return requireArray<Api.RealProduct.FlashSaleItemVO>(records, '秒杀商品').map(item => ({ product: toFlashSaleProduct(item), sessionEndTime: item.sessionEndTime }));
 }
 
@@ -259,7 +289,7 @@ export async function fetchMyFavorites(q: { current?: number; size?: number; sig
   >('/products/favorites/page', {
     pageNo: q.current || 1,
     pageSize: q.size || 20
-  }, { signal: q.signal });
+  }, { signal: q.signal, preserveDecimals: true });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
@@ -269,7 +299,7 @@ export async function fetchMyFavorites(q: { current?: number; size?: number; sig
 }
 
 export async function fetchSellerProductDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/products/detail', { params: { id }, signal: options.signal });
+  const dto = await realOrderRequest.get<Api.RealProduct.ProductDTO>('/products/detail', { params: { id }, signal: options.signal, preserveDecimals: true });
   return toProductRecord(dto);
 }
 
@@ -309,7 +339,7 @@ export async function fetchMyProducts(q: {
     keyword: q.keyword,
     categoryId: q.categoryId,
     status
-  }, { signal: q.signal });
+  }, { signal: q.signal, preserveDecimals: true });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 50,
@@ -331,12 +361,18 @@ export async function createProduct(p: {
   description: string;
   images: Api.RealProduct.ProductImageParam[];
 }) {
+  const price = exactDecimalNumber(p.price);
+  const shippingFee = exactDecimalNumber(p.shippingFee, true);
+  const taxFee = exactDecimalNumber(p.tax, true);
+  if (price.value === undefined || shippingFee.value === undefined || taxFee.value === undefined) {
+    throw new Error(price.error || shippingFee.error || taxFee.error || '商品金额无法准确提交');
+  }
   const id = await realOrderRequest.post<string, Api.RealProduct.ProductCreateParams>('/products/create', {
     title: p.title,
     categoryId: p.categoryId,
-    price: Number(p.price),
-    shippingFee: Number(p.shippingFee || 0),
-    taxFee: Number(p.tax || 0),
+    price: price.value,
+    shippingFee: shippingFee.value,
+    taxFee: taxFee.value,
     stock: p.stock,
     afterSaleType: fromAfterSaleType(p.aftersaleType),
     overseasClearance: p.overseasCustoms,

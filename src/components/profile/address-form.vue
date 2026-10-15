@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Message } from '@/lib/feedback';
 import { fetchCountries, fetchRegionChildren, prepareAddress } from '@/service/api/address';
 
-interface Props { modelValue?: Partial<Api.RealAddress.AddressRecord>; submitting?: boolean }
+interface Props { modelValue?: Partial<Api.RealAddress.AddressRecord>; submitting?: boolean; v47?: boolean }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', form: Api.RealAddress.AddressSaveParams): void }>();
 const fieldId = useId();
@@ -98,13 +98,13 @@ function submit() {
 </script>
 
 <template>
-  <form class="address-form" novalidate :aria-busy="loading || submitting" @submit.prevent="submit" @keydown.enter="event => event.isComposing && event.preventDefault()">
-    <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" size="sm" :disabled="loading || submitting" @click="sync">重新加载</Button></Alert>
+  <form class="address-form" :class="{ v47 }" novalidate :aria-busy="loading || submitting" @submit.prevent="submit" @keydown.enter="event => event.isComposing && event.preventDefault()">
+    <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="loading || submitting" @click="sync">重新加载</Button></Alert>
     <Alert v-if="legacyAddress" class="notice"><AlertDescription>历史地址缺少区划编码，请重新选择省市区后保存。</AlertDescription></Alert>
     <div v-if="loading" class="loading-note" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="16" />正在读取国家与地区信息</div>
     <fieldset :disabled="submitting" class="form-fields">
       <legend class="sr-only">收货地址信息</legend>
-      <div class="two-fields">
+      <div class="two-fields" :class="{ 'form-grid': v47 }">
         <div class="field"><Label :for="`${fieldId}-receiver`">收货人 <span>*</span></Label><Input :id="`${fieldId}-receiver`" v-model="form.receiverName" autocomplete="name" required placeholder="请输入收货人姓名" /></div>
         <div class="field"><Label :for="`${fieldId}-phone`">联系电话 <span>*</span></Label><Input :id="`${fieldId}-phone`" v-model="form.receiverPhone" autocomplete="tel" type="tel" maxlength="32" required placeholder="请输入联系电话" /></div>
       </div>
@@ -112,21 +112,21 @@ function submit() {
         <Label :for="`${fieldId}-country`">国家/地区 <span>*</span></Label>
         <Input v-model="countrySearch" class="country-search" aria-label="搜索国家或地区" placeholder="输入名称或代码筛选国家/地区" :disabled="loading || submitting" />
         <Select :model-value="form.countryCode" :disabled="loading || submitting" @update:model-value="value => onCountryChange(String(value))">
-          <SelectTrigger :id="`${fieldId}-country`"><SelectValue placeholder="请选择国家/地区"><template v-if="country">{{ country.name }}{{ country.enName ? ` / ${country.enName}` : '' }}</template></SelectValue></SelectTrigger>
+          <SelectTrigger class="address-select-trigger" :id="`${fieldId}-country`"><SelectValue placeholder="请选择国家/地区"><template v-if="country">{{ country.name }}{{ country.enName ? ` / ${country.enName}` : '' }}</template></SelectValue></SelectTrigger>
           <SelectContent><SelectItem v-for="item in filteredCountries" :key="item.code" :value="item.code">{{ item.name }}{{ item.enName ? ` / ${item.enName}` : '' }}</SelectItem><p v-if="!filteredCountries.length" class="empty-options">没有匹配的国家/地区</p></SelectContent>
         </Select>
       </div>
-      <div v-if="hasRegion" class="region-fields">
-        <div class="field"><Label :for="`${fieldId}-province`">省/州 <span>*</span></Label><Select :model-value="form.provinceCode" :disabled="loading || submitting" @update:model-value="value => onProvinceChange(String(value))"><SelectTrigger :id="`${fieldId}-province`"><SelectValue placeholder="请选择省/州" /></SelectTrigger><SelectContent><SelectItem v-for="item in provinces" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
-        <div v-if="needCity" class="field"><Label :for="`${fieldId}-city`">城市 <span>*</span></Label><Select :model-value="form.cityCode" :disabled="loading || submitting" @update:model-value="value => onCityChange(String(value))"><SelectTrigger :id="`${fieldId}-city`"><SelectValue placeholder="请选择城市" /></SelectTrigger><SelectContent><SelectItem v-for="item in cities" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
-        <div v-if="needDistrict" class="field"><Label :for="`${fieldId}-district`">区/县 <span>*</span></Label><Select v-model="form.districtCode" :disabled="loading || submitting"><SelectTrigger :id="`${fieldId}-district`"><SelectValue placeholder="请选择区/县" /></SelectTrigger><SelectContent><SelectItem v-for="item in districts" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
+      <div v-if="hasRegion" class="region-fields" :class="{ 'form-grid': v47 }">
+        <div class="field"><Label :for="`${fieldId}-province`">省/州 <span>*</span></Label><Select :model-value="form.provinceCode" :disabled="loading || submitting" @update:model-value="value => onProvinceChange(String(value))"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-province`"><SelectValue placeholder="请选择省/州" /></SelectTrigger><SelectContent><SelectItem v-for="item in provinces" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
+        <div v-if="needCity" class="field"><Label :for="`${fieldId}-city`">城市 <span>*</span></Label><Select :model-value="form.cityCode" :disabled="loading || submitting" @update:model-value="value => onCityChange(String(value))"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-city`"><SelectValue placeholder="请选择城市" /></SelectTrigger><SelectContent><SelectItem v-for="item in cities" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
+        <div v-if="needDistrict" class="field"><Label :for="`${fieldId}-district`">区/县 <span>*</span></Label><Select v-model="form.districtCode" :disabled="loading || submitting"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-district`"><SelectValue placeholder="请选择区/县" /></SelectTrigger><SelectContent><SelectItem v-for="item in districts" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
       </div>
-      <div v-else class="two-fields"><div class="field"><Label :for="`${fieldId}-province-text`">省/州 <span>*</span></Label><Input :id="`${fieldId}-province-text`" v-model="form.province" autocomplete="address-level1" placeholder="请输入省/州" required /></div><div class="field"><Label :for="`${fieldId}-city-text`">城市 <span>*</span></Label><Input :id="`${fieldId}-city-text`" v-model="form.city" autocomplete="address-level2" placeholder="请输入城市" required /></div></div>
+      <div v-else class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-province-text`">省/州 <span>*</span></Label><Input :id="`${fieldId}-province-text`" v-model="form.province" autocomplete="address-level1" placeholder="请输入省/州" required /></div><div class="field"><Label :for="`${fieldId}-city-text`">城市 <span>*</span></Label><Input :id="`${fieldId}-city-text`" v-model="form.city" autocomplete="address-level2" placeholder="请输入城市" required /></div></div>
       <div class="field"><Label :for="`${fieldId}-detail`">详细地址 <span>*</span></Label><Textarea :id="`${fieldId}-detail`" v-model="form.detailAddress" :rows="3" autocomplete="street-address" required placeholder="街道、门牌号、楼栋等" /></div>
-      <div class="two-fields"><div class="field"><Label :for="`${fieldId}-postal`">邮编</Label><Input :id="`${fieldId}-postal`" v-model="form.postalCode" autocomplete="postal-code" placeholder="选填，请输入邮编" /></div><div class="field"><Label :for="`${fieldId}-identity`">清关证件号</Label><Input :id="`${fieldId}-identity`" v-model="form.idCardNo" placeholder="选填，请输入清关证件号" /></div></div>
-      <label class="default-field"><Checkbox :model-value="!!form.defaultFlag" aria-label="设为默认地址" :disabled="submitting" @update:model-value="value => form.defaultFlag = value === true" />设为默认地址</label>
+      <div class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-postal`">邮编</Label><Input :id="`${fieldId}-postal`" v-model="form.postalCode" autocomplete="postal-code" placeholder="选填，请输入邮编" /></div><div class="field"><Label :for="`${fieldId}-identity`">清关证件号</Label><Input :id="`${fieldId}-identity`" v-model="form.idCardNo" placeholder="选填，请输入清关证件号" /></div></div>
+      <label class="default-field" :class="{ 'check-label': v47 }"><input v-if="v47" v-model="form.defaultFlag" type="checkbox" :disabled="submitting" /><Checkbox v-else :model-value="!!form.defaultFlag" aria-label="设为默认地址" :disabled="submitting" @update:model-value="value => form.defaultFlag = value === true" />设为默认地址</label>
     </fieldset>
-    <div class="actions"><Button type="submit" :disabled="!canSubmit || submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在保存' : '保存地址' }}</Button></div>
+    <div class="actions"><button v-if="v47" type="submit" class="primary full" :disabled="!canSubmit || submitting">{{ submitting ? '正在保存…' : '保存地址' }}</button><Button v-else type="submit" :disabled="!canSubmit || submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在保存' : '保存地址' }}</Button></div>
   </form>
 </template>
 
@@ -144,5 +144,14 @@ function submit() {
 .notice button { margin-top: 10px; }
 .loading-note { display: flex; align-items: center; gap: 8px; color: var(--yb-muted); font-size: 13px; margin-bottom: 16px; }
 .empty-options { padding: 12px; margin: 0; color: var(--yb-muted); font-size: 13px; }
+.address-form.v47 .form-fields { display:block; }
+.address-form.v47 .form-grid { gap:15px; }
+.address-form.v47 .field { margin:15px 0; }
+.address-form.v47 .form-grid .field { margin:12px 0 0; }
+.address-form.v47 .field :deep(input),.address-form.v47 .field :deep(.address-select-trigger),.address-form.v47 .field :deep(textarea) { width:100%; height:auto; padding:10px 12px; border:1px solid var(--ui-d9ded5,#d9ded5); border-radius:6px; background:var(--paper); color:var(--ink); font-size:16px; line-height:1.55; }
+.address-form.v47 .field :deep(label) { font-size:16px; line-height:1.55; }
+.address-form.v47 .field :deep(textarea) { min-height:85px; }
+.address-form.v47 .default-field { gap:0; margin:18px 0; }
+.address-form.v47 .actions { display:block; margin-top:0; }
 @media (max-width: 500px) { .two-fields, .region-fields { grid-template-columns: 1fr; } }
 </style>

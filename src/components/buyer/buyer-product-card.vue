@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { computed } from 'vue';
 import { Message } from '@/lib/feedback';
 import { getAftersaleMeta } from '@/service/api/product';
-import PriceTag from '@/components/product/price-tag.vue';
+import UmIcon from '@/components/common/um-icon.vue';
+import { formatUsdt } from '@shared/utils/currency';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
@@ -69,23 +69,19 @@ const deleteVisible = ref(false);
 </script>
 
 <template>
-  <article class="bp-card">
-    <div class="cover-wrap"><img :src="cover" :alt="product.title" class="cover" @error="setImageFallback" /><span class="cover-status" :class="product.status">{{ statusMeta.label }}</span></div>
-    <div class="body"><h3 class="title" :title="product.title">{{ product.title }}</h3><div class="tags"><span class="shelf-tag" :class="product.shelfStatus">{{ shelfMeta.label }}</span><span>{{ aftersaleMeta.label }}</span></div><p v-if="product.status === 'REJECTED' && product.draftAuditOpinion" class="reject-reason">驳回原因：{{ product.draftAuditOpinion }}</p><div class="meta-row"><PriceTag :price="product.price" size="sm" /><span class="stock">库存 {{ product.stock }}</span></div><div class="stats"><span>销量 {{ product.salesCount ?? '—' }}</span><span>浏览 {{ product.viewCount ?? '—' }}</span><span>收藏 {{ product.favoriteCount ?? '—' }}</span></div>
-      <div class="actions"><Tooltip><TooltipTrigger as-child><span class="action-trigger" :tabindex="editDisabledReason ? 0 : undefined" :aria-label="editDisabledReason || undefined"><Button type="button" variant="outline" size="sm" :disabled="!!editDisabledReason" @click="emit('edit', product)">编辑</Button></span></TooltipTrigger><TooltipContent v-if="editDisabledReason">{{ editDisabledReason }}</TooltipContent></Tooltip><Tooltip><TooltipTrigger as-child><span class="action-trigger" :tabindex="priceDisabledReason ? 0 : undefined" :aria-label="priceDisabledReason || undefined"><Button type="button" variant="outline" size="sm" :disabled="!!priceDisabledReason" @click="emit('price', product)">改价</Button></span></TooltipTrigger><TooltipContent v-if="priceDisabledReason">{{ priceDisabledReason }}</TooltipContent></Tooltip>
-        <Button v-if="product.status === 'NORMAL'" type="button" :variant="product.shelfStatus === 'on-shelf' ? 'outline' : 'default'" size="sm" :disabled="shelving || deleting || busy" @click="toggleShelf">{{ shelving ? '处理中…' : product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}</Button><Button type="button" variant="ghost" size="sm" class="delete-button" :disabled="deleting || shelving || busy" @click="deleteVisible = true">{{ deleting ? '删除中…' : '删除' }}</Button>
-      </div>
+  <article class="buyer-product">
+    <div class="buyer-product-image"><img :src="cover" :alt="product.title" @error="setImageFallback" /><span class="buyer-status" :class="rawStatus || product.status">{{ product.status === 'NORMAL' ? shelfMeta.label : statusMeta.label }}</span></div>
+    <div class="buyer-product-body"><small>{{ product.categoryPath }} · {{ aftersaleMeta.label }}</small><h3 :title="product.title">{{ product.title }}</h3><div class="buyer-product-price"><b>{{ formatUsdt(product.price).replace(/^U /, '') }} <small>USDT</small></b><span>库存 {{ product.stock }}</span></div><div class="buyer-product-stats"><span>销量 {{ product.salesCount ?? '—' }}</span><span>浏览 {{ product.viewCount ?? '—' }}</span><span>收藏 {{ product.favoriteCount ?? '—' }}</span></div><p v-if="product.status === 'REJECTED' && product.draftAuditOpinion" class="buyer-rejection">驳回原因：{{ product.draftAuditOpinion }}</p><p v-else class="buyer-inline-hint">{{ rawStatus === 'ON_SALE' ? '编辑前需先下架，快捷改价立即生效。' : ['IN_AUDIT','PENDING_AUDIT'].includes(product.status) ? '审核期间商品保持下架。' : product.status === 'FROZEN' ? '商品已冻结，详情请联系平台。' : '修改后需要重新提交平台审核。' }}</p>
+      <div class="buyer-product-actions"><Tooltip><TooltipTrigger as-child><span class="action-trigger" :tabindex="editDisabledReason ? 0 : undefined" :aria-label="editDisabledReason || undefined"><button type="button" :disabled="!!editDisabledReason" @click="emit('edit', product)">编辑</button></span></TooltipTrigger><TooltipContent v-if="editDisabledReason">{{ editDisabledReason }}</TooltipContent></Tooltip><Tooltip><TooltipTrigger as-child><span class="action-trigger" :tabindex="priceDisabledReason ? 0 : undefined" :aria-label="priceDisabledReason || undefined"><button type="button" :disabled="!!priceDisabledReason" @click="emit('price', product)">改价</button></span></TooltipTrigger><TooltipContent v-if="priceDisabledReason">{{ priceDisabledReason }}</TooltipContent></Tooltip><button v-if="product.status === 'NORMAL'" type="button" class="accent" :disabled="shelving || deleting || busy" @click="toggleShelf">{{ shelving ? '处理中…' : product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}</button><button type="button" class="danger-text" :disabled="deleting || shelving || busy" :aria-label="'删除 ' + product.title" @click="deleteVisible = true"><UmIcon :name="deleting ? 'clock' : 'trash'" /></button></div>
     </div>
-    <a-modal v-model:visible="deleteVisible" title="确认删除商品？" :ok-loading="deleting" :closable="!deleting" :mask-closable="!deleting" :esc-to-close="!deleting" :on-before-cancel="() => !deleting" @ok="emit('delete', product)"><p class="delete-text">{{ product.status === 'IN_AUDIT' ? '审核中的商品删除后无法恢复，确认删除吗？' : '商品删除后无法恢复，确认删除吗？' }}</p><strong class="delete-product">{{ product.title }}</strong></a-modal>
+    <a-modal content-class="buyer-dialog" v-model:visible="deleteVisible" title="确认删除商品？" :ok-loading="deleting" :closable="!deleting" :mask-closable="!deleting" :esc-to-close="!deleting" :on-before-cancel="() => !deleting" @ok="emit('delete', product)"><p class="delete-text">{{ product.status === 'IN_AUDIT' ? '审核中的商品删除后无法恢复，确认删除吗？' : '商品删除后无法恢复，确认删除吗？' }}</p><strong class="delete-product">{{ product.title }}</strong></a-modal>
   </article>
 </template>
 
 <style scoped>
-.bp-card .title { font-size: 16px; margin-bottom: 12px; }
-.bp-card .tags { margin-bottom: 15px; gap: 6px; }
-.bp-card .tags > span { font-size: 11px; }
-.bp-card .stats { font-size: 11px; gap: 12px; margin: 14px 0; padding-top: 12px; }
-.bp-card .actions { gap: 6px; }
-.bp-card .actions :deep(button) { padding: 7px 10px; font-size: 12px; min-height: 32px; }
-.bp-card { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:12px; overflow:hidden; min-width:0; transition:box-shadow 200ms var(--um-ease),transform 200ms var(--um-ease); }.bp-card:hover { transform:translateY(-2px); box-shadow:var(--yb-shadow-2); }.cover-wrap { position:relative; aspect-ratio:1.9/1; background:var(--yb-fill); overflow:hidden; }.cover { width:100%; height:100%; object-fit:cover; transition:transform 250ms var(--um-ease); }.bp-card:hover .cover { transform:scale(1.03); }.cover-status { position:absolute; top:14px; left:14px; padding:5px 10px; border-radius:5px; font-size:12px; background:var(--yb-primary); color:white; }.cover-status.REJECTED,.cover-status.FROZEN { background:var(--yb-danger); }.cover-status.IN_AUDIT,.cover-status.PENDING_AUDIT { background:var(--yb-gold); }.body { padding:20px; }.title { font-size:17px; font-weight:600; margin:0 0 15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.tags { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }.tags>span { font-size:12px; padding:3px 7px; border-radius:4px; color:var(--yb-muted); background:var(--yb-fill); }.tags>.on-shelf { color:var(--yb-success); background:var(--yb-success-soft); }.meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }.stock { font-size:12px; color:var(--yb-muted); flex-shrink:0; }.stats { display:flex; gap:16px; border-top:1px solid var(--yb-hairline); padding-top:16px; margin:18px 0; color:var(--yb-muted); font-size:12px; }.reject-reason { font-size:12px; line-height:1.8; color:var(--yb-danger); background:var(--yb-danger-soft); border-radius:6px; padding:12px; }.actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }.action-trigger { display:inline-flex; border-radius:6px; }.action-trigger :deep(button:disabled) { pointer-events:none; }.delete-button { color:var(--yb-danger); }.delete-text { color:var(--yb-muted); font-size:14px; line-height:1.9; }.delete-product { font-size:15px; overflow-wrap:anywhere; }@media(prefers-reduced-motion:reduce) { .bp-card,.cover { transition:none; }.bp-card:hover { transform:none; }.bp-card:hover .cover { transform:none; } }
+.action-trigger { display:flex; }
+.action-trigger:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
+.action-trigger > button { width:100%; }
+.delete-text { color:var(--muted); line-height:1.9; }
+.delete-product { overflow-wrap:anywhere; }
 </style>

@@ -2,6 +2,7 @@
 import { nextTick, ref } from 'vue';
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui';
 import UmIcon from '@/components/common/um-icon.vue';
+import V47SheetGrip from '@/components/common/v47-sheet-grip.vue';
 
 defineProps<{ modelValue: boolean; url: string }>();
 const address = ref<HTMLInputElement>();
@@ -15,6 +16,7 @@ function selectAddress(event: FocusEvent) { if (event.target instanceof HTMLInpu
     <DialogPortal>
       <DialogOverlay class="modal-overlay v47-reference-mask" />
       <DialogContent class="dialog v47-reference-dialog" @open-auto-focus="focusAddress">
+        <V47SheetGrip :open="modelValue" @dismiss="emit('update:modelValue', false)" />
         <DialogClose class="icon-btn dialog-close" aria-label="关闭分享弹窗"><UmIcon name="close" /></DialogClose>
         <DialogTitle as="h2">分享商品</DialogTitle>
         <DialogDescription as="p">复制下方地址，分享这件商品。</DialogDescription>

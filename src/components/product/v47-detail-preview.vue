@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui';
 import UmIcon from '@/components/common/um-icon.vue';
+import V47SheetGrip from '@/components/common/v47-sheet-grip.vue';
 import { setImageFallback } from '@/utils/image-placeholder';
 
 const props = withDefaults(defineProps<{ modelValue: boolean; images: string[]; startIndex?: number; title?: string; review?: boolean }>(), { startIndex: 0, title: '商品图片' });
@@ -14,6 +15,7 @@ const source = computed(() => props.images[Math.max(0, Math.min(props.images.len
     <DialogPortal>
       <DialogOverlay :class="review ? 'modal-overlay v47-reference-mask' : 'zoom-overlay'" />
       <DialogContent :class="review ? 'dialog review-photo-dialog v47-reference-dialog' : 'zoom-content'" @click="!review && emit('update:modelValue', false)">
+        <V47SheetGrip v-if="review" :open="modelValue" @dismiss="emit('update:modelValue', false)" />
         <span v-if="review" class="eyebrow">REVIEW PHOTO</span>
         <DialogTitle as="h2" :class="review ? undefined : 'sr-only'">{{ title }}</DialogTitle>
         <DialogDescription class="sr-only">{{ review ? '点击关闭按钮或按 Escape 关闭评价配图。' : '点击图片、关闭按钮或按 Escape 关闭大图。' }}</DialogDescription>

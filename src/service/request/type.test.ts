@@ -505,22 +505,22 @@ describe('资金操作结果待确认', () => {
   it('赎回响应丢失后按原锁仓核实，仍持仓不重提，确认已赎回才解除', async () => {
     setupStorage();
     const post = vi.spyOn(realUserRequest, 'post').mockRejectedValue(new TypeError('offline'));
-    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValueOnce({ id: '9007199254740993', status: 'HOLDING' })
-      .mockResolvedValueOnce({ id: '9007199254740993', status: 'REDEEMED' });
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValueOnce({ id: '9007199254740993', status: 'HOLDING', lockDays: 30 })
+      .mockResolvedValueOnce({ id: '9007199254740993', status: 'REDEEMED', lockDays: 30 });
     await expect(redeemFinanceWithReadback('qa-a', '9007199254740993', '123456')).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
     expect(financialSubmissionIssue('qa-a', 'finance-redeem:9007199254740993')).not.toBe('');
     expect(await redeemFinanceWithReadback('qa-a', '9007199254740993', '123456')).toBe('9007199254740993');
     expect(post).toHaveBeenCalledTimes(1);
     expect(get).toHaveBeenCalledTimes(2);
-    expect(get).toHaveBeenLastCalledWith('/finance/orders/detail', { params: { id: '9007199254740993' }, showError: false });
+    expect(get).toHaveBeenLastCalledWith('/finance/orders/detail', { params: { id: '9007199254740993' }, showError: false, preserveDecimals: true });
     expect(financialSubmissionIssue('qa-a', 'finance-redeem:9007199254740993')).toBe('');
   });
 
   it('赎回未知结果不接受其他订单、未确定状态或读取失败作为成功', async () => {
     setupStorage();
     const post = vi.spyOn(realUserRequest, 'post').mockResolvedValue('wrong-id');
-    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValueOnce({ id: 'other', status: 'REDEEMED' })
-      .mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce({ id: '1', status: 'SETTLED' });
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValueOnce({ id: 'other', status: 'REDEEMED', lockDays: 30 })
+      .mockRejectedValueOnce(new TypeError('offline')).mockResolvedValueOnce({ id: '1', status: 'SETTLED', lockDays: 30 });
     for (let attempt = 0; attempt < 3; attempt++) {
       await expect(redeemFinanceWithReadback('qa-a', '1', '123456')).rejects.toMatchObject({ code: 'FINANCIAL_PENDING' });
     }
@@ -904,24 +904,219 @@ describe('登录失效跳转边界', () => {
     expect(assign).toHaveBeenCalledWith(`/auth/login?redirect=${encodeURIComponent('/order?view=sell&page=2#qa-target')}`);
   });
 
-  it('缺失余额仅在资产分布按零展示，原始余额保持未知', async () => {
+  it('资产分布保留缺失余额和百分比未知，真实零仍显示零', async () => {
     const { user, wallet } = setupUser();
     const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({ total: '100', todayIn: 0, todayOut: 0,
-      distribution: [{ type: 'AVAILABLE', amount: '100' }] });
+      distribution: [{ type: 'AVAILABLE', amount: '100' }, { type: 'NON_WITHDRAWABLE', amount: 0 }] });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(wallet.totalAssets).toBe('100');
     expect(wallet.account?.frozenOrder).toBeUndefined();
     expect(wallet.partialData).toBe(false);
     expect(wallet.compositionReady).toBe(true);
     expect(wallet.bucketsWithPct.find(b => b.key === 'available')?.pct).toBe(100);
-    expect(wallet.bucketsWithPct.find(b => b.key === 'frozenOrder')).toMatchObject({ value: '0', pct: 0 });
+    expect(wallet.bucketsWithPct.find(b => b.key === 'frozenOrder')).toMatchObject({ value: undefined, pct: undefined });
+    expect(wallet.bucketsWithPct.find(b => b.key === 'nonWithdrawable')).toMatchObject({ value: '0', pct: 0 });
     expect(wallet.compositionBreakdown).toMatchObject([{ value: '100', pct: 1 }]);
+    get.mockResolvedValue({ todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '100' }] });
+    await wallet.fetchWallet(user.currentUser!.id);
+    expect(wallet.bucketsWithPct.find(b => b.key === 'available')).toMatchObject({ value: '100', pct: undefined });
+    expect(wallet.compositionReady).toBe(false);
     get.mockResolvedValue({ total: 0, todayIn: 0, todayOut: 0, distribution:
       ['AVAILABLE', 'NON_WITHDRAWABLE', 'FINANCE_LOCKED', 'ORDER_FROZEN', 'RISK_FROZEN'].map(type => ({ type, amount: 0 })) });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(wallet.partialData).toBe(false);
     expect(wallet.compositionReady).toBe(true);
     expect(wallet.bucketsWithPct.every(b => b.value === '0' && b.pct === 0)).toBe(true);
+  });
+
+  it('同账号两个消费者并发读取钱包仅发一次请求，双方都取得成功', async () => {
+    const { user, wallet } = setupUser();
+    const response = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValue(response.promise);
+    const background = wallet.fetchWallet(user.currentUser!.id);
+    const operation = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls[0][1]?.signal?.aborted).toBe(false);
+    expect(wallet.loading).toBe(true);
+    response.resolve({ total: '42.01', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '42.01' }] });
+    await expect(Promise.all([background, operation])).resolves.toEqual([undefined, undefined]);
+    expect(wallet.account).toMatchObject({ userId: 'account-a', available: '42.01' });
+    expect(wallet.totalAssets).toBe('42.01');
+    expect(wallet.loading).toBe(false);
+    expect(wallet.lastFetchedAt).toBeGreaterThan(0);
+  });
+
+  it('共享钱包读取的真实失败同时拒绝两个消费者，失败后允许重新读取', async () => {
+    const { user, wallet } = setupUser();
+    const response = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(response.promise);
+    const results = Promise.allSettled([wallet.fetchWallet(user.currentUser!.id), wallet.fetchWallet(user.currentUser!.id)]);
+    await Promise.resolve();
+    expect(get).toHaveBeenCalledTimes(1);
+    const failure = new Error('wallet overview offline');
+    response.reject(failure);
+    await expect(results).resolves.toEqual([{ status: 'rejected', reason: failure }, { status: 'rejected', reason: failure }]);
+    expect(wallet.account).toBeUndefined();
+    expect(wallet.lastFetchedAt).toBe(0);
+    expect(wallet.loading).toBe(false);
+    get.mockResolvedValueOnce({ total: '8', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '8' }] });
+    await wallet.fetchWallet(user.currentUser!.id);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(wallet.account?.available).toBe('8');
+  });
+
+  it('切换账号取消旧钱包请求，旧响应不能覆盖新账号或提前结束加载', async () => {
+    const { user, wallet } = setupUser();
+    const oldResponse = deferred<Api.RealWallet.WalletVO>();
+    const newResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(oldResponse.promise).mockReturnValueOnce(newResponse.promise);
+    const oldRequest = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    user.currentUser = { id: 'account-b', isBuyer: false } as Api.RealSession.UserRecord;
+    const newRequest = wallet.fetchWallet(user.currentUser.id);
+    await Promise.resolve();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    expect(get.mock.calls[1][1]?.signal?.aborted).toBe(false);
+    oldResponse.resolve({ total: '100', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '100' }] });
+    await oldRequest;
+    expect(wallet.account).toBeUndefined();
+    expect(wallet.loading).toBe(true);
+    newResponse.resolve({ total: '7', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '7' }] });
+    await newRequest;
+    expect(wallet.account).toMatchObject({ userId: 'account-b', available: '7' });
+    expect(wallet.totalAssets).toBe('7');
+    expect(wallet.loading).toBe(false);
+  });
+
+  it('clear 取消并释放同账号共享读取，旧失败不能清除新快照', async () => {
+    const { user, wallet } = setupUser();
+    const oldResponse = deferred<Api.RealWallet.WalletVO>();
+    const newResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(oldResponse.promise).mockReturnValueOnce(newResponse.promise);
+    const oldResult = Promise.allSettled([wallet.fetchWallet(user.currentUser!.id), wallet.fetchWallet(user.currentUser!.id)]);
+    await Promise.resolve();
+    wallet.clear();
+    expect(get.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    expect(wallet.loading).toBe(false);
+    expect(wallet.account).toBeUndefined();
+    const newRequest = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    expect(get).toHaveBeenCalledTimes(2);
+    newResponse.resolve({ total: '9', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '9' }] });
+    await newRequest;
+    const fetchedAt = wallet.lastFetchedAt;
+    const failure = new Error('old wallet aborted');
+    oldResponse.reject(failure);
+    await expect(oldResult).resolves.toEqual([{ status: 'rejected', reason: failure }, { status: 'rejected', reason: failure }]);
+    expect(wallet.account).toMatchObject({ userId: 'account-a', available: '9' });
+    expect(wallet.totalAssets).toBe('9');
+    expect(wallet.lastFetchedAt).toBe(fetchedAt);
+    expect(wallet.loading).toBe(false);
+  });
+
+  it('操作后 refetch 等旧读取完成再取得新余额，多个刷新共享新读且不取消背景消费者', async () => {
+    const { user, wallet } = setupUser();
+    const oldResponse = deferred<Api.RealWallet.WalletVO>();
+    const freshResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(oldResponse.promise).mockReturnValueOnce(freshResponse.promise);
+    const background = wallet.fetchWallet(user.currentUser!.id);
+    const operation = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    const refreshes = Promise.all([wallet.refetch(), wallet.refetch()]);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get.mock.calls[0][1]?.signal?.aborted).toBe(false);
+    oldResponse.resolve({ total: '10', distribution: [{ type: 'AVAILABLE', amount: '10' }] });
+    await expect(Promise.all([background, operation])).resolves.toEqual([undefined, undefined]);
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    freshResponse.resolve({ total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
+    await refreshes;
+    expect(wallet.totalAssets).toBe('20');
+    expect(wallet.account?.available).toBe('20');
+    expect(wallet.loading).toBe(false);
+  });
+
+  it('refetch 不吞旧读取的真实错误，后续新读取的失败仍向刷新调用者返回', async () => {
+    const { user, wallet } = setupUser();
+    const oldResponse = deferred<Api.RealWallet.WalletVO>();
+    const freshResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(oldResponse.promise).mockReturnValueOnce(freshResponse.promise);
+    const background = Promise.allSettled([wallet.fetchWallet(user.currentUser!.id)]);
+    await Promise.resolve();
+    const refresh = Promise.allSettled([wallet.refetch()]);
+    const oldFailure = new Error('old overview offline');
+    oldResponse.reject(oldFailure);
+    await expect(background).resolves.toEqual([{ status: 'rejected', reason: oldFailure }]);
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    const freshFailure = new Error('fresh overview offline');
+    freshResponse.reject(freshFailure);
+    await expect(refresh).resolves.toEqual([{ status: 'rejected', reason: freshFailure }]);
+    expect(wallet.account).toBeUndefined();
+    expect(wallet.loading).toBe(false);
+  });
+
+  it('refetch 等待期间切换账号，旧读取结束不会再请求旧账号', async () => {
+    const { user, wallet } = setupUser();
+    const oldResponse = deferred<Api.RealWallet.WalletVO>();
+    const newResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(oldResponse.promise).mockReturnValueOnce(newResponse.promise);
+    const oldRequest = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    const refresh = wallet.refetch();
+    user.currentUser = { id: 'account-b', isBuyer: false } as Api.RealSession.UserRecord;
+    const newRequest = wallet.fetchWallet(user.currentUser.id);
+    await Promise.resolve();
+    oldResponse.resolve({ total: '10' });
+    await Promise.all([oldRequest, refresh]);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(wallet.loading).toBe(true);
+    newResponse.resolve({ total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
+    await newRequest;
+    expect(wallet.account).toMatchObject({ userId: 'account-b', available: '20' });
+  });
+
+  it('clear 后同账号重新读取也不会唤醒旧 refetch 或覆盖新余额', async () => {
+    const { user, wallet } = setupUser();
+    const oldResponse = deferred<Api.RealWallet.WalletVO>();
+    const newResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(oldResponse.promise).mockReturnValueOnce(newResponse.promise);
+    const oldRequest = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    const refresh = wallet.refetch();
+    wallet.clear();
+    const newRequest = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    newResponse.resolve({ total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
+    await newRequest;
+    oldResponse.resolve({ total: '10' });
+    await Promise.all([oldRequest, refresh]);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(wallet.totalAssets).toBe('20');
+    expect(wallet.account?.available).toBe('20');
+  });
+
+  it('新的操作发生在上次刷新在途时，下一次 refetch 继续取得操作后的第三次快照', async () => {
+    const { user, wallet } = setupUser();
+    const firstResponse = deferred<Api.RealWallet.WalletVO>();
+    const secondResponse = deferred<Api.RealWallet.WalletVO>();
+    const thirdResponse = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(firstResponse.promise)
+      .mockReturnValueOnce(secondResponse.promise).mockReturnValueOnce(thirdResponse.promise);
+    const firstRequest = wallet.fetchWallet(user.currentUser!.id);
+    await Promise.resolve();
+    const firstRefresh = wallet.refetch();
+    firstResponse.resolve({ total: '10' });
+    await firstRequest;
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+    const secondRefresh = wallet.refetch();
+    secondResponse.resolve({ total: '20' });
+    await firstRefresh;
+    await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(3));
+    thirdResponse.resolve({ total: '30' });
+    await secondRefresh;
+    expect(wallet.totalAssets).toBe('30');
+    expect(wallet.loading).toBe(false);
   });
 
   it('原评价在组件离开后仍保留，重试只使用原快照，普通用户资料刷新不清理', async () => {

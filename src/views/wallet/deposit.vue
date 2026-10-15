@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import UmIcon from '@/components/common/um-icon.vue';
+import WalletOperationDialog from '@/components/wallet/wallet-operation-dialog.vue';
+import V47VaultDialog from '@/components/finance/v47-vault-dialog.vue';
+import V47DepositQr from '@/components/wallet/v47-deposit-qr.vue';
+import WalletHome from './index.vue';
+import BuyerWallet from '@/views/buyer/wallet.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import BusinessPagination from '@/components/common/business-pagination.vue';
-import AmountInput from '@/components/common/amount-input.vue';
+import { exactNumericAmount, compareDecimalAmount } from '@/components/wallet/decimal-amount';
 import DescriptionList from '@/components/common/description-list.vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
-import { formatAmount } from '@shared';
+import { formatFinanceAmount as formatAmount } from '@/components/finance/v47-interest-math';
 import * as realWalletApi from '@/service/api/wallet';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
@@ -31,7 +28,13 @@ const walletStore = useWalletStore();
 const route = useRoute();
 const router = useRouter();
 const activeTab = ref<'create' | 'address' | 'wallet'>('create');
-const amount = ref(100);
+const depositMethod = ref<'address' | 'wallet' | 'amount'>('address');
+const operationView = ref<'form' | 'records' | 'created'>('form');
+const walletReturn = computed(() => userStore.isBuyerActive ? '/buyer/wallet' : '/wallet');
+function closeOperation() { if (!submitting.value && !directBusy.value) void router.replace(walletReturn.value); }
+onBeforeRouteLeave(() => { if (submitting.value || directBusy.value) { Message.warning('正在处理本次充值，请稍候'); return false; } });
+watch(activeTab, value => { if (value === 'address') operationView.value = 'created'; });
+const amountDraft = ref('100');
 const chain = ref<string>();
 const submitting = ref(false);
 const submissionUnknown = ref(false);
@@ -42,7 +45,11 @@ function refreshSubmissionIssue() {
 }
 const rechargeIntentApi = {
   lookup: realWalletApi.fetchRechargeByKey,
-  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => realWalletApi.createRecharge({ chain: snapshot.chain!, amount: Number(snapshot.amount), idempotencyKey }, { showError: false })
+  submit: (snapshot: FinancialSnapshot, idempotencyKey: string) => {
+    const amount = exactNumericAmount(snapshot.amount, 18);
+    if (amount.value === undefined) throw new Error('原申报金额无法准确提交，请联系平台核对');
+    return realWalletApi.createRecharge({ chain: snapshot.chain!, amount: amount.value, idempotencyKey }, { showError: false });
+  }
 };
 
 async function restoreRecharge() {
@@ -201,11 +208,6 @@ function directRawAmount(value: string, decimals: number, minimums: Array<string
   return raw.toString();
 }
 
-const statusColor = computed(() => (status?: string) => {
-  if (status === 'CONFIRMED') return 'green';
-  if (status === 'CANCELED') return 'red';
-  return 'orange';
-});
 
 function formatTime(value?: string | number) {
   if (!value) return '—';
@@ -293,6 +295,7 @@ async function loadRechargeAddress(chainCode = chain.value) {
   rechargeAddress.value = undefined;
   try {
     const address = await realWalletApi.fetchRechargeAddress(chainCode, { signal: isCurrent.signal, showError: false });
+    if (!address?.address?.trim() || address.chain !== chainCode) throw new Error('充值地址与所选网络不一致');
     if (isCurrent() && chainCode === chain.value) rechargeAddress.value = address;
   } catch {
     if (isCurrent() && chainCode === chain.value) {
@@ -456,19 +459,28 @@ function clearDirectProgress() {
 async function createRecharge() {
   refreshSubmissionIssue();
   if (submitting.value || submissionUnknown.value) return;
-  if (pendingRechargeReadId.value === undefined && (!Number.isFinite(amount.value) || amount.value <= 0)) {
-    Message.warning('请输入正确的充值金额');
+  const chainCode = selectedChain.value?.chain;
+  const amount = exactNumericAmount(amountDraft.value, selectedChain.value?.decimals ?? 2);
+  if (pendingRechargeReadId.value === undefined && amount.value === undefined) {
+    Message.warning(amount.error);
     return;
   }
-  const requestedAmount = amount.value;
-  const chainCode = selectedChain.value?.chain;
+  const requestedAmount = amount.value ?? 0;
+  if (pendingRechargeReadId.value === undefined && compareDecimalAmount(amountDraft.value, '0.01') === -1) {
+    Message.warning('充值申报金额最少为 0.01 USDT');
+    return;
+  }
   if (pendingRechargeReadId.value === undefined && !chainCode) {
     Message.warning('当前没有可用充值链');
     return;
   }
-  const minAmount = Number(selectedChain.value?.minAmount || 0);
-  if (pendingRechargeReadId.value === undefined && minAmount > 0 && requestedAmount < minAmount) {
-    Message.warning(`该链单笔最低充值金额为 ${minAmount} USDT`);
+  const minimum = selectedChain.value?.minAmount;
+  if (pendingRechargeReadId.value === undefined && minimum !== undefined && compareDecimalAmount(minimum, 0) === undefined) {
+    Message.warning('最低充值金额配置未确认，请重新读取');
+    return;
+  }
+  if (pendingRechargeReadId.value === undefined && minimum !== undefined && compareDecimalAmount(amountDraft.value, minimum) === -1) {
+    Message.warning(`该链单笔最低充值金额为 ${minimum} USDT`);
     return;
   }
   const requestedUserId = userStore.currentUser?.id;
@@ -500,6 +512,7 @@ async function createRecharge() {
     try {
       const nextRecharge = await realWalletApi.fetchRechargeDetail(pendingRechargeReadId.value!, { showError: false });
       if (!isCurrentWrite()) return;
+      if (String(nextRecharge.id) !== String(pendingRechargeReadId.value)) throw new Error('充值申报回读对象不一致');
       currentRecharge.value = nextRecharge;
       pendingRechargeReadId.value = undefined;
       activeTab.value = 'address';
@@ -662,62 +675,59 @@ const statusFilter = computed({
 </script>
 
 <template>
-  <div class="deposit-page shop-container">
-    <header class="page-head"><div><span class="eyebrow">WALLET DEPOSIT</span><h1>钱包链上充值</h1><p class="hint">选择充值链后，可直接使用专属地址完成 USDT 转账；如需留存申报记录，可填写金额后创建充值订单。</p></div><Button variant="outline" @click="router.push('/wallet')">返回钱包</Button></header>
-    <Alert v-if="submissionUnknown" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>上次申报结果待核实，恢复时先查原单，仅明确未落地才按原键原参重试。旧无键记录只读核实。<p v-if="pendingSnapshot">原申报：{{ pendingSnapshot.chain }} · U {{ formatAmount(pendingSnapshot.amount) }}</p><div class="notice-actions"><Button variant="outline" :disabled="submitting" @click="restoreRecharge">{{ submitting ? '正在核对…' : '恢复原申报' }}</Button><Button variant="outline" :disabled="loadingRecords" @click="loadRecords">核对申报记录</Button></div></AlertDescription></Alert>
-    <Alert v-if="loadError" variant="destructive" class="notice"><Icon icon="lucide:circle-alert" /><AlertDescription>{{ loadError }}<div class="notice-actions"><Button variant="outline" @click="loadAll">重新加载</Button></div></AlertDescription></Alert>
-    <section class="panel tab-panel">
-      <Tabs v-model="activeTab">
-        <TabsList class="deposit-tabs"><TabsTrigger value="create">充值地址与申报</TabsTrigger><TabsTrigger value="wallet">钱包直充</TabsTrigger><TabsTrigger value="address">申报订单信息</TabsTrigger></TabsList>
-        <TabsContent value="create">
-          <div class="recharge-form">
-            <div class="fields">
-              <div class="field"><Label for="recharge-chain">链选择</Label><Select v-model="chain" :disabled="loadingChains || submitting"><SelectTrigger id="recharge-chain"><SelectValue :placeholder="loadingChains ? '正在读取充值链…' : '请选择充值链'" /></SelectTrigger><SelectContent><SelectItem v-for="option in chainOptions" :key="option.chain" :value="option.chain">{{ option.label }}（{{ option.chain }}）</SelectItem></SelectContent></Select></div>
-              <div class="field"><Label for="recharge-amount">申报金额 (USDT)</Label><AmountInput id="recharge-amount" v-model="amount" :min="0.01" :precision="selectedChain?.decimals ?? 2" placeholder="请输入充值金额" :disabled="submitting" /></div>
-            </div>
-            <div v-if="loadingAddress" class="address-block skeletons"><Skeleton class="h-5 w-1/2" /><Skeleton class="h-10" /></div>
-            <div v-else-if="rechargeAddress?.address" class="address-block">
-              <div class="address-head"><div><div class="address-label">{{ selectedChain?.label || rechargeAddress.chain }}（{{ selectedChain?.chain || rechargeAddress.chain }}）专属充值地址</div><div class="address-value">{{ rechargeAddress.address }}</div></div><Button variant="outline" size="sm" @click="copy(rechargeAddress.address)"><Icon icon="lucide:copy" width="15" />复制地址</Button></div>
-              <div v-if="rechargeAddress.memo" class="minimum-hint">Memo / Tag：{{ rechargeAddress.memo }}</div><div v-if="rechargeAddress.minAmount" class="minimum-hint">建议最低充值金额：{{ rechargeAddress.minAmount }} USDT</div><div v-if="rechargeAddress.minConfirmations" class="minimum-hint">到账确认数：{{ rechargeAddress.minConfirmations }}</div>
-            </div>
-            <Alert v-else-if="selectedChain" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>{{ addressError || '充值地址暂不可用，请稍后重新加载。' }}<div class="notice-actions"><Button variant="outline" @click="loadRechargeAddress()">重新读取地址</Button></div></AlertDescription></Alert>
-            <Alert class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>请务必使用所选链转账；到账状态以链上确认和平台审核结果为准。</AlertDescription></Alert>
-            <div class="optional-order"><div><strong>可选：创建充值申报记录</strong><p>直接向上述地址转账即可到账；创建订单仅用于提前留存本次充值金额。</p></div><Tooltip><TooltipTrigger as-child><span tabindex="0"><Button :disabled="submitting || submissionUnknown" @click="createRecharge">{{ submitting ? '正在处理…' : pendingRechargeReadId !== undefined ? '重试读取已创建申报' : '创建申报订单' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitting || submissionUnknown">{{ submitting ? '申报正在处理，请稍候' : '请先核对上一笔申报结果' }}</TooltipContent></Tooltip></div>
-          </div>
-        </TabsContent>
-        <TabsContent value="wallet">
-          <div class="recharge-form">
-            <Alert class="notice info"><Icon icon="lucide:info" /><AlertDescription>浏览器钱包会向您的专属地址直接转入 USDT，无需创建充值申报单。请准备该网络的 Gas 币；下方申报记录可能不包含这笔直充，请到钱包流水核对实际入账。</AlertDescription></Alert>
-            <div class="fields"><div class="field"><Label for="direct-chain">充值链</Label><Select v-model="chain" :disabled="loadingChains || directBusy"><SelectTrigger id="direct-chain"><SelectValue :placeholder="loadingChains ? '正在读取充值链…' : '请选择充值链'" /></SelectTrigger><SelectContent><SelectItem v-for="option in chainOptions" :key="option.chain" :value="option.chain">{{ option.label }}（{{ option.chain }}）</SelectItem></SelectContent></Select></div><div class="field"><Label for="direct-amount">转账金额 (USDT)</Label><Input id="direct-amount" v-model="directAmount" inputmode="decimal" placeholder="请输入 USDT 金额" :disabled="directBusy" /></div></div>
-            <div class="address-block"><div class="address-label">网络</div><div class="address-value">{{ selectedWalletChain?.network || '—' }}</div><div class="address-label">专属收款地址</div><div class="address-value">{{ rechargeAddress?.address || '—' }}</div><div class="address-label">USDT 合约</div><div class="address-value">{{ rechargeAddress?.tokenContract || '—' }}</div><div v-if="rechargeAddress?.minAmount || selectedChain?.minAmount" class="minimum-hint">最低充值金额：{{ rechargeAddress?.minAmount || selectedChain?.minAmount }} USDT</div><div v-if="rechargeAddress?.minConfirmations" class="minimum-hint">到账确认数：{{ rechargeAddress.minConfirmations }}</div></div>
-            <Alert v-if="directConfigError" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>{{ directConfigError }}<div class="notice-actions"><Button variant="outline" :disabled="directBusy" @click="reloadDirectConfig">重新加载</Button></div></AlertDescription></Alert>
-            <Alert v-if="directError" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription>{{ directError }}</AlertDescription></Alert>
-            <Alert v-if="directProgress || directProgressError" class="notice warning"><Icon icon="lucide:triangle-alert" /><AlertDescription><template v-if="directProgress"><p>{{ directBusy ? '本次' : '上一笔' }} {{ directProgress.chain }} · {{ directProgress.amount }} USDT {{ directBusy ? '正在等待钱包返回转账结果。' : '转账结果待核对。' }}</p><p v-if="directProgress.txHash" class="transaction-hash">交易哈希：{{ directProgress.txHash }}</p><p>{{ directProgress.txHash ? '请等待平台确认到账，勿重复转账。' : directBusy ? '请在钱包中确认或取消；当前尚未取得交易哈希。' : '尚未取得交易哈希，请先核对钱包交易记录，勿重复转账。' }}</p></template><p v-else>{{ directProgressError }}</p><div class="notice-actions"><Button variant="outline" @click="router.push({ name: 'wallet-history' })">查看钱包流水</Button><Button variant="outline" :disabled="directBusy" @click="clearDirectProgress">核对后开始下一笔</Button></div></AlertDescription></Alert>
-            <div class="wallet-operations"><Select v-model="walletKey" :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError"><SelectTrigger class="wallet-select" aria-label="选择浏览器钱包"><SelectValue placeholder="选择已安装的钱包" /></SelectTrigger><SelectContent><SelectItem v-for="item in directWallets" :key="item.key" :value="item.key">{{ item.label }}</SelectItem></SelectContent></Select><Tooltip><TooltipTrigger as-child><span tabindex="0"><Button :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError || !walletKey || !directWallets.length" @click="directTransfer">{{ directBusy ? '等待钱包操作…' : '连接钱包并转账' }}</Button></span></TooltipTrigger><TooltipContent v-if="directBusy || directConfigError || directProgress || directProgressError || !walletKey || !directWallets.length">{{ directBusy ? '请在钱包中确认或取消' : directProgressError || (directProgress ? '请先核对上一笔直充结果' : directConfigError) || (!directWallets.length ? '未检测到可用浏览器钱包' : '请先选择钱包') }}</TooltipContent></Tooltip></div>
-            <p v-if="!directWallets.length" class="minimum-hint">未检测到当前链可用的浏览器钱包，请安装并解锁 MetaMask、OKX Wallet 或 TronLink。</p>
-          </div>
-        </TabsContent>
-        <TabsContent value="address">
-          <div v-if="currentRecharge" class="recharge-form">
-            <DescriptionList :items="[{ label: '订单编号', value: String(currentRecharge.id) }, { label: '充值链', value: currentRecharge.chain }, { label: '充值金额', value: 'U ' + formatAmount(currentRecharge.amount) }, { label: '订单状态', value: currentRecharge.statusText || currentRecharge.status || 'PENDING' }, { label: '创建时间', value: formatTime(currentRecharge.createdAt) }]" />
-            <div class="address-block"><div class="address-label">收款地址</div><div class="address-value">{{ currentRecharge.depositAddress || '收款地址暂不可用' }}</div><Button v-if="currentRecharge.depositAddress" variant="outline" size="sm" @click="copy(currentRecharge.depositAddress)">复制地址</Button></div><div v-if="currentRecharge.memo" class="address-block"><div class="address-label">Memo / Tag</div><div class="address-value">{{ currentRecharge.memo }}</div><Button variant="outline" size="sm" @click="copy(currentRecharge.memo)">复制 Memo</Button></div>
-          </div><EmptyState v-else title="暂无充值申报订单" />
-        </TabsContent>
-      </Tabs>
+  <div class="wallet-operation-page">
+  <component :is="userStore.isBuyerActive ? BuyerWallet : WalletHome" />
+  <WalletOperationDialog :visible="true" title="转入 · 链上充值" description="选择币种与网络，安心管理每一笔充值。" deposit :busy="submitting || directBusy" @dismiss="closeOperation">
+    <div class="coin-tabs" role="group" aria-label="快捷选择币种"><button class="wallet-disabled-asset" disabled aria-disabled="true"><span class="coin-icon">$</span>USDC</button><button class="active" aria-pressed="true"><span class="coin-icon usdt">₮</span>USDT</button></div>
+    <p class="wallet-asset-unavailable">USDC 充值暂未开放，仅使用已授权的 USDT 网络。</p>
+    <div v-if="submissionUnknown" class="deposit-hint" role="alert"><UmIcon name="shield" /><span>上次充值申报结果待核实，请先核对原申报。<small v-if="pendingSnapshot">原申报：{{ pendingSnapshot.chain }} · {{ formatAmount(pendingSnapshot.amount) }} USDT</small><button class="outline wallet-note-action" :disabled="submitting || directBusy" @click="restoreRecharge">{{ submitting ? '正在核对…' : '恢复原申报' }}</button></span></div>
+    <div v-if="loadError" class="deposit-hint" role="alert"><UmIcon name="return" /><span>{{ loadError }}<button class="outline wallet-note-action" :disabled="submitting || directBusy || loadingChains" @click="loadAll">重新读取</button></span></div>
+    <section class="deposit-panel">
+      <template v-if="operationView === 'form'">
+        <div class="deposit-selectors"><label for="deposit-currency">货币<select id="deposit-currency" disabled><option>USDT</option></select></label><label for="deposit-network">网络<select id="deposit-network" v-model="chain" :disabled="loadingChains || submitting || directBusy"><option v-if="!chainOptions.length" value="">{{ loadingChains ? '正在读取…' : '暂无可用网络' }}</option><option v-for="option in chainOptions" :key="option.chain" :value="option.chain">{{ option.label }}（{{ option.chain }}）</option></select></label></div>
+        <div class="deposit-subline"><span>充值至 USDT 钱包</span><button @click="operationView = 'records'">充值记录<UmIcon name="chevron" /></button></div>
+        <div class="deposit-methods" role="group" aria-label="充值方式"><span :style="{ transform: 'translateX(' + (['address', 'wallet', 'amount'].indexOf(depositMethod) * 100) + '%)' }" /><button v-for="item in [{ key: 'address', label: '地址充值' }, { key: 'wallet', label: '钱包充值' }, { key: 'amount', label: '金额充值' }] as const" :key="item.key" :class="{ active: depositMethod === item.key }" :aria-pressed="depositMethod === item.key" :disabled="submitting || directBusy" @click="depositMethod = item.key">{{ item.label }}</button></div>
+        <div :key="depositMethod" class="deposit-content">
+          <template v-if="depositMethod === 'address'">
+            <div v-if="loadingAddress" class="wallet-skeletons"><Skeleton class="h-44 w-44 mx-auto" /><Skeleton class="h-16" /></div>
+            <template v-else-if="rechargeAddress?.address"><V47DepositQr :address="rechargeAddress.address" :network="selectedChain?.label || rechargeAddress.chain" :memo="rechargeAddress.memo" /><div class="deposit-address"><span>充值地址 · {{ selectedChain?.label || rechargeAddress.chain }}<strong>{{ rechargeAddress.address }}</strong></span><button aria-label="复制充值地址" @click="copy(rechargeAddress.address)"><UmIcon name="box" />复制</button></div><div v-if="rechargeAddress.memo" class="deposit-address"><span>必须填写 Memo / Tag<strong>{{ rechargeAddress.memo }}</strong></span><button aria-label="复制 Memo / Tag" @click="copy(rechargeAddress.memo)"><UmIcon name="box" />复制</button></div><div class="deposit-hint"><UmIcon name="shield" /><span>币种与网络需保持一致<small>地址充值无需创建申报，到账后以平台确认为准。{{ rechargeAddress.memo ? '转账时必须填写上述 Memo / Tag。' : '' }}</small><small v-if="rechargeAddress.minAmount">最低充值金额：{{ rechargeAddress.minAmount }} USDT</small><small v-if="rechargeAddress.minConfirmations">到账确认数：{{ rechargeAddress.minConfirmations }}</small></span></div></template>
+            <div v-else class="deposit-empty"><UmIcon name="wallet" /><h3>充值地址暂不可用</h3><p>{{ addressError || '请先选择可用网络，再读取专属地址。' }}</p><button class="outline wallet-note-action" :disabled="!chain || loadingAddress" @click="loadRechargeAddress()">重新读取地址</button></div>
+          </template>
+          <template v-else-if="depositMethod === 'wallet'">
+            <div class="deposit-wallet-visual"><UmIcon name="wallet" /><h3>从你的钱包，直接充值</h3><p>连接钱包后，核对币种、网络与金额。</p></div>
+            <select v-model="walletKey" class="wallet-provider-select" aria-label="选择浏览器钱包" :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError"><option :value="undefined">选择已安装的钱包</option><option v-for="item in directWallets" :key="item.key" :value="item.key">{{ item.label }}</option></select>
+            <label for="direct-amount" class="deposit-amount">充值金额 <span>USDT</span><input id="direct-amount" v-model="directAmount" inputmode="decimal" autocomplete="off" placeholder="0.00" :disabled="directBusy || !!directProgress || !!directProgressError" /></label>
+            <div class="wallet-network-details">网络：{{ selectedWalletChain?.network || '—' }}<br />专属收款地址：{{ rechargeAddress?.address || '—' }}<br />USDT 合约：{{ rechargeAddress?.tokenContract || '—' }}<br />最低充值金额：{{ rechargeAddress?.minAmount ?? selectedChain?.minAmount ?? '待确认' }} USDT</div>
+            <div v-if="directConfigError" class="deposit-hint" role="alert"><UmIcon name="shield" /><span>{{ directConfigError }}<button class="outline wallet-note-action" :disabled="directBusy" @click="reloadDirectConfig">重新读取配置</button></span></div>
+            <p v-if="directError" class="deposit-error" role="alert">{{ directError }}</p>
+            <div v-if="directProgress || directProgressError" class="deposit-hint" role="alert"><UmIcon name="clock" /><span><template v-if="directProgress"><p>{{ directBusy ? '本次' : '上一笔' }} {{ directProgress.chain }} · {{ directProgress.amount }} USDT {{ directBusy ? '正在等待钱包返回转账结果。' : '转账结果待核对。' }}</p><small v-if="directProgress.txHash">交易哈希：{{ directProgress.txHash }}</small><small>{{ directProgress.txHash ? '请等待平台确认到账，勿重复转账。' : directBusy ? '请在钱包中确认或取消，当前尚未取得交易哈希。' : '尚未取得交易哈希，请先核对钱包交易记录，勿重复转账。' }}</small></template><p v-else>{{ directProgressError }}</p><button class="outline wallet-note-action" :disabled="directBusy" @click="router.push('/wallet/history')">查看钱包流水</button><button class="outline wallet-note-action" :disabled="directBusy" @click="clearDirectProgress">核对后开始下一笔</button></span></div>
+            <button class="deposit-submit full wallet-note-action" :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError || !walletKey || !directWallets.length" @click="directTransfer">{{ directBusy ? '等待钱包操作…' : '连接钱包并转账' }}<UmIcon name="arrow" /></button>
+            <p v-if="!directWallets.length" class="wallet-operation-note">未检测到当前链可用的浏览器钱包，可以使用地址充值。</p><p class="wallet-operation-note">请准备该网络的 Gas 币。钱包直充不创建金额申报，实际入账请到钱包流水核对。</p>
+          </template>
+          <template v-else>
+            <div class="deposit-wallet-visual"><UmIcon name="edit" /><h3>提前登记本次充值</h3><p>创建金额申报后，仍需向对应地址完成转账。</p></div>
+            <form novalidate @submit.prevent="createRecharge" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }"><label for="recharge-amount" class="deposit-amount">充值金额 <span>USDT</span><input id="recharge-amount" v-model="amountDraft" inputmode="decimal" autocomplete="off" placeholder="0.00" :disabled="submitting || submissionUnknown" /></label><p v-if="selectedChain?.minAmount" class="wallet-operation-note">最低充值金额：{{ selectedChain.minAmount }} USDT</p><p v-if="pendingRechargeReadId !== undefined" class="deposit-pending"><UmIcon name="clock" />申报已创建，等待详情读取。不会重复创建申报。</p><button class="deposit-submit full" type="submit" :disabled="submitting || submissionUnknown || !selectedChain">{{ submitting ? '正在处理…' : pendingRechargeReadId !== undefined ? '重试读取已创建申报' : '创建充值申报' }}<UmIcon name="arrow" /></button></form>
+          </template>
+        </div>
+      </template>
+      <template v-else-if="operationView === 'created'">
+        <div class="deposit-record-heading"><button @click="operationView = 'form'; activeTab = 'create'"><UmIcon name="arrow" />返回充值</button><h3>充值申报</h3></div>
+        <template v-if="currentRecharge"><article class="deposit-record"><div><strong>{{ formatAmount(currentRecharge.amount) }} USDT</strong><span>{{ currentRecharge.statusText || currentRecharge.status || '待确认' }}</span></div><p>{{ currentRecharge.chain }} · 金额申报</p><small>{{ formatTime(currentRecharge.createdAt) }}<br />{{ currentRecharge.id }}</small></article><div v-if="currentRecharge.depositAddress" class="deposit-address"><span>收款地址 · {{ currentRecharge.chain }}<strong>{{ currentRecharge.depositAddress }}</strong></span><button @click="copy(currentRecharge.depositAddress)"><UmIcon name="box" />复制</button></div><p v-else class="deposit-error">收款地址暂不可用，请读取申报详情后核对。</p><div v-if="currentRecharge.memo" class="deposit-address"><span>必须填写 Memo / Tag<strong>{{ currentRecharge.memo }}</strong></span><button @click="copy(currentRecharge.memo)"><UmIcon name="box" />复制</button></div><button class="outline full wallet-note-action" @click="showDetail(currentRecharge)">查看申报详情</button></template><EmptyState v-else title="暂无充值申报订单" />
+      </template>
+      <template v-else>
+        <div class="deposit-record-heading"><button @click="operationView = 'form'"><UmIcon name="arrow" />返回充值</button><h3>充值记录</h3></div>
+        <select v-model="statusFilter" class="wallet-record-filter" aria-label="筛选充值记录状态"><option value="all">全部状态</option><option value="PENDING">待确认</option><option value="CONFIRMED">已确认</option><option value="CANCELED">已取消</option></select>
+        <div v-if="loadingRecords && !recentDeposits.length" class="wallet-skeletons"><Skeleton v-for="n in 3" :key="n" class="h-16" /></div>
+        <div v-else-if="recentDeposits.length" :class="{ 'wallet-refreshing': loadingRecords }"><article v-for="record in recentDeposits" :key="record.id" class="deposit-record"><div><strong>{{ formatAmount(record.amount) }} USDT</strong><span>{{ record.statusText || record.status || '待确认' }}</span></div><p>{{ record.chain }} · 金额申报</p><small>{{ formatTime(record.createdAt) }}<br />{{ record.id }}</small><button @click="showDetail(record)">查看详情</button><button v-if="record.status === 'PENDING'" :disabled="cancelingRechargeId !== undefined" @click="cancelRecharge(record)">{{ cancelingRechargeId === record.id ? '取消中…' : '取消申报' }}</button></article></div>
+        <EmptyState v-else :title="recordError || '还没有充值记录'" :description="recordError ? undefined : '金额申报显示在这里，地址与钱包直充请查看资金流水。'" :action-text="recordError ? '重新读取' : undefined" @action="recordError && loadRecords()" />
+        <BusinessPagination v-if="recordTotal > recordSize" :total="recordTotal" :current="recordCurrent" :page-size="recordSize" :loading="loadingRecords" @change="(page: number) => { recordCurrent = page; syncRecordsQuery(); }" />
+        <button class="text-link full wallet-note-action" @click="router.push('/wallet/history')">查看实际入账流水 →</button>
+      </template>
     </section>
-    <section class="panel record-panel" :aria-busy="loadingRecords">
-      <header class="records-head"><h2>充值记录</h2><Select v-model="statusFilter"><SelectTrigger class="status-filter" aria-label="筛选充值记录状态"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="PENDING">待确认</SelectItem><SelectItem value="CONFIRMED">已确认</SelectItem><SelectItem value="CANCELED">已取消</SelectItem></SelectContent></Select></header>
-      <div v-if="loadingRecords && !recentDeposits.length" class="skeletons"><Skeleton v-for="n in 3" :key="n" class="h-16" /></div>
-      <div v-else-if="recentDeposits.length" class="table-scroll" :class="{ refreshing: loadingRecords }"><table><thead><tr><th scope="col">订单编号</th><th scope="col">链</th><th scope="col">金额</th><th scope="col">状态</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody><tr v-for="record in recentDeposits" :key="record.id"><td>{{ record.id }}</td><td>{{ record.chain }}</td><td class="money">U {{ formatAmount(record.amount) }}</td><td><span class="status" :class="statusColor(record.status)">{{ record.statusText || record.status || 'PENDING' }}</span></td><td>{{ formatTime(record.createdAt) }}</td><td><div class="record-actions"><Button variant="link" @click="showDetail(record)">详情</Button><Button v-if="record.status === 'PENDING'" variant="link" class="cancel-link" :disabled="cancelingRechargeId !== undefined" @click="cancelRecharge(record)">{{ cancelingRechargeId === record.id ? '取消中…' : '取消申报' }}</Button></div></td></tr></tbody></table></div>
-      <EmptyState v-else :title="recordError || '暂无链上充值记录'" :action-text="recordError ? '重新加载' : undefined" @action="recordError && loadRecords()" />
-      <BusinessPagination v-if="recordTotal > recordSize" :total="recordTotal" :current="recordCurrent" :page-size="recordSize" :loading="loadingRecords" @change="(page: number) => { recordCurrent = page; syncRecordsQuery(); }" />
-    </section>
-    <Sheet v-model:open="detailOpen"><SheetContent side="right" class="recharge-sheet"><SheetHeader><SheetTitle>充值订单详情</SheetTitle><SheetDescription>申报记录及链上到账状态</SheetDescription></SheetHeader><div class="detail-body"><div v-if="detailLoading" class="skeletons"><Skeleton v-for="n in 5" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ label: '订单编号', value: String(detail.id) }, { label: '链', value: detail.chain }, { label: '金额', value: 'U ' + formatAmount(detail.amount) }, { label: '状态', value: detail.statusText || detail.status || 'PENDING' }, { label: '收款地址', value: detail.depositAddress || '—' }, { label: 'Memo / Tag', value: detail.memo || '—' }, { label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTargetId !== undefined && openDetail(detailTargetId)" /></div></SheetContent></Sheet>
+    <p class="wallet-operation-note">请务必使用所选网络转入 USDT，到账状态以链上确认和平台结果为准。</p>
+  </WalletOperationDialog>
+  <V47VaultDialog v-model:visible="detailOpen" title="充值订单详情" description="申报记录及链上到账状态" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 5" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ label: '订单编号', value: String(detail.id) }, { label: '网络', value: detail.chain }, { label: '金额', value: formatAmount(detail.amount) + ' USDT' }, { label: '状态', value: detail.statusText || detail.status || '待确认' }, { label: '收款地址', value: detail.depositAddress || '—' }, { label: 'Memo / Tag', value: detail.memo || '—' }, { label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新读取" @action="detailTargetId !== undefined && openDetail(detailTargetId)" /></V47VaultDialog>
   </div>
 </template>
 
-<style scoped>
-.page-head { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:26px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { font-size:28px; font-weight:650; margin:5px 0 10px; }.hint { margin:0; color:var(--yb-muted); font-size:14px; max-width:880px; }.panel { padding:28px; background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; }.notice { margin:0 0 20px; }.notice.warning { background:var(--yb-warning-soft, #fff7e6); border-color:var(--yb-warning-soft, #fff7e6); }.notice.info { background:var(--yb-primary-soft); }.notice-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }.fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-bottom:26px; }.field { display:grid; gap:10px; min-width:0; }.address-block { padding:24px; background:var(--yb-fill); border:1px solid var(--yb-hairline); border-radius:6px; margin:22px 0; }.address-head { display:flex; justify-content:space-between; gap:24px; align-items:start; }.address-head>div { min-width:0; }.address-label { color:var(--yb-muted); font-size:13px; margin:0 0 8px; }.address-value { font-family:var(--yb-font-mono); font-size:14px; overflow-wrap:anywhere; margin-bottom:12px; }.minimum-hint { font-size:13px; color:var(--yb-muted); margin-top:10px; }.record-panel { margin-top:28px; }.records-head { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.records-head h2 { margin:0; font-size:20px; font-weight:600; }.status-filter { width:160px; }.table-scroll { overflow-x:auto; }table { width:100%; min-width:780px; border-collapse:collapse; text-align:left; }th { padding:14px 16px; background:var(--yb-fill); color:var(--yb-muted); font-size:13px; font-weight:500; }td { padding:20px 16px; border-bottom:1px solid var(--yb-hairline); font-size:14px; }tbody tr:last-child td { border-bottom:0; }.record-actions { display:flex; align-items:center; gap:12px; white-space:nowrap; }.record-actions button { padding-left:0; padding-right:0; }.money { font-variant-numeric:tabular-nums; white-space:nowrap; }.status { display:inline-flex; padding:4px 9px; border-radius:4px; font-size:12px; white-space:nowrap; background:#fff3df; color:#9a5709; }.status.green { background:#e9f3eb; color:#326b43; }.status.red { background:#fcecea; color:#ad453e; }.skeletons { display:grid; gap:16px; }.refreshing { opacity:.65; }.detail-body { margin-top:28px; }.detail-body .skeletons { margin-top:24px; }@media(max-width:700px) { .fields { grid-template-columns:1fr; }.panel { padding:20px; }.page-head,.address-head { align-items:stretch; flex-direction:column; } }
-.deposit-page { padding-top:32px; padding-bottom:48px; }.deposit-tabs { margin-bottom:24px; gap:24px; }.recharge-form { max-width:780px; padding-top:8px; }.optional-order { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-top:24px; }.optional-order strong { font-size:15px; font-weight:600; }.optional-order p { color:var(--yb-muted); font-size:13px; margin:8px 0 0; }.wallet-operations { display:flex; align-items:center; gap:16px; margin-top:24px; }.wallet-select { width:240px; }.transaction-hash { overflow-wrap:anywhere; }.cancel-link { color:var(--yb-danger); }:global(.recharge-sheet) { width:min(520px,calc(100vw - 32px)); padding:28px; background:var(--yb-paper); }@media(max-width:700px) { .optional-order,.wallet-operations { flex-direction:column; align-items:stretch; }.wallet-select { width:100%; } }
-
-</style>
+<style scoped src="./v47-wallet-operation.css"></style>

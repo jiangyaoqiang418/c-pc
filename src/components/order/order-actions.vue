@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useUserStore } from '@/stores';
 import { getOrderCapabilities } from '@/utils/order';
@@ -62,13 +61,19 @@ const actions = computed(() => {
   }
   return a;
 });
+const orderedActions = computed(() => {
+  const order = props.variant === 'card'
+    ? ['detail', 'pay', 'logistics', 'confirm', 'review', 'cancel', 'extend-receipt', 'aftersale', 'cs']
+    : ['cancel', 'pay', 'aftersale', 'confirm', 'review', 'extend-receipt', 'logistics', 'cs'];
+  return [...actions.value].sort((left, right) => order.indexOf(left.type) - order.indexOf(right.type));
+});
 </script>
 
 <template>
-  <div class="actions" :class="variant">
-    <template v-for="a in actions" :key="a.type">
-      <TooltipProvider v-if="a.tip || busy"><Tooltip><TooltipTrigger as-child><span :tabindex="a.disabled || busy ? 0 : undefined"><Button :variant="a.primary ? 'default' : 'outline'" :disabled="a.disabled || busy" @click.stop="a.emit">{{ a.label }}</Button></span></TooltipTrigger><TooltipContent>{{ busy ? '订单操作正在处理，请稍候' : a.tip }}</TooltipContent></Tooltip></TooltipProvider>
-      <Button v-else :variant="a.primary ? 'default' : 'outline'" :disabled="a.disabled" @click.stop="a.emit">{{ a.label }}</Button>
+  <div class="actions button-row" :class="variant">
+    <template v-for="a in orderedActions" :key="a.type">
+      <TooltipProvider v-if="a.tip || busy"><Tooltip><TooltipTrigger as-child><span :tabindex="a.disabled || busy ? 0 : undefined"><button type="button" :class="a.type === 'pay' ? 'gold' : a.primary ? 'primary' : 'outline'" :disabled="a.disabled || busy" @click.stop="a.emit">{{ a.type === 'pay' ? '继续支付' : a.type === 'review' ? '评价商品' : a.label }}</button></span></TooltipTrigger><TooltipContent>{{ busy ? '订单操作正在处理，请稍候' : a.tip }}</TooltipContent></Tooltip></TooltipProvider>
+      <button type="button" v-else :class="a.type === 'pay' ? 'gold' : a.primary ? 'primary' : 'outline'" :disabled="a.disabled" @click.stop="a.emit">{{ a.type === 'pay' ? '继续支付' : a.type === 'review' ? '评价商品' : a.label }}</button>
     </template>
   </div>
 </template>

@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { reverseStatusMap, toOrderRecord } from './order-mapper';
 import { cartStorageKey, useCartStore } from '@/stores/cart';
 import { getOrderCapabilities, resolveOrderView } from '@/utils/order';
-import { createCheckoutIntent, readCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout, readPendingCheckout, pendingCheckoutStorageKey, sumPaymentAmounts, validateGroupPayResult, isGroupPaymentComplete } from '@/utils/checkout';
+import { createCheckoutIntent, readCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout, readPendingCheckout, pendingCheckoutStorageKey, sumPaymentAmounts, multiplyPaymentAmount, formatPaymentAmount, validateGroupPayResult, isGroupPaymentComplete } from '@/utils/checkout';
 import { RequestError } from '@/service/request/type';
 import * as productApi from './product';
 import { createPurchase, fetchPurchaseDetail } from './purchase';
@@ -52,9 +52,23 @@ describe('toOrderRecord', () => {
     expect(() => toOrderRecord({ orderId: '1' })).toThrow('订单状态');
     expect(() => toOrderRecord({ orderId: '1', status: 'UNRECOGNIZED' as Api.RealOrder.OrderStatus })).toThrow('订单状态');
   });
+  it('当前应付金额缺失不能用原价合计或成交单价补成订单金额', () => {
+    for (const totalAmount of [undefined, null, '', 'NaN', '-1']) {
+      expect(() => toOrderRecord({ orderId: '9007199254740993', status: 'CREATED', unitPrice: '2', originalAmount: '5', totalAmount } as Api.RealOrder.OrderDTO)).toThrow('订单当前应付金额');
+    }
+  });
+  it('原始金额和合法零保留，未提供单价和费用显示未知', () => {
+    const missingBreakdown = toOrderRecord({ orderId: '9007199254740993', status: 'CREATED', totalAmount: '9007199254740993.12345678' });
+    expect(missingBreakdown).toMatchObject({ id: '9007199254740993', totalAmount: '9007199254740993.12345678' });
+    expect(missingBreakdown.price).toBeUndefined();
+    expect(missingBreakdown.shippingFee).toBeUndefined();
+    expect(missingBreakdown.tax).toBeUndefined();
+    expect(toOrderRecord({ orderId: '9007199254740993', status: 'CREATED', totalAmount: 0, unitPrice: '1e-8', shippingFee: 0, taxFee: '0' }))
+      .toMatchObject({ totalAmount: '0', price: '1e-8', shippingFee: '0', tax: '0' });
+  });
 
   it('顾客操作同时校验订单归属和实际状态', () => {
-    const order = toOrderRecord({ orderId: '1', customerId: '9007199254740993', sellerId: '9007199254740994', status: 'CREATED' });
+    const order = toOrderRecord({ orderId: '1', customerId: '9007199254740993', sellerId: '9007199254740994', status: 'CREATED', totalAmount: '1' });
     expect(getOrderCapabilities(order, order.customerId).pay).toBe(true);
     expect(getOrderCapabilities(order, order.shopperId).pay).toBe(false);
     expect(getOrderCapabilities(order).pay).toBe(false);
@@ -93,6 +107,7 @@ describe('toOrderRecord', () => {
     const record = toOrderRecord({
       orderId: '1',
       status: 'SHIPPED',
+      totalAmount: '1',
       country: '中国',
       province: '测试省',
       city: '测试市',
@@ -115,7 +130,7 @@ describe('toOrderRecord', () => {
   });
 
   it('缺失履约字段时只降级，不伪造地址或凭证', () => {
-    const record = toOrderRecord({ orderId: '1', status: 'PAID', productId: null, createdAt: '1786454129000' });
+    const record = toOrderRecord({ orderId: '1', status: 'PAID', productId: null, createdAt: '1786454129000', totalAmount: '1' });
 
     expect(record.productId).toBe('');
     expect(record.shippingAddress).toBe('后端暂未返回收货地址');
@@ -251,6 +266,64 @@ describe('购物车读取和数量边界', () => {
     expect(first.items).toHaveLength(0);
     expect(JSON.parse(localStorage.getItem(cartStorageKey('qa-cart'))!)[0].qty).toBe(2);
   });
+
+  it('商品数量乘价和费用合计保留大数及小数原精度，只在展示时取两位', async () => {
+    const cart = createCart();
+    await cart.add(product.id, 2, { ...product, price: '9007199254740993.12345678', shippingFee: '0.001', tax: '0.004' });
+    expect(cart.enrichedItems[0]).toMatchObject({ productId: product.id, qty: 2, subtotal: '18014398509481986.24691356', lineTotal: '18014398509481986.25191356' });
+    expect(cart.grandTotal).toBe('18014398509481986.25191356');
+    expect(formatPaymentAmount(cart.grandTotal)).toBe('18,014,398,509,481,986.25');
+  });
+
+  it('先合计原金额再显示，不把多项小额逐项提前舍入为零', async () => {
+    const cart = createCart();
+    for (const id of [product.id, '9007199254740994']) await cart.add(id, 1, { ...product, id, price: '0.0049', shippingFee: '0', tax: '0' });
+    expect(cart.enrichedItems.map(item => item.subtotal)).toEqual(['0.0049', '0.0049']);
+    expect(cart.subTotal).toBe('0.0098');
+    expect(cart.grandTotal).toBe('0.0098');
+    expect(formatPaymentAmount(cart.grandTotal)).toBe('0.01');
+  });
+
+  it('详情读缺费用保持未知且不可购，明确零费用可恢复', async () => {
+    const cart = createCart();
+    for (const missing of [{ shippingFee: undefined, taxFee: 0 }, { shippingFee: 0, taxFee: null }]) {
+      const dto = { id: product.id, price: '1', stock: 3, status: 'ON_SALE', ...missing } as Api.RealProduct.ProductDTO;
+      const record = productApi.toProductRecord(dto);
+      await cart.add(product.id, 1, record);
+      expect(cart.enrichedItems[0].available).toBe(false);
+      expect(cart.enrichedItems[0].confirmedInvalid).toBe(false);
+      expect(cart.selectedItems).toEqual([]);
+      expect(formatPaymentAmount(record.shippingFee)).toBe(missing.shippingFee === undefined ? '—' : '0.00');
+      expect(formatPaymentAmount(record.tax)).toBe(missing.taxFee === null ? '—' : '0.00');
+    }
+    cart.upsertProduct({ ...product, shippingFee: '0', tax: '0' });
+    expect(cart.enrichedItems[0].available).toBe(true);
+    expect(cart.enrichedItems[0].shippingFee).toBe('0');
+    expect(cart.enrichedItems[0].tax).toBe('0');
+  });
+
+  it('小数、NaN及超安全范围数量不能加购或改写已有数量，累计数量不可溢出', async () => {
+    const cart = createCart();
+    for (const qty of [1.5, NaN, Number.MAX_SAFE_INTEGER + 1]) expect(await cart.add(product.id, qty, product)).toBe(false);
+    await cart.add(product.id, 1, product);
+    for (const qty of [1.5, NaN, Number.MAX_SAFE_INTEGER + 1]) await cart.update(product.id, qty);
+    expect(cart.items[0].qty).toBe(1);
+    const large = { ...product, id: '9007199254740994', stock: Number.MAX_SAFE_INTEGER, price: '0', shippingFee: '0', tax: '0' };
+    expect(await cart.add(large.id, Number.MAX_SAFE_INTEGER, large)).toBe(true);
+    expect(await cart.add(large.id, 1, large)).toBe(false);
+    expect(cart.enrichedItems.find(item => item.productId === large.id)).toMatchObject({ qty: Number.MAX_SAFE_INTEGER, available: true, lineTotal: '0' });
+  });
+
+  it('金额乘法支持科学计数及零，展示半入边界正确，未知不显示零', () => {
+    expect(multiplyPaymentAmount('1.005', 3)).toBe('3.015');
+    expect(formatPaymentAmount(multiplyPaymentAmount('1.005', 3))).toBe('3.02');
+    expect(multiplyPaymentAmount('1.25e-7', 3)).toBe('0.000000375');
+    expect(multiplyPaymentAmount('0', 3)).toBe('0');
+    expect(formatPaymentAmount('0')).toBe('0.00');
+    expect(formatPaymentAmount(undefined)).toBe('—');
+    expect(formatPaymentAmount('')).toBe('—');
+    expect(() => multiplyPaymentAmount('1', 1.5)).toThrow('商品数量');
+  });
 });
 
 describe('独立结算上下文', () => {
@@ -363,11 +436,11 @@ describe('创建成功与详情回读解耦', () => {
     expect(productApi.toAfterSaleType('SEVEN_DAY_NO_REASON')).toBe('7day-no-reason');
     expect(productApi.toAfterSaleType('NONE')).toBe('none');
     for (const afterSaleType of [undefined, 'QA_NEW_TYPE']) {
-      const product = productApi.toProductRecord({ id: '9007199254740993', afterSaleType } as Api.RealProduct.ProductDTO);
+      const product = productApi.toProductRecord({ id: '9007199254740993', price: '1', afterSaleType } as Api.RealProduct.ProductDTO);
       expect(product.aftersaleType).toBe('unknown');
       expect(product.rawAfterSaleType).toBe(afterSaleType);
       expect(productApi.getAftersaleMeta(product.aftersaleType).label).toBe('售后信息待确认');
-      vi.spyOn(realOrderRequest, 'get').mockResolvedValueOnce({ id: '9007199254740993', status: 'OPEN', afterSaleType });
+      vi.spyOn(realOrderRequest, 'get').mockResolvedValueOnce({ id: '9007199254740993', status: 'OPEN', afterSaleType, budget: '1', expectDeliveryDays: 7 });
       const purchase = await fetchPurchaseDetail('9007199254740993');
       expect(purchase.aftersaleType).toBe('unknown');
       expect(purchase.rawAfterSaleType).toBe(afterSaleType);
@@ -382,7 +455,7 @@ describe('创建成功与详情回读解耦', () => {
         if (categoryCalls === 1) throw new Error('分类暂不可用');
         return [{ id: 'qa-category', name: 'QA 分类', level: 1 }];
       }
-      return { id: '9007199254740993', categoryId: 'qa-category', status: 'OPEN' };
+      return { id: '9007199254740993', categoryId: 'qa-category', status: 'OPEN', budget: '1', expectDeliveryDays: 7 };
     });
     const first = await Promise.all([fetchPurchaseDetail('9007199254740993'), fetchPurchaseDetail('9007199254740993')]);
     expect(first.map(item => item.categoryPath)).toEqual(['qa-category', 'qa-category']);
@@ -398,6 +471,18 @@ describe('创建成功与详情回读解耦', () => {
       await expect(fetchPurchaseDetail('9007199254740993')).rejects.toThrow('求购状态');
     }
   });
+  it('求购缺少预算或发货天数时拒绝，真实零和原金额精度保留', async () => {
+    const get = vi.spyOn(realOrderRequest, 'get');
+    for (const fields of [{ expectDeliveryDays: 7 }, { budget: '1' }, { budget: '', expectDeliveryDays: 7 }, { budget: '1', expectDeliveryDays: NaN }]) {
+      get.mockResolvedValueOnce({ id: '9007199254740993', status: 'OPEN', ...fields });
+      await expect(fetchPurchaseDetail('9007199254740993')).rejects.toThrow(/求购(?:预算|期望发货天数)/);
+    }
+    get.mockResolvedValueOnce({ id: '9007199254740993', status: 'OPEN', budget: 0, expectDeliveryDays: 0 });
+    expect(await fetchPurchaseDetail('9007199254740993')).toMatchObject({ id: '9007199254740993', budgetAmount: '0', expectedDays: 0 });
+    get.mockResolvedValueOnce({ id: '9007199254740993', status: 'OPEN', budget: '9007199254740993.12345678', expectDeliveryDays: '3e1' });
+    expect(await fetchPurchaseDetail('9007199254740993')).toMatchObject({ budgetAmount: '9007199254740993.12345678', expectedDays: 30 });
+    expect(get.mock.calls.at(-1)?.[1]).toMatchObject({ preserveDecimals: true });
+  });
 
   it('商品和求购创建收到 ID 后不依赖详情读取', async () => {
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('9007199254740993');
@@ -408,5 +493,49 @@ describe('创建成功与详情回读解耦', () => {
       expectedDays: 1, overseasCustoms: false, aftersaleType: 'none', appeal: '' })).toBe('9007199254740993');
     expect(post).toHaveBeenCalledTimes(2);
     expect(get).not.toHaveBeenCalled();
+  });
+});
+
+describe('商品售价读取边界', () => {
+  it('缺失或损坏售价拒绝读取，不产生免费商品', () => {
+    for (const price of [undefined, null, '', '  ', NaN, Infinity, '-1', 'NaN', true, {}]) {
+      expect(() => productApi.toProductRecord({ id: '9007199254740993', price } as Api.RealProduct.ProductDTO)).toThrow('商品价格');
+    }
+  });
+
+  it('真实零价、科学计数及高精度售价保留，商品状态库存和 ID 不变', () => {
+    for (const [price, expected] of [[0, '0'], ['0.00', '0'], ['1.25e-7', '0.000000125'], ['9007199254740993.12345678', '9007199254740993.12345678']]) {
+      expect(productApi.toProductRecord({ id: '9007199254740993', price, status: 'ON_SALE', stock: 3 } as Api.RealProduct.ProductDTO))
+        .toMatchObject({ id: '9007199254740993', price: expected, status: 'NORMAL', shelfStatus: 'on-shelf', stock: 3 });
+    }
+  });
+
+  it('公开商品分页缺售价整体拒绝读取，真实零价不被过滤', async () => {
+    const post = vi.spyOn(realOrderRequest, 'postQuery');
+    post.mockResolvedValueOnce({ total: 1, records: [{ id: '9007199254740993', stock: 1 }] });
+    await expect(productApi.fetchStorefrontProducts({})).rejects.toThrow('商品价格');
+    post.mockResolvedValueOnce({ total: 1, records: [{ id: '9007199254740993', price: 0, stock: 1 }] });
+    expect((await productApi.fetchStorefrontProducts({})).records[0]).toMatchObject({ price: '0', stock: 1 });
+    expect(post.mock.calls.at(-1)?.[2]).toMatchObject({ preserveDecimals: true });
+  });
+
+  it('秒杀未设促销价按契约使用原价，真实促销零价保留，两价均缺或促销价损坏拒绝', async () => {
+    const get = vi.spyOn(realOrderRequest, 'get');
+    get.mockResolvedValueOnce([{ productId: '9007199254740993', price: '25.12345678', flashPrice: null, stock: 2 }]);
+    expect((await productApi.fetchFlashSale())[0].product).toMatchObject({ price: '25.12345678', stock: 2 });
+    get.mockResolvedValueOnce([{ productId: '9007199254740993', price: '25', flashPrice: 0, stock: 2 }]);
+    expect((await productApi.fetchFlashSale())[0].product.price).toBe('0');
+    for (const item of [{ productId: '9007199254740993' }, { productId: '9007199254740993', price: '25', flashPrice: '' }]) {
+      get.mockResolvedValueOnce([item]);
+      await expect(productApi.fetchFlashSale()).rejects.toThrow('商品价格');
+    }
+    expect(get.mock.calls.at(-1)?.[1]).toMatchObject({ preserveDecimals: true });
+  });
+
+  it('商品详情从 JSON 数值原文保留金额小数和 Long ID，不先经过浮点舍入', async () => {
+    vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"code":1,"data":{"id":9007199254740993,"price":0.123456789012345678,"stock":1,"status":"ON_SALE"}}')));
+    expect(await productApi.fetchProductDetail('9007199254740993')).toMatchObject({ id: '9007199254740993', price: '0.123456789012345678' });
   });
 });

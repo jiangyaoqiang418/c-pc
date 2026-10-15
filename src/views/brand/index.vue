@@ -32,4 +32,8 @@ function exploreBrand() { Message.info('品牌专区正在准备中，暂时可�
 .brand-unavailable { margin-top: 24px; }
 .brand-tabs { overflow-x: auto; scrollbar-width: none; }
 .brand-tabs > button { flex-shrink: 0; }
+@media (max-width:700px) {
+  .brand-tabs { margin-right:-14px; padding-right:14px; }
+  :root[data-ui-theme="web3-meme"] .brand-tabs { margin-right:-12px; padding-right:12px; }
+}
 </style>

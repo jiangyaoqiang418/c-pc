@@ -2,6 +2,7 @@
 
 import { useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
+import UmIcon from '@/components/common/um-icon.vue';
 
 const router = useRouter();
 
@@ -10,12 +11,11 @@ const router = useRouter();
 
 <template>
 
-  <div class="ai-page"><header class="page-heading"><span class="eyebrow">FIND YOUR INSPIRATION</span><h1>AI 智能导购</h1></header><section class="paper"><EmptyState icon="lucide:sparkles" title="AI 导购暂不可用" description="智能导购尚未开放，请通过商品搜索查找真实在售商品。" action-text="返回首页" @action="router.push('/')" /></section></div>
+  <section class="paper chat-panel ai-page"><div class="section-heading"><div><h2 aria-level="1">好物选购助手</h2><small>AI 导购尚未开放</small></div><UmIcon name="headset" /></div><div class="chat-messages"><EmptyState icon="lucide:sparkles" title="AI 导购暂不可用" description="你可以通过商品搜索查找在售商品。" action-text="浏览全部商品" @action="router.push('/product/list')" /></div><div class="chat-compose"><input disabled aria-label="消息内容，AI 导购尚未开放" placeholder="AI 导购尚未开放" /><button type="button" class="primary" disabled>发送<UmIcon name="arrow" /></button></div></section>
 
 </template>
 
 <style scoped>
-
-.ai-page { padding-bottom:32px; }.eyebrow { font-size:12px; letter-spacing:.12em; color:var(--yb-gold); }.ai-page h1 { font-size:30px; font-weight:650; margin:6px 0 24px; }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:8px; min-height:400px; display:flex; align-items:center; justify-content:center; padding:32px; }
-
+.ai-page .chat-messages { min-height:300px; display:grid; place-items:center; }
+.chat-compose > input { min-width:0; flex:1; }
 </style>

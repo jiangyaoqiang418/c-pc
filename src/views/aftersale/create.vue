@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -157,18 +156,18 @@ const submitDisabledReason = computed(() => {
 </script>
 
 <template>
-  <div class="aftersale-create-page shop-container" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-    <div class="aftersale-create-content" :aria-busy="loading">
-      <nav class="bread" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><strong>申请仅退款</strong></nav>
+  <div class="aftersale-create-page" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
+    <div class="aftersale-create-content paper narrow" :aria-busy="loading">
+      <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><strong>申请仅退款</strong></nav>
       <template v-if="order">
         <Alert v-if="recoveryError" class="notice"><AlertDescription>{{ recoveryError }}</AlertDescription></Alert>
-        <Alert v-else-if="pendingIntent && !pendingIntent.receipt" class="notice"><AlertDescription>原退款申请待核对，将使用原原因、凭证和幂等键；回查未落地才按原参数重试。</AlertDescription><Button size="sm" variant="outline" :disabled="submitting || confirmationOpen" @click="submit(true)">恢复原申请</Button></Alert>
-        <header class="page-heading form-heading"><span class="eyebrow">REFUND REQUEST</span><h1>申请仅退款</h1><p>填写退款原因及凭证，提交后由平台审核。</p></header>
-        <section class="order-card"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
+        <Alert v-else-if="pendingIntent && !pendingIntent.receipt" class="notice"><AlertDescription>原退款申请待核对，将使用原原因、凭证和幂等键；回查未落地才按原参数重试。</AlertDescription><button type="button" class="outline"  :disabled="submitting || confirmationOpen" @click="submit(true)">恢复原申请</button></Alert>
+        <h1>申请仅退款</h1><p>待发货或待收货订单可申请，由平台审核。</p>
+        <section class="checkout-item refund-order"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
         <Alert v-if="!eligible" class="notice"><AlertDescription id="refund-unavailable">仅“待发货”或“待收货”订单可申请仅退款。</AlertDescription></Alert>
-        <section class="step-card"><Label for="refund-reason" class="section-title">退款原因 <span aria-hidden="true">*</span></Label><Textarea id="refund-reason" v-model="form.reason" :disabled="!eligible || submitting || confirmationOpen" :aria-describedby="!eligible ? 'refund-unavailable' : undefined" maxlength="512" rows="5" placeholder="请说明退款原因，例如商品与描述不符" required /><small class="word-count">{{ form.reason.length }}/512</small></section>
-        <section class="step-card"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="!eligible || submitting || confirmationOpen" @uploading="uploading = $event" /></section>
-        <footer class="actions"><Button variant="outline" :disabled="submitting || confirmationOpen" @click="cancelCreate">取消</Button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><Button :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
+        <section class="field"><Label for="refund-reason" class="section-title">退款原因 <span aria-hidden="true">*</span></Label><Textarea id="refund-reason" v-model="form.reason" :disabled="!eligible || submitting || confirmationOpen" :aria-describedby="!eligible ? 'refund-unavailable' : undefined" maxlength="512" rows="5" placeholder="请说明退款原因，例如商品与描述不符" required /><small class="word-count">{{ form.reason.length }}/512</small></section>
+        <section class="field"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="!eligible || submitting || confirmationOpen" @uploading="uploading = $event" /></section>
+        <footer class="button-row actions"><button type="button" class="outline"  :disabled="submitting || confirmationOpen" @click="cancelCreate">取消</button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><button type="button" class="primary" :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
       </template>
       <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-52" /><Skeleton class="h-44" /></div>
       <EmptyState v-else :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />
@@ -177,5 +176,10 @@ const submitDisabledReason = computed(() => {
 </template>
 
 <style scoped>
-.aftersale-create-page { padding-top:32px; padding-bottom:48px; }.aftersale-create-content { width:100%; max-width:720px; margin:0 auto; }.bread { display:flex; align-items:center; gap:14px; margin-bottom:24px; color:var(--yb-muted); font-size:13px; }.bread a:hover { color:var(--yb-brand-primary); }.bread strong { color:var(--yb-ink); font-weight:500; }.form-heading { margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:11px; letter-spacing:2px; }h1 { margin:6px 0; font-size:28px; font-weight:650; }.form-heading p { margin:0; color:var(--yb-muted); font-size:14px; }.order-card { display:flex; align-items:center; gap:18px; padding:24px; margin-bottom:20px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }.cover { width:76px; height:76px; object-fit:cover; border-radius:6px; background:var(--yb-fill); }.order-info { min-width:0; flex:1; }.order-info strong { font-size:16px; }.meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; color:var(--yb-muted); font-size:12px; overflow-wrap:anywhere; }.amount { font-size:20px; white-space:nowrap; }.step-card { padding:26px; margin-bottom:18px; border:1px solid var(--yb-hairline); border-radius:10px; background:var(--yb-paper); }.section-title { display:flex; align-items:center; gap:8px; margin:0 0 18px; font-size:16px; font-weight:600; }.section-title span { color:var(--destructive); }.section-title small { color:var(--yb-muted); font-size:13px; font-weight:400; }.word-count { display:block; margin-top:8px; text-align:right; font-size:12px; color:var(--yb-muted); }.notice { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:18px; }.actions { display:flex; align-items:center; justify-content:flex-end; gap:16px; margin-top:26px; }.skeletons { display:grid; gap:18px; }@media(max-width:700px) { .order-card { flex-wrap:wrap; }.amount { margin-left:94px; }.step-card { padding:20px; } }
+.refund-order { margin:20px 0; }.order-info { min-width:0; flex:1; }.order-info strong { overflow-wrap:anywhere; }
+.meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:12px; color:var(--muted); }
+.amount { font-size:20px; }.section-title { display:flex; gap:8px; align-items:center; font-weight:500; }
+.word-count { text-align:right; color:var(--muted); }.notice { margin:18px 0; }.notice button { margin-top:10px; }
+.actions { justify-content:flex-end; }.actions > span { flex:1; }.actions > span button { width:100%; }
+.skeletons { display:grid; gap:18px; }
 </style>

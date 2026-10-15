@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
 import ImagePreview from '@/components/common/image-preview.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -466,20 +465,20 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
 
 <template>
 
-  <div class="im-group-page shop-container">
-    <header class="page-heading"><h1>订单会话</h1><Button type="button" variant="ghost" size="sm" @click="closeToConversationList"><Icon icon="lucide:arrow-left" width="16" />返回消息中心</Button></header>
-    <section class="chat-card chat-pane" :aria-busy="loading">
+  <div class="im-group-page">
+    <header class="page-heading compact"><h1>订单会话</h1><button type="button" @click="closeToConversationList" class="text-link"><Icon icon="lucide:arrow-left" width="16" />返回消息中心</button></header>
+    <section class="paper chat-panel chat-pane" :aria-busy="loading">
       <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载订单会话</span></div>
       <div v-if="conversation" class="conversation">
-        <header class="conversation-header"><div class="header-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || conversation.myRole || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><Button type="button" variant="ghost" size="icon" aria-label="关闭独立会话并返回消息中心" @click="closeToConversationList"><Icon icon="lucide:x" width="18" /></Button></div></header>
-        <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><Button type="button" variant="link" size="sm" @click="notifyStore.connect">立即重连</Button></div>
-        <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><Button type="button" variant="link" size="sm" :disabled="syncingMessages" @click="syncIncremental">继续同步</Button></div>
-        <div ref="scrollRef" class="messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
-          <div v-if="hasOlder" class="load-older"><Button type="button" variant="ghost" size="sm" :disabled="loadingOlder" @click="loadOlderMessages"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</Button></div>
+        <header class="conversation-header section-heading"><div class="header-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || conversation.myRole || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><button type="button" aria-label="关闭独立会话并返回消息中心" @click="closeToConversationList" class="icon-btn"><Icon icon="lucide:x" width="18" /></button></div></header>
+        <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button></div>
+        <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="syncingMessages" @click="syncIncremental" class="text-link">继续同步</button></div>
+        <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
+          <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
           <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
           <div v-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
         </div>
-        <div v-if="newMessagesAvailable" class="new-message-bar"><Button type="button" variant="outline" size="sm" @click="scrollToBottom"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</Button></div>
+        <div v-if="newMessagesAvailable" class="new-message-bar"><button type="button" @click="scrollToBottom" class="outline"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</button></div>
         <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(orderCode || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
         <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
       </div>
@@ -488,18 +487,4 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
   </div>
 </template>
 
-<style scoped>
-
-.im-group-page { padding-block: 28px 36px; }.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }.eyebrow { margin: 0 0 6px; color: var(--yb-primary); font-size: 11px; letter-spacing: .16em; font-weight: 600; }.page-heading h1 { margin: 0; font-size: 26px; font-weight: 650; color: var(--yb-ink); }.chat-card { height: calc(100dvh - 280px); min-height: 620px; border: 1px solid var(--yb-hairline); border-radius: 14px; overflow: hidden; box-shadow: var(--yb-shadow-1); }
-
-.chat-pane { position: relative; min-width: 0; min-height: 0; background: var(--yb-bg); }.conversation { display: flex; flex-direction: column; height: 100%; min-height: 0; }.conversation-header { flex-shrink: 0; padding: 18px 24px 12px; border-bottom: 1px solid var(--yb-hairline); background: var(--yb-surface); }.header-main { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.header-product { display: flex; align-items: center; gap: 12px; min-width: 0; }.header-product > div { min-width: 0; }.header-product img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }.header-product h2 { font-size: 17px; font-weight: 650; color: var(--yb-ink); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.header-product p { margin: 3px 0 0; color: var(--yb-muted); font-size: 12px; }.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 12px; flex-wrap: wrap; }.action-trigger { display: inline-flex; border-radius: 6px; }.action-trigger:focus-visible { outline: 2px solid var(--yb-primary); outline-offset: 2px; }.delete-action { color: var(--yb-danger); }.order-strip { display: flex; align-items: center; gap: 8px; padding: 10px 24px; flex-shrink: 0; background: var(--yb-surface); border-bottom: 1px solid var(--yb-hairline); overflow-x: auto; }.order-chip { white-space: nowrap; font-size: 12px; }.notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin: 10px 20px 0; flex-shrink: 0; border-radius: 8px; font-size: 12px; }.notice > span { flex: 1; min-width: 0; }.notice > svg { flex-shrink: 0; }.warning { background: color-mix(in srgb, var(--yb-warning) 10%, var(--yb-surface)); color: var(--yb-warning); }.messages { flex: 1 1 auto; min-height: 0; padding: 24px; overflow-y: auto; overscroll-behavior: contain; }.load-older { text-align: center; margin-bottom: 20px; }.empty-msg { text-align: center; color: var(--yb-muted); padding: 60px 0; font-size: 14px; }.placeholder { display: flex; align-items: center; justify-content: center; height: 100%; }.new-message-bar { display: flex; justify-content: center; padding: 8px 16px; }.chat-loading { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--yb-primary); background: color-mix(in srgb, var(--yb-surface) 85%, transparent); font-size: 13px; }
-
-.im-group-page { display: flex; flex-direction: column; flex: 1; width: 100%; min-height: 0; padding-block: 0; }
-.page-heading { flex-shrink: 0; gap: 12px; margin-bottom: 10px; min-height: 32px; }
-.page-heading h1 { font-size: 18px; }
-.chat-card { flex: 1; height: auto; min-height: 0; border-radius: 8px; }
-.conversation-header { padding: 12px 16px; }.header-product { flex: 1; }
-.header-product h2 { font-size: 15px; }.header-product p { overflow-wrap: anywhere; }
-.messages { padding: 18px; }
-
-</style>
+<style scoped src="../../components/im/v47-messaging.css"></style>

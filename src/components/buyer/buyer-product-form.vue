@@ -1,23 +1,26 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { formatAmount } from '@shared';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import CategoryPicker from '@/components/common/category-picker.vue';
 import AmountInput from '@/components/common/amount-input.vue';
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import RichTextEditor from '@/components/common/rich-text-editor.vue';
+import BuyerDetailImages from './buyer-detail-images.vue';
+import { buyerProductDraftKey, readBuyerProductDraft, type BuyerProductDraft } from './buyer-product-draft';
 import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { useUnsavedForm } from '@/composables/use-unsaved-form';
+import { createUnsavedFormState } from '@/composables/use-unsaved-form';
 import { richTextError, sanitizeRichText } from '@/utils/rich-text';
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from 'vue-router';
+import { useUserStore } from '@/stores';
+import { exactDecimalNumber } from '@/components/wallet/decimal-amount';
 
 interface FormState {
   title: string;
@@ -43,12 +46,32 @@ interface Props {
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
+const router = useRouter();
+const userStore = useUserStore();
+const draftOwnerId = userStore.currentUser?.id;
+const draftProductId = props.initialProduct?.id;
+const draftAudience = userStore.currentAudience;
+const draftKey = draftOwnerId === undefined ? undefined : buyerProductDraftKey(draftOwnerId, draftProductId);
+const active = ref(true);
+const currentContext = computed(() => active.value && draftOwnerId !== undefined
+  && String(userStore.currentUser?.id) === String(draftOwnerId)
+  && userStore.currentAudience === draftAudience && userStore.isBuyerActive
+  && String(props.initialProduct?.id) === String(draftProductId));
+const savedDraft = ref<BuyerProductDraft>();
+const draftError = ref('');
+const draftRevision = ref(0);
+let savedDraftRaw: string | undefined;
+let submitted = false;
+const leaveVisible = ref(false);
+let leaveDecision: Promise<boolean> | undefined;
+let resolveLeave: ((value: boolean) => void) | undefined;
 
 const cascaderOptions = ref<CategoryOption[]>([]);
 const categoryLoadError = ref('');
 const categoryLoading = ref(false);
-const uploadStates = reactive({ product: false, description: false });
-const uploading = computed(() => uploadStates.product || uploadStates.description);
+const uploadStates = reactive({ product: false, description: false, details: false });
+const uploading = computed(() => uploadStates.product || uploadStates.description || uploadStates.details);
+const draftBlocked = computed(() => props.submitting || uploading.value || !currentContext.value);
 const uploadedImageMap = new Map<string, Api.RealProduct.ProductImageParam>();
 const categoryGuard = createLatestRequestGuard();
 
@@ -65,21 +88,148 @@ const form = reactive<FormState>({
   description: '',
   images: []
 });
+const amountTexts = reactive({ price:'100', shippingFee:'0', tax:'0' });
 if (props.initialProduct) {
   const p = props.initialProduct;
+  Object.assign(amountTexts, { price:String(p.price), shippingFee:p.shippingFee === undefined ? '' : String(p.shippingFee), tax:p.tax === undefined ? '' : String(p.tax) });
   Object.assign(form, {
-    title: p.title, categoryId: p.categoryId, price: Number(p.price),
-    shippingFee: Number(p.shippingFee), tax: Number(p.tax), stock: p.stock,
+    title: p.title, categoryId: p.categoryId, price: exactDecimalNumber(amountTexts.price).value ?? NaN,
+    shippingFee: exactDecimalNumber(amountTexts.shippingFee, true).value ?? NaN,
+    tax: exactDecimalNumber(amountTexts.tax, true).value ?? NaN, stock: p.stock,
     aftersaleType: p.aftersaleType === 'unknown' ? undefined : p.aftersaleType,
     overseasCustoms: p.overseasCustoms, summary: p.summary, description: p.description,
     images: (p.imageFiles || []).map(item => item.url)
   });
   (p.imageFiles || []).forEach(item => uploadedImageMap.set(item.url, { bucket: item.bucket, filePath: item.filePath }));
 }
-const { markInteracted, markSaved } = useUnsavedForm(() => form, () => undefined);
-defineExpose({ markSaved, reloadCategories });
+const { dirty, markInteracted, markSaved: markFormSaved } = createUnsavedFormState(() => ({ ...form, amountTexts:{...amountTexts} }));
+
+function readDraft() {
+  if (!draftKey || !currentContext.value) return;
+  try {
+    const raw = localStorage.getItem(draftKey);
+    savedDraft.value = raw ? readBuyerProductDraft(raw, draftOwnerId!, draftProductId) : undefined;
+    savedDraftRaw = raw || undefined;
+    draftError.value = '';
+  } catch {
+    savedDraft.value = undefined;
+    draftError.value = '本地草稿读取失败或资料不完整，现有表单保持不变。';
+  }
+}
+
+function saveDraft() {
+  if (draftBlocked.value || !draftKey) return false;
+  try {
+    const descriptionIssue = richTextError(form.description);
+    if (descriptionIssue) {
+      draftError.value = descriptionIssue + '，请精简后保存草稿';
+      Message.warning(draftError.value);
+      return false;
+    }
+    const description = sanitizeRichText(form.description);
+    const detail = document.createElement('div');
+    detail.innerHTML = description;
+    const imageUrls = new Set([...form.images, ...Array.from(detail.querySelectorAll('img'), image => image.getAttribute('src') || '')]);
+    const draft: BuyerProductDraft = {
+      version:1, ownerId:draftOwnerId!, productId:draftProductId, savedAt:Date.now(),
+      form:{ title:form.title, categoryId:form.categoryId, price:Number.isFinite(form.price) ? form.price : null,
+        shippingFee:Number.isFinite(form.shippingFee) ? form.shippingFee : null, tax:Number.isFinite(form.tax) ? form.tax : null,
+        stock:Number.isFinite(form.stock) ? form.stock : null, aftersaleType:form.aftersaleType, overseasCustoms:form.overseasCustoms,
+        summary:form.summary, description, images:[...form.images], amountTexts:{...amountTexts} },
+      imageFiles:Array.from(uploadedImageMap, ([url,image]) => ({ url,...image })).filter(image => imageUrls.has(image.url))
+    };
+    const raw = JSON.stringify(draft);
+    const validated = readBuyerProductDraft(raw, draftOwnerId!, draftProductId);
+    localStorage.setItem(draftKey, raw);
+    if (localStorage.getItem(draftKey) !== raw) throw new Error('草稿未保存');
+    savedDraft.value = validated;
+    savedDraftRaw = raw;
+    draftError.value = '';
+    markFormSaved();
+    Message.success('草稿已保存在当前浏览器');
+    return true;
+  } catch {
+    draftError.value = '本地草稿保存失败，请检查浏览器存储或商品图片上传信息后重试。';
+    Message.error(draftError.value);
+    return false;
+  }
+}
+
+function restoreDraft() {
+  if (draftBlocked.value || !draftKey) return;
+  readDraft();
+  const draft = savedDraft.value;
+  if (!draft) return;
+  if (!draft.form.amountTexts && props.initialProduct && [props.initialProduct.price, props.initialProduct.shippingFee, props.initialProduct.tax]
+    .some((value, index) => value !== undefined && exactDecimalNumber(value, index !== 0).value === undefined)) {
+    draftError.value = '旧草稿缺少原始金额文本，无法安全恢复，请核对当前商品金额后重新保存草稿。';
+    Message.warning(draftError.value);
+    return;
+  }
+  const description = sanitizeRichText(draft.form.description);
+  const issue = richTextError(description);
+  if (issue) { draftError.value = issue + '，草稿未恢复'; return; }
+  markInteracted();
+  uploadedImageMap.clear();
+  draft.imageFiles.forEach(image => uploadedImageMap.set(image.url, { bucket:image.bucket, filePath:image.filePath }));
+  Object.assign(form, { ...draft.form, price:draft.form.price ?? NaN, shippingFee:draft.form.shippingFee ?? NaN,
+    tax:draft.form.tax ?? NaN, stock:draft.form.stock ?? NaN, description, images:[...draft.form.images] });
+  Object.assign(amountTexts, draft.form.amountTexts || { price:draft.form.price === null ? '' : String(draft.form.price),
+    shippingFee:draft.form.shippingFee === null ? '' : String(draft.form.shippingFee), tax:draft.form.tax === null ? '' : String(draft.form.tax) });
+  draftRevision.value += 1;
+  Message.success('已恢复本地草稿，请核对当前分类与商品状态后再提交');
+}
+
+function decideLeave(leave: boolean) {
+  leaveVisible.value = false;
+  const resolve = resolveLeave;
+  resolveLeave = undefined;
+  leaveDecision = undefined;
+  resolve?.(leave);
+}
+async function confirmLeave() {
+  if (submitted || !currentContext.value) return true;
+  await nextTick();
+  if (submitted || !currentContext.value) return true;
+  if (props.submitting || uploading.value) { Message.warning('提交或上传正在处理，请稍候再离开'); return false; }
+  if (!dirty.value || !currentContext.value) return true;
+  if (!leaveDecision) {
+    leaveVisible.value = true;
+    leaveDecision = new Promise(resolve => { resolveLeave = resolve; });
+  }
+  return leaveDecision;
+}
+function discardAndLeave() { if (!draftBlocked.value) { markFormSaved(); decideLeave(true); } }
+function saveAndLeave() { if (saveDraft()) decideLeave(true); }
+function markSaved() { markFormSaved(); decideLeave(true); }
+function markSubmitted() {
+  submitted = true;
+  markSaved();
+  if (!draftKey || !currentContext.value) return;
+  try {
+    if (savedDraftRaw && localStorage.getItem(draftKey) === savedDraftRaw) localStorage.removeItem(draftKey);
+    savedDraft.value = undefined;
+    savedDraftRaw = undefined;
+  } catch { Message.warning('商品已提交，本地草稿清理失败；请勿将草稿视为未提交的依据'); }
+}
+function beforeUnload(event: BeforeUnloadEvent) {
+  if (submitted || !currentContext.value) return;
+  if (!dirty.value && !uploading.value && !props.submitting) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+onBeforeRouteLeave(confirmLeave);
+onBeforeRouteUpdate((to,from) => JSON.stringify(to.params) === JSON.stringify(from.params) ? true : confirmLeave());
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience], () => {
+  savedDraft.value = undefined;
+  draftRevision.value += 1;
+  decideLeave(false);
+}, { flush:'sync' });
+defineExpose({ markSaved, markSubmitted, reloadCategories });
 
 onMounted(async () => {
+  readDraft();
+  window.addEventListener('beforeunload', beforeUnload);
   await reloadCategories();
 });
 
@@ -101,9 +251,10 @@ async function reloadCategories(showSuccess = false) {
   }
 }
 
-onBeforeUnmount(categoryGuard.invalidate);
+onBeforeUnmount(() => { active.value = false; categoryGuard.invalidate(); window.removeEventListener('beforeunload', beforeUnload); decideLeave(false); });
 
 function submit() {
+  if (!currentContext.value) return;
   if (uploading.value || props.submitting) return;
   if (!form.title.trim()) {
     Message.warning('请输入商品标题');
@@ -113,6 +264,13 @@ function submit() {
   if (!isSelectableCategory(cascaderOptions.value, form.categoryId)) {
     Message.warning('请选择商品分类');
     return;
+  }
+  for (const key of ['price', 'shippingFee', 'tax'] as const) {
+    const result = exactDecimalNumber(amountTexts[key], key !== 'price');
+    if (result.value === undefined || result.value !== form[key]) {
+      Message.warning(result.error || '金额输入尚未核对，请重新确认');
+      return;
+    }
   }
   if (!Number.isFinite(form.price) || form.price <= 0) {
     Message.warning('请输入正确的商品售价');
@@ -145,9 +303,18 @@ function submit() {
 }
 
 function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
+  if (!currentContext.value || props.submitting) return;
   items.forEach(item => {
-    uploadedImageMap.set(item.url || item.filePath, { bucket: item.bucket, filePath: item.filePath });
+    const reference = item.url || item.filePath;
+    if (item.bucket && item.filePath && reference) uploadedImageMap.set(reference, { bucket: item.bucket, filePath: item.filePath });
   });
+}
+
+function updateDescription(value: string) {
+  if (currentContext.value && !props.submitting) form.description = value;
+}
+function updateProductImages(value: string[]) {
+  if (currentContext.value && !props.submitting) form.images = value;
 }
 
 const previewCategory = computed(() => {
@@ -162,33 +329,49 @@ const previewCategory = computed(() => {
   return path(cascaderOptions.value);
 });
 
-function selectAftersale(value: unknown) {
-  if (typeof value === 'string' && ['none', '7day-no-reason', 'shop-warranty', 'national-warranty'].includes(value)) {
-    form.aftersaleType = value as Api.Product.AftersaleType;
-  }
-}
 </script>
 
 <template>
-  <form class="product-form" @submit.prevent="submit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-    <div class="editor-fields">
-    <section class="form-section"><header><span>01</span><div><h3>基本信息</h3><p>清晰的标题和分类，帮助顾客找到好物。</p></div></header>
-      <div class="field"><Label for="product-title">商品标题 <span>*</span></Label><Input id="product-title" v-model="form.title" maxlength="128" :disabled="submitting" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" /></div>
-      <div class="field"><Label for="product-category">商品分类 <span>*</span></Label><div class="category-row"><CategoryPicker id="product-category" v-model="form.categoryId" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting" /><Button type="button" variant="outline" :disabled="categoryLoading || submitting" @click="reloadCategories(true)">{{ categoryLoading ? '读取中…' : '刷新分类' }}</Button></div><Alert v-if="categoryLoadError" variant="destructive"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="categoryLoading" @click="reloadCategories()">重新加载</Button></AlertDescription></Alert></div>
-      <div class="field"><Label for="product-summary">商品简介</Label><Input id="product-summary" v-model="form.summary" :disabled="submitting" maxlength="30" placeholder="一行简介，30 字以内" /></div>
-      <div class="field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader v-model="form.images" scene="PRODUCT" :max="6" :disabled="submitting" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
+  <form class="buyer-editor" @submit.prevent="submit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
+    <div class="buyer-editor-fields">
+    <div v-if="savedDraft" class="buyer-draft"><span>发现一份本地草稿</span><button type="button" :disabled="draftBlocked" @click="restoreDraft">恢复草稿 →</button></div>
+    <p v-if="draftError" class="buyer-rejection" role="alert">{{ draftError }}</p>
+    <section class="paper"><header class="buyer-number-heading"><span>01</span><div><h2>商品信息</h2><p>清晰的图片与准确的信息，让选择更容易。</p></div></header>
+      <div class="buyer-field"><Label for="product-title">商品标题 <span>*</span></Label><Input id="product-title" v-model="form.title" maxlength="128" :disabled="submitting" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" /></div>
+      <div class="buyer-two-cols"><div class="buyer-field"><Label for="product-category">商品分类 <span>*</span></Label><div class="category-row"><CategoryPicker id="product-category" v-model="form.categoryId" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting" /><Button class="outline" type="button" variant="outline" :disabled="categoryLoading || submitting" @click="reloadCategories(true)">{{ categoryLoading ? '读取中…' : '刷新分类' }}</Button></div><Alert v-if="categoryLoadError" variant="destructive"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="categoryLoading" @click="reloadCategories()">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><span>没有合适的分类？</span><button class="outline" type="button" :disabled="draftBlocked" @click="router.push('/buyer/categories/apply')">申请新增分类 →</button></div></div>
+      <div class="buyer-field"><Label for="product-summary">商品简介</Label><Input id="product-summary" v-model="form.summary" :disabled="submitting" maxlength="30" placeholder="一行简介，30 字以内" /><small>{{ form.summary.length }} / 30</small></div>
+      <div class="buyer-field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader :key="draftRevision" class="buyer-upload-grid" :model-value="form.images" @update:model-value="updateProductImages" :cover-mode="true" scene="PRODUCT" :max="6" :disabled="submitting || uploadStates.description || uploadStates.details || !currentContext" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
     </section>
-    <section class="form-section"><header><span>02</span><div><h3>售价与服务</h3><p>所有金额以 USDT 结算，编辑商品支持保留原有金额精度。</p></div></header>
-      <div class="field-grid"><div class="field"><Label for="product-price">售价（USDT）<span>*</span></Label><AmountInput id="product-price" :model-value="form.price" :disabled="submitting" :min="0.00000001" :precision="initialProduct ? 8 : 2" placeholder="请输入商品售价" @update:model-value="form.price = $event ?? NaN" /></div><div class="field"><Label for="product-shipping">运费（USDT）</Label><AmountInput id="product-shipping" :model-value="form.shippingFee" :disabled="submitting" :min="0" :precision="initialProduct ? 8 : 2" placeholder="免运费填 0" @update:model-value="form.shippingFee = $event ?? NaN" /></div><div class="field"><Label for="product-tax">税费（USDT）</Label><AmountInput id="product-tax" :model-value="form.tax" :disabled="submitting" :min="0" :precision="initialProduct ? 8 : 2" placeholder="无税费填 0" @update:model-value="form.tax = $event ?? NaN" /></div></div>
-      <div class="field-grid"><div class="field"><Label for="product-stock">库存 <span>*</span></Label><AmountInput id="product-stock" :model-value="form.stock" :disabled="submitting" :min="0" :precision="0" placeholder="请输入库存数量" @update:model-value="form.stock = $event ?? NaN" /></div><div class="field"><Label for="product-aftersale">售后类型 <span>*</span></Label><Select :model-value="form.aftersaleType" :disabled="submitting" @update:model-value="selectAftersale"><SelectTrigger id="product-aftersale" class="full"><SelectValue placeholder="请选择售后类型" /></SelectTrigger><SelectContent><SelectItem value="none">无售后</SelectItem><SelectItem value="7day-no-reason">7 天无理由</SelectItem><SelectItem value="shop-warranty">店铺保修</SelectItem><SelectItem value="national-warranty">全国联保</SelectItem></SelectContent></Select></div><div class="field"><Label for="product-overseas">海外过关</Label><div class="checkbox-row"><Checkbox id="product-overseas" :model-value="form.overseasCustoms" :disabled="submitting" @update:model-value="form.overseasCustoms = $event === true" /><Label for="product-overseas">海外直邮</Label></div><p class="helper">海外直邮过关后不可退。</p></div></div>
+    <section class="paper"><header class="buyer-number-heading"><span>02</span><div><h2>价格与配送</h2><p>按 USDT 结算，运费与税费单独展示。</p></div></header>
+      <div class="buyer-two-cols"><div class="buyer-field"><Label for="product-price">售价（USDT）<span>*</span></Label><AmountInput id="product-price" :exact-decimal="true" v-model:raw-value="amountTexts.price" :model-value="form.price" :disabled="submitting" :min="0.00000001" :precision="initialProduct ? 8 : 2" placeholder="请输入商品售价" @update:model-value="form.price = $event ?? NaN" /></div><div class="buyer-field"><Label for="product-stock">库存 <span>*</span></Label><AmountInput id="product-stock" :model-value="form.stock" :disabled="submitting" :min="0" :precision="0" placeholder="请输入库存数量" @update:model-value="form.stock = $event ?? NaN" /></div><div class="buyer-field"><Label for="product-shipping">运费（USDT）</Label><AmountInput id="product-shipping" :exact-decimal="true" v-model:raw-value="amountTexts.shippingFee" :model-value="form.shippingFee" :disabled="submitting" :min="0" :precision="initialProduct ? 8 : 2" placeholder="免运费填 0" @update:model-value="form.shippingFee = $event ?? NaN" /></div><div class="buyer-field"><Label for="product-tax">税费（USDT）</Label><AmountInput id="product-tax" :exact-decimal="true" v-model:raw-value="amountTexts.tax" :model-value="form.tax" :disabled="submitting" :min="0" :precision="initialProduct ? 8 : 2" placeholder="无税费填 0" @update:model-value="form.tax = $event ?? NaN" /></div></div>
+      <label class="buyer-field" for="product-aftersale">售后类型 *<select id="product-aftersale" v-model="form.aftersaleType" :disabled="submitting"><option value="none">无售后</option><option value="7day-no-reason">7 天无理由</option><option value="shop-warranty">店铺保修</option><option value="national-warranty">全国联保</option></select></label>
+      <label class="buyer-switch" for="product-overseas"><span><b>海外直邮</b><small>海外过关后不可退，购买时向顾客提示。</small></span><input id="product-overseas" v-model="form.overseasCustoms" type="checkbox" role="switch" :disabled="submitting" /></label>
     </section>
-    <section class="form-section"><header><span>03</span><div><h3>商品详情</h3><p>补充真实描述与图片，让顾客更安心。</p></div></header><div class="field"><Label>详细描述</Label><RichTextEditor v-model="form.description" :disabled="submitting" @uploading="uploadStates.description = $event" /></div></section>
-    <footer class="form-actions"><span>{{ uploading ? '图片正在上传，请稍候。' : '提交后将进入平台审核。' }}</span><Button type="submit" :disabled="uploading || submitting">{{ submitting ? '正在提交…' : '提交审核' }}</Button></footer>
+    <section class="paper"><header class="buyer-number-heading"><span>03</span><div><h2>商品详情</h2><p>说明版本、材质、配件与使用信息。</p></div></header><div class="buyer-field"><Label>详细描述</Label><RichTextEditor :key="draftRevision" class="buyer-rich-editor" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :model-value="form.description" @update:model-value="updateDescription" :disabled="submitting || uploadStates.product || uploadStates.details || !currentContext" @uploading="uploadStates.description = $event" @uploaded="onUploaded" /></div><BuyerDetailImages :model-value="form.description" @update:model-value="updateDescription" :context="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || uploadStates.product || uploadStates.description || !currentContext" @uploading="uploadStates.details = $event" @uploaded="onUploaded" /></section>
+    <p v-if="uploading" class="buyer-inline-hint" role="status">图片正在上传，请稍候。</p>
+    <footer class="buyer-form-footer"><button type="button" class="outline" :disabled="draftBlocked" @click="saveDraft">保存本地草稿</button><button type="submit" class="primary" :disabled="draftBlocked">{{ submitting ? '正在提交…' : '提交审核' }}<UmIcon name="arrow" /></button></footer>
     </div>
-    <aside class="draft-preview" aria-label="当前表单预览"><span class="eyebrow">LIVE PREVIEW</span><h3>顾客将看到</h3><img v-if="form.images.length" :src="form.images[0]" :alt="form.title || '当前上传的商品图片'" /><div v-else class="preview-empty"><Icon icon="lucide:image" /><span>上传商品图片后预览</span></div><small>{{ previewCategory || '尚未选择分类' }}</small><h4>{{ form.title || '尚未填写商品标题' }}</h4><p v-if="form.summary">{{ form.summary }}</p><strong>{{ Number.isFinite(form.price) ? formatAmount(form.price) : '—' }} <small>USDT</small></strong><div class="preview-service"><Icon icon="lucide:shield-check" />{{ ({ 'none': '无售后', '7day-no-reason': '7 天无理由', 'shop-warranty': '店铺保修', 'national-warranty': '全国联保' })[form.aftersaleType] || '尚未选择售后类型' }}</div><p class="preview-hint">当前表单预览，尚未发布。提交后进入平台审核。</p></aside>
+    <aside class="paper buyer-live-preview" aria-label="当前表单预览"><span class="eyebrow">LIVE PREVIEW</span><h3>顾客将看到</h3><img v-if="form.images.length" :src="form.images[0]" :alt="form.title || '当前上传的商品图片'" /><div v-else class="preview-empty"><UmIcon name="bag" /><span>上传商品图片后预览</span></div><small>{{ previewCategory || '尚未选择分类' }}</small><h3>{{ form.title || '尚未填写商品标题' }}</h3><p v-if="form.summary">{{ form.summary }}</p><strong>{{ Number.isFinite(form.price) ? formatAmount(form.price) : '—' }} <small>USDT</small></strong><div class="preview-service"><UmIcon name="shield" />{{ ({ 'none': '无售后', '7day-no-reason': '7 天无理由', 'shop-warranty': '店铺保修', 'national-warranty': '全国联保' })[form.aftersaleType] || '尚未选择售后类型' }}</div><p class="preview-hint">当前表单预览，尚未发布。提交后进入平台审核。</p></aside>
+    <a-modal content-class="buyer-dialog" v-model:visible="leaveVisible" title="保存商品草稿？" :footer="false" @cancel="decideLeave(false)"><p>还有未保存的商品资料，可以保存草稿后离开。</p><p v-if="draftError" class="error-text" role="alert">{{ draftError }}</p><div class="button-row"><button type="button" class="outline" @click="decideLeave(false)">继续编辑</button><button type="button" class="outline" :disabled="draftBlocked" @click="discardAndLeave">放弃修改</button><button type="button" class="primary" :disabled="draftBlocked" @click="saveAndLeave">保存并离开</button></div></a-modal>
   </form>
 </template>
 
 <style scoped>
-.product-form { display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:20px; align-items:start; }.editor-fields { display:grid; gap:26px; min-width:0; }.draft-preview { position:sticky; top:170px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:8px; padding:26px; min-width:0; }.draft-preview>.eyebrow { color:var(--yb-gold); font-size:10px; letter-spacing:1.6px; }.draft-preview h3 { font-size:17px; font-weight:600; margin:10px 0 20px; }.draft-preview>img,.preview-empty { width:100%; aspect-ratio:4/3; border-radius:7px; object-fit:cover; margin-bottom:18px; }.preview-empty { display:grid; align-content:center; justify-items:center; gap:12px; color:var(--yb-muted); background:var(--yb-fill); font-size:12px; }.preview-empty svg { width:28px; height:28px; }.draft-preview>small { font-size:11px; color:var(--yb-muted); }.draft-preview h4 { font-size:15px; margin:12px 0; line-height:1.7; overflow-wrap:anywhere; font-weight:600; }.draft-preview>p { color:var(--yb-muted); font-size:12px; line-height:1.8; margin:12px 0; overflow-wrap:anywhere; }.draft-preview>strong { font-family:var(--yb-font-body); font-size:23px; font-weight:550; }.draft-preview strong small { font-size:11px; font-weight:400; }.preview-service { margin-top:22px; padding-top:18px; border-top:1px solid var(--yb-hairline); display:flex; align-items:center; gap:7px; font-size:12px; color:var(--yb-primary); }.preview-service svg { width:16px; }.draft-preview>.preview-hint { margin-bottom:0; }.form-section { padding:28px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:8px; display:grid; gap:22px; }.form-section header { display:flex; align-items:flex-start; gap:14px; margin-bottom:5px; }.form-section header>span { padding-top:3px; color:var(--yb-muted); font-family:Georgia,serif; font-size:17px; font-style:italic; flex-shrink:0; }.form-section h3 { font-size:17px; font-weight:600; margin:0 0 6px; }.form-section header p { margin:0; font-size:12px; color:var(--yb-muted); }.field { display:grid; gap:10px; min-width:0; }.field label>span { color:var(--yb-danger); }.field-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }.category-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }.full { width:100%; }.checkbox-row { display:flex; align-items:center; gap:10px; height:40px; }.checkbox-row label { cursor:pointer; font-weight:400; }.helper { color:var(--yb-muted); font-size:12px; margin:0; }.form-actions { position:sticky; bottom:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:24px 28px; background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:8px; box-shadow:0 -3px 12px rgb(0 0 0 / 3%); }.form-actions>span { color:var(--yb-muted); font-size:12px; }@media(max-width:1150px) { .product-form { grid-template-columns:1fr; }.draft-preview { display:none; }.field-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }@media(max-width:700px) { .field-grid { grid-template-columns:1fr; }.form-section { padding:20px; } }
+.buyer-editor-fields { min-width:0; }
+.category-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }
+.helper { color:var(--muted); }
+.preview-empty { display:grid; aspect-ratio:1; align-content:center; justify-items:center; gap:12px; background:var(--soft); border-radius:8px; margin:15px 0; }
+.preview-service { display:flex; gap:8px; border-top:1px solid var(--line); margin-top:20px; padding-top:18px; }
+.buyer-live-preview h3 { overflow-wrap:anywhere; }
+.buyer-live-preview > img { width:100%; }
+.error-text { color:var(--yb-danger); }
+.buyer-editor :deep(.buyer-upload-grid) { display:flex; gap:10px; flex-wrap:wrap; margin:6px 0; }
+.buyer-editor :deep(.buyer-upload-grid .cell),.buyer-editor :deep(.buyer-upload-grid .add) { width:86px; height:86px; border-radius:8px; }
+.buyer-editor :deep(.buyer-rich-editor) { border:1px solid var(--ui-dfe4d9,#dfe4d9); border-radius:8px; }
+.buyer-editor :deep(.buyer-rich-editor .toolbar) { gap:3px; padding:8px; background:var(--ui-f4f6ed,#f4f6ed); border-bottom-color:var(--ui-e7ebdf,#e7ebdf); }
+.buyer-editor :deep(.buyer-rich-editor .toolbar button) { padding:7px 8px; min-width:30px; font-size:11px; border-radius:4px; background:none; }
+.buyer-editor :deep(.buyer-rich-editor .tiptap) { min-height:220px; padding:16px; font-size:13px; line-height:1.9; }
+.buyer-editor :deep(.buyer-rich-editor .tiptap p) { margin:6px 0; }
+@media(max-width:700px) { .buyer-editor :deep(.buyer-upload-grid .cell),.buyer-editor :deep(.buyer-upload-grid .add) { width:76px; height:76px; } }
+@media(max-width:700px) { .category-row { grid-template-columns:minmax(0,1fr); } }
 </style>

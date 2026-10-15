@@ -38,5 +38,5 @@ const meta = computed(() => {
 </template>
 
 <style scoped>
-.behavior-tag { display:inline-flex; align-items:center; padding:4px 9px; font-size:12px; line-height:1.4; border-radius:4px; background:var(--yb-fill); color:var(--yb-muted); white-space:nowrap; }.medium { font-size:13px; }.red { color:#ad453e; background:#fcecea; }.green { color:#326b43; background:#e9f3eb; }.orange { color:#9a5709; background:#fff3df; }.purple { color:#704a8d; background:#f2ebf7; }.arcoblue,.cyan { color:#315a96; background:#edf3fc; }
+.behavior-tag { display:inline-flex; align-items:center; padding:4px 9px; font-size:12px; line-height:1.4; border-radius:4px; background:var(--soft); color:var(--muted); white-space:nowrap; }.medium { font-size:13px; }.red { color:var(--yb-danger); background:color-mix(in srgb,var(--yb-danger) 10%,var(--paper)); }.green { color:var(--yb-success); background:color-mix(in srgb,var(--yb-success) 10%,var(--paper)); }.orange { color:var(--yb-warning); background:color-mix(in srgb,var(--yb-warning) 10%,var(--paper)); }.purple { color:var(--yb-info); background:color-mix(in srgb,var(--yb-info) 10%,var(--paper)); }.arcoblue,.cyan { color:var(--yb-info); background:color-mix(in srgb,var(--yb-info) 10%,var(--paper)); }
 </style>

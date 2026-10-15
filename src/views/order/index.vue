@@ -3,14 +3,12 @@ import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { Message } from '@/lib/feedback';
 import OrderCard from '@/components/order/order-card.vue';
-import EmptyState from '@/components/common/empty-state.vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import * as reviewApi from '@/service/api/review';
@@ -268,38 +266,25 @@ function changeTab(value: string | number) {
 </script>
 
 <template>
-  <div class="order-list-page shop-container">
-    <header class="page-head"><div><p class="eyebrow">YOUR ORDERS</p><h1>我的订单 · {{ orderView === 'sell' ? '卖出' : '买入' }}</h1></div><div v-if="userStore.canSwitchToBuyer" class="view-switch" role="group" aria-label="订单视角"><Button :variant="orderView === 'buy' ? 'default' : 'outline'" :aria-pressed="orderView === 'buy'" @click="changeView('buy')">买入订单</Button><Button :variant="orderView === 'sell' ? 'default' : 'outline'" :aria-pressed="orderView === 'sell'" @click="changeView('sell')">卖出订单</Button></div></header>
-    <Tabs :model-value="activeKey" @update:model-value="changeTab"><TabsList class="order-tabs"><TabsTrigger v-for="tab in TABS" :key="tab.key" :value="tab.key" class="order-tab">{{ tab.label }}<span v-if="tab.statuses && countOfTab(tab)" class="tab-count">{{ countOfTab(tab) > 99 ? '99+' : countOfTab(tab) }}</span></TabsTrigger></TabsList></Tabs>
+  <div class="order-list-page customer-orders">
+    <header class="page-heading compact"><h1>我的订单</h1><span class="heading-meta">{{ orderView === 'sell' ? '卖出' : '买入' }}</span><div v-if="userStore.canSwitchToBuyer" class="view-switch" role="group" aria-label="订单视角"><button type="button" :class="orderView === 'buy' ? 'primary' : 'outline'" :aria-pressed="orderView === 'buy'" @click="changeView('buy')">买入订单</button><button type="button" :class="orderView === 'sell' ? 'primary' : 'outline'" :aria-pressed="orderView === 'sell'" @click="changeView('sell')">卖出订单</button></div></header>
+    <div class="tabs" role="tablist" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" role="tab" :aria-selected="activeKey === tab.key" :class="{ active: activeKey === tab.key }" @click="changeTab(tab.key)">{{ tab.label }}<span v-if="tab.statuses && countOfTab(tab)" class="tab-count">{{ countOfTab(tab) > 99 ? '99+' : countOfTab(tab) }}</span></button></div>
     <section class="orders" :aria-busy="loading">
-      <Alert v-if="reviewableError" class="review-notice"><AlertDescription>{{ reviewableError }}</AlertDescription><Button variant="outline" size="sm" :disabled="reviewableLoading" @click="loadReviewableOrders"><Icon v-if="reviewableLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新核对</Button></Alert>
+      <Alert v-if="reviewableError" class="review-notice"><AlertDescription>{{ reviewableError }}</AlertDescription><button type="button" class="outline" :disabled="reviewableLoading" @click="loadReviewableOrders"><Icon v-if="reviewableLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新核对</button></Alert>
       <p v-else-if="reviewableLoading" class="review-loading" role="status"><Icon icon="lucide:loader-circle" width="14" class="animate-spin" />正在核对评价资格…</p>
       <div v-if="loading && !orders.length" class="order-skeletons" aria-label="正在读取订单"><Skeleton v-for="i in 3" :key="i" class="order-skeleton" /></div>
-      <div v-else-if="orders.length" :class="{ reading: loading }"><OrderCard v-for="order in orders" :key="order.id" :order="order" :reviewable="reviewableOrderIds.has(String(order.id))" @changed="onChanged" /></div>
-      <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '不会展示不完整的订单数据。' : '直接购买或求购成交后会生成真实订单'" :action-text="loadError ? '重新加载' : '发起求购'" @action="handleEmptyAction" />
+      <div v-else-if="orders.length" :class="{ reading: loading }"><div class="order-table-labels" aria-hidden="true"><span>商品信息</span><span>订单金额</span><span>操作</span></div><OrderCard v-for="order in orders" :key="order.id" :order="order" :reviewable="reviewableOrderIds.has(String(order.id))" @changed="onChanged" /></div>
+      <div v-else class="empty paper"><UmIcon name="box" /><h2>{{ loadError || '该状态下没有订单' }}</h2><p>{{ loadError ? '请稍后重试。' : '完成第一笔订单，开启好物旅程。' }}</p><button type="button" class="primary" @click="handleEmptyAction">{{ loadError ? '重新加载' : '发起求购' }}</button></div>
     </section>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
   </div>
 </template>
 
 <style scoped>
-.order-list-page { max-width: 1020px; margin: 0 auto; padding-top: 0; }
-.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 24px; }
-.eyebrow { color: var(--yb-gold); font-size: 12px; font-weight: 600; letter-spacing: .12em; margin: 0 0 5px; }
-h1 { font-size: 28px; font-weight: 650; margin: 0; }
-.view-switch { display: flex; gap: 8px; }
-.order-tabs { display: flex; justify-content: flex-start; gap: 8px; width: 100%; height: auto; padding: 0 16px; overflow-x: auto; border: 1px solid var(--yb-hairline); border-radius: 8px; background: var(--yb-surface); }
-.order-tab { flex-shrink: 0; padding: 18px 12px; border-radius: 0; border-bottom: 2px solid transparent; box-shadow: none; color: var(--yb-muted); }
-.order-tab[data-state='active'] { background: transparent; color: var(--yb-primary); border-bottom-color: var(--yb-gold); box-shadow: none; }
-.tab-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--yb-fill); font-size: 12px; line-height: 18px; }
-.orders { margin-top: 24px; }
-.orders > :deep(.empty-state) { background: var(--yb-paper); border: 1px solid var(--yb-hairline); border-radius: 8px; min-height: 360px; }
-.order-skeletons { display: grid; gap: 16px; }
-.order-skeleton { height: 210px; }
-.review-notice { margin-bottom: 16px; }
-.review-notice button { margin-top: 10px; }
-.review-loading { display: flex; align-items: center; gap: 6px; color: var(--yb-muted); font-size: 13px; }
-.reading { opacity: .55; transition: opacity 150ms; }
-@media (max-width: 800px) { .page-head { flex-wrap: wrap; } }
-@media (prefers-reduced-motion: reduce) { .reading { transition: none; } }
+.view-switch { display:flex; gap:8px; margin-left:auto; }
+.tab-count { margin-left:6px; font-size:12px; }
+.order-skeletons { display:grid; gap:16px; }.order-skeleton { height:210px; }
+.review-notice { margin-bottom:16px; }.review-notice button { margin-top:10px; }
+.review-loading { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; }
+.reading { opacity:.55; }
 </style>

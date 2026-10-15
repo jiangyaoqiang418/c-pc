@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
+import V47VaultDialog from './v47-vault-dialog.vue';
+import { sumPaymentAmounts } from '@/utils/checkout';
 import { Skeleton } from '@/components/ui/skeleton';
-import DescriptionList from '@/components/common/description-list.vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { formatAmount } from '@shared';
+import { formatFinanceAmount as formatAmount } from './v47-interest-math';
 import { fetchFinanceOrderDetail, financeRedemptionIssue } from '@/service/api/finance';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
@@ -22,6 +22,11 @@ const emit = defineEmits<{
 
 const latestOrder = ref<Api.RealFinance.FinanceOrderVO>();
 const reading = ref(false);
+const acknowledged = ref(false);
+const expectedTotal = computed(() => {
+  if (displayedOrder.value?.principal === undefined || displayedOrder.value?.redeemableInterest === undefined) return undefined;
+  try { return sumPaymentAmounts([displayedOrder.value.principal, displayedOrder.value.redeemableInterest]); } catch { return undefined; }
+});
 const readError = ref('');
 const requestGuard = createLatestRequestGuard();
 const displayedOrder = computed(() => props.pending ? props.order : latestOrder.value);
@@ -30,6 +35,7 @@ const issue = computed(() => props.pending ? '' : readError.value || (!latestOrd
 
 async function readQuote() {
   const isCurrent = requestGuard.begin();
+  acknowledged.value = false;
   latestOrder.value = undefined;
   readError.value = '';
   reading.value = false;
@@ -52,11 +58,11 @@ onBeforeUnmount(requestGuard.invalidate);
 
 function money(value: string | number | undefined) {
   return value === undefined || value === null || String(value).trim() === '' || !Number.isFinite(Number(value))
-    ? '待确认' : 'U ' + formatAmount(value);
+    ? '待确认' : formatAmount(value, { decimals: 8 });
 }
 
 function submit() {
-  if (!props.visible || !displayedOrder.value || props.submitting || reading.value || issue.value) return false;
+  if (!props.visible || !displayedOrder.value || props.submitting || reading.value || issue.value || (!props.pending && (!acknowledged.value || expectedTotal.value === undefined))) return false;
   emit('confirm', displayedOrder.value);
   return false;
 }
@@ -65,23 +71,22 @@ function submit() {
 </script>
 
 <template>
-
-  <AModal :visible="visible" title="确认提前赎回" :width="560" :ok-loading="props.submitting" :ok-text="pending ? '核实赎回结果' : '确认赎回'" :ok-button-props="{ status: 'danger', disabled: reading || !!issue || !displayedOrder }" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="submit" @update:visible="(v: boolean) => $emit('update:visible', v)">
-    <div v-if="issue" class="notice" role="alert"><Icon icon="lucide:circle-alert" width="20" /><span>{{ issue }}</span><Button type="button" variant="outline" size="sm" :disabled="reading || submitting" @click="readQuote">{{ reading ? '正在核对…' : '重新读取' }}</Button></div>
+  <V47VaultDialog :visible="visible" :title="pending ? '核实赎回结果' : '提前赎回报价'" :description="(displayedOrder?.productName || order?.productName || '锁仓') + ' · USDT'" eyebrow="REVIEW YOUR REDEMPTION" icon="return" :busy="submitting" @update:visible="emit('update:visible', $event)">
+    <div v-if="issue" class="status-banner quote-notice" role="alert"><UmIcon name="shield" /><span>{{ issue }}</span><button class="outline" :disabled="reading || submitting" @click="readQuote">{{ reading ? '正在核对…' : '重新读取' }}</button></div>
     <Skeleton v-if="reading" class="quote-skeleton" aria-label="正在核对赎回费用" />
     <template v-else-if="displayedOrder">
-      <p v-if="pending" class="pending-note" role="alert">上次赎回结果待确认，本次只读取原锁仓状态，不会重复发送赎回。</p>
-      <div class="quote-heading"><span class="asset-icon"><Icon icon="lucide:undo-2" width="28" /></span><h2>提前赎回报价</h2><p>{{ displayedOrder.productName || '—' }}</p></div>
-      <div class="principal"><small>退回本金</small><strong>{{ money(displayedOrder.principal) }}</strong></div>
-      <DescriptionList :columns="1" :items="[{ label: '小金库订单', value: String(displayedOrder.productCode || displayedOrder.id) }, { label: '预期利息', value: money(displayedOrder.expectedInterest) }, { label: '已累积利息', value: money(displayedOrder.accruedInterest) }, { label: '违约费', value: money(displayedOrder.redeemFee) }, { label: '可到账净利息', value: money(displayedOrder.redeemableInterest) }]" />
-      <p class="warn">提前赎回将停止后续计息，已产生利息会扣除违约费。确认后需输入支付密码，最终到账以结算结果为准。</p>
+      <p v-if="pending" class="vault-confirm-note" role="alert">上次赎回结果待确认，本次只读取原锁仓状态，不会重复发送赎回。</p>
+      <div class="vault-confirm-amount"><small>预计退回余额</small><strong>{{ expectedTotal === undefined ? '待确认' : formatAmount(expectedTotal, { decimals: 4 }) }} <span>USDT</span></strong></div>
+      <dl class="vault-breakdown"><div><dt>退回本金</dt><dd>{{ money(displayedOrder.principal) }}</dd></div><div><dt>已累计利息</dt><dd>+ {{ money(displayedOrder.accruedInterest) }}</dd></div><div><dt>利息违约费</dt><dd class="vault-fee">− {{ money(displayedOrder.redeemFee) }}</dd></div><div><dt>可到账净利息</dt><dd class="positive">+ {{ money(displayedOrder.redeemableInterest) }}</dd></div></dl>
+      <p class="vault-confirm-note">提前赎回将停止后续计息。确认后需输入支付密码，费用以最新订单报价为准，最终到账以结算结果为准。</p>
+      <label v-if="!pending" class="vault-ack"><input v-model="acknowledged" type="checkbox" :disabled="submitting" /><span>我已核对违约费与预计到账金额</span></label>
     </template>
-  </AModal>
-
+    <button class="primary full" :disabled="submitting || reading || !!issue || !displayedOrder || (!pending && (!acknowledged || expectedTotal === undefined))" @click="submit">{{ submitting ? '正在处理…' : pending ? '核实赎回结果' : '确认赎回' }}</button>
+  </V47VaultDialog>
 </template>
 
 <style scoped>
-
-.notice { display:flex; align-items:center; gap:12px; padding:16px; background:var(--yb-primary-soft); border-radius:12px; font-size:13px; margin-bottom:20px; }.notice>svg { flex:none; color:var(--yb-brand-primary); }.notice>span { flex:1; }.quote-heading { text-align:center; margin:12px 0 24px; }.asset-icon { display:inline-flex; padding:18px; border-radius:18px; color:var(--yb-brand-primary); background:var(--yb-primary-soft); }.quote-heading h2 { font-size:22px; font-weight:600; margin:12px 0 4px; }.quote-heading p { font-size:13px; color:var(--yb-muted); margin:0; }.principal { display:flex; flex-direction:column; align-items:center; gap:6px; padding:20px; border-radius:16px; background:var(--yb-fill); margin-bottom:24px; }.principal small { font-size:12px; color:var(--yb-muted); }.principal strong { font-size:30px; font-family:var(--yb-font-mono); font-weight:500; }.warn,.pending-note { font-size:13px; color:var(--yb-muted); line-height:1.8; padding:16px; border-radius:12px; background:var(--yb-fill); margin:20px 0 0; }.pending-note { margin:0 0 20px; background:var(--yb-primary-soft); }.quote-skeleton { height:330px; border-radius:16px; }
-
+.quote-notice { margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+.quote-notice>span { flex:1; min-width:130px; }
+.quote-skeleton { height:330px; border-radius:16px; }
 </style>

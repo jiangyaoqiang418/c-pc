@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,6 +9,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
 import { formatAmount } from '@shared';
 import PurchaseRequestCard from '@/components/purchase/purchase-request-card.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -241,30 +241,27 @@ function selectExpectedDays(value: unknown) {
 <template>
 
   <div class="hall-page">
-    <header class="page-heading">
-      <div><span class="eyebrow">FIND YOUR EVERYDAY</span><h1>求购大厅</h1><p>告诉买手你想要什么，让心仪好物有回应。</p></div>
-      <div class="button-row"><Button variant="outline" @click="router.push('/purchase')">我的求购</Button><Button @click="router.push('/purchase/create')"><Icon icon="lucide:plus" width="17" />发起求购</Button></div>
-    </header>
-    <nav class="page-links" aria-label="求购导航"><RouterLink to="/purchase/hall" aria-current="page">求购大厅</RouterLink><RouterLink to="/purchase">我的求购</RouterLink></nav>
-    <section class="paper filters">
+    <div class="page-heading compact"><h1>求购大厅</h1><button type="button" class="primary" @click="router.push('/purchase/create')">发起求购 <UmIcon name="plus" /></button></div>
+    <div class="tabs"><button type="button" class="active" @click="router.push('/purchase/hall')">求购大厅</button><button type="button" @click="router.push('/purchase')">我的求购</button></div>
+    <section class="paper demand-filters">
       <form @submit.prevent="queryRecords">
         <div class="field keyword"><label for="demand-keyword">关键词</label><Input id="demand-keyword" v-model="keyword" placeholder="搜索商品标题" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }" /></div>
         <div class="field budget-field"><span id="demand-budget-label">预算区间 · USDT</span><div class="range" aria-labelledby="demand-budget-label"><AmountInput v-model="minBudgetField" :min="0" :precision="8" aria-label="最低预算" placeholder="最低" /><span>—</span><AmountInput v-model="maxBudgetField" :min="0" :precision="8" aria-label="最高预算" placeholder="最高" /></div></div>
         <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days" class="h-11 text-[15px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>
-        <div class="button-row"><Button type="submit" class="h-11 text-[15px]"><Icon icon="lucide:search" width="16" />查询</Button><Button type="button" variant="secondary" class="h-11 text-[15px]" @click="reset">重置</Button></div>
+        <div class="button-row"><button type="submit" class="h-11 text-[15px] primary"><Icon icon="lucide:search" width="16" />查询</button><button type="button"  class="h-11 text-[15px] outline" @click="reset">重置</button></div>
       </form>
     </section>
-    <div v-if="!canClaim && userStore.isLoggedIn" class="notice">
-      <Icon icon="lucide:info" width="20" /><p><strong>仅已审核通过的买手可接单。</strong><span>{{ userStore.canSwitchToBuyer ? '可进入买手工作台接单' : '提交买手申请并等待平台审核' }}</span></p><Button variant="outline" @click="userStore.canSwitchToBuyer ? router.push('/buyer/dashboard') : router.push('/buyer/apply')">{{ userStore.canSwitchToBuyer ? '进入买手工作台' : '申请成为买手' }}</Button>
+    <div v-if="!canClaim && userStore.isLoggedIn" class="status-banner">
+      <Icon icon="lucide:info" width="20" /><p><strong>仅已审核通过的买手可接单。</strong><span>{{ userStore.canSwitchToBuyer ? '可进入买手工作台接单' : '提交买手申请并等待平台审核' }}</span></p><button type="button" class="outline"  @click="userStore.canSwitchToBuyer ? router.push('/buyer/dashboard') : router.push('/buyer/apply')">{{ userStore.canSwitchToBuyer ? '进入买手工作台' : '申请成为买手' }}</button>
     </div>
     <section class="market-summary" aria-label="当前筛选结果">
       <div><small>符合当前条件</small><strong>{{ loading || loadError ? '—' : total }} <span>条求购</span></strong></div>
       <div><small>当前页预算总额</small><strong>{{ loading || loadError ? '—' : formatAmount(totalBudget) }} <span>USDT</span></strong></div>
       <div><small>当前页平均预算</small><strong>{{ loading || loadError ? '—' : formatAmount(avgBudget) }} <span>USDT</span></strong></div>
     </section>
-    <div v-if="loading" class="req-grid" aria-busy="true" aria-label="正在读取求购列表"><Skeleton v-for="n in 6" :key="n" class="request-skeleton" /></div>
+    <div v-if="loading" class="request-grid" aria-busy="true" aria-label="正在读取求购列表"><Skeleton v-for="n in 6" :key="n" class="request-skeleton" /></div>
     <EmptyState v-else-if="loadError" :title="loadError" description="未展示不完整的求购数据，请重新加载。" action-text="重新加载" @action="load" />
-    <div v-else-if="list.length" class="req-grid"><PurchaseRequestCard v-for="r in list" :key="r.id" :request="r" mode="hall" :can-claim="canClaim" :claiming="String(claimingId) === String(r.id)" @claim="onClaim" /></div>
+    <div v-else-if="list.length" class="request-grid"><PurchaseRequestCard v-for="r in list" :key="r.id" :request="r" mode="hall" :can-claim="canClaim" :claiming="String(claimingId) === String(r.id)" @claim="onClaim" /></div>
     <EmptyState v-else icon="lucide:search" title="暂无符合条件的求购" description="尝试调整筛选条件，或发起你的求购。" action-text="重置筛选" @action="reset" />
     <BusinessPagination v-if="!loading && !loadError && total > size" :total="total" :current="current" :page-size="size" @change="changePage" />
   </div>
@@ -272,7 +269,10 @@ function selectExpectedDays(value: unknown) {
 </template>
 
 <style scoped>
-
-.hall-page { padding-bottom:32px; }.page-heading { display:flex; justify-content:space-between; align-items:center; gap:24px; margin-bottom:24px; }.eyebrow { color:var(--yb-gold); font-size:12px; letter-spacing:.12em; }.page-heading h1 { margin:6px 0; font-size:30px; font-weight:650; }.page-heading p { margin:0; color:var(--yb-muted); font-size:14px; }.button-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }.page-links { display:flex; gap:28px; border-bottom:1px solid var(--yb-hairline); margin-bottom:24px; }.page-links a { padding:0 0 13px; color:var(--yb-muted); font-size:14px; text-decoration:none; }.page-links [aria-current] { color:var(--yb-brand-primary); border-bottom:2px solid var(--yb-brand-primary); }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:20px; }.filters { padding:24px; }.filters form { display:grid; grid-template-columns:1.2fr 1.4fr .8fr auto; gap:20px; align-items:end; }.field { display:flex; flex-direction:column; gap:8px; min-width:0; }.field>label,.field>span { font-size:13px; color:var(--yb-muted); }.range { display:flex; gap:10px; align-items:center; }.range>*:not(span) { min-width:0; width:100%; }.range>span { color:var(--yb-muted); }.notice { margin:20px 0; padding:18px 24px; background:var(--yb-primary-soft); border-radius:16px; display:flex; gap:16px; align-items:center; }.notice>svg { color:var(--yb-brand-primary); flex:none; }.notice p { margin:0; flex:1; font-size:14px; }.notice p span { display:block; color:var(--yb-muted); font-size:13px; }.market-summary { display:flex; gap:48px; padding:24px 4px; }.market-summary div { display:flex; flex-direction:column; gap:4px; }.market-summary small { color:var(--yb-muted); font-size:12px; }.market-summary strong { font-size:23px; font-family:var(--yb-font-mono); font-weight:600; }.market-summary strong span { font-family:var(--yb-font-body); font-size:12px; font-weight:400; color:var(--yb-muted); }.req-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }.request-skeleton { height:330px; border-radius:20px; }@media(max-width:1150px) { .filters form { grid-template-columns:1fr 1fr; }.req-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-
+.demand-filters form { display:grid; grid-template-columns:1.2fr 1.4fr .8fr auto; gap:20px; align-items:end; }
+.demand-filters .field { margin:0; min-width:0; }.range { display:flex; gap:10px; align-items:center; }.range > :not(span) { min-width:0; width:100%; }
+.status-banner p { flex:1; }.status-banner p span { display:block; font-size:13px; }
+.market-summary { display:flex; gap:32px; margin:20px 0; flex-wrap:wrap; }.market-summary div { display:grid; gap:4px; }.market-summary strong { font-size:24px; font-family:var(--yb-font-mono); }.market-summary strong span { font-size:13px; color:var(--muted); }.request-skeleton { height:300px; border-radius:10px; }
+@media (max-width:1100px) { .demand-filters form { grid-template-columns:1fr 1fr; } }
+@media (max-width:700px) { .demand-filters form { grid-template-columns:1fr; }.status-banner { flex-wrap:wrap; } }
 </style>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -8,7 +7,6 @@ import ImagePreview from '@/components/common/image-preview.vue';
 import { setImageFallback } from '@/utils/image-placeholder';
 import { computed, onBeforeUnmount, reactive, ref } from 'vue';
 import { Message } from '@/lib/feedback';
-import ReviewStars from '@/components/common/review-stars.vue';
 import { uploadFile } from '@/service/api/product';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
 
@@ -80,11 +78,6 @@ function removePhoto(idx: number) {
 
 const canSubmit = computed(() => form.productScore > 0 && form.sellerScore > 0 && form.content.length <= 1000);
 
-const scoreLabel = computed(() => {
-  if (form.productScore >= 4) return '👍 好评';
-  if (form.productScore === 3) return '🙂 中评';
-  return '👎 差评';
-});
 
 function submit() {
   if (uploading.value || props.submitting) return;
@@ -103,19 +96,21 @@ const submitDisabledReason = computed(() => props.submitting ? '正在核对或�
 
 <template>
   <section class="review-form" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-    <h2>评分与评价</h2>
-    <div class="row"><span class="lbl">商品评分</span><ReviewStars v-model:score="form.productScore" :mode="submitting ? 'readonly' : 'input'" size="lg" label="商品评分" /><span class="score-label">{{ scoreLabel }}</span></div>
-    <div class="row"><span class="lbl">买手服务</span><ReviewStars v-model:score="form.sellerScore" :mode="submitting ? 'readonly' : 'input'" size="lg" label="买手服务评分" /></div>
+    <div class="rating-field"><label>商品评分</label><div class="star-picker" role="group" aria-label="商品评分"><button v-for="n in 5" :key="n" type="button" :class="{ active:form.productScore >= n }" :aria-label="`${n} 星`" :aria-pressed="form.productScore === n" :disabled="submitting" @click="form.productScore = n">★</button></div></div>
+    <div class="rating-field"><label>买手服务评分</label><div class="star-picker" role="group" aria-label="买手服务评分"><button v-for="n in 5" :key="n" type="button" :class="{ active:form.sellerScore >= n }" :aria-label="`${n} 星`" :aria-pressed="form.sellerScore === n" :disabled="submitting" @click="form.sellerScore = n">★</button></div></div>
     <div class="field"><Label for="review-content">评价内容 <small>选填</small></Label><Textarea id="review-content" v-model="form.content" :disabled="submitting" maxlength="1000" rows="5" placeholder="说说商品如何、买手服务怎么样" /><small class="word-count">{{ form.content.length }}/1000</small></div>
     <div class="field"><span class="field-label">图片 <small>选填，最多 {{ MAX_PHOTOS }} 张</small></span>
       <input ref="fileInputRef" class="file-input" type="file" accept="image/*" :disabled="submitting || uploading" @change="onPhotoSelected" />
       <div class="photos"><div v-for="(u, i) in form.photoUrls" :key="`${u}:${i}`" class="photo-item"><button type="button" class="preview" :aria-label="`预览评价图片 ${i + 1}`" @click="previewIndex = i; previewOpen = true"><img :src="u" :alt="`评价图片 ${i + 1}`" @error="setImageFallback" /></button><button class="remove" type="button" :disabled="submitting" :aria-label="`删除评价图片 ${i + 1}`" :title="`删除评价图片 ${i + 1}`" @click="removePhoto(i)"><Icon icon="lucide:x" width="14" /></button></div><button v-if="form.photoUrls.length < MAX_PHOTOS" class="add" type="button" aria-label="上传评价图片" :disabled="uploading || submitting" @click="choosePhoto"><Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:plus'" width="22" :class="{ 'animate-spin': uploading }" /><span>{{ uploading ? '上传中…' : '上传图片' }}</span></button></div>
     </div>
-    <footer class="actions"><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><Button :disabled="!!submitDisabledReason" @click="submit">{{ submitting ? '提交中…' : '提交评价' }}</Button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
+    <footer class="actions"><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><button type="button" class="primary full" :disabled="!!submitDisabledReason" @click="submit">{{ submitting ? '提交中…' : '提交评价' }}</button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
     <ImagePreview v-model="previewOpen" :images="form.photoUrls" :start-index="previewIndex" title="评价图片" />
   </section>
 </template>
 
 <style scoped>
-.review-form { background:var(--yb-paper); border:1px solid var(--yb-hairline); border-radius:10px; padding:28px; }h2 { font-size:20px; font-weight:600; margin:0 0 26px; }.row { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:22px; }.lbl { min-width:88px; color:var(--yb-ink-2); font-size:14px; }.score-label { color:var(--yb-ink-2); font-size:13px; }.field { display:grid; gap:10px; margin-top:26px; }.field-label { font-size:14px; font-weight:500; }.field small { font-size:12px; color:var(--yb-muted); font-weight:400; }.word-count { text-align:right; }.photos { display:flex; flex-wrap:wrap; gap:12px; }.file-input { display:none; }.photo-item { position:relative; width:88px; height:88px; border-radius:6px; border:1px solid var(--yb-hairline); background:var(--yb-fill); }.preview { display:block; width:100%; height:100%; padding:0; border:0; border-radius:6px; overflow:hidden; cursor:zoom-in; }.photo-item img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }.preview:hover img { transform:scale(1.03); }.remove { position:absolute; display:grid; place-items:center; top:4px; right:4px; background:rgb(20 30 25 / 65%); color:#fff; border:none; width:24px; height:24px; border-radius:50%; cursor:pointer; }.preview:focus-visible,.remove:focus-visible,.add:focus-visible { outline:2px solid var(--yb-brand-primary); outline-offset:3px; }.add { width:88px; height:88px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:8px; background:var(--yb-fill); border:1px dashed var(--yb-hairline-2); border-radius:6px; color:var(--yb-muted); cursor:pointer; font-size:12px; transition:background .15s,border-color .15s,color .15s; }.add:hover:not(:disabled) { border-color:var(--yb-brand-primary); color:var(--yb-brand-primary); background:var(--yb-primary-soft); }.add:disabled,.remove:disabled { opacity:.5; cursor:not-allowed; }.actions { display:flex; justify-content:flex-end; margin-top:28px; }@media(max-width:700px) { .review-form { padding:22px; }.score-label { margin-left:100px; } }@media(prefers-reduced-motion:reduce) { .photo-item img,.add { transition:none; }.preview:hover img { transform:none; } }
+.rating-field { margin-top:20px; }.rating-field label { font-size:16px; }.star-picker { margin:10px 0 20px; }
+.field :deep(textarea) { height:auto; padding:12px 14px; font-size:16px; line-height:1.55; background:var(--paper); border-radius:6px; border-color:var(--line); }.field small { color:var(--muted); }.word-count { text-align:right; }.photos { display:flex; flex-wrap:wrap; gap:12px; }.file-input { display:none; }
+.photo-item { position:relative; width:88px; height:88px; border:1px solid var(--line); border-radius:6px; }.preview { width:100%; height:100%; border-radius:6px; overflow:hidden; }.photo-item img { width:100%; height:100%; object-fit:cover; }.remove { position:absolute; top:4px; right:4px; width:24px; height:24px; display:grid; place-items:center; background:#0009; color:white; border-radius:50%; }.add { width:88px; height:88px; display:grid; align-content:center; justify-items:center; gap:8px; border:1px dashed var(--line); border-radius:6px; background:var(--soft); color:var(--muted); font-size:12px; }
+.actions { margin-top:24px; }.actions > span { display:block; width:100%; }
 </style>

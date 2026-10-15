@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { Button } from '@/components/ui/button';
-import { Icon } from '@iconify/vue';
+import UmIcon from '@/components/common/um-icon.vue';
+import V47VaultHeader from '@/components/finance/v47-vault-header.vue';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import DescriptionList from '@/components/common/description-list.vue';
 import { financeRedemptionIssue } from '@/service/api/finance';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
-import { formatAmount, formatRate } from '@shared';
+import { formatFinanceAmount as formatAmount, formatFinanceRate as formatRate, knownFinanceDecimal, simpleFinanceInterest } from '@/components/finance/v47-interest-math';
 import * as financeApi from '@/service/api/finance';
 import { requestPayPassword } from '@/utils/pay-password';
 import InterestCurveChart from '@/components/finance/interest-curve-chart.vue';
@@ -41,8 +39,7 @@ const meta = computed(() => (order.value ? ({
 }[order.value.status] || { label: order.value.statusText || order.value.status, color: 'gray' }) : undefined));
 
 function knownAmount(value: unknown): value is string | number {
-  return (typeof value === 'number' || (typeof value === 'string' && value.trim() !== ''))
-    && Number.isFinite(Number(value)) && Number(value) >= 0;
+  return (typeof value === 'number' || typeof value === 'string') && knownFinanceDecimal(value) !== undefined;
 }
 
 const daysPassed = computed<number | undefined>(() => {
@@ -76,7 +73,7 @@ const actualInterest = computed(() => {
 const interestLabel = computed(() => order.value?.status === 'HOLDING' ? '已累积利息' : '实际结算利息');
 const actualInterestText = computed(() => actualInterest.value === undefined
   ? (order.value?.status === 'CANCELED' ? '已取消，不再计息' : '待确认')
-  : 'U ' + formatAmount(actualInterest.value));
+  : '+ ' + formatAmount(actualInterest.value, { decimals: 8 }));
 const chartHint = computed(() => {
   if (order.value?.status === 'CANCELED') return '订单已取消，不展示实际计息点；曲线仅作理论收益参考。';
   if (daysPassed.value === undefined || actualInterest.value === undefined) {
@@ -85,6 +82,23 @@ const chartHint = computed(() => {
   return order.value?.status === 'HOLDING'
     ? '实际点采用后台返回的累计利息；曲线仅作理论参考，不是每日收益流水。'
     : '实际点采用后台返回的结算利息及持有天数，订单结束后不再随当前时间增长；曲线仅作理论参考。';
+});
+
+const expandLedger = ref(false);
+const dailyTheoretical = computed(() => {
+  if (!order.value || !knownAmount(order.value.principal) || !knownAmount(order.value.annualRate)) return undefined;
+  return simpleFinanceInterest(order.value.principal, order.value.annualRate, 1);
+});
+const completedDays = computed(() => daysPassed.value === undefined || !order.value || order.value.status === 'CANCELED'
+  ? undefined : Math.max(0, Math.min(order.value.lockDays, daysPassed.value)));
+const theoreticalLedger = computed(() => {
+  const start = parseDateValue(order.value?.startAt);
+  if (start === undefined || completedDays.value === undefined || dailyTheoretical.value === undefined || !Number.isSafeInteger(completedDays.value)) return [];
+  const count = Math.min(completedDays.value, expandLedger.value ? 90 : 5);
+  return Array.from({ length: count }, (_, index) => {
+    const day = completedDays.value! - index;
+    return { day, date: formatDateValue(start + day * 86400_000, true), interest: dailyTheoretical.value, total: simpleFinanceInterest(order.value!.principal, order.value!.annualRate, day) };
+  });
 });
 
 async function load() {
@@ -123,6 +137,7 @@ watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUs
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
   writeVersion += 1;
   order.value = undefined;
+  expandLedger.value = false;
   redeemedOrderIds.clear();
   unlocking.value = false;
   unlockModalOpen.value = false;
@@ -189,39 +204,28 @@ function handleEmptyAction() {
 </script>
 
 <template>
-
-  <div class="lockup-detail-page">
-    <nav class="bread" aria-label="面包屑"><RouterLink to="/finance">小金库</RouterLink><span>/</span><RouterLink to="/finance/my-lockups">我的锁仓</RouterLink><span>/</span><span>{{ order?.productCode || order?.id || '锁仓详情' }}</span></nav>
-    <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓订单"><Skeleton class="hero-skeleton" /><Skeleton class="detail-skeleton" /></div>
+  <div class="vault-workspace">
+    <V47VaultHeader section="holdings" />
+    <button class="vault-back" @click="router.push('/finance/my-lockups')"><UmIcon name="chevron" />我的锁仓</button>
+    <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓订单"><Skeleton class="vault-lockup-skeleton" /><Skeleton class="vault-detail-skeleton" /></div>
     <template v-else-if="order">
-      <section class="paper hero-card"><div><span v-if="meta" class="status" :data-status="order.status">{{ meta.label }}</span><h1>{{ order.productName || '—' }}</h1><small class="code">{{ order.productCode || order.id }}</small></div><div class="principal"><small>锁仓本金</small><strong>{{ formatAmount(order.principal) }} <span>USDT</span></strong></div></section>
-      <div class="layout">
-        <section class="paper main-card"><div class="interest-head"><div><small>{{ interestLabel }}</small><strong>{{ actualInterestText }}</strong></div><div><small>年化快照</small><strong>{{ formatRate(Number(order.annualRate)) }}</strong></div></div>
-          <h2>理论收益参考</h2><InterestCurveChart :lockup-days="order.lockDays" :effective-rate-pct="Number(order.annualRate) * 100" :principal="String(order.principal)" :accrued-days="daysPassed" :accrued-interest="actualInterest" :marker-label="interestLabel" :width="720" :height="220" /><p class="hint">{{ chartHint }}</p>
-          <div v-if="holdingProgress !== undefined" class="holding-progress"><div><span>持有进度</span><strong>{{ daysPassed }} / {{ order.lockDays }} 天</strong></div><div role="progressbar" aria-label="锁仓持有进度" :aria-valuenow="Math.round(holdingProgress)" aria-valuemin="0" aria-valuemax="100"><span :style="{ width: holdingProgress + '%' }" /></div><p><span>{{ formatDateValue(order.startAt) }} 起息</span><span>{{ formatDateValue(order.maturityAt) }} 到期</span></p></div>
-          <div class="divider" /><h2>持仓信息</h2><DescriptionList :columns="2" :items="[{ label: '锁仓周期', value: order.lockDays + ' 天' }, { label: '已持有天数', value: daysPassed === undefined ? '待确认' : daysPassed + ' 天' }, { label: '起息时间', value: formatDateValue(order.startAt) }, { label: '到期时间', value: formatDateValue(order.maturityAt) }, { label: '结算/赎回时间', value: formatDateValue(order.settledAt || order.redeemedAt) }, { label: '赎回原因', value: order.redeemReason || '—' }]" />
-        </section>
-        <aside class="paper"><h2>这笔锁仓的详情</h2><DescriptionList :columns="1" :items="[{ label: '本金', value: formatAmount(order.principal) + ' USDT' }, { label: '预期利息', value: formatAmount(order.expectedInterest) + ' USDT' }, { label: interestLabel, value: actualInterestText }, { label: '提前赎回违约费', value: order.redeemFee === undefined || order.redeemFee === null ? '待确认' : formatAmount(order.redeemFee) + ' USDT' }, { label: '结算币种', value: 'USDT' }]" />
-          <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!order.canRedeem || unlocking ? 0 : undefined"><Button type="button" variant="outline" class="full danger" :disabled="!order.canRedeem || unlocking" @click="openUnlock">{{ unlocking ? '正在处理…' : order.canRedeem ? '查看提前赎回报价' : order.status === 'SETTLED' ? '已到期，已自动结算' : '当前不可赎回' }}</Button></span></TooltipTrigger><TooltipContent v-if="!order.canRedeem || unlocking" class="max-w-80">{{ unlocking ? '正在处理本次赎回，请勿重复提交' : financeRedemptionIssue(order) }}</TooltipContent></Tooltip></TooltipProvider>
-          <p class="hint">提前赎回将停止后续计息，费用与到账金额须读取订单最新报价。需要支付密码二次确认。</p>
-          <Button variant="link" class="wallet-link" @click="router.push('/wallet')">查看钱包<Icon icon="lucide:arrow-right" width="16" /></Button>
-        </aside>
-      </div>
+      <div class="vault-detail-banner"><div><span v-if="meta" class="vault-status" :class="order.status">{{ meta.label }}</span><h2>{{ order.productName || '—' }}</h2><small>{{ order.id }} · USDT</small></div><div><span>锁仓本金</span><strong>{{ formatAmount(order.principal) }} <small>USDT</small></strong></div></div>
+      <div class="vault-lock-layout"><section class="vault-lock-main">
+        <div class="vault-interest-head"><span>{{ interestLabel }}<strong>{{ actualInterestText }} <small>USDT</small></strong></span><span>年化快照<strong>{{ formatRate(order.annualRate) }}</strong></span></div>
+        <div class="vault-progress-label"><span>已持有 {{ daysPassed ?? '—' }} / {{ order.lockDays }} 天</span><b>{{ order.status === 'HOLDING' ? (order.remainingDays ?? '—') + ' 天后到期' : '计息已结束' }}</b></div><div class="vault-progress" role="progressbar" aria-label="锁仓持有进度" :aria-valuenow="holdingProgress === undefined ? undefined : Math.round(holdingProgress)" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: (holdingProgress ?? 0) + '%' }" /></div>
+        <ol class="vault-timeline"><li><UmIcon name="check" /><b>开始计息</b><small>{{ formatDateValue(order.startAt, true) }}</small></li><li><UmIcon name="clock" /><b>{{ meta?.label }}</b><small>{{ order.status === 'HOLDING' ? '每日计息，到期到账' : formatDateValue(order.settledAt || order.redeemedAt, true) }}</small></li><li><UmIcon name="wallet" /><b>{{ order.status === 'REDEEMED' ? '赎回到账' : order.status === 'CANCELED' ? '已取消' : '自动结算' }}</b><small>{{ formatDateValue(order.status === 'REDEEMED' ? order.redeemedAt : order.status === 'SETTLED' ? order.settledAt : order.status === 'CANCELED' ? undefined : order.maturityAt, true) }}</small></li></ol>
+        <InterestCurveChart :lockup-days="order.lockDays" :annual-rate="order.annualRate" :principal="String(order.principal)" :accrued-days="daysPassed" :accrued-interest="actualInterest" :marker-label="interestLabel" /><p class="vault-formula">{{ chartHint }}</p>
+        <section class="vault-production-metadata"><h3>持仓信息</h3><dl class="vault-breakdown"><div><dt>起息时间</dt><dd>{{ formatDateValue(order.startAt) }}</dd></div><div><dt>到期时间</dt><dd>{{ formatDateValue(order.maturityAt) }}</dd></div><div><dt>结算 / 赎回时间</dt><dd>{{ formatDateValue(order.settledAt || order.redeemedAt) }}</dd></div><div v-if="order.redeemReason"><dt>赎回原因</dt><dd>{{ order.redeemReason }}</dd></div></dl></section>
+      </section><aside class="vault-lock-aside"><h3>这笔锁仓的详情</h3><dl class="vault-breakdown"><div><dt>每日理论利息</dt><dd>{{ formatAmount(dailyTheoretical, { decimals: 8 }) }}</dd></div><div><dt>到期预期利息</dt><dd>+ {{ formatAmount(order.expectedInterest, { decimals: 4 }) }}</dd></div><div><dt>锁仓周期</dt><dd>{{ order.lockDays }} 天</dd></div><div><dt>结算币种</dt><dd>USDT</dd></div><div><dt>提前赎回违约费</dt><dd>{{ order.redeemFee === undefined || order.redeemFee === null ? '待确认' : formatAmount(order.redeemFee, { decimals: 8 }) }}</dd></div></dl>
+        <button v-if="order.canRedeem" class="outline full" :disabled="unlocking" @click="openUnlock">{{ unlocking ? '正在处理…' : '查看提前赎回报价' }}</button>
+        <div v-else class="vault-settled"><UmIcon name="check" />{{ order.status === 'SETTLED' ? '到期本金与利息已自动结算' : order.status === 'REDEEMED' ? '本金与净利息已退回余额' : order.status === 'CANCELED' ? '锁仓已取消' : '当前不可提前赎回' }}</div>
+        <p v-if="!order.canRedeem && order.status === 'HOLDING'" class="vault-formula">{{ financeRedemptionIssue(order) }}</p><p class="vault-formula">提前赎回将停止后续计息。确认页分别展示本金、利息、违约费与预计到账金额。</p><button class="text-link" @click="router.push('/wallet')">查看钱包<UmIcon name="arrow" /></button>
+      </aside></div>
+      <section class="vault-ledger"><div class="vault-section-heading"><h3>按日计息明细</h3><small>理论参考 · 非到账流水</small></div><div class="vault-ledger-header"><span>计息日期</span><span>当日利息</span><span>累计计息</span></div><div v-for="row in theoreticalLedger" :key="row.day" class="vault-ledger-row"><span>{{ row.date }}<small>第 {{ row.day }} 天</small></span><b>+ {{ formatAmount(row.interest, { decimals: 4 }) }}</b><span>{{ formatAmount(row.total, { decimals: 4 }) }} USDT</span></div><p v-if="!theoreticalLedger.length" class="vault-formula">{{ completedDays === undefined || dailyTheoretical === undefined ? '持有天数或计息参数尚未确认，暂无法测算明细。' : '尚未完成首个计息日，请稍后查看。' }}</p><button v-if="completedDays !== undefined && completedDays > 5" class="vault-ledger-more" @click="expandLedger = !expandLedger">{{ expandLedger ? '收起明细' : completedDays > 90 ? '展开最近 90 天' : '展开全部 ' + completedDays + ' 天' }}<UmIcon name="chevron" /></button></section>
     </template>
-    <EmptyState v-else :title="loadError ? '锁仓信息加载失败' : '锁仓订单不存在'" :description="loadError || undefined" :action-text="loadError ? '重新加载' : '返回列表'" @action="handleEmptyAction" />
+    <EmptyState v-else :title="loadError ? '锁仓信息加载失败' : '未找到这笔资产'" :description="loadError || undefined" :action-text="loadError ? '重新读取' : '返回我的锁仓'" @action="handleEmptyAction" />
     <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="order" :submitting="unlocking" :pending="redemptionPending" @confirm="confirmUnlock" />
   </div>
-
 </template>
 
-<style scoped>
-.holding-progress { margin-top:24px; padding-top:20px; border-top:1px solid var(--yb-hairline); font-size:12px; }
-.holding-progress>div:first-child,.holding-progress p { display:flex; justify-content:space-between; gap:16px; }
-.holding-progress p { color:var(--yb-muted); margin-top:10px; flex-wrap:wrap; }
-.holding-progress [role='progressbar'] { height:6px; background:var(--yb-fill); border-radius:4px; overflow:hidden; margin-top:12px; }
-.holding-progress [role='progressbar']>span { display:block; height:100%; background:var(--yb-primary); }
-@media(max-width:900px) { .lockup-detail-page .layout { grid-template-columns:1fr; }.lockup-detail-page .layout aside { position:static; } }
-
-.lockup-detail-page { padding-bottom:32px; }.bread { display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--yb-muted); margin-bottom:24px; overflow-wrap:anywhere; }.bread a { color:var(--yb-muted); text-decoration:none; }.bread a:hover { color:var(--yb-brand-primary); }.paper { background:var(--yb-surface); border:1px solid var(--yb-hairline); border-radius:8px; padding:28px 32px; } .hero-card { background:var(--yb-primary-soft); display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:24px; }.hero-card h1 { font-size:28px; font-weight:650; margin:10px 0 4px; }.status { display:inline-flex; padding:4px 12px; font-size:12px; border-radius:999px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); }.status[data-status='SETTLED'] { background:var(--yb-success-soft); color:var(--yb-success); }.status[data-status='REDEEMED'],.status[data-status='CANCELED'] { background:var(--yb-fill); color:var(--yb-muted); }.code { font-size:12px; color:var(--yb-muted); font-family:var(--yb-font-mono); overflow-wrap:anywhere; }.principal { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }.principal small { font-size:12px; color:var(--yb-muted); }.principal strong { font-size:32px; font-weight:650; font-family:var(--yb-font-body); }.principal strong span { font-size:13px; color:var(--yb-muted); }.layout { display:grid; grid-template-columns:minmax(0,1.85fr) minmax(280px,1fr); gap:24px; align-items:start; }.paper h2 { font-size:20px; font-weight:600; margin:0 0 20px; }.interest-head { display:grid; grid-template-columns:1fr 1fr; gap:24px; border-bottom:1px solid var(--yb-hairline); padding-bottom:24px; margin-bottom:28px; }.interest-head>div { display:flex; flex-direction:column; gap:6px; }.interest-head small { font-size:12px; color:var(--yb-muted); }.interest-head strong { font-size:28px; font-weight:650; color:var(--yb-brand-primary); font-family:var(--yb-font-body); overflow-wrap:anywhere; }.hint { font-size:12px; color:var(--yb-muted); line-height:1.8; margin:16px 0 0; }.divider { height:1px; background:var(--yb-hairline); margin:28px 0; }.layout aside { padding:26px; position:sticky; top:190px; }.layout aside h2 { font-size:18px; }.full,.action-wrap { width:100%; }.action-wrap { display:block; margin-top:24px; }.danger { color:var(--yb-danger); }.wallet-link { padding-left:0; margin-top:10px; }.hero-skeleton { height:160px; border-radius:22px; margin-bottom:24px; }.detail-skeleton { height:600px; border-radius:22px; }
-
-</style>
+<style scoped src="./v47-vault.css"></style>

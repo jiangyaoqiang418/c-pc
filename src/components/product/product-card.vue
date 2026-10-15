@@ -88,7 +88,7 @@ function goDetail() {
       <div class="product-price">{{ price }} <small>USDT</small><span aria-hidden="true">↗</span>
         <button type="button" class="meme-card-open" :aria-label="'选购 ' + product.title" @click="goDetail"><UmIcon name="arrow" /></button>
       </div>
-      <div class="product-service">{{ aftersale.label }} <span>已售 {{ product.salesCount || 0 }}</span></div>
+      <div class="product-service">{{ aftersale.label }} <span>已售 {{ product.salesCount ?? '—' }}</span></div>
     </div>
   </article>
 </template>
