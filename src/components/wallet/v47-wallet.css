@@ -31,3 +31,4 @@
   .asset-bucket > svg:last-child { display: none; }
   .wallet-total, .wallet-cashflow { font-size: 12px; }
 }
+.wallet-hero > svg { pointer-events:none; }

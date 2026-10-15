@@ -91,5 +91,6 @@ async function upload(event: Event) {
 </template>
 
 <style scoped>
+.buyer-detail-images > input { width:100%; max-width:100%; min-width:0; }
 .error-text { color:var(--yb-danger); }
 </style>

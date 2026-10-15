@@ -193,4 +193,5 @@ const shortcuts = [
 .buyer-kpis > button:disabled { opacity:1; cursor:default; }
 .loading-list { display:grid; gap:16px; }
 .order-skeleton { height:130px; }
+.metric-skeleton { height:80px; }
 </style>

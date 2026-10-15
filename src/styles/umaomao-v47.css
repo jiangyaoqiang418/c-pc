@@ -1,6 +1,7 @@
 /* v47 integration adapters. The authoritative reference cascade is loaded once before this file. */
 html, body, #app { background: var(--bg); color: var(--ink); font-family: var(--font-ui); }
 html.theme-changing * { transition: none !important; }
+.empty > svg { display:inline-block; }
 
 /* Portal placement is explicit; timings and trajectories follow the reference Vue transitions. */
 .um-dialog-mask[data-state="open"] { animation:um-mask-in .22s; }

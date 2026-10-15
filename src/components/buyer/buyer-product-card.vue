@@ -79,9 +79,12 @@ const deleteVisible = ref(false);
 </template>
 
 <style scoped>
-.action-trigger { display:flex; }
+.action-trigger { display:flex; flex:1; min-width:0; }
 .action-trigger:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
 .action-trigger > button { width:100%; }
+.buyer-product-body > small,.buyer-product-body h3,.buyer-rejection,.buyer-product-stats > span { overflow-wrap:anywhere; }
+.buyer-product-price,.buyer-product-stats { flex-wrap:wrap; }
+.buyer-product-price b { max-width:100%; overflow-wrap:anywhere; }
 .delete-text { color:var(--muted); line-height:1.9; }
 .delete-product { overflow-wrap:anywhere; }
 </style>

@@ -99,6 +99,7 @@ function openTxn(t: Api.RealWallet.DisplayLedger) {
 </template>
 
 <style scoped>
+:root[data-ui-theme="web3-meme"] .buyer-wallet-hero { background:linear-gradient(120deg,#1c2b1e,#111a15); }
 .notice-row { display:flex; justify-content:space-between; align-items:center; gap:16px; }
 .loading-list { display:grid; gap:16px; }
 .buyer-ledger > span > small { overflow-wrap:anywhere; }

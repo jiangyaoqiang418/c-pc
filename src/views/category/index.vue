@@ -225,7 +225,7 @@ function rootKeyboard(event: KeyboardEvent, index: number) {
 </script>
 
 <template>
-  <div class="category-page">
+  <div class="category-browser-view">
     <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">发现分类</span></nav>
     <div class="category-focus-toolbar"><button type="button" :aria-label="searchOpen ? '收起分类搜索' : '返回上一页'" @click="exitCategory"><UmIcon name="chevron" /></button><form v-if="searchOpen" class="category-focus-search" @submit.prevent="doSearch"><input ref="searchInput" v-model="search" type="search" aria-label="分类页搜索商品" placeholder="搜索商品、品牌" enterkeyhint="search" @compositionstart="composing = true" @compositionend="composing = false" @keydown.esc.prevent="searchOpen = false" /></form><span v-else>全部分类</span><ThemePicker /><button type="button" :aria-label="searchOpen ? '提交商品搜索' : '打开分类搜索'" :aria-expanded="searchOpen" @click="searchOpen ? doSearch() : openSearch()"><UmIcon name="search" /></button></div>
     <h1 class="catalog-sr-only">商品分类</h1>
@@ -259,5 +259,5 @@ function rootKeyboard(event: KeyboardEvent, index: number) {
 .category-drill-link { display:flex; gap:8px; padding:7px 13px; border-radius:6px; font-size:12px; }
 .category-path { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; color:var(--muted); font-size:12px; }
 .category-path svg { width:12px; height:12px; } .category-path button { color:var(--green); }
-@media (max-width:700px) { .category-page > .breadcrumb { display:none; } }
+@media (max-width:700px) { .category-browser-view { display:flex; flex-direction:column; flex:1; min-height:0; }.category-browser-view > .breadcrumb { display:none; } }
 </style>

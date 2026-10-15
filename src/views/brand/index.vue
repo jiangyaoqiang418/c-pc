@@ -32,8 +32,10 @@ function exploreBrand() { Message.info('品牌专区正在准备中，暂时可�
 .brand-unavailable { margin-top: 24px; }
 .brand-tabs { overflow-x: auto; scrollbar-width: none; }
 .brand-tabs > button { flex-shrink: 0; }
+:root[data-ui-theme="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,#181421 40%,transparent 70%); }
 @media (max-width:700px) {
   .brand-tabs { margin-right:-14px; padding-right:14px; }
   :root[data-ui-theme="web3-meme"] .brand-tabs { margin-right:-12px; padding-right:12px; }
+  :root[data-ui-theme="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,color-mix(in srgb,#181421 90.196%,transparent),color-mix(in srgb,#181421 25.098%,transparent)); }
 }
 </style>

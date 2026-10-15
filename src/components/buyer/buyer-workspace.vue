@@ -24,18 +24,18 @@ const isActive = (path: string) => route.path === path || (path === '/buyer/prod
 </script>
 
 <template>
-  <div class="buyer-workspace" :class="{ 'buyer-layout': enabled }">
+  <div class="buyer-workspace-host" :class="{ 'buyer-workspace': enabled, 'buyer-layout': enabled }">
     <aside v-if="enabled" class="buyer-sidebar">
       <div class="buyer-brand"><span class="buyer-mark"><UmIcon name="bag" /></span><div><b>买手工作室</b><small>BUYER STUDIO</small></div></div>
       <nav ref="menu" aria-label="买手导航" data-um-rail :tabindex="rail.overflow.value ? 0 : undefined" :class="{ 'drag-scroll-overflow':rail.overflow.value, 'is-dragging':rail.isDragging.value }" @scroll.passive="rail.update" @pointerdown="rail.onPointerdown" @pointermove="rail.onPointermove" @pointerup="rail.onPointerend" @pointercancel="rail.onPointerend" @lostpointercapture="rail.onPointerend" @click.capture="rail.onClickCapture" @dragstart="rail.onDragStart" @keydown="rail.onKeydown"><RouterLink v-for="link in links" :key="link.to" :to="link.to" :class="{ active: isActive(link.to) }" :aria-current="isActive(link.to) ? 'page' : undefined"><UmIcon :name="link.icon" /><span>{{ link.label }}</span><UmIcon name="chevron" /></RouterLink></nav>
       <div class="buyer-sidebar-note"><UmIcon name="shield" /><b>认真选品，安心履约。</b><p>每一个细节，<br>都成就一份信任。</p><RouterLink :to="{ path:'/help', query:{ topic:'buyer' } }">买手帮助 →</RouterLink></div>
     </aside>
-    <section class="buyer-content"><slot /></section>
+    <section class="buyer-content-host" :class="{ 'buyer-content': enabled }"><slot /></section>
   </div>
 </template>
 
 <style scoped>
-.buyer-workspace:not(.buyer-layout), .buyer-workspace:not(.buyer-layout)>.buyer-content { display:contents; }
+.buyer-workspace-host:not(.buyer-layout), .buyer-workspace-host:not(.buyer-layout)>.buyer-content-host { display:contents; }
 .buyer-layout>.buyer-content :deep(.shop-container) { width:100%; max-width:none; margin:0; padding:0; }
 .buyer-sidebar-note a { font-size:12px; text-decoration:underline; text-underline-offset:4px; }
 @media (max-width:700px) { .buyer-layout>.buyer-content :deep(.buyer-tabs) { margin-right:-14px; padding-right:14px; } }
