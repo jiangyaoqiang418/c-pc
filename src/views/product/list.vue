@@ -7,6 +7,7 @@ import * as productApi from '@/service/api/product';
 import * as categoryApi from '@/service/api/category';
 import { useCategoryNavigation } from '@/composables/use-category-navigation';
 import ProductCard from '@/components/product/product-card.vue';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47CatalogCategories from '@/components/product/v47-catalog-categories.vue';
@@ -330,7 +331,7 @@ function selectSort(value: unknown) {
       </aside>
       <div class="catalog-content">
         <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />
-        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button type="button" class="filter-button outline" @click="filterOpen = true"><UmIcon name="filter" />筛选</button><select :value="filter.sort" aria-label="商品排序" @change="selectSort(($event.target as HTMLSelectElement).value)"><option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div></div>
+        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button type="button" class="filter-button outline" @click="filterOpen = true"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="catalog-sort-trigger" aria-label="商品排序"><SelectValue placeholder="综合排序" /></SelectTrigger><SelectContent align="end" :side-offset="6" class="min-w-40 border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]"><SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value" class="data-[highlighted]:bg-[var(--soft)] data-[highlighted]:text-[var(--ink)] data-[state=checked]:text-[var(--green)]">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
         <div v-if="filter.categoryId || filter.aftersaleType || filter.overseasCustoms" class="active-filters" role="group" aria-label="已选筛选条件"><button v-if="filter.categoryId" type="button" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">{{ categoryLabel }} ×</button><button v-if="filter.aftersaleType" type="button" aria-label="清除售后服务筛选" @click="selectAftersale('all')">{{ aftersaleOptions.find(option => option.value === filter.aftersaleType)?.label }} ×</button><button v-if="filter.overseasCustoms" type="button" aria-label="清除海外直邮筛选" @click="selectOverseas('all')">海外直邮 ×</button><button v-if="categoryError && !categoryLoading" type="button" @click="loadCategoryPath(true)">重试分类名称</button></div>
         <section class="catalog-results product-feed" :aria-busy="loading" aria-label="商品列表">
           <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
@@ -353,5 +354,6 @@ function selectSort(value: unknown) {
 .product-skeleton { overflow:hidden; background:var(--paper); border:1px solid var(--line); border-radius:13px; padding:8px 8px 0; }
 .skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
 .active-filters button { max-width:100%; white-space:normal; text-align:left; }
+.catalog-sort-trigger { width:auto; min-width:144px; height:38px; padding:0 10px 0 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); font-size:12px; }
 @media (prefers-reduced-motion:reduce) { .feed-grid { transition:none; } }
 </style>

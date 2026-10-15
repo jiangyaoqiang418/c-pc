@@ -7,6 +7,9 @@
 .withdraw-balance strong { min-width:0; overflow-wrap:anywhere; }
 .wallet-operation-note { color:var(--muted); font-size:12px; line-height:1.7; margin:14px 0 0; }
 .wallet-record-filter { width:100%; padding:10px 12px; background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:8px; margin-bottom:12px; }
+.wallet-network-trigger { min-height:46px; }
+.deposit-selectors>div { display:flex; flex-direction:column; gap:8px; min-width:0; }
+@media (max-width:700px) { .wallet-network-trigger { font-size:16px; } }
 .wallet-skeletons { display:grid; gap:14px; margin:18px 0; }
 .wallet-refreshing { opacity:.65; }
 .deposit-record strong,.deposit-record small,.deposit-address strong { overflow-wrap:anywhere; }

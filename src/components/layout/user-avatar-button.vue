@@ -115,6 +115,7 @@ function logout() {
 <style scoped>
 .account-menu-dialog { z-index:171; width:380px; max-width:calc(100vw - 32px); }
 .account-menu-overlay { z-index:170; }
+.account-menu-dialog .dialog-close { display:grid; place-items:center; padding:0; }
 .account-trigger { white-space:nowrap; }
 .menu-profile > div { min-width:0; }
 .menu-profile h2 { overflow-wrap:anywhere; }

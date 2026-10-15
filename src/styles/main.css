@@ -74,6 +74,14 @@
 
 /* Tailwind utilities work: bg-yb-primary, rounded-card, shadow-glow, font-mono, etc. */
 
+/* 原生 select 迁移后的按钮保留与表单输入一致的主题边框和留白。 */
+.app-select-trigger {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  padding: 7px 12px;
+  color: var(--ink);
+}
+
 /* Vue route entry follows the v47 MEME page treatment. Business results never depend on animation. */
 :root[data-ui-theme='web3-meme'] .um-page-enter-active {
   transition: opacity 300ms cubic-bezier(.22, 1, .36, 1), transform 300ms cubic-bezier(.22, 1, .36, 1);

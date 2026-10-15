@@ -6,6 +6,7 @@ import V47DepositQr from '@/components/wallet/v47-deposit-qr.vue';
 import WalletHome from './index.vue';
 import BuyerWallet from '@/views/buyer/wallet.vue';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { exactNumericAmount, compareDecimalAmount } from '@/components/wallet/decimal-amount';
 import DescriptionList from '@/components/common/description-list.vue';
@@ -684,7 +685,7 @@ const statusFilter = computed({
     <div v-if="loadError" class="deposit-hint" role="alert"><UmIcon name="return" /><span>{{ loadError }}<button class="outline wallet-note-action" :disabled="submitting || directBusy || loadingChains" @click="loadAll">重新读取</button></span></div>
     <section class="deposit-panel">
       <template v-if="operationView === 'form'">
-        <div class="deposit-selectors"><label for="deposit-currency">货币<select id="deposit-currency" disabled><option>USDT</option></select></label><label for="deposit-network">网络<select id="deposit-network" v-model="chain" :disabled="loadingChains || submitting || directBusy"><option v-if="!chainOptions.length" value="">{{ loadingChains ? '正在读取…' : '暂无可用网络' }}</option><option v-for="option in chainOptions" :key="option.chain" :value="option.chain">{{ option.label }}（{{ option.chain }}）</option></select></label></div>
+        <div class="deposit-selectors"><div><label for="deposit-currency">货币</label><Select model-value="USDT" disabled><SelectTrigger id="deposit-currency" class="app-select-trigger wallet-network-trigger h-[46px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="USDT">USDT</SelectItem></SelectContent></Select></div><div><label for="deposit-network">网络</label><Select v-model="chain" :disabled="loadingChains || submitting || directBusy || !chainOptions.length"><SelectTrigger id="deposit-network" class="app-select-trigger wallet-network-trigger h-[46px]"><SelectValue :placeholder="loadingChains ? '正在读取…' : '暂无可用网络'" /></SelectTrigger><SelectContent><SelectItem v-for="option in chainOptions" :key="option.chain" :value="option.chain">{{ option.label }}（{{ option.chain }}）</SelectItem></SelectContent></Select></div></div>
         <div class="deposit-subline"><span>充值至 USDT 钱包</span><button @click="operationView = 'records'">充值记录<UmIcon name="chevron" /></button></div>
         <div class="deposit-methods" role="group" aria-label="充值方式"><span :style="{ transform: 'translateX(' + (['address', 'wallet', 'amount'].indexOf(depositMethod) * 100) + '%)' }" /><button v-for="item in [{ key: 'address', label: '地址充值' }, { key: 'wallet', label: '钱包充值' }, { key: 'amount', label: '金额充值' }] as const" :key="item.key" :class="{ active: depositMethod === item.key }" :aria-pressed="depositMethod === item.key" :disabled="submitting || directBusy" @click="depositMethod = item.key">{{ item.label }}</button></div>
         <div :key="depositMethod" class="deposit-content">
@@ -695,7 +696,8 @@ const statusFilter = computed({
           </template>
           <template v-else-if="depositMethod === 'wallet'">
             <div class="deposit-wallet-visual"><UmIcon name="wallet" /><h3>从你的钱包，直接充值</h3><p>连接钱包后，核对币种、网络与金额。</p></div>
-            <select v-model="walletKey" class="wallet-provider-select" aria-label="选择浏览器钱包" :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError"><option :value="undefined">选择已安装的钱包</option><option v-for="item in directWallets" :key="item.key" :value="item.key">{{ item.label }}</option></select>
+            <Select v-model="walletKey" :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError"><SelectTrigger class="app-select-trigger wallet-provider-select h-12" aria-label="选择浏览器钱包"><SelectValue placeholder="选择已安装的钱包" /></SelectTrigger><SelectContent><SelectItem v-if="!directWallets.length" value="unavailable" disabled>暂无可用浏览器钱包</SelectItem><SelectItem v-for="item in directWallets" :key="item.key" :value="item.key">{{ item.label }}</SelectItem></SelectContent></Select>
+            <button v-if="walletKey" type="button" class="text-link" :disabled="directBusy || !!directConfigError || !!directProgress || !!directProgressError" @click="walletKey = undefined">清除钱包选择</button>
             <label for="direct-amount" class="deposit-amount">充值金额 <span>USDT</span><input id="direct-amount" v-model="directAmount" inputmode="decimal" autocomplete="off" placeholder="0.00" :disabled="directBusy || !!directProgress || !!directProgressError" /></label>
             <div class="wallet-network-details">网络：{{ selectedWalletChain?.network || '—' }}<br />专属收款地址：{{ rechargeAddress?.address || '—' }}<br />USDT 合约：{{ rechargeAddress?.tokenContract || '—' }}<br />最低充值金额：{{ rechargeAddress?.minAmount ?? selectedChain?.minAmount ?? '待确认' }} USDT</div>
             <div v-if="directConfigError" class="deposit-hint" role="alert"><UmIcon name="shield" /><span>{{ directConfigError }}<button class="outline wallet-note-action" :disabled="directBusy" @click="reloadDirectConfig">重新读取配置</button></span></div>
@@ -716,7 +718,7 @@ const statusFilter = computed({
       </template>
       <template v-else>
         <div class="deposit-record-heading"><button @click="operationView = 'form'"><UmIcon name="arrow" />返回充值</button><h3>充值记录</h3></div>
-        <select v-model="statusFilter" class="wallet-record-filter" aria-label="筛选充值记录状态"><option value="all">全部状态</option><option value="PENDING">待确认</option><option value="CONFIRMED">已确认</option><option value="CANCELED">已取消</option></select>
+        <Select v-model="statusFilter"><SelectTrigger class="app-select-trigger wallet-record-filter h-11" aria-label="筛选充值记录状态"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="PENDING">待确认</SelectItem><SelectItem value="CONFIRMED">已确认</SelectItem><SelectItem value="CANCELED">已取消</SelectItem></SelectContent></Select>
         <div v-if="loadingRecords && !recentDeposits.length" class="wallet-skeletons"><Skeleton v-for="n in 3" :key="n" class="h-16" /></div>
         <div v-else-if="recentDeposits.length" :class="{ 'wallet-refreshing': loadingRecords }"><article v-for="record in recentDeposits" :key="record.id" class="deposit-record"><div><strong>{{ formatAmount(record.amount) }} USDT</strong><span>{{ record.statusText || record.status || '待确认' }}</span></div><p>{{ record.chain }} · 金额申报</p><small>{{ formatTime(record.createdAt) }}<br />{{ record.id }}</small><button @click="showDetail(record)">查看详情</button><button v-if="record.status === 'PENDING'" :disabled="cancelingRechargeId !== undefined" @click="cancelRecharge(record)">{{ cancelingRechargeId === record.id ? '取消中…' : '取消申报' }}</button></article></div>
         <EmptyState v-else :title="recordError || '还没有充值记录'" :description="recordError ? undefined : '金额申报显示在这里，地址与钱包直充请查看资金流水。'" :action-text="recordError ? '重新读取' : undefined" @action="recordError && loadRecords()" />

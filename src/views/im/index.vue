@@ -39,6 +39,9 @@ const notifyStore = useNotifyStore();
 
 type ConvKind = 'group' | 'cs';
 const activeTab = ref<ConvKind>('group');
+const mobileConversationOpen = ref(typeof route.query.conversationId === 'string' && !!route.query.conversationId);
+const mobileBack = ref<HTMLButtonElement>();
+const conversationList = ref<HTMLElement>();
 const pendingConversationTarget = ref<string>();
 const targetMessage = ref('');
 let selectingTargetTab = false;
@@ -228,8 +231,9 @@ async function selectFirstConversation() {
   }
 }
 
-async function selectConversation(conversation: Api.RealNotify.ImConversationVO) {
+async function selectConversation(conversation: Api.RealNotify.ImConversationVO, showOnMobile = false) {
   if (disposed) return;
+  if (showOnMobile) mobileConversationOpen.value = true;
   pendingConversationTarget.value = undefined;
   targetMessage.value = '';
   conversationDeleteVersion += 1;
@@ -244,6 +248,7 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO)
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
   selectedConversationId.value = conversationId;
+  if (showOnMobile) void nextTick(() => { if (mobileBack.value?.getClientRects().length) mobileBack.value.focus({ preventScroll:true }); });
   conversationOrders.value = [];
   includeHistoryOrders.value = false;
   if (route.query.conversationId !== String(conversationId)) {
@@ -308,7 +313,7 @@ async function openSupportConversation() {
     const index = conversations.value.findIndex(item => sameBusinessId(item.id, conversation.id));
     if (index >= 0) conversations.value.splice(index, 1, conversation); else conversations.value.unshift(conversation);
     activeTab.value = 'cs';
-    await selectConversation(conversation);
+    await selectConversation(conversation, true);
   } finally { supportLoading.value = false; }
 }
 async function requestIntervention() {
@@ -695,6 +700,12 @@ function retryMessageLoad() {
   if (selectedConversation.value) void selectConversation(selectedConversation.value);
 }
 
+function showConversationList() {
+  if (mediaBusy.value) return;
+  mobileConversationOpen.value = false;
+  void nextTick(() => conversationList.value?.querySelector<HTMLButtonElement>('.conv-row[aria-current="page"]')?.focus({ preventScroll:true }));
+}
+
 notifyStore.subscribe(async event => {
   if (event.type === 'SYNC') {
     await Promise.allSettled([loadConversations(false), syncCurrentConversation()]);
@@ -754,6 +765,7 @@ watch(() => route.query.conversationId, async () => {
   readConversationTarget();
   if (disposed) return;
   if (pendingConversationTarget.value && !sameBusinessId(selectedConversationId.value, pendingConversationTarget.value)) {
+    mobileConversationOpen.value = true;
     messageListGuard.invalidate();
     olderMessagesGuard.invalidate();
     incrementalMessagesGuard.invalidate();
@@ -844,10 +856,10 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 
 <template>
 
-  <div class="im-page">
+  <div class="im-page" :class="{ 'mobile-conversation-open': (mobileConversationOpen || mediaBusy) && !!selectedConversation }">
     <header class="page-heading compact"><h1>消息中心</h1><button type="button" :disabled="supportLoading" @click="openSupportConversation" class="text-link"><Icon :icon="supportLoading ? 'lucide:loader-circle' : 'lucide:headphones'" :class="{ 'animate-spin': supportLoading }" width="17" />联系客服</button></header>
     <div class="im-layout">
-      <aside class="paper sidebar" aria-label="会话列表">
+      <aside ref="conversationList" class="paper sidebar" aria-label="会话列表">
         <div v-if="targetMessage" class="sidebar-alert warning" role="status">{{ targetMessage }}</div>
         <div v-if="conversationLoadError" class="sidebar-alert error" role="alert"><span>{{ conversationLoadError }}</span><button type="button" @click="retryConversationLoad" class="text-link">重新加载</button></div>
         <div class="sync-bar"><span>{{ lastSyncText() }}</span><button type="button" aria-label="刷新会话" :disabled="restSyncing" @click="refreshRestData" class="icon-btn"><Icon icon="lucide:refresh-cw" :class="{ 'animate-spin': restSyncing }" width="16" /></button></div>
@@ -855,7 +867,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
           <nav class="tabs tab-list" aria-label="会话类型"><button :class="{ active: activeTab === 'group' }" :aria-pressed="activeTab === 'group'" @click="activeTab = 'group'">三方群 <span>{{ groups.length }}</span></button><button :class="{ active: activeTab === 'cs' }" :aria-pressed="activeTab === 'cs'" @click="activeTab = 'cs'">平台客服</button></nav>
           <div v-if="conversationLoading" class="sidebar-loading" role="status"><Skeleton v-for="n in 4" :key="n" class="conversation-skeleton" /><span>正在同步会话</span></div>
           <div v-else-if="currentCandidates().length" class="conv-list chat-scroll">
-            <button v-for="item in currentCandidates()" :key="item.id" type="button" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, item.id) }" :aria-current="sameBusinessId(selectedConversationId, item.id) ? 'page' : undefined" @click="selectConversation(item)">
+            <button v-for="item in currentCandidates()" :key="item.id" type="button" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, item.id) }" :aria-current="sameBusinessId(selectedConversationId, item.id) ? 'page' : undefined" @click="selectConversation(item, true)">
               <img v-if="activeTab === 'group' && item.peerAvatar" :src="item.peerAvatar" :alt="item.peerName || '会话头像'" class="avatar" />
               <span v-else class="avatar" :class="activeTab">{{ activeTab === 'cs' ? '客' : (item.peerName || item.title || '订').slice(0, 1) }}</span>
               <span class="info">
@@ -873,8 +885,9 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
         <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载消息</span></div>
         <div v-if="selectedConversation" class="conversation">
           <header class="conversation-header section-heading">
-            <div class="header-main"><div class="header-product"><img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" /><div><h2 :title="selectedConversation.peerName || selectedConversation.title || '会话'">{{ selectedConversation.peerName || selectedConversation.title || '会话' }}</h2><p>{{ selectedConversation.type === 'SUPPORT' ? '平台客服' : '进行中订单 ' + (selectedConversation.activeOrderCount ?? '—') + ' 笔' }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /></div>
-            <div class="header-actions">
+            <button ref="mobileBack" type="button" class="mobile-conversation-back" aria-label="返回会话列表" :disabled="mediaBusy" :title="mediaBusy ? '请先完成当前媒体操作' : '返回会话列表'" @click="showConversationList"><Icon icon="lucide:arrow-left" width="20" /></button>
+            <div class="conversation-main"><div class="header-product"><img v-if="selectedConversation.productImage" :src="selectedConversation.productImage" alt="订单商品" /><div><h2 :title="selectedConversation.peerName || selectedConversation.title || '会话'">{{ selectedConversation.peerName || selectedConversation.title || '会话' }}</h2><p>{{ selectedConversation.type === 'SUPPORT' ? '平台客服' : '进行中订单 ' + (selectedConversation.activeOrderCount ?? '—') + ' 笔' }} · {{ selectedConversation.orderStatusText || selectedConversation.myRole || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /></div>
+            <div class="conversation-actions">
               <Tooltip v-if="selectedConversation.type === 'ORDER_GROUP'"><TooltipTrigger as-child><span tabindex="0" class="action-trigger"><button type="button" :disabled="interventionLoading || selectedConversation.interveneStatus !== 'NONE'" @click="requestIntervention" class="outline"><Icon v-if="interventionLoading" icon="lucide:loader-circle" class="animate-spin" width="14" />{{ selectedConversation.interveneStatus === 'REQUESTED' ? '等待客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '客服处理中' : '申请平台介入' }}</button></span></TooltipTrigger><TooltipContent>{{ selectedConversation.interveneStatus === 'REQUESTED' ? '已申请介入，请等待平台客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '平台客服正在处理此会话' : selectedConversation.interveneStatus === 'NONE' ? '申请平台客服协助处理订单' : '当前介入状态不支持重复申请' }}</TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger as-child><button type="button" aria-label="同步消息" :disabled="restSyncing" @click="refreshRestData" class="text-link"><Icon icon="lucide:refresh-cw" :class="{ 'animate-spin': restSyncing }" width="14" /><span class="action-text">同步消息</span></button></TooltipTrigger><TooltipContent>同步消息</TooltipContent></Tooltip>
               <Tooltip v-if="selectedConversation.orderId"><TooltipTrigger as-child><button type="button" aria-label="独立会话" @click="openOrderGroup" class="text-link"><Icon icon="lucide:expand" width="14" /><span class="action-text">独立会话</span></button></TooltipTrigger><TooltipContent>打开独立会话</TooltipContent></Tooltip>

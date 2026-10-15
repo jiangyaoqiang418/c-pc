@@ -5,6 +5,7 @@ import V47VaultDialog from '@/components/finance/v47-vault-dialog.vue';
 import WalletHome from './index.vue';
 import BuyerWallet from '@/views/buyer/wallet.vue';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { exactNumericAmount, compareDecimalAmount, floorDecimalAmount } from '@/components/wallet/decimal-amount';
 import DescriptionList from '@/components/common/description-list.vue';
@@ -367,7 +368,7 @@ const statusFilter = computed({
     <template v-if="operationView === 'form'">
       <div class="withdraw-balance"><span><span class="coin-icon usdt">₮</span>可用余额</span><Skeleton v-if="walletStore.loading" class="h-8 w-32" /><strong v-else>{{ walletReady && available !== undefined ? formatAmount(available) : '—' }} <small>USDT</small></strong></div>
       <form novalidate @submit.prevent="openConfirm" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
-        <div class="field"><label for="withdraw-network">网络</label><select id="withdraw-network" v-model="form.chain" :disabled="submitting"><option v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div>
+        <div class="field"><label for="withdraw-network">网络</label><Select v-model="form.chain" :disabled="submitting"><SelectTrigger id="withdraw-network" class="app-select-trigger wallet-network-trigger h-[46px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem v-for="option in chainOptions" :key="option.value" :value="option.value">{{ option.label }}</SelectItem></SelectContent></Select></div>
         <div class="field"><label for="withdraw-address">收款地址</label><input id="withdraw-address" v-model="form.toAddress" placeholder="请输入所选链对应的 USDT 地址" :disabled="submitting" autocomplete="off" /></div>
         <div class="field"><label for="withdraw-amount">转出数量 · USDT</label><div class="wallet-amount-row"><input id="withdraw-amount" v-model="amountDraft" inputmode="decimal" autocomplete="off" placeholder="0.00" :disabled="submitting" /><button type="button" class="text-link" :disabled="submitting || !walletReady || available === undefined" @click="fillAll">全部</button></div></div>
         <p v-if="errMsg" class="deposit-error" role="status">{{ errMsg }}</p>
@@ -379,7 +380,7 @@ const statusFilter = computed({
     </template>
     <section v-else class="deposit-panel" :aria-busy="loadingRecords">
       <div class="deposit-record-heading"><button @click="operationView = 'form'"><UmIcon name="arrow" />返回申请</button><h3>转出申请</h3></div>
-      <select v-model="statusFilter" class="wallet-record-filter" aria-label="筛选转出申请状态"><option value="all">全部状态</option><option value="REVIEWING">审核中</option><option value="APPROVED">已通过</option><option value="SUCCESS">已完成</option><option value="REJECTED">已驳回</option></select>
+      <Select v-model="statusFilter"><SelectTrigger class="app-select-trigger wallet-record-filter h-11" aria-label="筛选转出申请状态"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="REVIEWING">审核中</SelectItem><SelectItem value="APPROVED">已通过</SelectItem><SelectItem value="SUCCESS">已完成</SelectItem><SelectItem value="REJECTED">已驳回</SelectItem></SelectContent></Select>
       <div v-if="loadingRecords && !recentWithdrawals.length" class="wallet-skeletons"><Skeleton v-for="n in 3" :key="n" class="h-16" /></div>
       <div v-else-if="recentWithdrawals.length" :class="{ 'wallet-refreshing': loadingRecords }"><article v-for="record in recentWithdrawals" :key="record.id" class="deposit-record"><div><strong>{{ formatMoney(record.amount) }}</strong><span>{{ record.statusText || record.status || '待确认' }}</span></div><p>{{ record.chain }} · 扣费后 {{ formatMoney(record.actualAmount) }}</p><small>{{ formatTime(record.createdAt) }}<br />{{ record.id }}</small><button @click="showDetail(record)">查看详情</button></article></div>
       <EmptyState v-else :title="recordError || '暂无转出申请'" :action-text="recordError ? '重新读取' : undefined" @action="recordError && loadRecords()" />

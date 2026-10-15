@@ -81,7 +81,11 @@ const deleteVisible = ref(false);
 <style scoped>
 .action-trigger { display:flex; flex:1; min-width:0; }
 .action-trigger:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
-.action-trigger > button { width:100%; }
+.action-trigger :deep(button) { flex:1; min-width:0; width:100%; }
+@media (min-width:701px) {
+  .buyer-product-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)) 32px; }
+  .buyer-product-actions:has(> .accent) { grid-template-columns:repeat(3,minmax(0,1fr)) 32px; }
+}
 .buyer-product-body > small,.buyer-product-body h3,.buyer-rejection,.buyer-product-stats > span { overflow-wrap:anywhere; }
 .buyer-product-price,.buyer-product-stats { flex-wrap:wrap; }
 .buyer-product-price b { max-width:100%; overflow-wrap:anywhere; }

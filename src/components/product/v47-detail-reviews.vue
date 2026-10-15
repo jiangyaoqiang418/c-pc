@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UmIcon from '@/components/common/um-icon.vue';
 import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUmScrollRail } from '@/composables/use-um-scroll-rail';
 import { formatDateValue } from '@/utils/date-range';
 import { setImageFallback } from '@/utils/image-placeholder';
@@ -77,7 +78,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
     </div>
     <div class="reviews-toolbar">
       <label class="review-search"><UmIcon name="search" /><input aria-label="搜索评价，暂未开放" placeholder="搜索评价中的关键词" disabled title="评价搜索暂未开放" /></label>
-      <select aria-label="评价排序，暂未开放" disabled><option>排序暂未开放</option></select>
+      <Select model-value="sort-unavailable" disabled><SelectTrigger class="app-select-trigger h-10 w-auto min-w-[105px] text-xs" aria-label="评价排序，暂未开放"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sort-unavailable">排序暂未开放</SelectItem></SelectContent></Select>
     </div>
     <div class="review-topics" aria-label="评价主题"><button type="button" :class="{ active:!hasImage }" :aria-pressed="!hasImage" @click="setImages(false)">全部<span>{{ summary?.totalCount ?? '—' }}</span></button><button type="button" :class="{ active:hasImage }" :aria-pressed="hasImage" @click="setImages(true)">有图<span>{{ summary?.withImageCount ?? '—' }}</span></button></div>
     <div class="reviews-result-line"><span role="status">{{ stars ? stars + ' 星 · ' : '' }}{{ loading ? '正在加载评价' : error ? '评价读取失败' : '共 ' + total + ' 条评价' }}</span><button v-if="stars || hasImage" type="button" @click="reset">清除筛选</button><small>星级分布可点击筛选</small></div>

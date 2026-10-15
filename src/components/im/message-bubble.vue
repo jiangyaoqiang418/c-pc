@@ -121,6 +121,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .role-tag { padding:1px 6px; border-radius:4px; background:var(--soft); color:var(--muted); font-size:10px; }
 .role-tag.customer { color:var(--green); }.role-tag.admin { color:var(--yb-warning); }
 .bubble.text { white-space:pre-wrap; overflow-wrap:anywhere; }
+.message.me .bubble.text { color:var(--on-primary,var(--paper)); }
 .bubble.system { display:inline-flex; align-items:center; gap:6px; text-align:center; background:var(--soft); color:var(--muted); font-size:12px; padding:6px 12px; border:1px solid var(--line); border-radius:6px; }
 .bubble.media { padding:5px; background:var(--soft); border:1px solid var(--line); border-radius:10px; overflow:hidden; max-width:100%; }
 .media-image-button { display:block; padding:0; border:0; border-radius:6px; cursor:zoom-in; }

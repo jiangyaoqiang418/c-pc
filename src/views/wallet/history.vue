@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { formatDateValue, parseDateValue } from '@/utils/date-range';
 import { resolvePageSize } from '@/service/api/page';
@@ -261,7 +262,7 @@ const toDate = computed({
     <form class="paper ledger-filter" novalidate @submit.prevent="queryRecords" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
       <div class="ledger-filter-fields">
         <div class="field"><span class="ledger-field-label">类型</span><DropdownMenu><DropdownMenuTrigger as-child><button type="button" class="outline ledger-type-trigger" aria-label="选择资金流水类型"><span>{{ filter.types.length ? `已选 ${filter.types.length} 种类型` : '全部类型' }}</span><UmIcon name="chevron" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" :collision-padding="8" class="ledger-type-menu"><DropdownMenuItem @select="filter.types = []">不限 · 清除全部类型</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuGroup v-for="g in TYPE_GROUPS" :key="g.label"><DropdownMenuLabel>{{ g.label }}</DropdownMenuLabel><DropdownMenuCheckboxItem v-for="t in g.types" :key="t" :model-value="filter.types.includes(t)" @update:model-value="setType(t, $event)" @select.prevent>{{ enums.TXN_TYPE_META[t]?.label || t }}</DropdownMenuCheckboxItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
-        <div class="field"><label for="ledger-bucket">资产桶</label><select id="ledger-bucket" v-model="bucketFilter"><option v-for="b in BUCKET_OPTIONS" :key="b.value || 'all'" :value="b.value || 'all'">{{ b.label }}</option></select></div>
+        <div class="field"><label for="ledger-bucket">资产桶</label><Select v-model="bucketFilter"><SelectTrigger id="ledger-bucket" class="app-select-trigger h-[46px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem v-for="b in BUCKET_OPTIONS" :key="b.value || 'all'" :value="b.value || 'all'">{{ b.label }}</SelectItem></SelectContent></Select></div>
         <div class="field ledger-date-field"><span class="ledger-field-label">日期</span><div class="ledger-date-range"><input v-model="fromDate" type="date" aria-label="开始日期" :max="toDate || undefined" /><span>—</span><input v-model="toDate" type="date" aria-label="结束日期" :min="fromDate || undefined" /></div></div>
         <div class="field"><label for="ledger-keyword">关键字</label><input id="ledger-keyword" v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" /></div>
       </div>

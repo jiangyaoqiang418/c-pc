@@ -52,7 +52,7 @@ function categoryActive(id: string) {
   return !!root && (root.id === target || includes(root.children || []));
 }
 const categoryLink = (id: string) => ({ name: 'product-list', query: { categoryId: id } });
-const showBreadcrumb = computed(() => !route.meta.requiresBuyer && !['home', 'brand', 'product-list', 'product-detail', 'category', 'order-detail', 'purchase-detail', 'aftersale-detail', 'aftersale-create', 'review-write', 'pay-password', 'login-password', 'finance-detail', 'finance-lockup-detail', 'buyer-apply', 'wallet-deposit', 'wallet-withdraw'].includes(String(route.name)));
+const showBreadcrumb = computed(() => !['home', 'brand', 'product-list', 'product-detail', 'favorites', 'category', 'order-detail', 'purchase-detail', 'aftersale-detail', 'aftersale-create', 'review-write', 'pay-password', 'login-password', 'finance-detail', 'finance-lockup-detail', 'buyer-apply', 'buyer-product-create', 'buyer-product-edit', 'wallet-deposit', 'wallet-withdraw'].includes(String(route.name)));
 const main = ref<HTMLElement>();
 const navRail = ref<HTMLElement>();
 const rail = useUmScrollRail(navRail);
@@ -72,14 +72,15 @@ const footerGroups = [
   { title: '关于 Umaomao', links: [{ label: '帮助中心', to: '/help' }, { label: '平台公告', to: '/announcement' }, { label: '买手入驻', to: '/buyer/apply' }] }
 ];
 function scrollTop() { window.scrollTo({ top:0, behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); }
-watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ preventScroll:true })); });
+watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && target.split('?')[0] === previous.split('?')[0]) return; void nextTick(() => main.value?.focus({ preventScroll:true })); });
 </script>
 
 <template>
   <div class="layout-default" :class="{ 'is-messaging': isMessaging, 'is-meme': isMeme, 'category-focus-mode': route.name === 'category', 'buyer-workspace-mode': isBuyerWorkspace }">
-    <UtilityBar />
+    <UtilityBar v-if="!isMessaging" />
+    <header v-if="isMessaging" class="messaging-header"><RouterLink to="/" class="messaging-return" aria-label="返回商城"><UmIcon name="chevron" /><span>返回商城</span></RouterLink><BrandLogo /><div class="messaging-account-actions"><UserAvatarButton /><ThemePicker /></div></header>
     <header v-if="isBuyerWorkspace" class="buyer-focus-header"><button type="button" aria-label="退出工作台，返回商城" @click="router.push('/')"><UmIcon name="chevron" /><span>返回商城</span></button><div><b>买手工作台</b><small>UMAOMAO STUDIO</small></div><div class="buyer-focus-actions"><ThemePicker /><button type="button" aria-label="买手消息" @click="router.push('/im')"><UmIcon name="chat" /></button><UserAvatarButton workspace /></div></header>
-    <header class="header">
+    <header v-if="!isMessaging" class="header">
       <div class="header-main wrap um-wrap"><BrandLogo /><SearchBar class="header-search" /><div class="header-actions"><UserAvatarButton /><ThemePicker /></div></div>
       <nav class="desktop-nav wrap um-wrap" aria-label="主导航">
         <SideNav mode="nav" />
@@ -97,9 +98,9 @@ watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ prev
       <nav v-if="showBreadcrumb && !isMessaging" class="breadcrumb global-breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">{{ route.meta.title }}</span></nav>
       <slot><BuyerWorkspace :enabled="!!route.meta.requiresBuyer || isBuyerWalletOperation || (isBuyerWorkspace && route.name === 'buyer-apply')"><RouterView v-slot="{ Component }"><Transition :name="isMeme ? 'um-page' : undefined"><component :is="Component" :key="route.path" /></Transition></RouterView></BuyerWorkspace></slot>
     </main>
-    <footer v-if="!isMessaging" class="footer"><div class="wrap um-wrap"><div class="footer-callout"><UmIcon name="globe" /><span>有 U，自在买。<small>用 USDT，连接你与全球好物。</small></span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>全球好物 / 用 U 探索<br />把喜欢，融入日常。</p><span>GOOD FINDS. BETTER DAYS.</span></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button></div></div></div></footer>
+    <footer v-if="!isMessaging" class="footer"><div class="wrap um-wrap"><div class="footer-callout"><UmIcon name="globe" /><span>有 U，自在买。<small>用 USDT，连接你与全球好物。</small></span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>全球好物 / 用 U 探索<br />把喜欢，融入日常。</p><span>GOOD FINDS. BETTER DAYS.</span></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button><button type="button" @click="router.push('/design')">页面总览 ↗</button></div></div></div></footer>
     <nav class="mobile-nav" :aria-label="isBuyerWorkspace ? '买手工作台导航' : '手机主导航'"><button v-for="link in mobileLinks" :key="link.to" type="button" :class="{ active: route.path === link.to }" :aria-current="route.path === link.to ? 'page' : undefined" @click="router.push(link.to)"><span><UmIcon :name="link.icon" /><b v-if="link.to === '/cart' && cart.count">{{ cart.count }}</b></span>{{ link.label }}</button></nav>
-    <div v-if="!isMessaging" class="floating-tools"><button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button><button type="button" aria-label="回到顶部" @click="scrollTop">↑</button></div>
+    <div v-if="!isMessaging" class="floating-tools"><button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button><button type="button" aria-label="页面总览" @click="router.push('/design')"><UmIcon name="grid" /></button><button type="button" aria-label="回到顶部" @click="scrollTop">↑</button></div>
   </div></template>
 
 <style scoped>
@@ -108,6 +109,28 @@ watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ prev
 .layout-default.is-messaging { height:100dvh; min-height:0; overflow:hidden; }
 .is-messaging > .header,.is-messaging > :deep(.utility-bar) { flex-shrink:0; }
 .is-messaging .main-container { display:flex; flex-direction:column; min-height:0; padding-block:12px; }
+.is-messaging .main-container { width:calc(100% - 32px); max-width:none; margin:0 auto; }
+.is-messaging > .mobile-nav { display:none; }
+.messaging-header { display:flex; align-items:center; gap:24px; min-height:60px; padding:10px 20px; border-bottom:1px solid var(--line); background:var(--paper); flex-shrink:0; }
+.messaging-return { display:flex; align-items:center; gap:6px; min-height:36px; color:var(--muted); font-size:12px; }
+.messaging-return > svg { width:18px; transform:rotate(180deg); }
+.is-messaging .messaging-header :deep(.logo .brand-art) { width:152px; height:auto; aspect-ratio:6; padding:0; background:transparent; border-radius:0; box-sizing:border-box; line-height:0; }
+.messaging-account-actions { display:flex; align-items:center; gap:12px; margin-left:auto; }
+.messaging-account-actions :deep(.account-trigger) { display:flex; align-items:center; gap:8px; font-size:12px; }
+.messaging-account-actions :deep(.mobile-account-trigger) { display:none; }
+@media (max-width:700px) {
+  .messaging-header { min-height:54px; padding:7px 12px; gap:10px; }
+  .messaging-return > span { display:none; }
+  .is-messaging .messaging-header :deep(.logo .brand-art) { width:32px; aspect-ratio:1; }
+  .messaging-account-actions { gap:10px; }
+  .messaging-account-actions :deep(.account-trigger) { display:none; }
+  .messaging-account-actions :deep(.mobile-account-trigger) { display:flex; }
+  .messaging-account-actions :deep(.mobile-account-trigger) { flex-direction:column; align-items:center; gap:2px; min-width:36px; min-height:44px; }
+  .messaging-account-actions :deep(.mobile-account-avatar) { width:28px; height:28px; }
+  .messaging-account-actions :deep(.mobile-account-label) { display:flex; align-items:center; gap:2px; font-size:9px; line-height:10px; }
+  .messaging-account-actions :deep(.mobile-account-label svg) { width:8px; height:8px; }
+  .is-messaging .main-container { width:calc(100% - 16px); padding-block:8px; }
+}
 .header-search { min-width:0; }
 .nav-rail-host { min-width:0; position:relative; height:100%; }
 .nav-rail-host > .store-nav-links { height:100%; }
@@ -119,5 +142,5 @@ watch(() => route.fullPath, () => { void nextTick(() => main.value?.focus({ prev
 }
 @media (max-width:700px) { .category-focus-mode > .main { width:100%; padding:0; } }
 @media (max-width:700px) { .buyer-workspace-mode .buyer-focus-header { grid-template-columns:auto minmax(0,1fr) auto; } .buyer-focus-header>div { min-width:0; } }
-@media (max-width:700px) { .is-messaging .main-container { padding-bottom:calc(76px + env(safe-area-inset-bottom)); } }
+@media (max-width:700px) { .is-messaging .main-container { padding-bottom:max(8px,env(safe-area-inset-bottom)); } }
 </style>

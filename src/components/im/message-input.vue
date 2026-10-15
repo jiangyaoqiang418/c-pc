@@ -340,21 +340,23 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.message-input { flex-shrink:0; margin-top:12px; border-top:1px solid var(--line); padding-top:16px; }
-.media-toolbar { align-items:center; flex-wrap:wrap; gap:8px; }
+.message-input { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:8px 12px; flex-shrink:0; margin-top:8px; border-top:1px solid var(--line); padding-top:10px; }
+.media-toolbar { grid-column:1; grid-row:2; display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; margin:0; }
+.media-toolbar button { min-height:32px; max-width:100%; padding:5px 8px; gap:6px; font-size:12px; line-height:1.4; }
 .file-input { display:none; }
-.voice-trigger { display:inline-flex; }
-.chat-compose { align-items:flex-end; }
-.chat-compose .textarea { min-height:64px; max-height:128px; resize:vertical; flex:1; min-width:0; height:auto; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--paper); box-shadow:none; }
-.chat-compose>.primary { flex-shrink:0; }
-.message-input-hint { margin-top:8px; font-size:11px; color:var(--muted); }
-.media-state { display:inline-flex; align-items:center; gap:6px; margin-left:auto; color:var(--muted); font-size:11px; }
+.voice-trigger { display:inline-flex; min-width:0; max-width:100%; }
+.chat-compose { display:contents; }
+.chat-compose .textarea { grid-column:1/-1; grid-row:1; width:100%; min-width:0; height:56px; min-height:56px; max-height:96px; resize:vertical; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background:var(--paper); box-shadow:none; font-size:14px; line-height:1.5; }
+.chat-compose>.primary { grid-column:2; grid-row:2; justify-self:end; min-height:34px; padding:7px 14px; gap:7px; font-size:12px; line-height:1.4; }
+.message-input-hint { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.media-state { display:inline-flex; flex-basis:100%; align-items:center; gap:6px; min-width:0; margin:0; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
 .is-recording,.recording-state { color:var(--yb-danger); }.recording-dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
 @media(max-width:700px) {
-  .message-input { margin-top:8px; padding-top:10px; }
-  .media-toolbar { gap:6px; margin-bottom:10px; }
-  .media-toolbar button { padding:5px 8px; gap:6px; }
-  .chat-compose .textarea { font-size:13px; padding:10px; }
-  .message-input-hint { margin-top:6px; }
+  .message-input { gap:6px 8px; margin-top:6px; padding-top:8px; }
+  .media-toolbar { gap:4px; }
+  .media-toolbar button { min-height:30px; padding:5px 6px; gap:4px; font-size:11px; }
+  .media-toolbar button :deep(svg) { width:15px; height:15px; }
+  .chat-compose .textarea { height:48px; min-height:48px; font-size:13px; padding:8px 10px; }
+  .chat-compose>.primary { min-height:32px; padding:6px 11px; gap:5px; }
 }
 </style>

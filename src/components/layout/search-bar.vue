@@ -50,4 +50,7 @@ function onSearchKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .search-wrap { width:100%; min-width:0; }
+.search-wrap .search-bar.search-box:focus-within { border-color:var(--green); }
+.search-bar .search-input:focus-visible { outline:none; }
+.search-bar .search-btn:focus-visible { outline:2px solid var(--green); outline-offset:-2px; }
 </style>
