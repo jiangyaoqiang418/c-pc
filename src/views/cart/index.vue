@@ -8,6 +8,7 @@ import { getAftersaleMeta } from '@/service/api/product';
 import { useCartStore, useUserStore } from '@/stores';
 import { createCheckoutIntent, formatPaymentAmount as formatAmount } from '@/utils/checkout';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
+import { sameSkuId } from '@/utils/product-sku';
 
 const router = useRouter();
 const cart = useCartStore();
@@ -37,10 +38,10 @@ function setAll(checked: boolean) {
   cart.setAllSelected(checked);
 }
 
-function remove(productId: string | number) {
+function remove(productId: string | number, skuId?: string | number) {
   if (removalModal) return;
   const userId = userStore.currentUser?.id;
-  const addedAt = cart.items.find(item => String(item.productId) === String(productId))?.addedAt;
+  const addedAt = cart.items.find(item => String(item.productId) === String(productId) && sameSkuId(item.skuId, skuId))?.addedAt;
   const operation = ++removalVersion;
   removalModal = Modal.confirm({
     title: '从购物袋移除？',
@@ -51,14 +52,14 @@ function remove(productId: string | number) {
     async onOk() {
       if (operation !== removalVersion || String(userStore.currentUser?.id) !== String(userId)) return;
       removalModal = undefined;
-      if (!cart.items.some(item => String(item.productId) === String(productId) && item.addedAt === addedAt)) return;
-      if (await cart.remove(productId)) Message.success('已移除');
+      if (!cart.items.some(item => String(item.productId) === String(productId) && sameSkuId(item.skuId, skuId) && item.addedAt === addedAt)) return;
+      if (await cart.remove(productId, skuId)) Message.success('已移除');
     }
   });
 }
 
 async function clearInvalid() {
-  const results = await Promise.all(items.value.filter(i => i.confirmedInvalid).map(i => cart.remove(i.productId)));
+  const results = await Promise.all(items.value.filter(i => i.confirmedInvalid).map(i => cart.remove(i.productId, i.skuId)));
   if (results.every(Boolean)) Message.success('已清理失效商品');
 }
 
@@ -80,7 +81,7 @@ function goCheckout() {
     return;
   }
   if (!userStore.currentUser) {
-    const contextId = createCheckoutIntent(cart.selectedItems.map(item => ({ productId: item.productId, quantity: item.qty })));
+    const contextId = createCheckoutIntent(cart.selectedItems.map(item => ({ productId: item.productId, skuId:item.skuId, confirmedUnitPrice:item.unitPrice, quantity: item.qty })));
     router.push({ path: '/checkout', query: { contextId } });
   } else {
     router.push('/checkout');
@@ -105,24 +106,26 @@ onMounted(() => {
           <label><input type="checkbox" :checked="selection === true" :indeterminate="selection === 'indeterminate'" :disabled="cart.mutating" aria-label="全选购物袋商品" @change="setAll(($event.target as HTMLInputElement).checked)" />全选商品</label>
           <span>{{ cart.selectedQty }} 件已选</span>
         </div>
-        <article v-for="item in items" :key="item.productId" class="cart-item" :class="{ invalid: item.confirmedInvalid }">
-          <input type="checkbox" :checked="item.selected" :disabled="cart.mutating || (!item.available && !item.selected)" :aria-label="`选择 ${item.product?.title || '商品'}`" @change="cart.setSelected(item.productId, ($event.target as HTMLInputElement).checked)" />
-          <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" :tabindex="item.product ? 0 : undefined" :role="item.product ? 'link' : undefined" @error="setImageFallback" @click="item.product && router.push(`/product/${item.productId}`)" @keydown.enter="item.product && router.push(`/product/${item.productId}`)" />
+        <article v-for="item in items" :key="JSON.stringify([String(item.productId),item.skuId === undefined ? null : String(item.skuId)])" class="cart-item" :class="{ invalid: item.confirmedInvalid }">
+          <input type="checkbox" :checked="item.selected" :disabled="cart.mutating || (!item.available && !item.selected)" :aria-label="`选择 ${item.product?.title || '商品'} ${item.specText}`" @change="cart.setSelected(item.productId, ($event.target as HTMLInputElement).checked, item.skuId)" />
+          <img :src="item.image || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" :tabindex="item.product ? 0 : undefined" :role="item.product ? 'link' : undefined" @error="setImageFallback" @click="item.product && router.push(`/product/${item.productId}`)" @keydown.enter="item.product && router.push(`/product/${item.productId}`)" />
           <div class="cart-product">
             <RouterLink v-if="item.product" :to="`/product/${item.productId}`" class="item-name">{{ item.product.title }}</RouterLink>
             <span v-else class="item-name">{{ item.loadState === 'error' ? '商品读取失败' : '商品加载中' }}</span>
             <p v-if="item.product">{{ getAftersaleMeta(item.product.aftersaleType).label }}<template v-if="item.product.sellerName"> · 买手 {{ item.product.sellerName }}</template></p>
+            <p v-if="item.specText">{{ item.specText }}</p>
             <span v-if="item.product?.overseasCustoms" class="tag inline">海外直邮</span>
             <p v-if="item.confirmedInvalid" class="cart-item-notice danger">商品已失效，请移除后重新选择</p>
             <p v-else-if="item.loadState === 'loading'" class="cart-item-notice" role="status">正在读取商品信息</p>
             <button v-else-if="item.loadState === 'error'" type="button" class="text-link cart-retry" @click="cart.refresh()">读取失败，重新读取</button>
+            <p v-else-if="item.skuSelectionRequired" class="cart-item-notice">商品已更新规格，请返回商品页重新选购</p>
             <p v-else-if="!item.available" class="cart-item-notice">请检查数量或商品信息</p>
-            <QuantityStepper class="cart-quantity" :model-value="item.qty" :max="item.product?.stock || 1" :disabled="cart.mutating || item.loadState !== 'ready' || item.confirmedInvalid" :label="`${item.product?.title || '商品'}数量`" @update:model-value="value => cart.update(item.productId, value)" />
+            <QuantityStepper class="cart-quantity" :model-value="item.qty" :max="item.stock || 1" :disabled="cart.mutating || item.loadState !== 'ready' || item.confirmedInvalid || item.skuSelectionRequired" :label="`${item.product?.title || '商品'}数量`" @update:model-value="value => cart.update(item.productId, value, item.skuId)" />
           </div>
           <div class="cart-item-end">
             <b v-if="item.available">{{ formatAmount(item.subtotal) }} <small>USDT</small></b>
             <small v-else>金额待确认</small>
-            <button type="button" :disabled="cart.mutating" :aria-label="`移除 ${item.product?.title || '商品'}`" @click="remove(item.productId)"><UmIcon name="trash" /></button>
+            <button type="button" :disabled="cart.mutating" :aria-label="`移除 ${item.product?.title || '商品'} ${item.specText}`" @click="remove(item.productId, item.skuId)"><UmIcon name="trash" /></button>
           </div>
         </article>
         <button v-if="items.some(item => item.confirmedInvalid)" type="button" class="text-link clear-invalid" :disabled="cart.mutating" @click="clearInvalid">清理失效商品</button>

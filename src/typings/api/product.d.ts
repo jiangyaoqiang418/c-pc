@@ -1,6 +1,23 @@
 declare namespace Api.RealProduct {
   type Id = string | number;
 
+  interface ProductSpecGroup { name: string; options: string[] }
+  interface ProductSkuOption { name: string; value: string }
+  interface ProductSkuDTO {
+    id: Id;
+    specs: ProductSkuOption[];
+    price: string | number;
+    stock: number;
+    enabled: boolean;
+    image?: string | null;
+  }
+  interface ProductSku extends Omit<ProductSkuDTO, 'price'> { price: string }
+  interface ProductSkuFields {
+    hasSku?: boolean;
+    specGroups?: ProductSpecGroup[];
+    skus?: ProductSku[];
+  }
+
   type DisplayAfterSaleType = Api.Product.AftersaleType | 'unknown';
   type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId' | 'aftersaleType' | 'salesCount' | 'viewCount' | 'favoriteCount' | 'shippingFee' | 'tax'> & {
     id: Id;
@@ -15,14 +32,17 @@ declare namespace Api.RealProduct {
     rawAfterSaleType?: string;
     rawStatus?: ProductStatus;
     imageFiles?: ProductImageDTO[];
-  };
+  } & ProductSkuFields;
 
-  type DisplayRecord = Api.Product.ProductRecord | Record;
+  type DisplayRecord = (Api.Product.ProductRecord | Record) & ProductSkuFields;
 
   type AfterSaleType = 'SEVEN_DAY_NO_REASON' | 'NONE' | 'SHOP_WARRANTY' | 'NATIONAL_WARRANTY';
   type ProductStatus = 'REVIEWING' | 'REJECTED' | 'ON_SALE' | 'OFF_SHELF' | 'FROZEN';
 
   interface ProductDTO {
+    hasSku?: boolean;
+    specGroups?: ProductSpecGroup[];
+    skus?: ProductSkuDTO[];
     id: string;
     sellerId: string;
     sellerName?: string;
@@ -38,6 +58,7 @@ declare namespace Api.RealProduct {
     brief?: string;
     description?: string;
     status?: ProductStatus;
+    auditStage?: 'PENDING_AUDIT' | 'IN_AUDIT';
     statusText?: string;
     reviewComment?: string;
     reviewerId?: string;
@@ -96,11 +117,13 @@ declare namespace Api.RealProduct {
   }
 
   interface ProductCreateParams {
+    specGroups?: ProductSpecGroup[];
+    skus?: Array<Omit<ProductSkuDTO, 'price'> & { price: string }>;
     title: string;
     categoryId: string | number;
-    price: number;
-    shippingFee?: number;
-    taxFee?: number;
+    price: string | number;
+    shippingFee?: string | number;
+    taxFee?: string | number;
     stock: number;
     afterSaleType: AfterSaleType;
     overseasClearance?: boolean;
@@ -114,6 +137,7 @@ declare namespace Api.RealProduct {
     pageSize?: number;
     keyword?: string;
     status?: ProductStatus;
+    auditStage?: 'PENDING_AUDIT' | 'IN_AUDIT';
     categoryId?: string | number;
   }
 

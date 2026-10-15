@@ -8,6 +8,26 @@ function decimalIdentity(token: string) {
   return { digits, shift: BigInt(match[3] || '0') - BigInt(fraction.length) + BigInt(coefficient.length - digits.length) };
 }
 
+/** 交易契约允许十进制字符串：28 位整数、8 位小数，提交前不经过 Number。 */
+export function exactTransactionAmount(raw: string | number, allowZero = false): { value?: string; error: string } {
+  const text = String(raw).trim();
+  const match = text.length <= 128 ? text.match(/^(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/) : null;
+  if (!match) return { error: '请输入有效金额' };
+  try {
+    const exponent = BigInt(match[3] || '0');
+    if (BigInt((match[2] || '').length) - exponent > 8n) return { error: '金额最多支持 8 位小数' };
+    const identity = decimalIdentity(text)!;
+    if (identity.digits === '0') return allowZero ? { value: '0', error: '' } : { error: '金额必须大于 0' };
+    if (BigInt(identity.digits.length) + identity.shift > 28n) return { error: '金额最多支持 28 位整数' };
+    if (identity.shift < -8n) return { error: '金额最多支持 8 位小数' };
+    const point = identity.digits.length + Number(identity.shift);
+    const value = identity.shift >= 0n ? identity.digits + '0'.repeat(Number(identity.shift))
+      : point > 0 ? `${identity.digits.slice(0, point)}.${identity.digits.slice(point)}`
+        : `0.${'0'.repeat(-point)}${identity.digits}`;
+    return { value, error: '' };
+  } catch { return { error: '请输入有效金额' }; }
+}
+
 /** Validate the actual JSON number token against the original decimal, without an invented amount ceiling. */
 export function exactDecimalNumber(raw: string | number, allowZero = false) {
   const text = String(raw).trim().replace(/^\./, '0.').replace(/\.$/, '.0');

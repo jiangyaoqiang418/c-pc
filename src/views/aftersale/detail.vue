@@ -18,8 +18,9 @@ const refund = ref<Api.RealRefund.RefundDTO>(); const loading = ref(false); cons
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
-const labels: Record<string, string> = { APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
-const canCancel = computed(() => String(refund.value?.status) === 'APPLYING');
+const labels: Record<string, string> = { CONFIRMING: '待买手确认', APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
+const canCancel = computed(() => userStore.currentUser?.id !== undefined
+  && String(refund.value?.buyerId) === String(userStore.currentUser.id) && ['CONFIRMING', 'APPLYING'].includes(String(refund.value?.status)));
 const formatTime = (value?: string | number) => formatDateValue(value);
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -108,7 +109,7 @@ watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; 
         <header class="refund-heading"><div><h1>售后处理进度</h1><p>订单 {{ refund.orderNo || '—' }} · 申请于 {{ formatTime(refund.appliedAt || refund.createdAt) }}</p></div><span class="pill status" :class="String(refund.status).toLowerCase()">{{ refund.statusText || labels[String(refund.status)] || refund.status }}</span></header>
         <section class="refund-section"><h2>退款信息</h2><dl><div><dt>退款金额</dt><dd class="amount">U {{ refund.amount ?? '—' }}</dd></div><div><dt>退款业务号</dt><dd>{{ refund.refundBizNo || '—' }}</dd></div><div><dt>订单申请前状态</dt><dd>{{ refund.orderStatusBefore || '—' }}</dd></div><div><dt>审核时间</dt><dd>{{ formatTime(refund.reviewedAt) }}</dd></div></dl></section>
         <section class="refund-section"><h2>退款原因</h2><p class="reason">{{ refund.reason || '—' }}</p><div v-if="refund.evidenceImages?.length" class="evidence"><button v-for="(url, index) in refund.evidenceImages" :key="`${url}:${index}`" type="button" :aria-label="`预览退款凭证 ${index + 1}`" @click="previewIndex = index; previewOpen = true"><img :src="url" :alt="`退款凭证 ${index + 1}`" @error="setImageFallback" /></button></div></section>
-        <section v-if="refund.reviewRemark" class="refund-section"><h2>平台审核说明</h2><p class="reason">{{ refund.reviewRemark }}</p></section>
+        <section v-if="refund.sellerConfirmedAt" class="refund-section"><h2>买手确认意见</h2><p class="reason">{{ refund.sellerAgree === true ? '同意退款' : refund.sellerAgree === false ? '不同意退款' : '—' }} · {{ refund.sellerRemark || '—' }}<br />{{ formatTime(refund.sellerConfirmedAt) }}</p></section><section v-if="refund.reviewRemark" class="refund-section"><h2>平台审核说明</h2><p class="reason">{{ refund.reviewRemark }}</p></section>
         <footer class="button-row actions"><button type="button" class="outline"  @click="router.push({ name: 'order-detail', params: { id: String(refund.orderId) } })">查看订单</button><button type="button" v-if="canCancel"  class="danger outline" :disabled="cancelling || cancellationPending || loading" @click="cancel">{{ cancelling ? '撤销中…' : '撤销申请' }}</button></footer>
         <ImagePreview v-model="previewOpen" :images="refund.evidenceImages || []" :start-index="previewIndex" title="退款凭证" />
       </template>

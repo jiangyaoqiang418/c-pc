@@ -23,6 +23,9 @@ declare namespace Api.RealOrder {
     groupId?: Id;
     orderGroupNo?: string;
     productId: Id;
+    skuId?: Id | null;
+    skuSpecs?: Api.RealProduct.ProductSkuOption[];
+    sessionId?: Id;
     quantity?: number;
     customerId: Id;
     shopperId: Id;
@@ -47,11 +50,17 @@ declare namespace Api.RealOrder {
     autoConfirmAt?: string;
     receiveExtendCount?: number;
     receiveExtendable?: boolean;
+    rawStatus?: OrderStatus;
+    stage?: OrderStage;
+    canProcure?: boolean;
+    canShip?: boolean;
+    canConfirmAftersale?: boolean;
   };
 
   type DisplayRecord = Api.Order.OrderRecord | Record;
 
-  type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPED' | 'REFUND_REVIEW' | 'REFUNDED' | 'COMPLETED' | 'CANCELED';
+  type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPED' | 'AFTERSALE_CONFIRM' | 'REFUND_REVIEW' | 'REFUNDED' | 'COMPLETED' | 'CANCELED';
+  type OrderStage = 'CREATED' | 'PROCURING' | 'PROCURED' | 'SHIPPED' | 'AFTERSALE_CONFIRM' | 'REFUND_REVIEW' | 'REFUNDED' | 'COMPLETED' | 'CANCELED';
   type Carrier = string;
   interface CarrierDTO { id: Id; code: string; name: string; enabled: boolean; defaultCarrier: boolean; customNameRequired: boolean; sortNo: number; }
   interface ReviewEligibility { orderId: Id; reviewable: boolean; reason?: string | null; reasonText?: string | null; deadline?: number | null; reviewId?: Id | null; }
@@ -67,11 +76,19 @@ declare namespace Api.RealOrder {
     orderType?: string;
     status?: OrderStatus;
     statusText?: string;
+    stage?: OrderStage | null;
+    procuredAt?: string | number | null;
+    canProcure?: boolean | null;
+    canShip?: boolean | null;
+    canConfirmAftersale?: boolean | null;
     customerId?: string;
     customerName?: string;
     sellerId?: string;
     sellerName?: string;
     productId?: string | null;
+    skuId?: Id | null;
+    skuSpecs?: Api.RealProduct.ProductSkuOption[];
+    flashSessionId?: Id | null;
     productTitle?: string;
     productImage?: string;
     originalAmount?: string | number;
@@ -133,6 +150,9 @@ declare namespace Api.RealOrder {
     pageNo?: number;
     pageSize?: number;
     status?: OrderStatus;
+    stage?: OrderStage;
+    orderNo?: string;
+    productTitle?: string;
   }
 
   interface ListQuery {
@@ -159,6 +179,8 @@ declare namespace Api.RealOrder {
 
   interface OrderCreateItemParams {
     productId: string | number;
+    skuId?: Id;
+    confirmedUnitPrice?: string;
     quantity?: number;
     sessionId?: string | number;
   }
@@ -176,6 +198,14 @@ declare namespace Api.RealOrder {
     totalAmount?: string | number;
   }
 
+  interface OrderCreationResult {
+    status: 'NOT_FOUND' | 'PROCESSING' | 'CREATED' | 'REJECTED';
+    orderGroupNo?: string | null;
+    orderIds: Id[];
+    rejectionCode?: string | number | null;
+    rejectionMessage?: string | null;
+  }
+
   interface OrderGroupPayParams {
     orderGroupNo: string;
     confirmedAmount: string;
@@ -188,10 +218,13 @@ declare namespace Api.RealOrder {
     carrierName?: string;
     trackingNo: string;
     eta?: string | number;
-    purchaseNo?: string;
-    purchaseVouchers?: string[];
     shipVouchers?: string[];
     remark?: string;
+  }
+
+  interface OrderProcureParams extends OrderIdParams {
+    purchaseNo: string;
+    purchaseVouchers: string[];
   }
 
   interface LogisticsTrackDTO { trackId: string | number; orderId: string | number; trackingNo?: string; occurredAt?: string | number; status: LogisticsStatus; statusText?: string; description: string; location?: string; exceptionNode?: boolean | null; source?: string; sourceText?: string; createdAt?: string | number; }

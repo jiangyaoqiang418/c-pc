@@ -9,17 +9,22 @@ export function getOrderCapabilities(order: Api.RealOrder.DisplayRecord | undefi
   const isCustomer = userId !== undefined && !!order?.customerId && String(order.customerId) === String(userId);
   const isSeller = userId !== undefined && !!order?.shopperId && String(order.shopperId) === String(userId);
   const status = order?.status;
+  const real = order && 'rawStatus' in order ? order as Api.RealOrder.Record : undefined;
   return {
     isCustomer,
     isSeller,
     pay: isCustomer && status === 'PENDING_PAYMENT',
     cancel: isCustomer && status === 'PENDING_PAYMENT',
-    confirm: isCustomer && (status === 'IN_TRANSIT' || status === 'AFTERSALE_CONFIRM'),
+    confirm: isCustomer && status === 'IN_TRANSIT',
     extendReceipt: isCustomer && status === 'IN_TRANSIT' && !!order
       && 'receiveExtendable' in order && order.receiveExtendable === true,
-    refund: isCustomer && !!status && ['PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(status),
+    refund: isCustomer && !!status && ['PROCURING', 'PROCURED', 'IN_TRANSIT'].includes(status),
     review: isCustomer && (status === 'COMPLETED' || status === 'WARRANTY'),
-    viewAftersale: (isCustomer || isSeller) && status === 'IN_AFTERSALE',
-    logistics: (isCustomer || isSeller) && (status === 'IN_TRANSIT' || status === 'AFTERSALE_CONFIRM')
+    viewAftersale: (isCustomer || isSeller) && (status === 'IN_AFTERSALE' || status === 'AFTERSALE_CONFIRM'),
+    logistics: (isCustomer || isSeller) && (status === 'IN_TRANSIT' || !!order?.shippedAt),
+    procure: isSeller && real?.rawStatus === 'PAID' && real.stage === 'PROCURING' && real.canProcure === true,
+    ship: isSeller && real?.rawStatus === 'PAID' && real.stage === 'PROCURED' && real.canShip === true,
+    confirmAftersale: isSeller && real?.rawStatus === 'AFTERSALE_CONFIRM'
+      && real.stage === 'AFTERSALE_CONFIRM' && real.canConfirmAftersale === true
   };
 }

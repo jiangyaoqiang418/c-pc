@@ -14,7 +14,7 @@ import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWa
 import * as realWalletApi from '@/service/api/wallet';
 import * as productApi from '@/service/api/product';
 import { readCheckoutIntent, clearCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout,
-  readPendingCheckout, pendingCheckoutStorageKey as pendingStorageKey, sumPaymentAmounts, formatPaymentAmount as formatAmount, validateGroupPayResult, isGroupPaymentComplete, type PendingCheckout } from '@/utils/checkout';
+  readPendingCheckout, pendingCheckoutStorageKey as pendingStorageKey, sumPaymentAmounts, formatPaymentAmount as formatAmount, validateGroupPayResult, validateRecoveredCheckoutOrders, isGroupPaymentComplete, type PendingCheckout } from '@/utils/checkout';
 import { withSubmissionLock } from '@/utils/financial-submission';
 import { RequestError } from '@/service/request';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
@@ -27,12 +27,14 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { getOrderCapabilities } from '@/utils/order';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import { requestPayPassword } from '@/utils/pay-password';
+import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { walletPayEntryEnabled } from '@/utils/wallet-pay-feature';
+import { getAccessToken } from '@/service/request/token';
 
 const router = useRouter();
 const route = useRoute();
 const contextId = computed(() => typeof route.query.contextId === 'string' ? route.query.contextId : '');
-const contextItems = ref<Array<{ productId: string | number; quantity: number }>>([]);
+const contextItems = ref<Array<{ productId: string | number; quantity: number; skuId?: string | number; confirmedUnitPrice?: string }>>([]);
 const userStore = useUserStore();
 const cart = useCartStore();
 const requestGuard = createLatestRequestGuard();
@@ -72,6 +74,8 @@ let insufficientBalanceTimer: ReturnType<typeof setTimeout> | undefined;
 
 const pendingCheckout = ref<PendingCheckout>();
 const pendingOrders = ref<Api.RealOrder.Record[]>([]);
+const recoveryNotice = ref('');
+const recoveryRejected = ref(false);
 const hasCreatedOrders = computed(() => !!pendingCheckout.value?.orderIds?.length);
 const hasUnconfirmedOrder = computed(() => !!pendingCheckout.value && !hasCreatedOrders.value);
 const unpaidOrders = computed(() => pendingOrders.value.filter(order => getOrderCapabilities(order, userStore.currentUser?.id).pay));
@@ -80,7 +84,8 @@ const pendingTotal = computed(() => {
 });
 
 const checkoutItems = computed(() => route.query.contextId !== undefined
-  ? contextItems.value.map(item => cart.enrich({ productId: item.productId, qty: item.quantity, selected: true, addedAt: '' }))
+  ? contextItems.value.map(item => cart.enrich({ productId: item.productId, skuId: item.skuId,
+    confirmedUnitPrice: item.confirmedUnitPrice, qty: item.quantity, selected: true, addedAt: '' }))
   : cart.enrichedItems.filter(item => item.selected));
 const items = computed(() => checkoutItems.value.filter(item => item.available));
 const overseasItems = computed(() => items.value.filter(i => i.product?.overseasCustoms));
@@ -109,6 +114,7 @@ const availableBalance = computed(() => {
 const balanceEnough = computed(() => availableBalance.value !== undefined && !!grandTotal.value && amountAtLeast(availableBalance.value, grandTotal.value));
 const walletSelected = computed(() => walletPayEntryEnabled && paymentMethod.value === 'wallet');
 const submitDisabledReason = computed(() => {
+  if (grandTotal.value && exactTransactionAmount(grandTotal.value).error) return '结算总额超出交易金额范围，请调整购买数量';
   if (submitting.value || confirmationPending.value) return '订单正在处理，请勿重复提交';
   if (loadError.value) return loadError.value;
   if (loading.value || cart.mutating) return '商品和结算信息正在同步';
@@ -120,6 +126,7 @@ const submitDisabledReason = computed(() => {
   return '';
 });
 const pendingDisabledReason = computed(() => {
+  if (unpaidOrders.value.length && exactTransactionAmount(pendingTotal.value).error) return '待付总额超出交易金额范围，请联系平台核对';
   if (submitting.value || loading.value) return '正在读取或处理订单，请稍候';
   if (loadError.value) return loadError.value;
   if (!agreed.value) return '请先核对上述订单及待付金额';
@@ -198,7 +205,8 @@ async function finishPaidCheckout(pending: PendingCheckout, orderId: string | nu
 }
 
 function currentOrderItems(): Api.RealOrder.OrderCreateItemParams[] {
-  return items.value.map(item => ({ productId: item.productId, quantity: item.qty }));
+  return items.value.map(item => ({ productId: item.productId, skuId: item.skuId,
+    confirmedUnitPrice: item.unitPrice, quantity: item.qty }));
 }
 
 function hasSameOrderItems(
@@ -206,7 +214,11 @@ function hasSameOrderItems(
   right: Api.RealOrder.OrderCreateItemParams[]
 ) {
   if (left.length !== right.length) return false;
-  const normalize = (item: Api.RealOrder.OrderCreateItemParams) => `${String(item.productId)}:${item.quantity || 1}`;
+  const normalize = (item: Api.RealOrder.OrderCreateItemParams) => JSON.stringify([
+    String(item.productId), item.skuId === undefined ? '' : String(item.skuId), item.quantity || 1,
+    item.sessionId === undefined ? '' : String(item.sessionId),
+    item.confirmedUnitPrice === undefined ? '' : sumPaymentAmounts([item.confirmedUnitPrice])
+  ]);
   return left.map(normalize).sort().every((item, index) => item === right.map(normalize).sort()[index]);
 }
 
@@ -276,9 +288,10 @@ async function payPendingOrders() {
       }, () => '部分订单付款未确认，请核对最新状态后重试');
       if (!paid || !isCurrent()) return;
       const { latest, payable } = paid;
-      const purchasedProducts = new Set(latest.filter(order => !['CANCELLED', 'REFUNDED'].includes(order.status)).map(order => String(order.productId)));
+      const purchasedProducts = new Set(latest.filter(order => !['CANCELLED', 'REFUNDED'].includes(order.status))
+        .map(order => `${order.productId}:${order.skuId ?? ''}`));
       await finishPaidCheckout(pending, payable[0].id,
-        pending.cartSnapshot?.filter(item => purchasedProducts.has(String(item.productId))));
+        pending.cartSnapshot?.filter(item => purchasedProducts.has(`${item.productId}:${item.skuId ?? ''}`)));
     });
   } catch (error) {
     if (!isCurrent()) return;
@@ -294,9 +307,14 @@ async function recoverUnconfirmedOrder() {
   const userId = userStore.currentUser?.id;
   const expectedKey = pendingCheckout.value?.idempotencyKey;
   if (userId === undefined || !expectedKey || !hasUnconfirmedOrder.value || submitting.value) return;
+  const expectedRoute = route.fullPath;
+  const session = getAccessToken();
   const operation = ++writeVersion;
-  const isCurrent = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId);
+  const isCurrent = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId)
+    && route.fullPath === expectedRoute && getAccessToken() === session;
   submitting.value = true;
+  recoveryNotice.value = '';
+  recoveryRejected.value = false;
   try {
     await withSubmissionLock(pendingStorageKey(userId), async () => {
       if (!isCurrent()) return;
@@ -304,45 +322,108 @@ async function recoverUnconfirmedOrder() {
       if (!stored || stored.idempotencyKey !== expectedKey || stored.orderIds?.length) {
         throw new Error('结算记录已变化，请重新读取原订单');
       }
-      // 只能以原商品、原地址及原键恢复；当前购物车和地址不参与旧单重试。
-      const orderGroup = await realOrderApi.createOrders({
-        addressId: stored.addressId!,
-        items: stored.orderItems,
-        idempotencyKey: stored.idempotencyKey
-      }, { showError: false });
+      const originalSnapshot = JSON.stringify(stored);
+      // 回查不会创建订单；NOT_FOUND 也不能证明原请求不会继续执行。
+      const result = await realOrderApi.fetchOrderCreationByKey(stored.idempotencyKey);
       if (!isCurrent()) return;
-      if (!orderGroup.orderIds?.length) throw new Error('下单未返回订单 ID，请重新核对原订单');
-      stored.orderGroupNo = orderGroup.orderGroupNo;
-      stored.orderIds = orderGroup.orderIds;
-      stored.firstOrderId = orderGroup.orderIds[0];
-      savePendingCheckout(stored);
-    });
-    if (isCurrent()) {
+      if (JSON.stringify(readPendingCheckout(userId)) !== originalSnapshot) throw new Error('结算记录已在其他页面变化，请重新读取原订单');
+      if (result.status !== 'CREATED') {
+        if (result.orderIds.length) throw new Error('原下单回查状态与订单身份矛盾，请保留原记录并核对');
+        recoveryRejected.value = result.status === 'REJECTED';
+        recoveryNotice.value = result.status === 'NOT_FOUND'
+          ? '暂未找到原下单记录，仍不能排除在途请求。原下单标识、商品和地址已保留；请稍后重新查询，不会自动重新下单或付款。'
+          : result.status === 'PROCESSING'
+            ? '原下单请求仍在处理中。原下单标识、商品和地址已保留；请稍后重新查询，不会自动重新下单或付款。'
+            : `原下单已被明确拒绝${result.rejectionCode === undefined || result.rejectionCode === null ? '' : `（${result.rejectionCode}）`}：${result.rejectionMessage || '请联系平台核对拒绝原因'}。原记录已保留，同一标识不会重新创建订单。`;
+        return;
+      }
+      const orders = await Promise.all(result.orderIds.map(id => realOrderApi.fetchOrderDetail(id)));
+      if (!isCurrent()) return;
+      const recovered = validateRecoveredCheckoutOrders(stored, result, orders, userId);
+      const receipt = validateGroupPayResult(await realOrderApi.fetchOrderGroupPayResult(result.orderGroupNo!), result.orderGroupNo!, result.orderIds);
+      if (!isCurrent()) return;
+      if (receipt.items.length !== result.orderIds.length) throw new Error('原下单订单组回执缺少部分订单，请保留原记录并核对');
+      if (JSON.stringify(readPendingCheckout(userId)) !== originalSnapshot) throw new Error('结算记录已在其他页面变化，请重新读取原订单');
+      recovered.paymentResult = receipt;
+      savePendingCheckout(recovered);
+      pendingOrders.value = orders;
       agreed.value = false;
-      await load();
-    }
+      recoveryNotice.value = '';
+      Message.success('已找到并核对上次创建的整批订单，请核对订单及金额后再确认付款');
+    });
   } catch (error) {
-    if (isCurrent()) Message.error(error instanceof Error ? error.message : '上次下单结果仍未确认，请稍后重试');
+    if (isCurrent()) {
+      recoveryNotice.value = error instanceof Error ? error.message : '上次下单结果仍未确认，请稍后重新查询';
+      Message.error(recoveryNotice.value);
+    }
   } finally {
-    if (isCurrent()) submitting.value = false;
+    if (operation === writeVersion) submitting.value = false;
   }
 }
 
 function confirmRecoverUnconfirmedOrder() {
   if (!hasUnconfirmedOrder.value || submitting.value || confirmationPending.value) return;
-  confirmationPending.value = true;
+  void recoverUnconfirmedOrder();
+}
+
+function confirmDiscardRejectedCheckout() {
+  const userId = userStore.currentUser?.id;
+  const expectedKey = pendingCheckout.value?.idempotencyKey;
+  if (userId === undefined || !expectedKey || !recoveryRejected.value || !hasUnconfirmedOrder.value
+    || submitting.value || loading.value || confirmationPending.value) return;
+  const originalSnapshot = JSON.stringify(pendingCheckout.value);
+  const expectedRoute = route.fullPath;
+  const session = getAccessToken();
   const operation = ++writeVersion;
+  const isCurrent = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId)
+    && route.fullPath === expectedRoute && getAccessToken() === session;
+  confirmationPending.value = true;
   confirmationModal = Modal.confirm({
-    title: '恢复上次下单？',
-    content: '将使用上次保存的商品、数量、收货地址和同一个下单标识核对结果。如果上次请求未成功，这一步可能创建上次的订单；恢复后不会自动付款。',
-    okText: '恢复上次订单',
+    title: '确认原下单已拒绝并重新结算？',
+    content: '将再次查询原下单标识。只有服务端仍明确返回已拒绝，且原记录未变化时，才解除本地结算保护并重新读取当前商品；不会自动下单或付款。',
+    okText: '确认拒绝并重新结算',
     onCancel() {
       if (operation === writeVersion) confirmationPending.value = false;
     },
+    onClose() {
+      if (operation === writeVersion) confirmationPending.value = false;
+    },
     async onOk() {
-      if (operation !== writeVersion) return;
+      if (!isCurrent()) return;
       confirmationPending.value = false;
-      await recoverUnconfirmedOrder();
+      submitting.value = true;
+      let cleared = false;
+      try {
+        await withSubmissionLock(pendingStorageKey(userId), async () => {
+          if (!isCurrent()) return;
+          const stored = readPendingCheckout(userId);
+          if (!stored || stored.idempotencyKey !== expectedKey || stored.orderIds?.length
+            || JSON.stringify(stored) !== originalSnapshot) throw new Error('原结算记录已变化，未清理记录，请重新查询');
+          const result = await realOrderApi.fetchOrderCreationByKey(expectedKey);
+          if (!isCurrent()) return;
+          if (JSON.stringify(readPendingCheckout(userId)) !== originalSnapshot) throw new Error('原结算记录已在其他页面变化，未清理记录');
+          if (result.status !== 'REJECTED' || result.orderIds.length) {
+            recoveryRejected.value = false;
+            throw new Error('原下单状态已变化，记录已保留，请重新查询上次下单结果');
+          }
+          clearPendingCheckout(userId, expectedKey);
+          recoveryRejected.value = false;
+          recoveryNotice.value = '';
+          cleared = true;
+        });
+        if (cleared && isCurrent()) {
+          agreed.value = false;
+          submitting.value = false;
+          await load();
+        }
+      } catch (error) {
+        if (isCurrent()) {
+          recoveryNotice.value = error instanceof Error ? error.message : '拒绝结果暂不能再次确认，原记录已保留';
+          Message.error(recoveryNotice.value);
+        }
+      } finally {
+        if (operation === writeVersion) submitting.value = false;
+      }
     }
   });
 }
@@ -455,6 +536,9 @@ async function payCheckoutOrders(pending: PendingCheckout, userId: string | numb
     const latest = await Promise.all(ids.map(id => realOrderApi.fetchOrderDetail(id)));
     if (!isCurrent()) return;
     if (latest.some((order, index) => String(order.id) !== String(ids[index]))) throw new Error('订单回读对象不一致，请重新核对');
+    if (pending.orderGroupNo) validateRecoveredCheckoutOrders(pending, {
+      status: 'CREATED', orderGroupNo: pending.orderGroupNo, orderIds: ids
+    }, latest, userId);
     const payable = prepare(latest);
     if (!payable || !isCurrent()) return;
     const payPassword = await requestPayPassword(route.fullPath);
@@ -512,6 +596,8 @@ function checkoutSignature() {
     grandTotal.value, paymentMethod.value, selectedChain.value]);
 }
 
+watch(checkoutSignature, () => { agreed.value = false; });
+
 function isSelfPurchaseError(error: unknown) {
   return error instanceof RequestError && /不能购买自己(?:的|发布的)?商品/.test(error.message);
 }
@@ -544,6 +630,8 @@ async function load() {
   }
   loading.value = true;
   loadError.value = '';
+  recoveryNotice.value = '';
+  recoveryRejected.value = false;
   latestWalletPay.value = undefined;
   try {
     pendingOrders.value = [];
@@ -577,7 +665,10 @@ async function load() {
       }
       return;
     }
-    if (hasUnconfirmedOrder.value) return;
+    if (hasUnconfirmedOrder.value) {
+      if (isCurrent() && String(userStore.currentUser?.id) === String(userId)) await recoverUnconfirmedOrder();
+      return;
+    }
     contextItems.value = [];
     if (route.query.contextId !== undefined) {
       const intent = readCheckoutIntent(contextId.value, userId!);
@@ -666,6 +757,10 @@ async function submit() {
     Message.error(loadError.value);
     return;
   }
+  if (exactTransactionAmount(grandTotal.value).error) {
+    Message.error('结算总额超出交易金额范围，请调整购买数量');
+    return;
+  }
   if (selfSoldItems.value.length) {
     Message.error(`不能购买自己发布的商品：${selfSoldTitles.value}`);
     return;
@@ -700,6 +795,31 @@ async function submit() {
   }
   const signature = checkoutSignature();
   const confirmationVersion = ++writeVersion;
+  const changedPrices = items.value.filter(item => item.confirmedUnitPrice !== undefined
+    && sumPaymentAmounts([item.confirmedUnitPrice]) !== sumPaymentAmounts([item.unitPrice]));
+  if (changedPrices.length) {
+    confirmationPending.value = true;
+    const confirmed = await new Promise<boolean>(resolve => {
+      cancelConfirmation = () => resolve(false);
+      confirmationModal = Modal.confirm({
+        title: '商品价格已更新',
+        content: changedPrices.map(item => `${item.product?.title || item.productId}${item.specText ? `（${item.specText}）` : ''}：`
+          + `${item.confirmedUnitPrice} → ${item.unitPrice} USDT`).join('；') + '。请核对最新价格后再提交。',
+        okText: '按最新价格继续',
+        cancelText: '返回核对',
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false)
+      });
+    });
+    confirmationPending.value = false;
+    cancelConfirmation = undefined;
+    confirmationModal = undefined;
+    if (!confirmed) return;
+    if (confirmationVersion !== writeVersion || signature !== checkoutSignature()) {
+      Message.warning('结算信息已变化，请重新确认后提交');
+      return;
+    }
+  }
   if (overseasItems.value.length > 0) {
     confirmationPending.value = true;
     const confirmed = await new Promise<boolean>(resolve => {
@@ -722,23 +842,31 @@ async function submit() {
     Message.warning('结算信息已变化，请重新确认后提交');
     return;
   }
-  await doSubmit(paymentMethod.value, selectedChain.value);
+  await doSubmit(paymentMethod.value, selectedChain.value, signature);
 }
 
-async function doSubmit(method: 'balance' | 'wallet', chain: string) {
+async function doSubmit(method: 'balance' | 'wallet', chain: string, expectedSignature: string) {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
+  const expectedSession = getAccessToken();
+  const expectedRoute = route.fullPath;
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion
-    && String(userStore.currentUser?.id) === String(requestedUserId);
+    && String(userStore.currentUser?.id) === String(requestedUserId)
+    && getAccessToken() === expectedSession && route.fullPath === expectedRoute;
   submitting.value = true;
   let activePending: PendingCheckout | undefined;
   let createBatchStarted = false;
+  let creationResponseReceived = false;
   const hadPendingAttempt = !!pendingCheckout.value;
   try {
     await withSubmissionLock(pendingStorageKey(requestedUserId), async () => {
       try {
         if (!isCurrentWrite()) return;
+        if (!agreed.value || expectedSignature !== checkoutSignature() || !addressValid.value
+          || checkoutItems.value.some(item => !item.available)) {
+          throw new Error('结算商品、规格、价格或地址已变化，请重新核对并确认');
+        }
         const stored = readPendingCheckout(requestedUserId);
         if (stored?.idempotencyKey !== pendingCheckout.value?.idempotencyKey || stored?.orderIds?.length) {
           await load();
@@ -768,11 +896,17 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
             items: pending.orderItems,
             idempotencyKey: pending.idempotencyKey
           }, { showError: false });
+          creationResponseReceived = true;
           if (!isCurrentWrite()) return;
-          if (!orderGroup.orderIds.length) throw new Error('下单未返回订单 ID');
-          pending.orderGroupNo = orderGroup.orderGroupNo;
-          pending.orderIds = orderGroup.orderIds;
-          pending.firstOrderId = orderGroup.orderIds[0];
+          if (!orderGroup.orderIds?.length) throw new Error('下单未返回订单 ID');
+          const createdOrders = await Promise.all(orderGroup.orderIds.map(id => realOrderApi.fetchOrderDetail(id)));
+          if (!isCurrentWrite()) return;
+          const validated = validateRecoveredCheckoutOrders(pending, {
+            status: 'CREATED', orderGroupNo: orderGroup.orderGroupNo, orderIds: orderGroup.orderIds
+          }, createdOrders, requestedUserId);
+          pending.orderGroupNo = validated.orderGroupNo;
+          pending.orderIds = validated.orderIds;
+          pending.firstOrderId = validated.firstOrderId;
           savePendingCheckout(pending);
           if (orderGroup.totalAmount === undefined || sumPaymentAmounts([orderGroup.totalAmount]) !== sumPaymentAmounts([grandTotal.value])) {
             throw new Error('订单实际金额已变化，请在订单详情确认金额后付款');
@@ -799,11 +933,12 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
           return payment.payable;
         }, count => `已创建订单，其中 ${count} 笔待付款。请检查余额后重试，系统不会重复下单。`);
         if (!paid) return;
-        const firstOrderId = pending.firstOrderId;
+        const firstOrderId = pending.firstOrderId ?? pending.orderIds?.[0];
         if (!isCurrentWrite()) return;
-        await finishPaidCheckout(pending, firstOrderId ?? pending.orderIds[0], pending.cartSnapshot);
+        if (firstOrderId === undefined) throw new Error('付款已确认，请到我的订单查看，勿重复提交');
+        await finishPaidCheckout(pending, firstOrderId, pending.cartSnapshot);
       } catch (error) {
-        if (isCurrentWrite() && createBatchStarted && !activePending?.orderIds?.length && error instanceof RequestError) {
+        if (isCurrentWrite() && createBatchStarted && !creationResponseReceived && !activePending?.orderIds?.length && error instanceof RequestError) {
           if (isSelfPurchaseError(error) && activePending) {
             backendSelfPurchaseProductIds.value = [
               ...new Set([...backendSelfPurchaseProductIds.value, ...activePending.productIds.map(String)])
@@ -826,6 +961,10 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
       });
       agreed.value = false;
       if (hasCreatedOrders.value) await load();
+      else if (hasUnconfirmedOrder.value) {
+        submitting.value = false;
+        await recoverUnconfirmedOrder();
+      }
     }
   } finally {
     if (operation === writeVersion) submitting.value = false;
@@ -842,7 +981,7 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
       <p class="section-description">以下为上次下单生成的真实订单，不使用当前购物车的商品、地址或金额。已付款或已结束的订单不会再次付款。</p>
       <Skeleton v-if="loading && !pendingOrders.length" class="orders-skeleton" />
       <div class="pending-orders" :class="{ reading: loading }">
-        <article v-for="order in pendingOrders" :key="String(order.id)" class="pending-order"><div class="order-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">订单 {{ order.code }}</RouterLink><OrderStatusTag :status="order.status" /></div><p>{{ order.productTitle }} · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p><p class="muted">收货地址：{{ order.shippingAddress }}</p></article>
+        <article v-for="order in pendingOrders" :key="String(order.id)" class="pending-order"><div class="order-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">订单 {{ order.code }}</RouterLink><OrderStatusTag :status="order.status" /></div><p>{{ order.productTitle }}<template v-if="order.skuSpecs?.length"> · {{ order.skuSpecs.map(spec => `${spec.name}：${spec.value}`).join(' / ') }}</template> · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p><p class="muted">收货地址：{{ order.shippingAddress }}</p></article>
       </div>
       <div class="pending-total">本次待付款 <strong>{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</strong></div>
       <Alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" class="notice"><AlertDescription>钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。</AlertDescription><button type="button"  class="notice-action outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</button></Alert>
@@ -858,9 +997,9 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
     <section v-else-if="hasUnconfirmedOrder" class="paper panel recovery-panel">
       <div class="section-heading"><span class="step-number"><Icon icon="lucide:circle-alert" width="18" /></span><h2>上次下单结果待确认</h2></div>
       <p class="section-description">浏览器保存了上次提交的 {{ pendingCheckout?.orderItems.length }} 种商品，但还没有收到订单号；这不代表订单已创建。当前购物车和地址可能已经变化。</p>
-      <ul class="recovery-items"><li v-for="item in pendingCheckout?.orderItems" :key="String(item.productId)">商品编号 {{ item.productId }} · 数量 {{ item.quantity ?? 1 }}</li></ul>
-      <Alert class="notice"><AlertDescription>恢复时只使用上次保存的商品和地址，可能创建上次的订单；恢复后会先展示订单供你核对，不会自动付款。</AlertDescription></Alert>
-      <div class="pending-actions"><button type="button" class="primary" :disabled="submitting || confirmationPending" @click="confirmRecoverUnconfirmedOrder"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />恢复上次订单</button><button type="button" class="outline"  :disabled="submitting || confirmationPending" @click="router.push({ name: 'order-list' })">查看我的订单</button></div>
+      <ul class="recovery-items"><li v-for="item in pendingCheckout?.orderItems" :key="`${item.productId}:${item.skuId ?? ''}`">商品编号 {{ item.productId }}<template v-if="item.skuId !== undefined"> · SKU {{ item.skuId }}</template> · 数量 {{ item.quantity ?? 1 }}</li></ul>
+      <Alert class="notice"><AlertDescription>{{ recoveryNotice || '仅按原下单标识查询结果，保留上次保存的商品和地址；不会重新创建订单或自动付款。' }}</AlertDescription></Alert>
+      <div class="pending-actions"><button type="button" class="primary" :disabled="submitting || confirmationPending" @click="confirmRecoverUnconfirmedOrder"><Icon v-if="submitting || confirmationPending" icon="lucide:loader-circle" width="16" class="animate-spin" />查询上次下单结果</button><button v-if="recoveryRejected" type="button" class="outline" :disabled="submitting || confirmationPending || loading" @click="confirmDiscardRejectedCheckout">确认拒绝并重新结算</button><button type="button" class="outline"  :disabled="submitting || confirmationPending" @click="router.push({ name: 'order-list' })">查看我的订单</button></div>
     </section>
     <div v-else-if="loading && !items.length" class="checkout-layout" aria-label="正在读取结算信息"><div class="main-sections"><Skeleton class="section-skeleton" /><Skeleton class="section-skeleton" /></div><Skeleton class="summary-skeleton" /></div>
     <div v-else-if="items.length" class="checkout-layout" :aria-busy="loading || submitting">
@@ -869,9 +1008,9 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string) {
         <section class="paper panel">
           <div class="section-heading"><h2><em>02</em> 商品清单</h2><span class="section-meta">{{ items.length }} 种 · {{ items.reduce((sum, item) => sum + item.qty, 0) }} 件</span></div>
           <Alert v-if="overseasItems.length" class="notice overseas-notice"><AlertDescription>以下 {{ overseasItems.length }} 种商品来自海外直邮，过关后不可退货退款。</AlertDescription></Alert>
-          <div class="goods-list"><article v-for="item in items" :key="item.productId" class="checkout-item">
-            <img :src="item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" @error="setImageFallback" />
-            <div><small>买手 {{ item.product?.sellerName || '—' }}</small><h3><RouterLink :to="`/product/${item.productId}`">{{ item.product?.title }}</RouterLink></h3><p><template v-if="item.product">{{ productApi.getAftersaleMeta(item.product.aftersaleType).label }} · </template>数量 {{ item.qty }}<span v-if="item.product?.overseasCustoms"> · 海外直邮</span></p></div><b>{{ formatAmount(item.subtotal) }} <small>USDT</small></b>
+          <div class="goods-list"><article v-for="item in items" :key="`${item.productId}:${item.skuId ?? ''}`" class="checkout-item">
+            <img :src="item.image || item.product?.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" @error="setImageFallback" />
+            <div><small>买手 {{ item.product?.sellerName || '—' }}</small><h3><RouterLink :to="`/product/${item.productId}`">{{ item.product?.title }}</RouterLink></h3><p><template v-if="item.specText">{{ item.specText }} · </template><template v-if="item.product">{{ productApi.getAftersaleMeta(item.product.aftersaleType).label }} · </template>数量 {{ item.qty }}<span v-if="item.product?.overseasCustoms"> · 海外直邮</span></p></div><b>{{ formatAmount(item.subtotal) }} <small>USDT</small></b>
           </article></div>
         </section>
         <section class="paper panel">

@@ -1,5 +1,11 @@
 declare namespace Api.RealRefund {
-  type RefundStatus = 'APPLYING' | 'AGREED' | 'REJECTED' | 'CANCELED' | string;
+  type RefundStatus = 'CONFIRMING' | 'APPLYING' | 'AGREED' | 'REJECTED' | 'CANCELED' | string;
+
+  interface RefundConfirmParams {
+    refundId: string | number;
+    agree: boolean;
+    remark: string;
+  }
 
   interface RefundApplyParams {
     orderId: string | number;
@@ -35,6 +41,9 @@ declare namespace Api.RealRefund {
     statusText?: string;
     orderStatusBefore?: string;
     reviewRemark?: string;
+    sellerAgree?: boolean | null;
+    sellerRemark?: string | null;
+    sellerConfirmedAt?: string | number | null;
     reviewerId?: string | number;
     refundBizNo?: string;
     appliedAt?: string | number;

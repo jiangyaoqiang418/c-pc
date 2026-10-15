@@ -1,6 +1,6 @@
 import { realOrderRequest } from '@/service/request';
 import { RequestError, isDefinitiveRejection } from '@/service/request/type';
-import { reverseStatusMap, toOrderRecord } from './order-mapper';
+import { reverseStageMap, reverseStatusMap, toOrderRecord } from './order-mapper';
 import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } from './page';
 import { submitOrderConfirmation, withOrderSubmissionLocks } from '@/utils/financial-submission';
 import { getAccessToken } from '@/service/request/token';
@@ -9,19 +9,19 @@ import { getOrderCapabilities } from '@/utils/order';
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
   const size = Math.max(1, Math.floor(q.size || 10));
-  const statuses = [...new Set(q.statuses?.map(s => reverseStatusMap[s]).filter(Boolean) as Api.RealOrder.OrderStatus[] || [])];
+  const statuses = [...new Set(q.statuses?.map(s => reverseStageMap[s]).filter(Boolean) as Api.RealOrder.OrderStage[] || [])];
   if (q.statuses?.length && !statuses.length) {
     return { current, size, total: 0, records: [] as Api.RealOrder.Record[] };
   }
   const requestedStatuses = new Set(q.statuses || []);
   const url = q.shopperId ? '/orders/sold/page' : '/orders/bought/page';
-  const requestPage = (status?: Api.RealOrder.OrderStatus, pageNo = current, pageSize = size) => realOrderRequest.postQuery<
+  const requestPage = (stage?: Api.RealOrder.OrderStage, pageNo = current, pageSize = size) => realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
     Api.RealOrder.OrderPageQuery
     >(url, {
       pageNo,
       pageSize,
-      status
+      stage
     }, { signal: q.signal, preserveDecimals: true });
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
@@ -60,21 +60,23 @@ async function countOrdersByStatus(
   const counts = Object.fromEntries(
     Object.keys(reverseStatusMap).map(status => [status, 0])
   ) as Record<Api.Order.OrderStatus, number>;
-  const primaryStatusMap: Array<[Api.Order.OrderStatus, Api.RealOrder.OrderStatus]> = [
+  const primaryStatusMap: Array<[Api.Order.OrderStatus, Api.RealOrder.OrderStage]> = [
     ['PENDING_PAYMENT', 'CREATED'],
-    ['PROCURING', 'PAID'],
+    ['PROCURING', 'PROCURING'],
+    ['PROCURED', 'PROCURED'],
     ['IN_TRANSIT', 'SHIPPED'],
+    ['AFTERSALE_CONFIRM', 'AFTERSALE_CONFIRM'],
     ['IN_AFTERSALE', 'REFUND_REVIEW'],
     ['REFUNDED', 'REFUNDED'],
     ['COMPLETED', 'COMPLETED'],
     ['CANCELLED', 'CANCELED']
   ];
   const entries = await Promise.all(
-    primaryStatusMap.map(async ([frontStatus, realStatus]) => {
+    primaryStatusMap.map(async ([frontStatus, stage]) => {
       const page = await realOrderRequest.postQuery<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
-      >(url, { pageNo: 1, pageSize: 1, status: realStatus }, { showError: options.showError, signal: options.signal });
+      >(url, { pageNo: 1, pageSize: 1, stage }, { showError: options.showError, signal: options.signal });
       return [frontStatus, toPageTotal(page.total)] as const;
     })
   );
@@ -106,6 +108,22 @@ export function createOrders(
     params,
     { ...options, preserveDecimals: true }
   );
+}
+
+/** 原键只读回查；NOT_FOUND 不能证明在途请求没有创建订单。 */
+export async function fetchOrderCreationByKey(idempotencyKey: string, options: { signal?: AbortSignal } = {}) {
+  const result = await realOrderRequest.get<Api.RealOrder.OrderCreationResult>('/orders/by-key', {
+    params: { idempotencyKey }, ...options, showError: false, preserveDecimals: true
+  });
+  const validId = (id: unknown) => (typeof id === 'string' && /^\d+$/.test(id))
+    || (typeof id === 'number' && Number.isSafeInteger(id) && id > 0);
+  if (!result || !['NOT_FOUND', 'PROCESSING', 'CREATED', 'REJECTED'].includes(result.status)
+    || !Array.isArray(result.orderIds) || !result.orderIds.every(validId)
+    || new Set(result.orderIds.map(String)).size !== result.orderIds.length
+    || (result.status === 'CREATED' && (!result.orderIds.length || typeof result.orderGroupNo !== 'string' || !result.orderGroupNo.trim()))) {
+    throw new Error('原下单结果回查响应不完整，请保留原记录并稍后核对');
+  }
+  return result;
 }
 
 async function submitOrderPayment(id: string | number, confirmedAmount: string, payPassword: string, options: { showError?: boolean } = {}) {
@@ -169,6 +187,17 @@ export async function fetchCarriers(options: { signal?: AbortSignal } = {}) {
 
 export async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   await realOrderRequest.post<string | number, Api.RealOrder.OrderShipParams>('/orders/ship', params);
+  return { ok: true, message: '' };
+}
+
+export async function procureOrder(params: Api.RealOrder.OrderProcureParams) {
+  const purchaseNo = params.purchaseNo.trim();
+  if (!purchaseNo || purchaseNo.length > 128) throw new Error('采购单号必填且不能超过128字符');
+  if (!Array.isArray(params.purchaseVouchers) || params.purchaseVouchers.length < 1 || params.purchaseVouchers.length > 6
+    || params.purchaseVouchers.some(url => typeof url !== 'string' || url.length > 1024 || !/^https:\/\/[^\s]+$/.test(url))) {
+    throw new Error('请提供1至6张HTTPS采购凭证');
+  }
+  await realOrderRequest.post<string | number, Api.RealOrder.OrderProcureParams>('/orders/procure', { ...params, purchaseNo });
   return { ok: true, message: '' };
 }
 

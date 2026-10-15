@@ -295,7 +295,7 @@ export async function fetchWalletLedgersByTypes(q: {
 export function createRecharge(params: Api.RealWallet.RechargeCreateParams, options: { showError?: boolean } = {}) {
   return realUserRequest.post<string | number, Api.RealWallet.RechargeCreateParams>(
     '/recharge/create',
-    params,
+    { ...params, asset: 'USDT' },
     options
   );
 }
@@ -318,7 +318,7 @@ export async function fetchRechargeChains(options: { signal?: AbortSignal; showE
 }
 
 export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...options, params: { chain }, preserveDecimals: true });
+  return realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...options, params: { asset: 'USDT', chain }, preserveDecimals: true });
 }
 
 export function fetchRechargeDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
@@ -331,7 +331,7 @@ export async function fetchRechargePage(
 ) {
   const page = await realUserRequest.postQuery<Api.RealWallet.PageResult<Api.RealWallet.RechargeVO>, Api.RealWallet.RechargePageQuery>(
     '/recharge/page',
-    params,
+    { ...params, asset: 'USDT' },
     { ...options, preserveDecimals: true }
   );
   const current = Number(page.current ?? page.pageNo ?? params.pageNo ?? 1);

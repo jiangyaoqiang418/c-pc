@@ -176,7 +176,7 @@ describe('本轮交互边界', () => {
     const buyer = { realName: 'QA', contact: 'QA', reason: 'QA' };
     await expect(createRecharge(recharge, { showError: false })).rejects.toBe(error);
     await expect(submitBuyerApplication(buyer, { showError: false })).rejects.toBe(error);
-    expect(post).toHaveBeenNthCalledWith(1, '/recharge/create', recharge, { showError: false });
+    expect(post).toHaveBeenNthCalledWith(1, '/recharge/create', { ...recharge, asset: 'USDT' }, { showError: false });
     expect(post).toHaveBeenNthCalledWith(2, '/buyer/apply', buyer, { showError: false });
     expect(post).toHaveBeenCalledTimes(2);
   });
@@ -451,10 +451,11 @@ describe('多条件分页实际页大小', () => {
       const q = params as Api.RealOrder.OrderPageQuery;
       const offset = ((q.pageNo || 1) - 1) * 2;
       return { total: 8, pageSize: 2, records: Array.from({ length: 2 }, (_, i) => ({
-        orderId: `${q.status}-900719925474099${offset + i}`,
-        status: q.status,
+        orderId: `${q.stage}-900719925474099${offset + i}`,
+        status: q.stage === 'PROCURING' || q.stage === 'PROCURED' ? 'PAID' : q.stage,
+        stage: q.stage,
         totalAmount: '1',
-        createdAt: new Date(Date.UTC(2026, 0, q.status === 'CREATED' ? 30 : 15) - (offset + i) * 1000).toISOString()
+        createdAt: new Date(Date.UTC(2026, 0, q.stage === 'CREATED' ? 30 : 15) - (offset + i) * 1000).toISOString()
       })) } as never;
     });
     const result = await fetchMyOrders({ current: 2, size: 4, statuses: ['PENDING_PAYMENT', 'CANCELLED'] });

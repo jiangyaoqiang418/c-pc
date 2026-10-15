@@ -25,13 +25,14 @@ const total = ref(0);
 const cancellingId = ref<string | number>();
 const cancellationPending = ref(false);
 const statusDefs = [
-  { key: 'all', label: '全部' }, { key: 'APPLYING', label: '待平台审核' },
+  { key: 'all', label: '全部' }, { key: 'CONFIRMING', label: '待买手确认' }, { key: 'APPLYING', label: '待平台审核' },
   { key: 'AGREED', label: '已同意' }, { key: 'REJECTED', label: '已驳回' }, { key: 'CANCELED', label: '已撤销' }
 ];
-const statusColor: Record<string, string> = { APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
+const statusColor: Record<string, string> = { CONFIRMING: 'orange', APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
 const requestGuard = createLatestRequestGuard();
-const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
-const canCancel = (row: Api.RealRefund.RefundDTO) => String(row.status) === 'APPLYING';
+const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ CONFIRMING: '待买手确认', APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
+const canCancel = (row: Api.RealRefund.RefundDTO) => userStore.currentUser?.id !== undefined
+  && String(row.buyerId) === String(userStore.currentUser.id) && ['CONFIRMING', 'APPLYING'].includes(String(row.status));
 let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 

@@ -11,7 +11,7 @@
 | 工作分支 | feat/pc-ui-v47 |
 | 起始提交 | 26fe649 |
 | 设计来源 | D:/other_code/w3/Umaomao-v47/dist |
-| 当前状态 | 已开始实施，S1/S2 及钱包首页部分接入；整站像素/交互/业务验收未完成，准确承接见 docs/api-integration-plan.md |
+| 当前状态 | 页面结构已迁移；本轮接入原键恢复、SKU购买和采购/售后阶段，真实非空及写入验收仍部分完成。最新证据见 design-qa.md；跨设备保存基线见 docs/api-integration-plan.md |
 | 现有页面 | 55 条业务路由；另需新增新版品牌入口 /brand |
 | 默认设计主题 | web3-meme；保留原型全部 27 套配色及其结构差异 |
 | 后端补充清单 | [PC v47 后端补充清单](./PC-v47-backend-requirements.md) |

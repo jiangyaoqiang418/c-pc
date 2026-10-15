@@ -164,8 +164,23 @@ const createBatchResponse = resolveSchema(
 const orderGroup = resolveSchema(order, createBatchResponse?.properties?.data);
 expectProperties(orderGroup, ['orderGroupNo', 'orderIds'], '合并下单响应');
 
+const creationLookup = operation(order, '/orders/by-key', 'get');
+const creationKey = creationLookup.parameters?.find(parameter => parameter.name === 'idempotencyKey');
+if (!creationKey?.required || creationKey.schema?.type !== 'string') throw new Error('下单原键只读回查缺少必填字符串键');
+const creation = responseDataSchema(order, creationLookup);
+expectProperties(creation, ['status', 'orderGroupNo', 'orderIds', 'rejectionCode', 'rejectionMessage'], '下单原键结果');
+expectEnum(creation, 'status', ['NOT_FOUND', 'PROCESSING', 'CREATED', 'REJECTED'], '下单原键结果');
+for (const schemaName of ['OrderCreateQO', 'OrderCreateItemQO']) {
+  expectProperties(order.components?.schemas?.[schemaName], ['skuId', 'confirmedUnitPrice'], schemaName);
+}
+
 const productDto = order.components?.schemas?.ProductDTO;
 expectProperties(productDto, ['imageFiles'], '商品编辑原图');
+expectProperties(productDto, ['hasSku', 'specGroups', 'skus'], '商品真实规格');
+expectProperties(resolveSchema(order, productDto.properties.skus.items), ['id', 'specs', 'price', 'stock', 'enabled', 'image'], '真实 SKU');
+expectProperties(order.components?.schemas?.OrderDTO, ['skuId', 'skuSpecs', 'stage', 'canProcure', 'canShip', 'canConfirmAftersale'], '订单规格与操作资格');
+expectEnum(order.components?.schemas?.OrderDTO, 'stage', ['PROCURING', 'PROCURED', 'AFTERSALE_CONFIRM', 'REFUND_REVIEW'], '订单权威阶段');
+expectProperties(order.components?.schemas?.OrderPageQuery, ['stage'], '订单阶段筛选');
 operation(order, '/products/update', 'put');
 expectRequired(requestSchema(order, operation(order, '/products/price', 'put')), ['id', 'price'], '快捷改价');
 expectProperties(productDto, ['sellerName', 'categoryName', 'reviewerId', 'reviewedAt'], '商品详情审核信息');
@@ -184,7 +199,12 @@ expectProperties(resolveSchema(order, carriers.items), ['id', 'code', 'name', 'e
 
 const ship = requestSchema(order, operation(order, '/orders/ship', 'post'));
 expectRequired(ship, ['carrier', 'id', 'trackingNo'], '买手发货');
-expectProperties(ship, ['carrier', 'carrierName', 'trackingNo', 'eta', 'purchaseNo', 'purchaseVouchers', 'shipVouchers', 'remark'], '买手发货');
+expectProperties(ship, ['carrier', 'carrierName', 'trackingNo', 'eta', 'shipVouchers', 'remark'], '买手发货');
+const procure = requestSchema(order, operation(order, '/orders/procure', 'post'));
+expectRequired(procure, ['id', 'purchaseNo', 'purchaseVouchers'], '完成采购');
+const confirmAftersale = requestSchema(order, operation(order, '/orders/refunds/confirm', 'post'));
+expectRequired(confirmAftersale, ['refundId', 'agree', 'remark'], '卖家售后确认');
+expectEnum(order.components?.schemas?.OrderRefundDTO, 'status', ['CONFIRMING', 'APPLYING', 'AGREED', 'REJECTED', 'CANCELED'], '退款阶段');
 operation(order, '/files/upload', 'post');
 const orderUpload = operation(order, '/files/upload', 'post');
 expectParameters(orderUpload, ['scene'], 'order 文件上传');

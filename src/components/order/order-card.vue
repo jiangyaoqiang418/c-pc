@@ -235,7 +235,7 @@ function review() {
 
 function aftersale() {
   if (!permissions.value.refund && !permissions.value.viewAftersale) return;
-  if (props.order.status === 'IN_AFTERSALE') {
+  if (permissions.value.viewAftersale) {
     router.push({ name: 'aftersale-list' });
   } else {
     router.push({ name: 'aftersale-create', params: { orderId: String(props.order.id) } });

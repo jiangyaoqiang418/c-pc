@@ -24,6 +24,7 @@ import { formatDateValue } from '@/utils/date-range';
 import { createCheckoutIntent, formatPaymentAmount } from '@/utils/checkout';
 import { resolvePageSize } from '@/service/api/page';
 import { setImageFallback } from '@/utils/image-placeholder';
+import { productRequiresSku, resolveProductPurchase, skuCanPurchase, skuMatchesSelection } from '@/utils/product-sku';
 
 const route = useRoute();
 const router = useRouter();
@@ -48,6 +49,42 @@ const favoriteCountError = ref(false);
 const reviewSummary = ref<Api.RealReview.ReviewSummaryDTO>();
 const sellerScore = ref<Api.RealReview.SellerRatingDTO>();
 const qty = ref(1);
+const selectedSpecs = ref<Record<string, string>>({});
+const selectedSku = computed(() => {
+  const current = product.value;
+  if (!current || !productRequiresSku(current) || !current.specGroups?.length
+    || current.specGroups.some(group => !selectedSpecs.value[group.name])) return undefined;
+  return current.skus?.find(sku => skuMatchesSelection(sku, selectedSpecs.value));
+});
+const purchase = computed(() => product.value ? resolveProductPurchase(product.value, selectedSku.value?.id) : undefined);
+const selectedPrice = computed(() => purchase.value?.unitPrice ?? product.value?.price);
+const selectedStock = computed(() => purchase.value?.stock ?? 0);
+const selectedSpecText = computed(() => product.value?.specGroups?.map(group => selectedSpecs.value[group.name]).filter(Boolean).join(' / ') || '当前商品');
+const galleryImages = computed(() => {
+  const images = product.value?.images ?? [];
+  const image = selectedSku.value?.image;
+  return image ? [{ url: image, name: '所选规格', type: 'image' as const, sort: 0 }, ...images.filter(item => item.url !== image)] : images;
+});
+function optionAvailable(groupIndex: number, option: string) {
+  const groups = product.value?.specGroups ?? [];
+  const selection: Record<string, string> = { [groups[groupIndex].name]: option };
+  for (const group of groups.slice(0, groupIndex)) if (selectedSpecs.value[group.name]) selection[group.name] = selectedSpecs.value[group.name];
+  return product.value?.skus?.some(sku => skuCanPurchase(sku) && skuMatchesSelection(sku, selection)) === true;
+}
+function selectSpec(groupIndex: number, option: string) {
+  if (!optionAvailable(groupIndex, option)) return;
+  const groups = product.value?.specGroups ?? [];
+  const next = { ...selectedSpecs.value, [groups[groupIndex].name]: option };
+  // 上游规格改变时清理不再存在的后续组合，保留真实可购买的选择。
+  const prefix: Record<string, string> = {};
+  for (const group of groups) {
+    if (!next[group.name]) continue;
+    const candidate = { ...prefix, [group.name]: next[group.name] };
+    if (product.value?.skus?.some(sku => skuCanPurchase(sku) && skuMatchesSelection(sku, candidate))) prefix[group.name] = next[group.name];
+  }
+  selectedSpecs.value = prefix;
+  qty.value = Math.max(1, Math.min(qty.value, selectedStock.value || 1));
+}
 const mobileSpecs = ref(false);
 const mobileSpecTrigger = ref<HTMLButtonElement>();
 let specViewport: MediaQueryList | undefined;
@@ -77,7 +114,7 @@ const id = computed(() => String(route.params.id || ''));
 const aftersaleMeta = computed(() => product.value ? productApi.getAftersaleMeta(product.value.aftersaleType) : undefined);
 const isOwnProduct = computed(() => userStore.currentUser?.id !== undefined && product.value?.sellerId !== undefined
   && String(userStore.currentUser.id) === String(product.value.sellerId));
-const canBuy = computed(() => !loading.value && !isOwnProduct.value && product.value && product.value.status === 'NORMAL' && product.value.shelfStatus === 'on-shelf' && product.value.stock > 0 && product.value.shippingFee !== undefined && product.value.tax !== undefined);
+const canBuy = computed(() => !buyDisabledReason.value);
 function ratingText(value?: string | number) {
   const score = Number(value);
   return value !== undefined && value !== null && Number.isFinite(score) ? Math.max(0, Math.min(5, score)).toFixed(1) : '暂无评分';
@@ -118,6 +155,9 @@ async function load() {
     const nextProduct = await productApi.fetchProductDetail(id.value, { signal: isCurrent.signal });
     if (!isCurrent()) return;
     product.value = nextProduct;
+    const firstSku = nextProduct.skus?.find(skuCanPurchase);
+    selectedSpecs.value = firstSku ? Object.fromEntries(firstSku.specs.map(spec => [spec.name, spec.value])) : {};
+    qty.value = Math.max(1, Math.min(qty.value, selectedStock.value || 1));
     if (product.value) {
       productApi.trackProductBrowse(id.value).catch(() => undefined);
       productApi.trackProductView(id.value).catch(() => undefined);
@@ -229,7 +269,7 @@ watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUs
 
 async function addToCart() {
   if (!product.value || !canBuy.value) return;
-  const added = await cart.add(product.value.id, qty.value, product.value);
+  const added = await cart.add(product.value.id, qty.value, product.value, selectedSku.value?.id);
   if (added === undefined) return;
   if (!added) {
     Message.warning('购买数量超过库存，请检查购物车已有数量');
@@ -239,11 +279,11 @@ async function addToCart() {
 }
 function buyNow() {
   if (!product.value || !canBuy.value) return;
-  if (!Number.isSafeInteger(qty.value) || qty.value < 1 || qty.value > product.value.stock) {
+  if (!Number.isSafeInteger(qty.value) || qty.value < 1 || qty.value > selectedStock.value) {
     Message.warning('请按当前库存调整购买数量');
     return;
   }
-  const contextId = createCheckoutIntent([{ productId: product.value.id, quantity: qty.value }], userStore.currentUser?.id);
+  const contextId = createCheckoutIntent([{ productId: product.value.id, skuId: selectedSku.value?.id, quantity: qty.value, confirmedUnitPrice: String(selectedPrice.value) }], userStore.currentUser?.id);
   router.push({ path: '/checkout', query: { contextId } });
 }
 function startPurchase() {
@@ -294,6 +334,8 @@ const buyDisabledReason = computed(() => {
   if (!product.value || product.value.status !== 'NORMAL') return '当前商品状态不可购买';
   if (product.value.shelfStatus !== 'on-shelf') return '商品已下架';
   if (product.value.stock <= 0) return '商品已售罄';
+  if (purchase.value?.selectionRequired) return '请选择完整商品规格';
+  if (!purchase.value?.available) return '当前规格已停用、缺货或不可购买，请重新选择';
   if (product.value.shippingFee === undefined || product.value.tax === undefined) return '运费或税费待确认，请重新读取后购买';
   return '';
 });
@@ -349,27 +391,29 @@ function share() {
         <UmIcon name="chevron" /><span aria-current="page">{{ product.title }}</span>
       </nav>
       <div class="product-detail">
-        <V47DetailGallery :images="product.images" :title="product.title" :favoriting="favoriting" @favorite="favorite" @share="share" />
+        <V47DetailGallery :images="galleryImages" :title="product.title" :favoriting="favoriting" @favorite="favorite" @share="share" />
         <section class="product-info" aria-label="商品信息与购买">
           <span class="eyebrow">{{ product.categoryPath }}</span>
           <h1>{{ product.title }}</h1>
           <p v-if="product.summary" class="subtitle">{{ product.summary }}</p>
           <div class="rating"><span>★</span>{{ reviewSummaryLoading ? '评分读取中' : reviewSummaryError ? '评分待确认' : reviewSummary?.totalCount ? ratingText(reviewSummary.averageScore) : '暂无评分' }}<button type="button" @click="content?.showReviews()">查看评价（{{ reviewSummary?.totalCount ?? allReviewCount ?? '—' }}）</button><small>已售 {{ product.salesCount ?? '—' }}</small></div>
           <div class="detail-price">
-            <span>{{ money(product.price) }} <small>USDT</small></span>
-            <p>≈ {{ priceSet(product.price).cny }} <small :title="priceSet(product.price).rateLabel">本地参考折算 · 非实时</small></p>
+            <span>{{ money(selectedPrice) }} <small>USDT</small></span>
+            <p>≈ {{ priceSet(selectedPrice ?? product.price).cny }} <small :title="priceSet(selectedPrice ?? product.price).rateLabel">本地参考折算 · 非实时</small></p>
             <div>运费 {{ money(product.shippingFee) }} USDT <span>税费 {{ money(product.tax) }} USDT <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="14" /></span></div>
           </div>
-          <button ref="mobileSpecTrigger" type="button" class="mobile-spec-trigger" :aria-expanded="mobileSpecs" aria-controls="product-spec-options" @click="openMobileSpecs"><span>已选 <b>当前商品 / {{ qty }} 件</b></span><UmIcon name="chevron" /></button>
+          <button ref="mobileSpecTrigger" type="button" class="mobile-spec-trigger" :aria-expanded="mobileSpecs" aria-controls="product-spec-options" @click="openMobileSpecs"><span>已选 <b>{{ selectedSpecText }} / {{ qty }} 件</b></span><UmIcon name="chevron" /></button>
           <FocusScope as-child :trapped="mobileSpecs" :loop="mobileSpecs" :present="mobileSpecs" @unmount-auto-focus="$event.preventDefault()">
           <div id="product-spec-options" class="spec-options" :class="{ sheet:mobileSpecs }" :role="mobileSpecs ? 'dialog' : undefined" :aria-modal="mobileSpecs || undefined" :aria-labelledby="mobileSpecs ? 'product-spec-title' : undefined" @keydown.esc.stop.prevent="closeMobileSpecs()">
             <div class="mobile-only sheet-heading"><h3 id="product-spec-title">确认商品与数量</h3><button type="button" class="icon-btn" aria-label="关闭选购" @click="closeMobileSpecs()"><UmIcon name="close" /></button></div>
-            <label>颜色 <small>未提供可选项</small></label>
-            <div class="option-row"><button type="button" disabled>暂无可选颜色</button></div>
-            <label>规格</label>
-            <div class="option-row"><button type="button" disabled>暂不支持规格选择</button></div>
-            <p class="spec-capability-note">该商品暂不支持颜色、规格选择，按当前商品信息购买。</p>
-            <div class="quantity-line"><label>数量</label><div class="stepper"><button type="button" :disabled="!canBuy || qty <= 1" aria-label="减少数量" @click="qty = Math.max(1, qty - 1)">−</button><span>{{ qty }}</span><button type="button" :disabled="!canBuy || qty >= product.stock" aria-label="增加数量" @click="qty = Math.min(product.stock, qty + 1)">+</button></div><small>{{ product.stock ? '库存 ' + product.stock + ' 件' : '已售罄' }}</small></div>
+            <template v-if="product.hasSku">
+              <template v-for="(group, groupIndex) in product.specGroups" :key="group.name">
+                <label>{{ group.name }} <small>{{ selectedSpecs[group.name] || '请选择' }}</small></label>
+                <div class="option-row"><button v-for="option in group.options" :key="option" type="button" :class="{ active:selectedSpecs[group.name] === option }" :aria-pressed="selectedSpecs[group.name] === option" :disabled="!optionAvailable(groupIndex, option)" @click="selectSpec(groupIndex, option)">{{ option }}</button></div>
+              </template>
+            </template>
+            <template v-else><label>规格</label><div class="option-row"><button type="button" class="active" aria-pressed="true">标准规格</button></div></template>
+            <div class="quantity-line"><label>数量</label><div class="stepper"><button type="button" :disabled="!canBuy || qty <= 1" aria-label="减少数量" @click="qty = Math.max(1, qty - 1)">−</button><span>{{ qty }}</span><button type="button" :disabled="!canBuy || qty >= selectedStock" aria-label="增加数量" @click="qty = Math.min(selectedStock, qty + 1)">+</button></div><small>{{ purchase?.selectionRequired ? '请选择规格' : selectedStock ? '库存 ' + selectedStock + ' 件' : '已售罄' }}</small></div>
             <button v-if="mobileSpecs" type="button" class="primary full mobile-only" @click="closeMobileSpecs()">确认数量</button>
           </div>
           </FocusScope>
@@ -390,7 +434,7 @@ function share() {
             <div class="detail-editorial"><div><span class="eyebrow">MADE FOR YOUR EVERYDAY</span><h2>细节，值得认真看。</h2><p>{{ product.summary }}<br />好的设计，让每一次使用都恰到好处。</p></div><img v-if="product.images[0]?.url" :src="product.images[0].url" :alt="product.title" @error="setImageFallback" /></div>
             <div class="info-columns"><div><h3>关于这件好物</h3><RichTextContent :content="product.description" /></div><div><h3>认真挑选，安心入手</h3><p>请核对当前商品资料、包装清单、配送与售后信息后购买。</p></div></div>
           </template>
-          <dl v-else-if="tab === '规格参数'" class="spec-table"><dt>品牌</dt><dd>品牌信息未提供</dd><dt>商品名称</dt><dd>{{ product.title }}</dd><dt>颜色</dt><dd>暂无可选颜色</dd><dt>规格</dt><dd>暂不支持选择，按当前商品信息购买</dd><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
+          <dl v-else-if="tab === '规格参数'" class="spec-table"><dt>品牌</dt><dd>品牌信息未提供</dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
           <template v-else-if="tab === '配送与售后'"><h2>配送与售后</h2><p>运费 {{ money(product.shippingFee) }} USDT，税费 {{ money(product.tax) }} USDT。{{ product.overseasCustoms ? '此商品为海外直邮，过关后不可退货退款。' : '' }}售后类型：{{ aftersaleMeta?.label || '待确认' }}。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
           <template v-else><h2>支付说明</h2><p>支持站内余额与 USDT 钱包直付。支付网络以平台实际开放情况为准，金额以服务端订单为准。链上提交后需等待平台确认，请勿重复付款。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
         </template>

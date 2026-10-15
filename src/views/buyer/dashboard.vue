@@ -83,7 +83,7 @@ async function loadAll() {
         shopperId: userId,
         current: 1,
         size: 5,
-        statuses: ['PROCURING'],
+        statuses: ['PROCURING', 'PROCURED'],
         signal: isCurrent.signal
       }), value => { pendingOrders.value = value.records; }, '进行中订单加载失败'),
     section('counts', realOrderApi.countMySoldOrdersByStatus({ signal: isCurrent.signal }), value => {
@@ -124,11 +124,11 @@ function sumOrderCounts(...statuses: string[]) {
     .reduce((sum, count) => sum + count, 0);
 }
 
-const pendingOrderCount = computed(() => sumOrderCounts('PROCURING', 'IN_TRANSIT'));
+const pendingOrderCount = computed(() => sumOrderCounts('PROCURING', 'PROCURED', 'IN_TRANSIT', 'AFTERSALE_CONFIRM', 'IN_AFTERSALE'));
 const completedOrderCount = computed(() => orderCount('COMPLETED'));
 const kpis = computed(() => [
   { label: '采购中', value: orderCount('PROCURING'), icon: 'bag', tab: 'procuring' },
-  { label: '待发货', value: undefined, icon: 'box', tab: '', unavailable: true },
+  { label: '待发货', value: orderCount('PROCURED'), icon: 'box', tab: 'pending-shipment' },
   { label: '运输中', value: orderCount('IN_TRANSIT'), icon: 'truck', tab: 'shipping' },
   { label: '已完成', value: completedOrderCount.value, icon: 'check', tab: 'done' }
 ]);
@@ -153,13 +153,13 @@ const shortcuts = [
     <Alert v-if="loadError" variant="destructive"><AlertDescription class="alert-row"><span>{{ loadError }}</span><Button class="outline" variant="outline" size="sm" :disabled="loading" @click="loadAll">{{ loading ? '加载中…' : '重新加载' }}</Button></AlertDescription></Alert>
     <template v-if="dashboardReady && user">
       <section class="buyer-hero"><div><span class="eyebrow">CURATE. CONNECT. DELIVER.</span><h2>你好，{{ user.nickname }}。</h2><p>目前有 <b>{{ pendingOrderCount ?? '—' }}</b> 笔进行中订单，<br />也有新的心愿，等你来实现。</p><button type="button" class="gold" @click="router.push('/buyer/orders?tab=procuring')">处理订单<UmIcon name="arrow" /></button></div><div class="buyer-hero-art"><span>U.</span><small>GOOD FINDS<br />START WITH YOU.</small><UmIcon name="bag" /></div></section>
-      <div class="buyer-kpis" aria-label="订单概况"><button v-for="metric in kpis" :key="metric.label" type="button" :disabled="metric.unavailable" :title="metric.unavailable ? '后端尚未提供独立待发货阶段' : undefined" @click="router.push({ path:'/buyer/orders', query:{ tab:metric.tab } })"><UmIcon :name="metric.icon" /><strong>{{ metric.value ?? '—' }}<small>单</small></strong><span>{{ metric.label }}<UmIcon name="arrow" /></span></button></div>
-      <p class="buyer-inline-hint">采购中按已付款订单展示；独立待发货阶段尚未提供，“—”不代表没有订单。</p>
+      <div class="buyer-kpis" aria-label="订单概况"><button v-for="metric in kpis" :key="metric.label" type="button" @click="router.push({ path:'/buyer/orders', query:{ tab:metric.tab } })"><UmIcon :name="metric.icon" /><strong>{{ metric.value ?? '—' }}<small>单</small></strong><span>{{ metric.label }}<UmIcon name="arrow" /></span></button></div>
+      <p class="buyer-inline-hint">订单概况按当前阶段统计；“—”表示数据尚未读取。</p>
       <div class="buyer-info"><UmIcon name="wallet" /><span>钱包可用余额：{{ account?.available === undefined ? '—' : formatAmount(account.available) }} USDT</span><button type="button" @click="router.push('/buyer/wallet')">查看钱包 →</button></div>
       <section class="buyer-focus-tools"><div class="buyer-section-title"><h2>经营工具</h2><small>常用功能，一步直达</small></div><div class="buyer-tools-grid"><button v-for="item in shortcuts" :key="item.to" type="button" @click="router.push(item.to)"><span><UmIcon :name="item.icon" /></span>{{ item.label }}</button></div></section>
       <section class="buyer-dashboard-grid">
         <div class="paper ongoing"><div class="buyer-section-title"><div><span class="eyebrow">YOUR NEXT STEP</span><h2>今日待办</h2></div><button type="button" @click="router.push('/buyer/orders')">全部订单 →</button></div>
-          <button v-for="order in pendingOrders" :key="order.id" type="button" class="buyer-task" @click="router.push({ name:'order-detail', params:{ id:String(order.id) } })"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle" @error="setImageFallback" /><span><b>{{ order.productTitle }}</b><small>{{ order.code }} · {{ order.status === 'PROCURING' ? '采购中' : '运输中' }}</small></span><UmIcon name="arrow" /></button>
+          <button v-for="order in pendingOrders" :key="order.id" type="button" class="buyer-task" @click="router.push({ name:'order-detail', params:{ id:String(order.id) } })"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle" @error="setImageFallback" /><span><b>{{ order.productTitle }}</b><small>{{ order.code }} · {{ order.status === 'PROCURING' ? '采购中' : order.status === 'PROCURED' ? '待发货' : '运输中' }}</small></span><UmIcon name="arrow" /></button>
           <div v-if="!pendingOrders.length && loadStates.orders" class="loading-list" aria-busy="true" aria-label="正在加载进行中订单"><Skeleton v-for="n in 2" :key="n" class="order-skeleton" /></div>
           <EmptyState v-else-if="!pendingOrders.length" icon="lucide:inbox" :title="loadErrors.orders || '暂无进行中订单'" :description="loadErrors.orders ? '请稍后重试。' : '去求购大厅查看新的需求'" :action-text="loadErrors.orders ? '重新加载' : '查看求购大厅'" @action="loadErrors.orders ? loadAll() : router.push('/buyer/claimable')" />
         </div>

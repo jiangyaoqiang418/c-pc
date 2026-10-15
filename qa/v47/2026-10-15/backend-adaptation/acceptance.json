@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-15",
+  "timezone": "Asia/Shanghai",
+  "branch": "feat/pc-ui-v47",
+  "baseline": "c14e6aa",
+  "result": "partial",
+  "swagger": {
+    "check": "pnpm check:swagger",
+    "passed": true,
+    "counts": {
+      "admin": { "paths": 227, "operations": 228, "schemas": 388 },
+      "user": { "paths": 64, "operations": 66, "schemas": 110 },
+      "order": { "paths": 89, "operations": 91, "schemas": 145 },
+      "notify": { "paths": 30, "operations": 30, "schemas": 43 }
+    }
+  },
+  "tests": { "command": "pnpm test", "files": 9, "passed": 250 },
+  "sourceProtectionScenarios": {
+    "passed": 61,
+    "scope": "temporary harness using production function source; not committed tests or business E2E"
+  },
+  "readOnlyApi": {
+    "accountSource": "authorized isolated local QA configuration; credentials excluded",
+    "customer": {
+      "roleVerified": true,
+      "creationLookup": "NOT_FOUND",
+      "orderCount": 6,
+      "stageCounts": { "REFUNDED": 2, "COMPLETED": 2, "PROCURING": 1, "CANCELED": 1 }
+    },
+    "buyer": {
+      "roleVerified": true,
+      "creationLookup": "NOT_FOUND",
+      "orderCount": 7,
+      "stageCounts": { "CANCELED": 2, "REFUNDED": 2, "COMPLETED": 2, "PROCURING": 1 },
+      "procureEligibleCount": 1,
+      "shipEligibleCount": 0,
+      "confirmAftersaleEligibleCount": 0
+    },
+    "publicProducts": { "total": 13, "hasSku": 0, "feesKnown": 13 }
+  },
+  "chrome": {
+    "ordinaryProduct": {
+      "addToCart": "passed",
+      "checkoutNavigation": "passed",
+      "displayedTotal": "19.90",
+      "shipping": "0.00",
+      "tax": "0.00",
+      "submitWithoutAgreement": "disabled",
+      "testCartRestored": true
+    },
+    "procurement": {
+      "procuringTab": "one real eligible order",
+      "shippingActionBeforeProcurement": "absent",
+      "desktopDialog": "opened",
+      "mobileViewport": { "width": 375, "height": 700 },
+      "mobileDialog": "opened and controls visible",
+      "emptySubmit": "blocked by validation; dialog retained",
+      "cancel": "closed and focus returned to procure trigger",
+      "temporaryViewportReset": true,
+      "screenshots": ["procurement-dialog-desktop.png", "procurement-dialog-mobile.png"]
+    }
+  },
+  "transactionWritesPerformed": [],
+  "incidentalPageEffects": ["normal sign-in", "existing product browse/view tracking"],
+  "unverified": [
+    "real SKU purchase and immutable historical snapshots",
+    "complete SKU create/edit UI",
+    "live CREATED/PROCESSING/REJECTED checkout recovery",
+    "procurement/shipping and seller-aftersale opinion submissions",
+    "nonempty PROCURED/CONFIRMING/audit-claim samples",
+    "funds, chain wallets, deposits and refunds",
+    "full-site pixels, themes and animation trajectories"
+  ],
+  "backendFollowUp": [
+    "review themes/tags and keyword scope must match v47",
+    "asset required versus default-USDT documentation",
+    "purchaseVouchers minItems versus required 1-6 items",
+    "published commit and database upgrade/history-data plan",
+    "formal content and isolated stateful QA samples"
+  ]
+}

@@ -27,7 +27,7 @@ export async function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}
 }
 
 /**
- * 买手仅可查看卖出商品的售后申请；审核与退款资金处理均由平台后台完成。
+ * 买手可确认卖出商品的售后意见；最终审核与退款资金处理均由平台完成。
  */
 export async function fetchSoldRefunds(params: Api.RealRefund.RefundPageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.postQuery<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
@@ -44,4 +44,13 @@ export function fetchRefundDetail(id: string | number, options: { signal?: Abort
 
 export function cancelRefund(refundId: string | number) {
   return realOrderRequest.post<string | number, { refundId: string | number }>('/orders/refunds/cancel', { refundId });
+}
+
+export function confirmRefund(params: Api.RealRefund.RefundConfirmParams) {
+  if (typeof params.agree !== 'boolean' || !params.remark.trim() || params.remark.trim().length > 500) {
+    throw new Error('请选择售后意见并填写500字以内的说明');
+  }
+  return realOrderRequest.post<string | number, Api.RealRefund.RefundConfirmParams>('/orders/refunds/confirm', {
+    ...params, remark: params.remark.trim()
+  });
 }

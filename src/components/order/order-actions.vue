@@ -46,10 +46,6 @@ const actions = computed(() => {
     if (permissions.extendReceipt) a.push({ type: 'extend-receipt', label: '延长收货', emit: () => emit('extend-receipt') });
     a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
   }
-  if (permissions.confirm && s === 'AFTERSALE_CONFIRM') {
-    a.push({ type: 'confirm', label: '签字确认', primary: true, emit: () => emit('confirm') });
-    a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
-  }
   if (permissions.review && props.reviewable) {
     a.push({ type: 'review', label: '写评价', emit: () => emit('review') });
   }

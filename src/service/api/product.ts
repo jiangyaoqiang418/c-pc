@@ -4,7 +4,7 @@ import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
 import { enums } from '@shared';
 import { sumPaymentAmounts } from '@/utils/checkout';
-import { exactDecimalNumber } from '@/components/wallet/decimal-amount';
+import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
 
 export function toAfterSaleType(value?: string): Api.RealProduct.DisplayAfterSaleType {
   if (value === 'SEVEN_DAY_NO_REASON') return '7day-no-reason';
@@ -26,8 +26,8 @@ function fromAfterSaleType(value: Api.Product.AftersaleType): Api.RealProduct.Af
   return 'SEVEN_DAY_NO_REASON';
 }
 
-function toProductStatus(status?: string): Api.Product.ProductStatus {
-  if (status === 'REVIEWING') return 'IN_AUDIT';
+function toProductStatus(status?: string, auditStage?: Api.RealProduct.ProductDTO['auditStage']): Api.Product.ProductStatus {
+  if (status === 'REVIEWING') return auditStage === 'PENDING_AUDIT' ? 'PENDING_AUDIT' : 'IN_AUDIT';
   if (status === 'REJECTED') return 'REJECTED';
   if (status === 'FROZEN') return 'FROZEN';
   return 'NORMAL';
@@ -60,18 +60,61 @@ function requireProductPrice(value: unknown) {
 
 function readProductFee(value: unknown) {
   if (value === undefined || value === null || String(value).trim() === '') return undefined;
-  try { return requireProductPrice(value); } catch { return undefined; }
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined;
+  return exactTransactionAmount(value, true).value;
+}
+
+function readProductSkus(dto: Api.RealProduct.ProductDTO): Api.RealProduct.ProductSkuFields {
+  const specGroups = dto.specGroups ?? [];
+  const skus = dto.skus ?? [];
+  if (!Array.isArray(specGroups) || !Array.isArray(skus)) throw new Error('商品规格信息不完整，请重新读取后核对');
+  if (!dto.hasSku && !specGroups.length && !skus.length) return { hasSku: false, specGroups: [], skus: [] };
+  const invalid = () => { throw new Error('商品规格信息不完整，请重新读取后核对'); };
+  if (dto.hasSku !== true || !Array.isArray(specGroups) || !specGroups.length || specGroups.length > 3 || !Array.isArray(skus) || skus.length > 200) return invalid();
+  const names = new Set<string>();
+  for (const group of specGroups) {
+    if (!group || typeof group.name !== 'string' || !group.name.trim() || names.has(group.name)
+      || !Array.isArray(group.options) || !group.options.length || group.options.length > 50
+      || group.options.some(option => typeof option !== 'string' || !option.trim())
+      || new Set(group.options).size !== group.options.length) return invalid();
+    names.add(group.name);
+  }
+  const ids = new Set<string>();
+  const combinations = new Set<string>();
+  return {
+    hasSku: true,
+    specGroups: specGroups.map(group => ({ name: group.name, options: [...group.options] })),
+    skus: skus.map(sku => {
+      if (!sku || !['string', 'number'].includes(typeof sku.id) || !String(sku.id).trim()
+        || (typeof sku.id === 'number' && !Number.isSafeInteger(sku.id)) || ids.has(String(sku.id))
+        || !Number.isSafeInteger(sku.stock) || sku.stock < 0 || typeof sku.enabled !== 'boolean'
+        || !Array.isArray(sku.specs) || sku.specs.length !== specGroups.length) return invalid();
+      const specs = specGroups.map(group => {
+        const options = sku.specs.filter(spec => spec?.name === group.name);
+        if (options.length !== 1 || !group.options.includes(options[0].value)) return invalid();
+        return { name: group.name, value: options[0].value };
+      });
+      const combination = JSON.stringify(specs);
+      if (combinations.has(combination)) return invalid();
+      ids.add(String(sku.id));
+      combinations.add(combination);
+      const price = exactTransactionAmount(sku.price).value;
+      if (price === undefined) return invalid();
+      return { id: sku.id, specs, price, stock: sku.stock, enabled: sku.enabled, image: sku.image };
+    })
+  };
 }
 
 export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduct.Record {
   const id = dto.id;
   const sellerId = dto.sellerId;
   const categoryId = dto.categoryId;
-  const status = toProductStatus(dto.status);
+  const status = toProductStatus(dto.status, dto.auditStage);
   const createdAt = toIsoDate(dto.createdAt);
   const updatedAt = toIsoDate(dto.updatedAt) || createdAt;
 
   return {
+    ...readProductSkus(dto),
     id,
     code: String(dto.id || ''),
     title: dto.title,
@@ -304,6 +347,7 @@ export async function fetchSellerProductDetail(id: string | number, options: { s
 }
 
 export function updateProduct(params: Api.RealProduct.ProductUpdateParams) {
+  if (params.specGroups?.length || params.skus?.length) throw new Error('多规格商品需要使用规格编辑表单，当前编辑入口暂不支持提交');
   return realOrderRequest.put<string, Api.RealProduct.ProductUpdateParams>('/products/update', params);
 }
 
@@ -317,6 +361,7 @@ export async function fetchMyProducts(q: {
   keyword?: string;
   categoryId?: string | number;
   status?: Api.Product.ProductStatus;
+  auditStage?: Api.RealProduct.ProductPageQuery['auditStage'];
   shelf?: Api.Product.ShelfStatus;
   signal?: AbortSignal;
 }) {
@@ -338,7 +383,8 @@ export async function fetchMyProducts(q: {
     pageSize: q.size || 50,
     keyword: q.keyword,
     categoryId: q.categoryId,
-    status
+    status,
+    auditStage: q.auditStage ?? (q.status === 'PENDING_AUDIT' || q.status === 'IN_AUDIT' ? q.status : undefined)
   }, { signal: q.signal, preserveDecimals: true });
   return {
     current: page.current || page.pageNo || q.current || 1,
@@ -361,9 +407,9 @@ export async function createProduct(p: {
   description: string;
   images: Api.RealProduct.ProductImageParam[];
 }) {
-  const price = exactDecimalNumber(p.price);
-  const shippingFee = exactDecimalNumber(p.shippingFee, true);
-  const taxFee = exactDecimalNumber(p.tax, true);
+  const price = exactTransactionAmount(p.price);
+  const shippingFee = exactTransactionAmount(p.shippingFee, true);
+  const taxFee = exactTransactionAmount(p.tax, true);
   if (price.value === undefined || shippingFee.value === undefined || taxFee.value === undefined) {
     throw new Error(price.error || shippingFee.error || taxFee.error || '商品金额无法准确提交');
   }

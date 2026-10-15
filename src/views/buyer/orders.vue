@@ -16,6 +16,7 @@ import LogisticsManageModal from '@/components/buyer/logistics-manage-modal.vue'
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
+import { getAccessToken } from '@/service/request/token';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
@@ -28,17 +29,16 @@ interface TabDef {
   key: string;
   label: string;
   statuses?: Api.Order.OrderStatus[];
-  unavailable?: boolean;
 }
 
 const TABS: TabDef[] = [
   { key: 'all', label: '全部' },
   { key: 'pending-payment', label: '待付款', statuses: ['PENDING_PAYMENT'] },
   { key: 'procuring', label: '采购中', statuses: ['PROCURING'] },
-  { key: 'pending-shipment', label: '待发货', unavailable: true },
-  { key: 'shipping', label: '运输中', statuses: ['IN_TRANSIT', 'AFTERSALE_CONFIRM'] },
+  { key: 'pending-shipment', label: '待发货', statuses: ['PROCURED'] },
+  { key: 'shipping', label: '运输中', statuses: ['IN_TRANSIT'] },
   { key: 'done', label: '已完成', statuses: ['COMPLETED', 'WARRANTY', 'ARCHIVED'] },
-  { key: 'aftersale-confirm', label: '售后确认', unavailable: true },
+  { key: 'aftersale-confirm', label: '售后确认', statuses: ['AFTERSALE_CONFIRM'] },
   { key: 'cancelled', label: '已取消', statuses: ['CANCELLED'] }
 ];
 
@@ -56,6 +56,7 @@ const priceAmount = ref<number>();
 const shippingModalOpen = ref(false);
 const shippingSubmitting = ref(false);
 const shippingOrder = ref<Api.RealOrder.Record>();
+const shippingMode = ref<'shipping' | 'procure'>('shipping');
 const logisticsModalOpen = ref(false);
 const logisticsSubmitting = ref(false);
 const logisticsOrder = ref<Api.RealOrder.Record>();
@@ -107,12 +108,6 @@ async function load() {
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    if (tab?.unavailable) {
-      orders.value = [];
-      total.value = 0;
-      loadError.value = '当前接口尚未提供独立' + tab.label + '阶段，请查看其他订单状态。';
-      return;
-    }
     const r = await realOrderApi.fetchMyOrders({
       shopperId: user.id,
       current: current.value,
@@ -191,12 +186,23 @@ function changePage(page: number) {
 }
 
 function onUploadShipping(order: Api.RealOrder.Record) {
+  if (!getOrderCapabilities(order, userStore.currentUser?.id).ship) return;
+  shippingMode.value = 'shipping';
+  shippingModalVersion += 1;
+  shippingOrder.value = order;
+  shippingModalOpen.value = true;
+}
+
+function onProcure(order: Api.RealOrder.Record) {
+  if (!getOrderCapabilities(order, userStore.currentUser?.id).procure) return;
+  shippingMode.value = 'procure';
   shippingModalVersion += 1;
   shippingOrder.value = order;
   shippingModalOpen.value = true;
 }
 
 function manageLogistics(order: Api.RealOrder.Record) {
+  if (!getOrderCapabilities(order, userStore.currentUser?.id).isSeller || order.status !== 'IN_TRANSIT') return;
   logisticsModalVersion += 1;
   logisticsOrder.value = order;
   logisticsModalOpen.value = true;
@@ -207,7 +213,7 @@ watch([() => route.query.action, () => route.query.orderId, () => userStore.curr
   const isCurrent = actionGuard.begin();
   shippingModalOpen.value = false;
   logisticsModalOpen.value = false;
-  if ((action !== 'shipping' && action !== 'logistics') || typeof orderId !== 'string' || !orderId || userId === undefined) return;
+  if (!['shipping', 'procure', 'logistics'].includes(String(action)) || typeof orderId !== 'string' || !orderId || userId === undefined) return;
   try {
     const order = await realOrderApi.fetchOrderDetail(orderId, { signal: isCurrent.signal });
     if (!isCurrent()) return;
@@ -215,8 +221,9 @@ watch([() => route.query.action, () => route.query.orderId, () => userStore.curr
       Message.warning('无法操作该订单，请从本人的卖出订单重新进入');
       return;
     }
-    if (action === 'shipping' && ['PROCURING', 'PROCURED'].includes(order.status)) onUploadShipping(order);
-    else if (action === 'logistics' && ['IN_TRANSIT', 'AFTERSALE_CONFIRM'].includes(order.status)) manageLogistics(order);
+    if (action === 'shipping' && getOrderCapabilities(order, userId).ship) onUploadShipping(order);
+    else if (action === 'procure' && getOrderCapabilities(order, userId).procure) onProcure(order);
+    else if (action === 'logistics' && order.status === 'IN_TRANSIT') manageLogistics(order);
     else Message.warning('订单状态已变化，请核对最新订单后操作');
   } catch {
     if (isCurrent()) Message.warning('操作订单读取失败，请从下方订单列表重新进入');
@@ -270,11 +277,20 @@ async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++shippingWriteVersion;
+  const session = getAccessToken();
+  const expectedRoute = route.fullPath;
   const submittedModalVersion = shippingModalVersion;
-  const isCurrentWrite = () => operation === shippingWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === shippingWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId)
+    && getAccessToken() === session && route.fullPath === expectedRoute;
   shippingSubmitting.value = true;
   try {
     try {
+      const latest = await realOrderApi.fetchOrderDetail(params.id);
+      if (!isCurrentWrite()) return;
+      if (!sameBusinessId(latest.id, params.id) || !getOrderCapabilities(latest, requestedUserId).ship) {
+        Message.warning('当前订单不可发货，请刷新后核对采购状态');
+        return;
+      }
       await realOrderApi.shipOrder(params);
       if (!isCurrentWrite()) return;
       Message.success('发货信息已提交');
@@ -283,6 +299,36 @@ async function shipOrder(params: Api.RealOrder.OrderShipParams) {
     } catch {
       // 请求层已展示错误，保留发货表单供用户修正后重试。
     }
+  } finally {
+    if (operation === shippingWriteVersion) shippingSubmitting.value = false;
+  }
+}
+
+async function procureOrder(params: Api.RealOrder.OrderProcureParams) {
+  if (shippingSubmitting.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  if (requestedUserId === undefined) return;
+  const operation = ++shippingWriteVersion;
+  const session = getAccessToken();
+  const expectedRoute = route.fullPath;
+  const submittedModalVersion = shippingModalVersion;
+  const isCurrentWrite = () => operation === shippingWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId)
+    && getAccessToken() === session && route.fullPath === expectedRoute;
+  shippingSubmitting.value = true;
+  try {
+    const latest = await realOrderApi.fetchOrderDetail(params.id);
+    if (!isCurrentWrite()) return;
+    if (!sameBusinessId(latest.id, params.id) || !getOrderCapabilities(latest, requestedUserId).procure) {
+      Message.warning('当前订单不可完成采购，请刷新后核对');
+      return;
+    }
+    await realOrderApi.procureOrder(params);
+    if (!isCurrentWrite()) return;
+    Message.success('采购已完成，可填写发货信息');
+    if (submittedModalVersion === shippingModalVersion) shippingModalOpen.value = false;
+    await load();
+  } catch {
+    // 保留原采购单号与凭证，结果未知时先核对订单，不自动重发。
   } finally {
     if (operation === shippingWriteVersion) shippingSubmitting.value = false;
   }
@@ -337,13 +383,13 @@ function selectTab(value: unknown) {
 <template>
   <div class="buyer-orders-page shop-container">
     <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>买手订单</h1><p>从采购到交付，清晰掌握每一步。</p></div><Button class="outline" variant="outline" :disabled="loading" @click="load"><UmIcon name="return" />刷新</Button></header>
-    <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" :disabled="tab.unavailable" :title="tab.unavailable ? '当前接口尚未提供独立' + tab.label + '阶段' : undefined" @click="selectTab(tab.key)">{{ tab.label }}</button></div><div class="buyer-filter"><label><UmIcon name="search" /><input aria-label="搜索订单，暂未开放" placeholder="搜索订单号或商品名称" disabled title="当前接口尚未提供订单搜索" /></label><button type="button" :disabled="loading" @click="activeKey = 'all'; onTabChange()">重置</button></div>
-    <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @manage-logistics="manageLogistics" /></div>
+    <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="selectTab(tab.key)">{{ tab.label }}</button></div><div class="buyer-filter"><label><UmIcon name="search" /><input aria-label="搜索订单，暂未开放" placeholder="搜索订单号或商品名称" disabled title="订单搜索暂未开放" /></label><button type="button" :disabled="loading" @click="activeKey = 'all'; onTabChange()">重置</button></div>
+    <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @procure="onProcure" @manage-logistics="manageLogistics" /></div>
     <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取买手订单"><Skeleton v-for="n in 3" :key="n" class="order-skeleton" /></div>
     <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
     <a-modal content-class="buyer-dialog" v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :closable="!priceSubmitting" :mask-closable="!priceSubmitting" :esc-to-close="!priceSubmitting" :on-before-cancel="() => !priceSubmitting" :on-before-ok="changePrice"><div class="price-form"><div class="buyer-field"><Label for="buyer-order-code">订单号</Label><Input id="buyer-order-code" :model-value="priceOrder?.code" disabled /></div><div class="buyer-field"><Label for="buyer-order-amount">订单金额（USDT）<span>*</span></Label><AmountInput id="buyer-order-amount" v-model="priceAmount" :disabled="priceSubmitting" :min="0.01" :precision="2" placeholder="请输入调整后的金额" /></div></div></a-modal>
-    <ShippingUploadModal v-model:visible="shippingModalOpen" :order="shippingOrder" :submitting="shippingSubmitting" @confirm="shipOrder" />
+    <ShippingUploadModal v-model:visible="shippingModalOpen" :order="shippingOrder" :submitting="shippingSubmitting" :mode="shippingMode" @confirm="shipOrder" @procure="procureOrder" />
     <LogisticsManageModal v-model:visible="logisticsModalOpen" :order="logisticsOrder" :submitting="logisticsSubmitting" @create-track="createLogisticsTrack" @mark-exception="markLogisticsException" />
   </div>
 </template>

@@ -82,6 +82,7 @@ const events = computed<TimelineEvent[]>(() => {
     { key: 'created', title: '已下单', detail: '订单已提交', occurredAt: order.createdAt, icon: 'lucide:clipboard-list', major: true }
   ];
   if (order.paidAt) result.push({ key: 'paid', title: '已付款', detail: '订单支付成功', occurredAt: order.paidAt, icon: 'lucide:credit-card', major: true });
+  if (order.procuredAt) result.push({ key: 'procured', title: '采购完成', detail: '买手已提交采购信息', occurredAt: order.procuredAt, icon: 'lucide:shopping-bag', major: true });
   const shippedAt = order.shippedAt || matchingLogistics?.shippedAt;
   if (shippedAt && !hasTrackAt('SHIPPED', shippedAt)) {
     result.push({
@@ -106,14 +107,15 @@ const events = computed<TimelineEvent[]>(() => {
 
   const currentStages: Partial<Record<Api.Order.OrderStatus, { title: string; icon: string }>> = {
     PROCURING: { title: '采购中', icon: 'lucide:shopping-bag' },
+    PROCURED: { title: '已采购，待发货', icon: 'lucide:shopping-bag' },
     IN_TRANSIT: { title: '运输中', icon: 'lucide:truck' },
-    AFTERSALE_CONFIRM: { title: '待确认收货', icon: 'lucide:package-search' },
+    AFTERSALE_CONFIRM: { title: '售后待买手确认', icon: 'lucide:package-search' },
     WARRANTY: { title: '质保中', icon: 'lucide:shield-check' },
     ARCHIVED: { title: '已归档', icon: 'lucide:archive' }
   };
   const currentStage = currentStages[order.status];
   const transportStatusRepresented = order.status === 'IN_TRANSIT' && matchingLogistics?.logisticsStatus && !['PENDING_SHIPMENT', 'SHIPPED'].includes(matchingLogistics.logisticsStatus);
-  if (currentStage && !transportStatusRepresented) {
+  if (currentStage && !transportStatusRepresented && !(order.status === 'PROCURED' && order.procuredAt)) {
     result.push({ key: 'status-' + order.status, title: currentStage.title, occurredAt: order.status === 'PROCURED' ? order.procuredAt : undefined, icon: currentStage.icon, major: true });
   }
 

@@ -16,6 +16,7 @@ interface Props {
   visible: boolean;
   order?: Api.RealOrder.Record;
   submitting?: boolean;
+  mode?: 'shipping' | 'procure';
 }
 const props = defineProps<Props>();
 const uploadStates = reactive({ purchase: false, shipping: false });
@@ -23,7 +24,9 @@ const uploading = computed(() => uploadStates.purchase || uploadStates.shipping)
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void;
   (e: 'confirm', params: Api.RealOrder.OrderShipParams): void;
+  (e: 'procure', params: Api.RealOrder.OrderProcureParams): void;
 }>();
+const procurement = computed(() => props.mode === 'procure');
 
 const form = reactive<{
   carrier: Api.RealOrder.Carrier;
@@ -59,7 +62,7 @@ onBeforeUnmount(carrierGuard.invalidate);
 watch(() => form.carrier, () => { form.carrierName = ''; });
 
 watch(
-  [() => props.visible, () => props.order?.id],
+  [() => props.visible, () => props.order?.id, () => props.mode],
   ([v]) => {
     carrierGuard.invalidate();
     carriers.value = [];
@@ -72,13 +75,26 @@ watch(
       form.purchaseVouchers = [];
       form.shipVouchers = [];
       form.remark = '';
-      void loadCarriers();
+      if (!procurement.value) void loadCarriers();
     }
   }, { immediate: true }
 );
 
 function submit() {
   if (!props.order || props.submitting || uploading.value) return false;
+  if (procurement.value) {
+    if (!form.purchaseNo.trim() || form.purchaseNo.trim().length > 128) {
+      Message.warning('请填写采购单号，最多128字符');
+      return false;
+    }
+    if (form.purchaseVouchers.length < 1 || form.purchaseVouchers.length > 6
+      || form.purchaseVouchers.some(url => url.length > 1024 || !/^https:\/\/[^\s]+$/.test(url))) {
+      Message.warning('请上传1至6张HTTPS采购凭证');
+      return false;
+    }
+    emit('procure', { id: props.order.id, purchaseNo: form.purchaseNo.trim(), purchaseVouchers: [...form.purchaseVouchers] });
+    return false;
+  }
   if (carrierLoading.value || carrierError.value || !selectedCarrier.value) {
     Message.warning('请先读取并选择启用的承运商');
     return false;
@@ -97,8 +113,6 @@ function submit() {
     carrierName: selectedCarrier.value.customNameRequired ? form.carrierName.trim() : undefined,
     trackingNo: form.trackingNumber.trim(),
     eta: form.eta || undefined,
-    purchaseNo: form.purchaseNo.trim() || undefined,
-    purchaseVouchers: [...form.purchaseVouchers],
     shipVouchers: [...form.shipVouchers],
     remark: form.remark.trim() || undefined
   });
@@ -110,12 +124,12 @@ function submit() {
 </script>
 
 <template>
-  <a-modal content-class="buyer-dialog buyer-dialog-wide" :visible="visible" title="填写发货信息" :width="740" :ok-loading="props.submitting" :ok-button-props="{ disabled: uploading || carrierLoading || !!carrierError || !selectedCarrier }" :closable="!submitting && !uploading" :mask-closable="!submitting && !uploading" :esc-to-close="!submitting && !uploading" :on-before-cancel="() => !submitting && !uploading" ok-text="确认发货" @update:visible="(value: boolean) => emit('update:visible', value)" :on-before-ok="submit">
-    <template v-if="order"><p class="order-hint">订单 {{ order.code }} · {{ order.productTitle }}</p><Alert class="shipping-note"><AlertDescription>填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹。</AlertDescription></Alert>
-      <div class="shipping-form"><Alert v-if="carrierError" variant="destructive"><AlertDescription class="error-row"><span>{{ carrierError }}</span><Button class="outline" type="button" variant="outline" size="sm" :disabled="carrierLoading || submitting" @click="loadCarriers">重新加载</Button></AlertDescription></Alert>
-        <fieldset class="carrier-field" :disabled="submitting || carrierLoading"><legend>物流公司 <span>*</span></legend><Skeleton v-if="carrierLoading" class="carrier-skeleton" /><div v-else class="carrier-options"><label v-for="carrier in carriers" :key="carrier.code" :class="{ selected: form.carrier === carrier.code }"><input v-model="form.carrier" type="radio" :name="'shipping-carrier-' + String(order.id)" :value="carrier.code" /><span>{{ carrier.name }}</span></label></div></fieldset>
-        <div class="buyer-two-cols"><div class="buyer-field"><Label for="shipping-tracking">运单号 <span>*</span></Label><Input id="shipping-tracking" v-model="form.trackingNumber" :disabled="submitting" placeholder="请输入运单号" /></div><div v-if="selectedCarrier?.customNameRequired" class="buyer-field"><Label for="shipping-carrier-name">承运商名称 <span>*</span></Label><Input id="shipping-carrier-name" v-model="form.carrierName" :disabled="submitting" placeholder="请输入承运商名称" /></div><div class="buyer-field"><Label for="shipping-eta">预计送达时间</Label><DateTimeInput id="shipping-eta" v-model="form.eta" :disabled="submitting" /></div><div class="buyer-field"><Label for="shipping-purchase-no">采购单号</Label><Input id="shipping-purchase-no" v-model="form.purchaseNo" :disabled="submitting" placeholder="可选，用于采购核对" /></div></div>
-        <div class="buyer-field"><Label>采购凭证</Label><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></div><div class="buyer-field"><Label>发货凭证</Label><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.shipping = $event" /></div><div class="buyer-field"><Label for="shipping-remark">发货备注</Label><Textarea id="shipping-remark" v-model="form.remark" :disabled="submitting" maxlength="500" :rows="3" placeholder="选填，请填写发货备注" /><small class="counter">{{ form.remark.length }}/500</small></div>
+  <a-modal content-class="buyer-dialog buyer-dialog-wide" :visible="visible" :title="procurement ? '完成采购' : '填写发货信息'" :width="740" :ok-loading="props.submitting" :ok-button-props="{ disabled: uploading || (!procurement && (carrierLoading || !!carrierError || !selectedCarrier)) }" :closable="!submitting && !uploading" :mask-closable="!submitting && !uploading" :esc-to-close="!submitting && !uploading" :on-before-cancel="() => !submitting && !uploading" :ok-text="procurement ? '确认采购完成' : '确认发货'" @update:visible="(value: boolean) => emit('update:visible', value)" :on-before-ok="submit">
+    <template v-if="order"><p class="order-hint">订单 {{ order.code }} · {{ order.productTitle }}</p><Alert class="shipping-note"><AlertDescription>{{ procurement ? '提交真实采购单号和凭证后，订单进入待发货阶段。采购完成后不能更换这套凭证。' : '填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹。' }}</AlertDescription></Alert>
+      <div class="shipping-form"><Alert v-if="!procurement && carrierError" variant="destructive"><AlertDescription class="error-row"><span>{{ carrierError }}</span><Button class="outline" type="button" variant="outline" size="sm" :disabled="carrierLoading || submitting" @click="loadCarriers">重新加载</Button></AlertDescription></Alert>
+        <fieldset v-if="!procurement" class="carrier-field" :disabled="submitting || carrierLoading"><legend>物流公司 <span>*</span></legend><Skeleton v-if="carrierLoading" class="carrier-skeleton" /><div v-else class="carrier-options"><label v-for="carrier in carriers" :key="carrier.code" :class="{ selected: form.carrier === carrier.code }"><input v-model="form.carrier" type="radio" :name="'shipping-carrier-' + String(order.id)" :value="carrier.code" /><span>{{ carrier.name }}</span></label></div></fieldset>
+        <div v-if="!procurement" class="buyer-two-cols"><div class="buyer-field"><Label for="shipping-tracking">运单号 <span>*</span></Label><Input id="shipping-tracking" v-model="form.trackingNumber" :disabled="submitting" placeholder="请输入运单号" /></div><div v-if="selectedCarrier?.customNameRequired" class="buyer-field"><Label for="shipping-carrier-name">承运商名称 <span>*</span></Label><Input id="shipping-carrier-name" v-model="form.carrierName" :disabled="submitting" placeholder="请输入承运商名称" /></div><div class="buyer-field"><Label for="shipping-eta">预计送达时间</Label><DateTimeInput id="shipping-eta" v-model="form.eta" :disabled="submitting" /></div></div>
+        <div v-if="procurement" class="buyer-field"><Label for="shipping-purchase-no">采购单号 <span>*</span></Label><Input id="shipping-purchase-no" v-model="form.purchaseNo" :disabled="submitting" maxlength="128" placeholder="请输入真实采购单号" /></div><div v-if="procurement" class="buyer-field"><Label>采购凭证 <span>*</span></Label><AftersaleEvidenceUploader v-model="form.purchaseVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.purchase = $event" /></div><div v-if="!procurement" class="buyer-field"><Label>发货凭证</Label><AftersaleEvidenceUploader v-model="form.shipVouchers" scene="ORDER_VOUCHER" :max="6" :disabled="submitting" @uploading="uploadStates.shipping = $event" /></div><div v-if="!procurement" class="buyer-field"><Label for="shipping-remark">发货备注</Label><Textarea id="shipping-remark" v-model="form.remark" :disabled="submitting" maxlength="500" :rows="3" placeholder="选填，请填写发货备注" /><small class="counter">{{ form.remark.length }}/500</small></div>
       </div>
     </template>
   </a-modal>

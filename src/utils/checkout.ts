@@ -74,7 +74,7 @@ export function validateGroupPayResult(result: Api.RealOrder.OrderGroupPayResult
 }
 
 export function isPaidOrderStatus(status: string) {
-  return ['PAID', 'SHIPPED', 'REFUND_REVIEW', 'REFUNDED', 'COMPLETED'].includes(status);
+  return ['PAID', 'SHIPPED', 'AFTERSALE_CONFIRM', 'REFUND_REVIEW', 'REFUNDED', 'COMPLETED'].includes(status);
 }
 
 export function isGroupPaymentComplete(result: Api.RealOrder.OrderGroupPayResult, payableIds: Array<string | number>) {
@@ -84,6 +84,51 @@ export function isGroupPaymentComplete(result: Api.RealOrder.OrderGroupPayResult
 
 export function pendingCheckoutStorageKey(userId: string | number) {
   return `cpc:checkout:pending:${userId}`;
+}
+
+/** 原键已创建的整批订单必须与原快照及当前买家一致；验证前不保存任何订单身份。 */
+export function validateRecoveredCheckoutOrders(pending: PendingCheckout, result: Api.RealOrder.OrderCreationResult,
+  orders: Api.RealOrder.Record[], userId: string | number): PendingCheckout {
+  const validId = (id: unknown) => (typeof id === 'string' && /^\d+$/.test(id))
+    || (typeof id === 'number' && Number.isSafeInteger(id) && id > 0);
+  if (result.status !== 'CREATED' || typeof result.orderGroupNo !== 'string' || !result.orderGroupNo.trim()
+    || !Array.isArray(result.orderIds) || !result.orderIds.length || !result.orderIds.every(validId)
+    || new Set(result.orderIds.map(String)).size !== result.orderIds.length
+    || orders.length !== result.orderIds.length || new Set(orders.map(order => String(order.id))).size !== orders.length
+    || orders.some(order => !result.orderIds.some(id => String(id) === String(order.id)))) {
+    throw new Error('原下单回查订单不完整，请保留原记录并到我的订单核对');
+  }
+  if (orders.some(order => !getOrderCapabilities(order, userId).isCustomer
+    || order.orderGroupNo !== result.orderGroupNo || String(order.addressId) !== String(pending.addressId))) {
+    throw new Error('原下单回查的顾客、订单组或地址不一致，请保留原记录并核对');
+  }
+  const key = (productId: string | number, skuId?: string | number | null, sessionId?: string | number) =>
+    JSON.stringify([String(productId), skuId == null ? null : String(skuId), sessionId === undefined ? null : String(sessionId)]);
+  const expected = new Map<string, { quantity: number; prices: string[] }>();
+  for (const item of pending.orderItems) {
+    const itemKey = key(item.productId, item.skuId, item.sessionId);
+    const previous = expected.get(itemKey) ?? { quantity: 0, prices: [] };
+    previous.quantity += item.quantity ?? 1;
+    if (!Number.isSafeInteger(previous.quantity) || previous.quantity < 1) throw new Error('原下单商品数量无法完整核对，请保留原记录');
+    if (item.confirmedUnitPrice !== undefined) previous.prices.push(sumPaymentAmounts([item.confirmedUnitPrice]));
+    expected.set(itemKey, previous);
+  }
+  const actual = new Map<string, number>();
+  for (const order of orders) {
+    const itemKey = key(order.productId, order.skuId, order.sessionId);
+    const item = expected.get(itemKey);
+    if (!item || !Number.isSafeInteger(order.quantity) || order.quantity! < 1
+      || (item.prices.length && (order.price === undefined || !item.prices.every(price => price === sumPaymentAmounts([order.price!]))))) {
+      throw new Error('原下单回查商品、规格、数量或确认单价不一致，请保留原记录并核对');
+    }
+    const quantity = (actual.get(itemKey) ?? 0) + order.quantity!;
+    if (!Number.isSafeInteger(quantity)) throw new Error('原下单商品数量无法完整核对，请保留原记录');
+    actual.set(itemKey, quantity);
+  }
+  if (actual.size !== expected.size || [...expected].some(([itemKey, item]) => actual.get(itemKey) !== item.quantity)) {
+    throw new Error('原下单回查缺少部分商品或数量，请保留原记录并核对整批订单');
+  }
+  return { ...pending, orderGroupNo: result.orderGroupNo, orderIds: [...result.orderIds], firstOrderId: result.orderIds[0] };
 }
 
 /** 读取失败不能证明原请求未执行，禁止删除记录或创建新的幂等键。 */
@@ -97,7 +142,11 @@ export function readPendingCheckout(userId: string | number): PendingCheckout | 
     if (!value || typeof value.idempotencyKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.idempotencyKey)
       || !Array.isArray(value.productIds) || !value.productIds.length || !value.productIds.every(isId)
       || !Array.isArray(value.orderItems) || !value.orderItems.length
-      || value.orderItems.some(item => !item || !isId(item.productId) || !Number.isSafeInteger(item.quantity) || item.quantity! < 1)
+      || value.orderItems.some(item => !item || !isId(item.productId) || !Number.isSafeInteger(item.quantity) || item.quantity! < 1
+        || (item.skuId !== undefined && !isId(item.skuId))
+        || (item.confirmedUnitPrice !== undefined && (typeof item.confirmedUnitPrice !== 'string'
+          || !/^\d{1,28}(?:\.\d{1,8})?$/.test(item.confirmedUnitPrice)))
+        || (item.skuId !== undefined && item.confirmedUnitPrice === undefined))
       || !isId(value.addressId)
       || (value.orderIds !== undefined && (!Array.isArray(value.orderIds) || !value.orderIds.length || !value.orderIds.every(isId)))
       || (value.orderGroupNo !== undefined && (typeof value.orderGroupNo !== 'string' || !value.orderGroupNo.trim()))
@@ -108,7 +157,8 @@ export function readPendingCheckout(userId: string | number): PendingCheckout | 
         || typeof value.walletPayAttempt.idempotencyKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(value.walletPayAttempt.idempotencyKey)
         || (value.walletPayAttempt.payNo !== undefined && (typeof value.walletPayAttempt.payNo !== 'string' || !value.walletPayAttempt.payNo.trim()))))
       || (value.cartSnapshot !== undefined && (!Array.isArray(value.cartSnapshot) || value.cartSnapshot.some(item => !item
-        || !isId(item.productId) || !Number.isSafeInteger(item.qty) || item.qty < 1 || typeof item.addedAt !== 'string')))) {
+        || !isId(item.productId) || (item.skuId !== undefined && !isId(item.skuId))
+        || !Number.isSafeInteger(item.qty) || item.qty < 1 || typeof item.addedAt !== 'string')))) {
       throw new Error('invalid pending checkout');
     }
     return value;
@@ -119,7 +169,7 @@ export function readPendingCheckout(userId: string | number): PendingCheckout | 
 
 /** 只有首次请求的明确拒绝能解除下单保护；重试拒绝不能推翻原请求的未知结果。 */
 export function canDiscardRejectedCheckout(error: unknown, hadPendingAttempt: boolean) {
-  if (error instanceof RequestError && error.code === '-311') return false;
+  if (error instanceof RequestError && ['-311', '-321'].includes(error.code || '')) return false;
   return !hadPendingAttempt && (isDefinitiveRejection(error)
     || (error instanceof RequestError && /不能购买自己(?:的|发布的)?商品/.test(error.message)));
 }
@@ -134,7 +184,7 @@ export async function cleanupPaidCheckout(actions: Array<() => unknown | Promise
 }
 
 interface CheckoutIntent {
-  items: Array<{ productId: string | number; quantity: number }>;
+  items: Array<{ productId: string | number; quantity: number; skuId?: string | number; confirmedUnitPrice?: string }>;
   ownerId?: string | number;
   createdAt: number;
 }
@@ -158,7 +208,13 @@ export function readCheckoutIntent(id: string, ownerId: string | number): Checko
   if (!value || !Array.isArray(value.items) || !value.items.length
     || !Number.isFinite(value.createdAt) || Date.now() - value.createdAt > 60 * 60 * 1000
     || value.items.some(item => !item || !['string', 'number'].includes(typeof item.productId)
-      || !String(item.productId) || !Number.isSafeInteger(item.quantity) || item.quantity < 1)
+      || !String(item.productId) || (typeof item.productId === 'number' && !Number.isSafeInteger(item.productId))
+      || !Number.isSafeInteger(item.quantity) || item.quantity < 1
+      || (item.skuId !== undefined && !((typeof item.skuId === 'string' && /^\d+$/.test(item.skuId))
+        || (typeof item.skuId === 'number' && Number.isSafeInteger(item.skuId) && item.skuId > 0)))
+      || (item.confirmedUnitPrice !== undefined && (typeof item.confirmedUnitPrice !== 'string'
+        || !/^\d{1,28}(?:\.\d{1,8})?$/.test(item.confirmedUnitPrice)))
+      || (item.skuId !== undefined && item.confirmedUnitPrice === undefined))
     || (value.ownerId !== undefined && String(value.ownerId) !== String(ownerId))) {
     throw new Error('本次结算信息已失效或不属于当前账号，请重新选择商品');
   }
@@ -173,7 +229,7 @@ export function clearCheckoutIntent(id: string) {
 
 function orderSignature(orders: Api.RealOrder.Record[]) {
   return JSON.stringify([...orders].sort((a, b) => String(a.id).localeCompare(String(b.id))).map(order => [
-    order.id, order.status, order.totalAmount, order.customerId, order.productId, order.quantity,
+    order.id, order.status, order.totalAmount, order.customerId, order.productId, order.skuId, order.quantity,
     order.shippingAddress, order.receiverName, order.receiverPhone, order.postalCode
   ]));
 }

@@ -45,7 +45,7 @@ const resultDescription = computed(() => {
 const displayAmount = computed(() => paymentConfirmed.value && groupResult.value
   ? groupResult.value.paidAmount : order.value?.totalAmount);
 const paymentStatusLabels: Record<Api.RealOrder.OrderStatus, string> = {
-  CREATED: '待付款', PAID: '已付款', SHIPPED: '已发货', REFUND_REVIEW: '售后处理中',
+  CREATED: '待付款', PAID: '已付款', SHIPPED: '已发货', AFTERSALE_CONFIRM: '售后待买手确认', REFUND_REVIEW: '售后处理中',
   REFUNDED: '已退款', COMPLETED: '已完成', CANCELED: '已取消'
 };
 

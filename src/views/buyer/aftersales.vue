@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Message } from '@/lib/feedback';
 import UmIcon from '@/components/common/um-icon.vue';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import ImagePreview from '@/components/common/image-preview.vue';
@@ -12,6 +15,10 @@ import * as refundApi from '@/service/api/refund';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { setImageFallback } from '@/utils/image-placeholder';
 import { resolvePageSize } from '@/service/api/page';
+import * as orderApi from '@/service/api/order';
+import { getAccessToken } from '@/service/request/token';
+import { getOrderCapabilities } from '@/utils/order';
+import { sameBusinessId } from '@/utils/im';
 
 const router = useRouter();
 const route = useRoute();
@@ -26,9 +33,17 @@ const current = ref(1);
 const pageSize = ref(10);
 const total = ref(0);
 const requestGuard = createLatestRequestGuard();
+const confirmableIds = ref<string[]>([]);
+const confirmOpen = ref(false);
+const confirmSubmitting = ref(false);
+const confirmRow = ref<Api.RealRefund.RefundDTO>();
+const confirmAgree = ref<boolean | undefined>();
+const confirmRemark = ref('');
+let confirmVersion = 0;
 
 const statusDefs = [
   { key: 'all', label: '全部' },
+  { key: 'CONFIRMING', label: '待买手确认' },
   { key: 'APPLYING', label: '待平台审核' },
   { key: 'AGREED', label: '已同意' },
   { key: 'REJECTED', label: '已驳回' },
@@ -59,7 +74,7 @@ function syncQuery(replace = false) {
 }
 
 function statusLabel(row: Api.RealRefund.RefundDTO) {
-  return row.statusText || ({ APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' }[String(row.status)] || row.status || '—');
+  return row.statusText || ({ CONFIRMING: '待买手确认', APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' }[String(row.status)] || row.status || '—');
 }
 
 function formatTime(value?: string | number) {
@@ -79,6 +94,7 @@ async function load() {
     return;
   }
   loading.value = true;
+  confirmableIds.value = [];
   loadError.value = '';
   try {
     const response = await refundApi.fetchSoldRefunds({
@@ -97,6 +113,16 @@ async function load() {
     }
     refunds.value = response.records || [];
     total.value = response.total;
+    const eligible = await Promise.all(refunds.value.filter(row => row.status === 'CONFIRMING').map(async row => {
+      try {
+        const order = await orderApi.fetchOrderDetail(row.orderId, { signal: isCurrent.signal });
+        return sameBusinessId(order.id, row.orderId) && sameBusinessId(row.sellerId, requestedUserId) && sameBusinessId(order.refundId, row.refundId)
+          && getOrderCapabilities(order, requestedUserId).confirmAftersale ? String(row.refundId) : undefined;
+      } catch { return undefined; }
+    }));
+    if (isCurrent() && sameBusinessId(userStore.currentUser?.id, requestedUserId)) {
+      confirmableIds.value = eligible.filter((id): id is string => id !== undefined);
+    }
   } catch {
     if (!isCurrent()) return;
     refunds.value = [];
@@ -125,7 +151,7 @@ onMounted(() => {
   }
   void load();
 });
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => { requestGuard.invalidate(); confirmVersion += 1; });
 watch(activeKey, () => {
   if (syncingQuery) return;
   current.value = 1;
@@ -141,12 +167,64 @@ watch(() => route.query, () => {
 watch(() => userStore.currentUser?.id, (next, previous) => {
   if (String(next) === String(previous)) return;
   requestGuard.invalidate();
+  confirmVersion += 1;
+  confirmOpen.value = false;
+  confirmRow.value = undefined;
+  confirmRemark.value = '';
+  confirmableIds.value = [];
+  confirmSubmitting.value = false;
   refunds.value = [];
   total.value = 0;
   current.value = 1;
   loadError.value = '';
   syncQuery(true);
 });
+
+function openConfirmation(row: Api.RealRefund.RefundDTO) {
+  if (!confirmableIds.value.includes(String(row.refundId)) || confirmSubmitting.value) return;
+  confirmVersion += 1;
+  confirmRow.value = row;
+  confirmAgree.value = undefined;
+  confirmRemark.value = '';
+  confirmOpen.value = true;
+}
+
+async function confirmAftersale() {
+  if (confirmSubmitting.value || !confirmRow.value) return false;
+  if (typeof confirmAgree.value !== 'boolean' || !confirmRemark.value.trim() || confirmRemark.value.trim().length > 500) {
+    Message.warning('请选择意见并填写500字以内的确认说明');
+    return false;
+  }
+  const row = confirmRow.value;
+  const userId = userStore.currentUser?.id;
+  if (userId === undefined) return false;
+  const version = ++confirmVersion;
+  const session = getAccessToken();
+  const expectedRoute = route.fullPath;
+  const currentWrite = () => version === confirmVersion && sameBusinessId(userStore.currentUser?.id, userId)
+    && getAccessToken() === session && route.fullPath === expectedRoute;
+  const params = { refundId: row.refundId, agree: confirmAgree.value, remark: confirmRemark.value.trim() };
+  confirmSubmitting.value = true;
+  try {
+    const [refund, order] = await Promise.all([refundApi.fetchRefundDetail(row.refundId), orderApi.fetchOrderDetail(row.orderId)]);
+    if (!currentWrite()) return false;
+    if (!sameBusinessId(refund.refundId, row.refundId) || !sameBusinessId(refund.orderId, order.id)
+      || !sameBusinessId(refund.sellerId, userId) || refund.status !== 'CONFIRMING'
+      || !sameBusinessId(order.refundId, refund.refundId) || !getOrderCapabilities(order, userId).confirmAftersale) {
+      Message.warning('售后状态或操作资格已变化，请刷新后核对');
+      await load();
+      return false;
+    }
+    await refundApi.confirmRefund(params);
+    if (!currentWrite()) return false;
+    Message.success('买手意见已提交，等待平台审核');
+    await load();
+    return currentWrite();
+  } catch {
+    // 保留意见供原单核对；结果未知时不自动重复提交。
+    return false;
+  } finally { if (currentWrite()) confirmSubmitting.value = false; }
+}
 
 const previewOpen = ref(false);
 const previewImages = ref<string[]>([]);
@@ -164,14 +242,14 @@ watch(() => userStore.currentUser?.id, () => {
 
 <template>
   <div class="buyer-aftersales-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>卖出商品售后</h1><p>平台负责审核与退款处理，买手可查看申请进度。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/orders')"><UmIcon name="return" />返回买手订单</Button></header>
-    <div class="buyer-info"><UmIcon name="shield" /><span>买手可查看申请原因、凭证和审核结果。退款决定与资金处理由平台完成。</span></div>
+    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>卖出商品售后</h1><p>确认售后意见，跟进平台审核与退款进度。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/orders')"><UmIcon name="return" />返回买手订单</Button></header>
+    <div class="buyer-info"><UmIcon name="shield" /><span>买手提交同意或不同意的意见后，均由平台继续审核。最终退款决定与资金处理由平台完成。</span></div>
     <div class="buyer-tabs" role="group" aria-label="售后状态"><button v-for="item in statusDefs" :key="item.key" type="button" :class="{ active:activeKey === item.key }" :aria-pressed="activeKey === item.key" @click="activeKey = item.key">{{ item.label }}</button></div>
     <form class="buyer-filter" @submit.prevent="current = 1; syncQuery()"><label><UmIcon name="search" /><input v-model="orderNo" aria-label="按订单号精确查询售后" placeholder="按订单号精确查询" /></label><button type="submit" :disabled="loading">查询</button><button type="button" @click="reset">重置</button></form>
-    <template v-if="refunds.length"><article v-for="row in refunds" :key="row.refundId" class="paper buyer-aftersale"><div class="buyer-section-title"><b>{{ row.orderNo || '—' }}</b><span class="buyer-status" :class="String(row.status)">{{ statusLabel(row) }}</span></div><div class="buyer-order-product"><img v-if="row.productImage" :src="row.productImage" :alt="row.productTitle || '商品图片'" @error="setImageFallback" /><span><b>{{ row.productTitle || '仅退款申请' }}</b><small>仅退款申请 · {{ formatTime(row.appliedAt || row.createdAt) }}</small><strong>{{ row.amount ?? '—' }} USDT</strong><small>买家：{{ row.buyerName || (row.buyerId ? String(row.buyerId) : '—') }}</small></span></div><p><b>申请原因</b><br />{{ row.reason || '—' }}</p><details><summary>申请凭证与审核记录</summary><div class="buyer-evidence"><button v-for="(url,index) in row.evidenceImages || []" :key="url" type="button" :aria-label="'查看第 ' + (index + 1) + ' 张申请凭证'" @click="openEvidence(row.evidenceImages!, index)"><img :src="url" alt="申请凭证" @error="setImageFallback" /></button><p v-if="!row.evidenceImages?.length">没有提交图片凭证</p></div><p><b>平台审核说明</b><br />{{ row.reviewRemark || '—' }}</p><small>审核时间：{{ formatTime(row.reviewedAt) }}</small></details></article></template>
+    <template v-if="refunds.length"><article v-for="row in refunds" :key="row.refundId" class="paper buyer-aftersale"><div class="buyer-section-title"><b>{{ row.orderNo || '—' }}</b><span class="buyer-status" :class="String(row.status)">{{ statusLabel(row) }}</span></div><div class="buyer-order-product"><img v-if="row.productImage" :src="row.productImage" :alt="row.productTitle || '商品图片'" @error="setImageFallback" /><span><b>{{ row.productTitle || '仅退款申请' }}</b><small>仅退款申请 · {{ formatTime(row.appliedAt || row.createdAt) }}</small><strong>{{ row.amount ?? '—' }} USDT</strong><small>买家：{{ row.buyerName || (row.buyerId ? String(row.buyerId) : '—') }}</small></span></div><p><b>申请原因</b><br />{{ row.reason || '—' }}</p><details><summary>申请凭证与审核记录</summary><div class="buyer-evidence"><button v-for="(url,index) in row.evidenceImages || []" :key="url" type="button" :aria-label="'查看第 ' + (index + 1) + ' 张申请凭证'" @click="openEvidence(row.evidenceImages!, index)"><img :src="url" alt="申请凭证" @error="setImageFallback" /></button><p v-if="!row.evidenceImages?.length">没有提交图片凭证</p></div><p v-if="row.sellerConfirmedAt"><b>买手确认意见</b><br />{{ row.sellerAgree === true ? '同意退款' : row.sellerAgree === false ? '不同意退款' : '—' }} · {{ row.sellerRemark || '—' }}<br />{{ formatTime(row.sellerConfirmedAt) }}</p><p><b>平台审核说明</b><br />{{ row.reviewRemark || '—' }}</p><small>审核时间：{{ formatTime(row.reviewedAt) }}</small></details><div v-if="row.status === 'CONFIRMING'" class="button-row"><button type="button" class="primary" :disabled="loading || confirmSubmitting || !confirmableIds.includes(String(row.refundId))" @click="openConfirmation(row)">确认售后意见</button></div></article></template>
     <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取卖出商品售后"><Skeleton v-for="n in 3" :key="n" class="refund-skeleton" /></div>
     <EmptyState v-else :title="loadError || '暂无卖出商品售后'" :description="loadError ? '请稍后重试。' : '买家提交仅退款申请后，会在这里显示平台审核进度。'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
-    <BusinessPagination v-if="total > pageSize" :current="current" :total="total" :page-size="pageSize" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" /><ImagePreview v-model="previewOpen" :images="previewImages" :start-index="previewIndex" title="退款申请凭证" />
+    <BusinessPagination v-if="total > pageSize" :current="current" :total="total" :page-size="pageSize" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" /><a-modal v-model:visible="confirmOpen" content-class="buyer-dialog" title="确认售后意见" ok-text="提交平台审核" :ok-loading="confirmSubmitting" :closable="!confirmSubmitting" :mask-closable="!confirmSubmitting" :esc-to-close="!confirmSubmitting" :on-before-cancel="() => !confirmSubmitting" :on-before-ok="confirmAftersale"><div class="price-form"><p>订单 {{ confirmRow?.orderNo || '—' }}。无论选择同意或不同意，均转交平台审核，本次操作不直接退款。</p><div class="buyer-field"><Label>买手意见 <span>*</span></Label><div class="buyer-tabs" role="group" aria-label="买手意见"><button type="button" :class="{ active: confirmAgree === true }" :aria-pressed="confirmAgree === true" :disabled="confirmSubmitting" @click="confirmAgree = true">同意退款</button><button type="button" :class="{ active: confirmAgree === false }" :aria-pressed="confirmAgree === false" :disabled="confirmSubmitting" @click="confirmAgree = false">不同意退款</button></div></div><div class="buyer-field"><Label for="seller-refund-remark">确认说明 <span>*</span></Label><Textarea id="seller-refund-remark" v-model="confirmRemark" :disabled="confirmSubmitting" maxlength="500" :rows="4" placeholder="请填写核实情况和意见说明" /></div></div></a-modal><ImagePreview v-model="previewOpen" :images="previewImages" :start-index="previewIndex" title="退款申请凭证" />
   </div>
 </template>
 

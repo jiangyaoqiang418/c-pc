@@ -1,20 +1,121 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { reverseStatusMap, toOrderRecord } from './order-mapper';
+import { reverseStageMap, reverseStatusMap, toOrderRecord } from './order-mapper';
+import * as orderApi from './order';
+import { confirmRefund } from './refund';
 import { cartStorageKey, useCartStore } from '@/stores/cart';
 import { getOrderCapabilities, resolveOrderView } from '@/utils/order';
-import { createCheckoutIntent, readCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout, readPendingCheckout, pendingCheckoutStorageKey, sumPaymentAmounts, multiplyPaymentAmount, formatPaymentAmount, validateGroupPayResult, isGroupPaymentComplete } from '@/utils/checkout';
+import { createCheckoutIntent, readCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout, readPendingCheckout, pendingCheckoutStorageKey, sumPaymentAmounts, multiplyPaymentAmount, formatPaymentAmount, validateGroupPayResult, validateRecoveredCheckoutOrders, isGroupPaymentComplete } from '@/utils/checkout';
 import { RequestError } from '@/service/request/type';
 import * as productApi from './product';
 import { createPurchase, fetchPurchaseDetail } from './purchase';
-import { realOrderRequest } from '@/service/request';
+import { realOrderRequest, realUserRequest } from '@/service/request';
+import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
+import { resolveProductPurchase } from '@/utils/product-sku';
+import { fetchRechargePage } from './wallet';
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
+describe('v47 交易契约边界', () => {
+  it('金额字符串保留最大值、最小单位和科学计数；拒绝超限及超精度', () => {
+    const maximum = '9999999999999999999999999999.99999999';
+    expect(exactTransactionAmount(maximum).value).toBe(maximum);
+    expect(exactTransactionAmount('9007199254740993.12345678').value).toBe('9007199254740993.12345678');
+    expect(exactTransactionAmount('1e-8').value).toBe('0.00000001');
+    expect(exactTransactionAmount('1e27').value).toBe('1000000000000000000000000000');
+    for (const raw of ['1e28', '0.000000001', '1.000000000', '-1', '', 'Infinity', '0']) {
+      expect(exactTransactionAmount(raw).value).toBeUndefined();
+    }
+    expect(exactTransactionAmount('0', true).value).toBe('0');
+  });
+
+  it('商品费用的合法零与超精度未知分开；零价不可购买', () => {
+    const dto = { id: '9007199254740993', title: '契约隔离样本', price: '1', stock: 2, status: 'ON_SALE' } as Api.RealProduct.ProductDTO;
+    expect(productApi.toProductRecord({ ...dto, shippingFee: '0', taxFee: '0.00000001' }))
+      .toMatchObject({ shippingFee: '0', tax: '0.00000001' });
+    for (const shippingFee of [undefined, '0.000000001', '10000000000000000000000000000']) {
+      expect(productApi.toProductRecord({ ...dto, shippingFee }).shippingFee).toBeUndefined();
+    }
+    expect(resolveProductPurchase(productApi.toProductRecord({ ...dto, price: '0' })).available).toBe(false);
+  });
+
+  it('同额同商品的 SKU 改变也必须重新确认付款', () => {
+    const order = toOrderRecord({ orderId: '1', orderGroupNo: 'g', customerId: 'qa', productId: '2',
+      status: 'CREATED', totalAmount: '1', skuId: '9007199254740993' });
+    const changed = { ...order, skuId: '9007199254740994' };
+    expect(prepareCheckoutPayment([order], [changed], 'qa', 'g').changed).toBe(true);
+  });
+
+  it('充值分页显式提交 USDT，避免依赖省略资产时的默认行为', async () => {
+    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ records: [], total: '0', pageNo: 1, pageSize: 10 });
+    expect((await fetchRechargePage()).total).toBe(0);
+    expect(post.mock.calls[0][1]).toMatchObject({ asset: 'USDT' });
+  });
+});
+
 describe('结算待确认记录保护', () => {
+  const pending = { idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', productIds: ['9007199254740993', '9007199254740993'],
+    addressId: '9007199254740995', orderItems: [{ productId: '9007199254740993', skuId: '9007199254740997', quantity: 1, confirmedUnitPrice: '1.00000001' },
+      { productId: '9007199254740993', skuId: '9007199254740999', quantity: 2, confirmedUnitPrice: '2' }] };
+  const result: Api.RealOrder.OrderCreationResult = { status: 'CREATED', orderGroupNo: 'original-group', orderIds: ['9007199254741001', '9007199254741003'] };
+  const recoveredOrders = pending.orderItems.map((item, index) => toOrderRecord({ orderId: String(result.orderIds[index]),
+    orderGroupNo: result.orderGroupNo!, customerId: 'customer', productId: item.productId, skuId: item.skuId,
+    quantity: item.quantity, unitPrice: item.confirmedUnitPrice, totalAmount: item.confirmedUnitPrice,
+    addressId: pending.addressId, status: 'CREATED' }));
+
+  it('原键整批订单完整回读并核对顾客、地址及SKU后才返回可保存身份，保留Long ID原值', () => {
+    const recovered = validateRecoveredCheckoutOrders(pending, result, [...recoveredOrders].reverse(), 'customer');
+    expect(recovered.orderIds).toEqual(result.orderIds);
+    expect(recovered.orderGroupNo).toBe('original-group');
+    expect(recovered.firstOrderId).toBe('9007199254741001');
+    expect(pending).not.toHaveProperty('orderIds');
+    expect(recovered.orderIds).not.toBe(result.orderIds);
+  });
+
+  it('未创建、重复或缺少部分订单的结果不保存，也不把未知结果当成拒绝', () => {
+    for (const status of ['NOT_FOUND', 'PROCESSING', 'REJECTED'] as const) {
+      expect(() => validateRecoveredCheckoutOrders(pending, { ...result, status }, recoveredOrders, 'customer')).toThrow('回查订单不完整');
+    }
+    for (const orderIds of [[], [result.orderIds[0]], [result.orderIds[0], result.orderIds[0]]]) {
+      expect(() => validateRecoveredCheckoutOrders(pending, { ...result, orderIds }, recoveredOrders, 'customer')).toThrow('回查订单不完整');
+    }
+    expect(() => validateRecoveredCheckoutOrders(pending, result, [recoveredOrders[0]], 'customer')).toThrow('回查订单不完整');
+    expect(() => validateRecoveredCheckoutOrders(pending, result, [recoveredOrders[0], recoveredOrders[0]], 'customer')).toThrow('回查订单不完整');
+    expect(pending).not.toHaveProperty('orderIds');
+  });
+
+  it('别的顾客、订单组、地址、SKU、场次、数量或单价不能替代原订单身份', () => {
+    for (const changed of [
+      { customerId: 'other' }, { orderGroupNo: 'other' }, { addressId: '9007199254741095' },
+      { productId: '9007199254741093' }, { skuId: '9007199254741097' }, { skuId: undefined },
+      { sessionId: '9007199254741101' }, { quantity: 2 }, { price: '1.00000002' }
+    ]) {
+      expect(() => validateRecoveredCheckoutOrders(pending, result, [{ ...recoveredOrders[0], ...changed }, recoveredOrders[1]], 'customer')).toThrow();
+    }
+    expect(() => validateRecoveredCheckoutOrders(pending, result, recoveredOrders, 'other')).toThrow('顾客、订单组或地址不一致');
+  });
+
+  it('相同商品及SKU合并数量允许恢复，遗漏另一个SKU不能冒充完整批次', () => {
+    const mergedPending = { ...pending, orderItems: [{ ...pending.orderItems[0], quantity: 1 }, { ...pending.orderItems[0], quantity: 2 }] };
+    const mergedResult = { ...result, orderIds: [result.orderIds[0]] };
+    const mergedOrder = { ...recoveredOrders[0], quantity: 3 };
+    expect(validateRecoveredCheckoutOrders(mergedPending, mergedResult, [mergedOrder], 'customer').orderIds).toEqual(mergedResult.orderIds);
+    expect(() => validateRecoveredCheckoutOrders(pending, mergedResult, [mergedOrder], 'customer')).toThrow('缺少部分商品或数量');
+  });
+
+  it('历史无SKU无确认价的完整快照可以恢复，活动场次仍须一致', () => {
+    const legacy = { ...pending, orderItems: [{ productId: pending.productIds[0], quantity: 1 }] };
+    const singleResult = { ...result, orderIds: [result.orderIds[0]] };
+    const legacyOrder = { ...recoveredOrders[0], skuId: null };
+    expect(validateRecoveredCheckoutOrders(legacy, singleResult, [legacyOrder], 'customer').orderIds).toEqual(singleResult.orderIds);
+    const flash = { ...legacy, orderItems: [{ ...legacy.orderItems[0], sessionId: '9007199254741199' }] };
+    expect(() => validateRecoveredCheckoutOrders(flash, singleResult, [legacyOrder], 'customer')).toThrow();
+    expect(validateRecoveredCheckoutOrders(flash, singleResult, [{ ...legacyOrder, sessionId: '9007199254741199' }], 'customer').orderIds).toEqual(singleResult.orderIds);
+  });
+
   it('损坏、缺字段、不安全 ID 和非法数量均保留原记录，不当作新结算', () => {
     const valid = { idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', productIds: ['9007199254740993'],
       addressId: '9007199254740995', orderItems: [{ productId: '9007199254740993', quantity: 1 }] };
@@ -142,7 +243,70 @@ describe('toOrderRecord', () => {
     expect(record.customerName).toBe('匿名顾客');
     expect(record.overseasCustoms).toBeUndefined();
     expect(record.aftersaleType).toBeUndefined();
-    expect(reverseStatusMap.PROCURED).toBeUndefined();
+    expect(reverseStatusMap.PROCURED).toBe('PAID');
+    expect(reverseStageMap.PROCURING).toBe('PROCURING');
+    expect(reverseStageMap.PROCURED).toBe('PROCURED');
+  });
+
+  it('采购阶段按权威stage映射，已付款缺资格不能采购或发货', () => {
+    const base = { orderId: '9007199254740993', sellerId: 'seller', customerId: 'customer', status: 'PAID' as const, totalAmount: '1' };
+    const legacy = toOrderRecord(base);
+    expect(getOrderCapabilities(legacy, 'seller')).toMatchObject({ procure: false, ship: false });
+    const procuring = toOrderRecord({ ...base, stage: 'PROCURING', canProcure: true, canShip: false });
+    const procured = toOrderRecord({ ...base, stage: 'PROCURED', canShip: true, procuredAt: 1792022400000,
+      skuId: '9007199254740995', skuSpecs: [{ name: '尺寸', value: 'M' }], flashSessionId: '9007199254740997' });
+    expect(procuring.status).toBe('PROCURING');
+    expect(procured).toMatchObject({ status: 'PROCURED', skuId: '9007199254740995', skuSpecs: [{ name: '尺寸', value: 'M' }], sessionId: '9007199254740997', procuredAt: new Date(1792022400000).toISOString() });
+    expect(getOrderCapabilities(procuring, 'seller')).toMatchObject({ procure: true, ship: false });
+    expect(getOrderCapabilities(procured, 'seller')).toMatchObject({ procure: false, ship: true });
+    expect(getOrderCapabilities(procured, 'customer').ship).toBe(false);
+    expect(getOrderCapabilities({ ...procured, canShip: undefined }, 'seller').ship).toBe(false);
+    expect(() => toOrderRecord({ ...base, stage: 'SHIPPED' })).toThrow('阶段与状态');
+  });
+
+  it('售后确认属于卖家意见流程，顾客不能再次退款或确认收货', () => {
+    const record = toOrderRecord({ orderId: '1', sellerId: 'seller', customerId: 'customer', status: 'AFTERSALE_CONFIRM',
+      stage: 'AFTERSALE_CONFIRM', canConfirmAftersale: true, totalAmount: '1' });
+    expect(record.status).toBe('AFTERSALE_CONFIRM');
+    expect(getOrderCapabilities(record, 'customer')).toMatchObject({ confirm: false, refund: false, viewAftersale: true, confirmAftersale: false });
+    expect(getOrderCapabilities(record, 'seller').confirmAftersale).toBe(true);
+    expect(getOrderCapabilities({ ...record, stage: undefined }, 'seller').confirmAftersale).toBe(false);
+  });
+});
+
+describe('订单采购与售后契约', () => {
+  it('采购中与待发货按独立stage及服务端total分页和计数', async () => {
+    const post = vi.spyOn(realOrderRequest, 'postQuery').mockImplementation(async (_url, query) => {
+      const stage = (query as Api.RealOrder.OrderPageQuery).stage;
+      return { total: stage === 'PROCURING' ? 23 : stage === 'PROCURED' ? 11 : 0, records: [] };
+    });
+    const page = await orderApi.fetchMyOrders({ shopperId: 'seller', statuses: ['PROCURED'], current: 2, size: 10 });
+    expect(page.total).toBe(11);
+    expect(post.mock.calls[0][1]).toEqual({ pageNo: 2, pageSize: 10, stage: 'PROCURED' });
+    const counts = await orderApi.countMySoldOrdersByStatus();
+    expect(counts).toMatchObject({ PROCURING: 23, PROCURED: 11 });
+    expect(post.mock.calls.every(([, query]) => !(query as Api.RealOrder.OrderPageQuery).status)).toBe(true);
+  });
+
+  it('采购凭证必填HTTPS，发货请求不再携带采购字段', async () => {
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('9007199254740993');
+    for (const purchaseVouchers of [[], ['http://example.com/a.jpg'], Array(7).fill('https://example.com/a.jpg')]) {
+      await expect(orderApi.procureOrder({ id: '9007199254740993', purchaseNo: 'PO-1', purchaseVouchers })).rejects.toThrow('采购凭证');
+    }
+    await expect(orderApi.procureOrder({ id: '9007199254740993', purchaseNo: ' ', purchaseVouchers: ['https://example.com/a.jpg'] })).rejects.toThrow('采购单号');
+    expect(post).not.toHaveBeenCalled();
+    await orderApi.procureOrder({ id: '9007199254740993', purchaseNo: ' PO-1 ', purchaseVouchers: ['https://example.com/a.jpg'] });
+    expect(post).toHaveBeenLastCalledWith('/orders/procure', { id: '9007199254740993', purchaseNo: 'PO-1', purchaseVouchers: ['https://example.com/a.jpg'] });
+    await orderApi.shipOrder({ id: '9007199254740993', carrier: 'DHL', trackingNo: 'QA123456', shipVouchers: [] });
+    expect(post).toHaveBeenLastCalledWith('/orders/ship', { id: '9007199254740993', carrier: 'DHL', trackingNo: 'QA123456', shipVouchers: [] });
+  });
+
+  it('卖家不同意退款也提交确认接口，说明必填且只提交原refundId', async () => {
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('9007199254740995');
+    expect(() => confirmRefund({ refundId: '9007199254740995', agree: false, remark: ' ' })).toThrow('说明');
+    expect(post).not.toHaveBeenCalled();
+    await confirmRefund({ refundId: '9007199254740995', agree: false, remark: ' 已核实，提交平台判定 ' });
+    expect(post).toHaveBeenCalledWith('/orders/refunds/confirm', { refundId: '9007199254740995', agree: false, remark: '已核实，提交平台判定' });
   });
 });
 
@@ -302,16 +466,68 @@ describe('购物车读取和数量边界', () => {
     expect(cart.enrichedItems[0].tax).toBe('0');
   });
 
+  it('同商品不同 SKU 独立勾选、调数量、移除和付款扣减，价格不使用汇总最低价', async () => {
+    const cart = createCart();
+    const multi = { ...product, hasSku:true, stock:6, price:'1', specGroups:[{ name:'颜色', options:['黑','白'] }], skus:[
+      { id:'9007199254740995', specs:[{ name:'颜色', value:'黑' }], price:'9007199254740993.12345678', stock:3, enabled:true },
+      { id:'9007199254740996', specs:[{ name:'颜色', value:'白' }], price:'25.00000001', stock:3, enabled:true }
+    ] };
+    expect(await cart.add(product.id, 1, multi)).toBe(false);
+    expect(await cart.add(product.id, 2, multi, multi.skus[0].id)).toBe(true);
+    expect(await cart.add(product.id, 1, multi, multi.skus[1].id)).toBe(true);
+    expect(cart.items).toHaveLength(2);
+    const black = () => cart.enrichedItems.find(item => item.skuId === multi.skus[0].id)!;
+    expect(black()).toMatchObject({ unitPrice:'9007199254740993.12345678', subtotal:'18014398509481986.24691356', stock:3, specText:'颜色：黑' });
+    await cart.setSelected(product.id, false, multi.skus[1].id);
+    expect(cart.selectedItems.map(item => item.skuId)).toEqual([multi.skus[0].id]);
+    const snapshot = cart.items.filter(item => item.skuId === multi.skus[0].id).map(item => ({ ...item }));
+    await cart.update(product.id, 3, multi.skus[0].id);
+    await cart.consumePurchasedItems(snapshot);
+    expect(black().qty).toBe(1);
+    await cart.remove(product.id, multi.skus[1].id);
+    expect(cart.items.map(item => item.skuId)).toEqual([multi.skus[0].id]);
+  });
+
+  it('停用/无库存/未知 SKU 不可加购，旧无规格缓存不能自动购买新规格', async () => {
+    const cart = createCart();
+    await cart.add(product.id, 1, product);
+    const multi = { ...product, hasSku:true, stock:3, skus:[
+      { id:'sku-active', specs:[{ name:'规格', value:'A' }], price:'10', stock:3, enabled:true },
+      { id:'sku-disabled', specs:[{ name:'规格', value:'B' }], price:'12', stock:3, enabled:false },
+      { id:'sku-empty', specs:[{ name:'规格', value:'C' }], price:'13', stock:0, enabled:true }
+    ], specGroups:[{ name:'规格', options:['A','B','C'] }] };
+    cart.upsertProduct(multi);
+    expect(cart.enrichedItems[0]).toMatchObject({ available:false, skuSelectionRequired:true, confirmedInvalid:false });
+    for (const skuId of [undefined,'missing','sku-disabled','sku-empty']) expect(await cart.add(product.id, 1, multi, skuId)).toBe(false);
+    expect(await cart.add(product.id, 1, multi, 'sku-active')).toBe(true);
+    cart.upsertProduct({ ...multi, skus:[] });
+    expect(cart.enrichedItems.find(item => item.skuId === 'sku-active')).toMatchObject({ available:false, confirmedInvalid:true });
+    cart.switchOwner('another-account');
+    expect(cart.items).toHaveLength(0);
+  });
+
+  it('SKU 详情保留 Long ID、完整组合和精确价格，契约损坏不降级普通商品', () => {
+    const dto = { id:product.id, price:'1', hasSku:true, specGroups:[{ name:'颜色', options:['黑','白'] }], skus:[
+      { id:'9007199254740997', specs:[{ name:'颜色', value:'白' }], price:'25.12345678', stock:2, enabled:true, image:'https://example.test/white.webp' }
+    ] } as Api.RealProduct.ProductDTO;
+    expect(productApi.toProductRecord(dto)).toMatchObject({ hasSku:true, skus:[{ id:'9007199254740997', price:'25.12345678', specs:[{ name:'颜色', value:'白' }] }] });
+    for (const broken of [{ ...dto, hasSku:false }, { ...dto, skus:[dto.skus![0],dto.skus![0]] },
+      { ...dto, skus:[{ ...dto.skus![0], specs:[{ name:'颜色', value:'不在选项中' }] }] }]) {
+      expect(() => productApi.toProductRecord(broken)).toThrow('商品规格信息不完整');
+    }
+    expect(productApi.toProductRecord({ id:'1', price:'10', status:'REVIEWING', auditStage:'PENDING_AUDIT' } as Api.RealProduct.ProductDTO).status).toBe('PENDING_AUDIT');
+  });
+
   it('小数、NaN及超安全范围数量不能加购或改写已有数量，累计数量不可溢出', async () => {
     const cart = createCart();
     for (const qty of [1.5, NaN, Number.MAX_SAFE_INTEGER + 1]) expect(await cart.add(product.id, qty, product)).toBe(false);
     await cart.add(product.id, 1, product);
     for (const qty of [1.5, NaN, Number.MAX_SAFE_INTEGER + 1]) await cart.update(product.id, qty);
     expect(cart.items[0].qty).toBe(1);
-    const large = { ...product, id: '9007199254740994', stock: Number.MAX_SAFE_INTEGER, price: '0', shippingFee: '0', tax: '0' };
+    const large = { ...product, id: '9007199254740994', stock: Number.MAX_SAFE_INTEGER, price: '1', shippingFee: '0', tax: '0' };
     expect(await cart.add(large.id, Number.MAX_SAFE_INTEGER, large)).toBe(true);
     expect(await cart.add(large.id, 1, large)).toBe(false);
-    expect(cart.enrichedItems.find(item => item.productId === large.id)).toMatchObject({ qty: Number.MAX_SAFE_INTEGER, available: true, lineTotal: '0' });
+    expect(cart.enrichedItems.find(item => item.productId === large.id)).toMatchObject({ qty: Number.MAX_SAFE_INTEGER, available: true, lineTotal: String(Number.MAX_SAFE_INTEGER) });
   });
 
   it('金额乘法支持科学计数及零，展示半入边界正确，未知不显示零', () => {
@@ -331,6 +547,8 @@ describe('独立结算上下文', () => {
     for (const status of [undefined, 200, 400]) {
       expect(canDiscardRejectedCheckout(new RequestError('参数冲突', { code: '-311', status }), false)).toBe(false);
       expect(canDiscardRejectedCheckout(new RequestError('参数冲突', { code: '-311', status }), true)).toBe(false);
+      expect(canDiscardRejectedCheckout(new RequestError('创建仍在处理', { code: '-321', status }), false)).toBe(false);
+      expect(canDiscardRejectedCheckout(new RequestError('创建仍在处理', { code: '-321', status }), true)).toBe(false);
     }
     for (const error of [new RequestError('参数拒绝', { status: 422 }), new RequestError('请求未发出', { code: 'SESSION_CHANGED' }), new RequestError('不能购买自己发布的商品')]) {
       expect(canDiscardRejectedCheckout(error, false)).toBe(true);

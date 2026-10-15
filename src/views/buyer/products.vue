@@ -27,13 +27,12 @@ interface TabDef {
   label: string;
   status?: Api.Product.ProductStatus;
   shelf?: Api.Product.ShelfStatus;
-  unavailable?: boolean;
 }
 
 const TABS: TabDef[] = [
   { key: 'all', label: '全部' },
   { key: 'on-shelf', label: '在售', status: 'NORMAL', shelf: 'on-shelf' },
-  { key: 'pending', label: '待审核', status: 'PENDING_AUDIT', unavailable: true },
+  { key: 'pending', label: '待审核', status: 'PENDING_AUDIT' },
   { key: 'in-audit', label: '审核中', status: 'IN_AUDIT' },
   { key: 'rejected', label: '审核驳回', status: 'REJECTED' },
   { key: 'off-shelf', label: '已下架', status: 'NORMAL', shelf: 'off-shelf' },
@@ -111,12 +110,6 @@ async function load() {
   loadError.value = '';
   try {
     const tab = TABS.find(t => t.key === activeKey.value);
-    if (tab?.unavailable) {
-      products.value = [];
-      total.value = 0;
-      loadError.value = '当前接口尚未提供独立待审核阶段，请查看审核中商品。';
-      return;
-    }
     const r = await productApi.fetchMyProducts({
       current: current.value,
       size: size.value,
@@ -136,7 +129,7 @@ async function load() {
       return;
     }
     let records = r.records;
-    if (focusedProductId.value && !records.some(item => String(item.id) === focusedProductId.value)) {
+    if (activeKey.value === 'all' && !keyword.value.trim() && categoryId.value === undefined && focusedProductId.value && !records.some(item => String(item.id) === focusedProductId.value)) {
       try {
         const focused = await productApi.fetchSellerProductDetail(focusedProductId.value, { signal: isCurrent.signal });
         if (!isCurrent()) return;
@@ -320,7 +313,7 @@ async function savePrice() {
 <template>
   <div class="bp-page shop-container">
     <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>商品管理</h1><p>清晰掌握每一步，从容经营每一天。</p></div><div class="head-actions"><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button class="primary" @click="router.push('/buyer/products/create')"><UmIcon name="plus" />发布商品</Button></div></header>
-    <div class="buyer-tabs" role="group" aria-label="商品状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" :disabled="tab.unavailable" :title="tab.unavailable ? '当前接口尚未提供独立待审核阶段' : undefined" @click="activeKey = tab.key">{{ tab.label }}</button></div>
+    <div class="buyer-tabs" role="group" aria-label="商品状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="activeKey = tab.key">{{ tab.label }}</button></div>
     <form class="buyer-filter" @submit.prevent="queryProducts"><label><UmIcon name="search" /><input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /></label><CategoryPicker v-model="categoryId" :options="categoryOptions" :loading="categoryLoading" /><Button class="outline" type="submit" :disabled="loading">查询</Button><Button class="outline" type="button" variant="outline" @click="resetFilters">重置</Button></form>
     <div v-if="products.length" class="buyer-products"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>
     <div v-else-if="loading" class="buyer-products" aria-busy="true" aria-label="正在读取商品列表"><Skeleton v-for="n in 6" :key="n" class="product-skeleton" /></div>

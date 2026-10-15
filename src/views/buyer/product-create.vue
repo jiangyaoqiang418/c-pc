@@ -43,6 +43,7 @@ async function loadDetail() {
     if (version !== detailVersion) return;
     if (String(p.sellerId) !== String(userStore.currentUser?.id)) throw new Error('无权编辑该商品');
     if (p.rawStatus !== 'OFF_SHELF' && p.rawStatus !== 'REJECTED') throw new Error('仅已下架或已驳回商品可编辑');
+    if (p.hasSku) throw new Error('该商品包含多规格，当前编辑表单尚未支持 SKU 维护，暂不能提交整体修改，以免覆盖已有规格和库存');
     if (!p.imageFiles?.length || p.imageFiles.length !== p.images.length || p.imageFiles.some(item => !item.bucket || !item.filePath || !item.url)) {
       throw new Error('商品图片信息不完整，请刷新详情后重试');
     }
@@ -106,6 +107,14 @@ async function onSubmit(form: {
             Message.warning('当前保证金不足，暂不能提交商品，请先处理保证金');
             void router.push('/buyer/deposit');
             return;
+          }
+          if (editProduct) {
+            const latest = await productApi.fetchSellerProductDetail(editProduct.id);
+            if (!isCurrentWrite()) return;
+            if (latest.hasSku) {
+              Message.warning('该商品已更新为多规格，当前编辑表单暂不支持提交，请返回商品管理');
+              return;
+            }
           }
           const productId = editProduct ? await productApi.updateProduct({
             id: editProduct.id, title: form.title.trim(), categoryId,

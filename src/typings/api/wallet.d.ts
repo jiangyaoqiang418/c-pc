@@ -67,6 +67,7 @@ declare namespace Api.RealWallet {
   type WithdrawStatus = 'REVIEWING' | 'APPROVED' | 'SUCCESS' | 'REJECTED' | string;
 
   interface RechargeCreateParams {
+    asset?: 'USDT';
     idempotencyKey?: string;
     chain: string;
     amount: number;
@@ -92,6 +93,8 @@ declare namespace Api.RealWallet {
   }
 
   interface RechargePageQuery {
+    asset?: 'USDT';
+    chain?: string;
     pageNo?: number;
     pageSize?: number;
     status?: RechargeStatus;

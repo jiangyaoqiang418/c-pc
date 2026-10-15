@@ -9,6 +9,7 @@ export const statusMap: Record<string, Api.Order.OrderStatus> = {
   CREATED: 'PENDING_PAYMENT',
   PAID: 'PROCURING',
   SHIPPED: 'IN_TRANSIT',
+  AFTERSALE_CONFIRM: 'AFTERSALE_CONFIRM',
   REFUND_REVIEW: 'IN_AFTERSALE',
   REFUNDED: 'REFUNDED',
   COMPLETED: 'COMPLETED',
@@ -18,15 +19,33 @@ export const statusMap: Record<string, Api.Order.OrderStatus> = {
 export const reverseStatusMap: Partial<Record<Api.Order.OrderStatus, Api.RealOrder.OrderStatus>> = {
   PENDING_PAYMENT: 'CREATED',
   PROCURING: 'PAID',
-  PROCURED: undefined,
+  PROCURED: 'PAID',
   IN_TRANSIT: 'SHIPPED',
-  AFTERSALE_CONFIRM: 'SHIPPED',
+  AFTERSALE_CONFIRM: 'AFTERSALE_CONFIRM',
   COMPLETED: 'COMPLETED',
   WARRANTY: 'COMPLETED',
   IN_AFTERSALE: 'REFUND_REVIEW',
   REFUNDED: 'REFUNDED',
   ARCHIVED: undefined,
   CANCELLED: 'CANCELED'
+};
+
+/** PAID 的采购细分必须按 stage 分页，不能复用一份 PAID 总数。 */
+export const reverseStageMap: Partial<Record<Api.Order.OrderStatus, Api.RealOrder.OrderStage>> = {
+  PENDING_PAYMENT: 'CREATED', PROCURING: 'PROCURING', PROCURED: 'PROCURED',
+  IN_TRANSIT: 'SHIPPED', AFTERSALE_CONFIRM: 'AFTERSALE_CONFIRM',
+  COMPLETED: 'COMPLETED', WARRANTY: 'COMPLETED', IN_AFTERSALE: 'REFUND_REVIEW',
+  REFUNDED: 'REFUNDED', CANCELLED: 'CANCELED'
+};
+const stageStatusMap: Record<Api.RealOrder.OrderStage, Api.Order.OrderStatus> = {
+  CREATED: 'PENDING_PAYMENT', PROCURING: 'PROCURING', PROCURED: 'PROCURED',
+  SHIPPED: 'IN_TRANSIT', AFTERSALE_CONFIRM: 'AFTERSALE_CONFIRM', REFUND_REVIEW: 'IN_AFTERSALE',
+  REFUNDED: 'REFUNDED', COMPLETED: 'COMPLETED', CANCELED: 'CANCELLED'
+};
+const stageRawStatusMap: Record<Api.RealOrder.OrderStage, Api.RealOrder.OrderStatus> = {
+  CREATED: 'CREATED', PROCURING: 'PAID', PROCURED: 'PAID', SHIPPED: 'SHIPPED',
+  AFTERSALE_CONFIRM: 'AFTERSALE_CONFIRM', REFUND_REVIEW: 'REFUND_REVIEW',
+  REFUNDED: 'REFUNDED', COMPLETED: 'COMPLETED', CANCELED: 'CANCELED'
 };
 
 function toShippingAddress(dto: Api.RealOrder.OrderDTO) {
@@ -53,6 +72,10 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
   if (!dto.status || !Object.prototype.hasOwnProperty.call(statusMap, dto.status)) {
     throw new Error('订单状态缺失或暂不支持，无法确认可执行操作');
   }
+  if (dto.stage != null && (!Object.prototype.hasOwnProperty.call(stageStatusMap, dto.stage)
+    || stageRawStatusMap[dto.stage] !== dto.status)) {
+    throw new Error('订单阶段与状态无法核对，请刷新后重试');
+  }
   const id = dto.orderId;
   const customerId = dto.customerId || '';
   const shopperId = dto.sellerId || '';
@@ -68,6 +91,9 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     reviewEligibility: dto.reviewEligibility,
     code: dto.orderNo || String(dto.orderId || ''),
     productId,
+    skuId: dto.skuId,
+    skuSpecs: dto.skuSpecs,
+    sessionId: dto.flashSessionId ?? undefined,
     quantity: dto.quantity,
     productTitle: dto.productTitle || '商品快照',
     productCover: dto.productImage,
@@ -80,7 +106,13 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     tax: optionalOrderAmount(dto.taxAmount ?? dto.taxFee, '订单税费'),
     totalAmount,
     paidAmount: dto.paidAt ? totalAmount : '0',
-    status: statusMap[dto.status],
+    status: dto.stage ? stageStatusMap[dto.stage] : statusMap[dto.status],
+    rawStatus: dto.status,
+    stage: dto.stage ?? undefined,
+    canProcure: dto.canProcure === true,
+    canShip: dto.canShip === true,
+    canConfirmAftersale: dto.canConfirmAftersale === true,
+    procuredAt: toIsoDate(dto.procuredAt ?? undefined) || undefined,
     shippingAddress: toShippingAddress(dto),
     receiverName: dto.receiverName || '—',
     receiverPhone: dto.receiverPhone || '—',

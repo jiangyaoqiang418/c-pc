@@ -5,9 +5,13 @@ import { STORAGE_KEY } from '@shared';
 import * as productApi from '@/service/api/product';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { multiplyPaymentAmount, sumPaymentAmounts } from '@/utils/checkout';
+import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
+import { resolveProductPurchase, sameSkuId } from '@/utils/product-sku';
 
 export interface CartItem {
   productId: string | number;
+  skuId?: string | number;
+  confirmedUnitPrice?: string;
   qty: number;
   addedAt: string;
   selected: boolean;
@@ -15,6 +19,12 @@ export interface CartItem {
 
 export interface EnrichedCartItem extends CartItem {
   product?: Api.RealProduct.DisplayRecord;
+  sku?: Api.RealProduct.ProductSku;
+  unitPrice: string;
+  stock: number;
+  specText: string;
+  image?: string;
+  skuSelectionRequired: boolean;
   available: boolean;
   loadState: 'loading' | 'error' | 'ready';
   confirmedInvalid: boolean;
@@ -30,10 +40,13 @@ function sameBusinessId(left: string | number | undefined, right: string | numbe
   return left !== undefined && right !== undefined && String(left) === String(right);
 }
 
+function sameCartLine(item: CartItem, productId: string | number, skuId?: string | number) {
+  return sameBusinessId(item.productId, productId) && sameSkuId(item.skuId, skuId);
+}
+
 function finiteNonNegative(value: string | number | undefined) {
   if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') return undefined;
-  try { return sumPaymentAmounts([typeof value === 'string' ? value.trim() : value]); }
-  catch { return undefined; }
+  return exactTransactionAmount(value, true).value;
 }
 
 function finiteQuantity(value: unknown, fallback = 0) {
@@ -65,6 +78,9 @@ export const useCartStore = defineStore('bw-cart', () => {
       const raw = localStorage.getItem(cartStorageKey(ownerId.value));
       const parsed = JSON.parse(raw === null ? '[]' : raw) as CartItem[];
       if (!Array.isArray(parsed) || parsed.some(item => !item || !['string', 'number'].includes(typeof item.productId)
+        || (item.skuId !== undefined && ((!['string', 'number'].includes(typeof item.skuId) || !String(item.skuId).trim())
+          || (typeof item.skuId === 'number' && !Number.isSafeInteger(item.skuId))))
+        || (item.confirmedUnitPrice !== undefined && finiteNonNegative(item.confirmedUnitPrice) === undefined)
         || !Number.isSafeInteger(item.qty) || item.qty < 0 || typeof item.addedAt !== 'string')) {
         throw new Error('invalid cart');
       }
@@ -143,19 +159,20 @@ export const useCartStore = defineStore('bw-cart', () => {
   function enrich(item: CartItem): EnrichedCartItem {
     const product = products.value[String(item.productId)];
     const loadState = productStates.value[String(item.productId)] || 'loading';
+    const purchase = product ? resolveProductPurchase(product, item.skuId) : undefined;
     const confirmedInvalid = loadState === 'ready' && !!product
-      && (product.status !== 'NORMAL' || product.shelfStatus !== 'on-shelf' || product.stock === 0);
+      && (product.status !== 'NORMAL' || product.shelfStatus !== 'on-shelf' || product.stock === 0
+        || (item.skuId !== undefined && (!purchase?.sku || !purchase.sku.enabled || purchase.stock === 0)));
     const qty = finiteQuantity(item.qty);
-    const price = product ? finiteNonNegative(product.price) : undefined;
+    const price = purchase ? finiteNonNegative(purchase.unitPrice) : undefined;
     const shipping = product ? finiteNonNegative(product.shippingFee) : undefined;
     const tax = product ? finiteNonNegative(product.tax) : undefined;
     const available = loadState === 'ready' && !!product
       && product.status === 'NORMAL'
       && product.shelfStatus === 'on-shelf'
-      && Number.isSafeInteger(product.stock)
-      && product.stock > 0
+      && purchase?.available === true
       && qty > 0
-      && qty <= product.stock
+      && qty <= purchase.stock
       && price !== undefined
       && shipping !== undefined
       && tax !== undefined;
@@ -165,6 +182,12 @@ export const useCartStore = defineStore('bw-cart', () => {
       ...item,
       qty,
       product,
+      sku: purchase?.sku,
+      unitPrice: price ?? '',
+      stock: purchase?.stock ?? 0,
+      specText: purchase?.specText ?? '',
+      image: purchase?.image,
+      skuSelectionRequired: purchase?.selectionRequired ?? false,
       available,
       loadState,
       confirmedInvalid,
@@ -183,52 +206,57 @@ export const useCartStore = defineStore('bw-cart', () => {
   async function refresh(options: { signal?: AbortSignal } = {}) {
     const isCurrent = refreshGuard.begin();
     const signal = options.signal ? AbortSignal.any([isCurrent.signal, options.signal]) : isCurrent.signal;
-    await Promise.all(items.value.map(async item => {
-      productStates.value[String(item.productId)] = 'loading';
+    await Promise.all([...new Map(items.value.map(item => [String(item.productId), item.productId])).values()].map(async productId => {
+      productStates.value[String(productId)] = 'loading';
       try {
-        const product = await productApi.fetchProductDetail(item.productId, { showError: false, signal });
+        const product = await productApi.fetchProductDetail(productId, { showError: false, signal });
         if (isCurrent() && !options.signal?.aborted) upsertProduct(product);
       } catch {
-        if (isCurrent() && !options.signal?.aborted) productStates.value[String(item.productId)] = 'error';
+        if (isCurrent() && !options.signal?.aborted) productStates.value[String(productId)] = 'error';
       }
     }));
   }
 
-  function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord) {
+  function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord, skuId?: string | number) {
     if (product) upsertProduct(product);
     const safeQty = finiteQuantity(qty);
-    const exist = items.value.find(i => sameBusinessId(i.productId, productId));
+    const exist = items.value.find(i => sameCartLine(i, productId, skuId));
     const nextQty = (exist ? finiteQuantity(exist.qty) : 0) + safeQty;
     const currentProduct = products.value[String(productId)];
-    if (!safeQty || !Number.isSafeInteger(nextQty) || !currentProduct || !Number.isSafeInteger(currentProduct.stock) || nextQty > currentProduct.stock) return false;
+    const purchase = currentProduct ? resolveProductPurchase(currentProduct, skuId) : undefined;
+    if (!safeQty || !Number.isSafeInteger(nextQty) || !purchase?.available || nextQty > purchase.stock) return false;
+    const confirmedUnitPrice = finiteNonNegative(purchase.unitPrice);
+    if (confirmedUnitPrice === undefined) return false;
     if (exist) {
       exist.qty = nextQty;
       exist.selected = true;
+      exist.confirmedUnitPrice = confirmedUnitPrice;
     } else {
-      items.value.unshift({ productId, qty: safeQty, addedAt: new Date().toISOString(), selected: true });
+      items.value.unshift({ productId, skuId, confirmedUnitPrice, qty: safeQty, addedAt: new Date().toISOString(), selected: true });
     }
     persist();
     return true;
   }
 
-  function update(productId: string | number, qty: number) {
-    const exist = items.value.find(i => sameBusinessId(i.productId, productId));
+  function update(productId: string | number, qty: number, skuId?: string | number) {
+    const exist = items.value.find(i => sameCartLine(i, productId, skuId));
     if (exist) {
-      const stock = products.value[String(productId)]?.stock;
+      const product = products.value[String(productId)];
+      const stock = product ? resolveProductPurchase(product, skuId).stock : undefined;
       if (!stock || !Number.isSafeInteger(stock) || stock < 1 || !Number.isSafeInteger(qty)) return;
       exist.qty = Math.min(stock, Math.max(1, finiteQuantity(qty, 1)));
       persist();
     }
   }
 
-  function remove(productId: string | number) {
-    items.value = items.value.filter(i => !sameBusinessId(i.productId, productId));
+  function remove(productId: string | number, skuId?: string | number) {
+    items.value = items.value.filter(i => !sameCartLine(i, productId, skuId));
     persist();
   }
 
   function consumePurchasedItems(snapshot: CartItem[]) {
     for (const purchased of snapshot) {
-      const current = items.value.find(item => sameBusinessId(item.productId, purchased.productId));
+      const current = items.value.find(item => sameCartLine(item, purchased.productId, purchased.skuId));
       if (!current || current.addedAt !== purchased.addedAt || current.qty < purchased.qty) continue;
       current.qty -= purchased.qty;
       if (current.qty === 0) items.value = items.value.filter(item => item !== current);
@@ -236,8 +264,8 @@ export const useCartStore = defineStore('bw-cart', () => {
     persist();
   }
 
-  function setSelected(productId: string | number, selected: boolean) {
-    const exist = items.value.find(i => sameBusinessId(i.productId, productId));
+  function setSelected(productId: string | number, selected: boolean, skuId?: string | number) {
+    const exist = items.value.find(i => sameCartLine(i, productId, skuId));
     if (exist) {
       exist.selected = selected;
       persist();
@@ -300,11 +328,11 @@ export const useCartStore = defineStore('bw-cart', () => {
     enrich,
     add: (...args: Parameters<typeof add>) => mutate(() => add(...args)),
     update: (...args: Parameters<typeof update>) => mutate(() => { update(...args); return true; }),
-    remove: (productId: string | number) => {
-      const addedAt = items.value.find(item => sameBusinessId(item.productId, productId))?.addedAt;
+    remove: (productId: string | number, skuId?: string | number) => {
+      const addedAt = items.value.find(item => sameCartLine(item, productId, skuId))?.addedAt;
       return mutate(() => {
-        if (!items.value.some(item => sameBusinessId(item.productId, productId) && item.addedAt === addedAt)) return false;
-        remove(productId);
+        if (!items.value.some(item => sameCartLine(item, productId, skuId) && item.addedAt === addedAt)) return false;
+        remove(productId, skuId);
         return true;
       });
     },

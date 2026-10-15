@@ -105,7 +105,7 @@ function submit(restoring = false) {
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
     title: '确认申请仅退款？',
-    content: '申请将由平台后台审核；审核通过后退款会原路退回钱包。',
+    content: '申请提交后由买手确认意见，再由平台审核；平台审核通过后退款会原路退回钱包。',
     okText: '提交申请',
     onCancel() {
       if (operation === writeVersion) confirmationOpen.value = false;
@@ -124,7 +124,7 @@ function submit(restoring = false) {
         if (!isCurrentWrite()) return;
         try { pendingIntent.value = readRefundIntent(requestedUserId, requestedOrderId); } catch { recoveryError.value = '原申请读取失败，请先到我的售后核实'; }
         markSaved();
-        Message.success('仅退款申请已提交，等待平台审核');
+        Message.success('仅退款申请已提交，等待买手确认');
         router.replace({ name: 'aftersale-detail', params: { id: String(refundId) } });
       } catch (error) {
         if (!isCurrentWrite()) return;
