@@ -17,6 +17,13 @@ export function useUmScrollRail(element: Ref<HTMLElement | undefined>, options: 
   let gesture: { id: number; x: number; y: number; left: number; dragged: boolean } | undefined;
   let blockedUntil = 0;
 
+  function releaseGesture(rail = element.value) {
+    const pointerId = gesture?.id;
+    gesture = undefined;
+    isDragging.value = false;
+    if (pointerId !== undefined && rail?.hasPointerCapture(pointerId)) rail.releasePointerCapture(pointerId);
+  }
+
   function update() {
     const rail = element.value;
     if (!rail) return;
@@ -37,11 +44,12 @@ export function useUmScrollRail(element: Ref<HTMLElement | undefined>, options: 
   function onPointerdown(event: PointerEvent) {
     const rail = element.value;
     const target = event.target instanceof Element ? event.target : null;
-    if (!rail || event.button !== 0 || (!options.onHeroStep && event.pointerType !== 'mouse')) return;
+    if (!rail || event.button !== 0 || event.isPrimary === false || (!options.onHeroStep && event.pointerType !== 'mouse')) return;
     if (target?.closest('input,textarea,select,[contenteditable],.edge-scroll-button')) return;
     if (!options.onHeroStep && !overflow.value) return;
     // A nested rail owns its own gesture.
     if (!options.onHeroStep && target?.closest('[data-um-rail]') !== rail) return;
+    releaseGesture();
     gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, left: rail.scrollLeft, dragged: false };
   }
   function onPointermove(event: PointerEvent) {
@@ -95,10 +103,7 @@ export function useUmScrollRail(element: Ref<HTMLElement | undefined>, options: 
   onMounted(() => { resize = new ResizeObserver(update); connect(); });
   watch(element, (next, previous) => {
     if (next !== previous) {
-      const pointerId = gesture?.id;
-      gesture = undefined;
-      isDragging.value = false;
-      if (pointerId !== undefined && previous?.hasPointerCapture(pointerId)) previous.releasePointerCapture(pointerId);
+      releaseGesture(previous);
       if (!next) {
         overflow.value = false;
         left.value = 0;
@@ -108,7 +113,7 @@ export function useUmScrollRail(element: Ref<HTMLElement | undefined>, options: 
     void nextTick(connect);
   });
   onUpdated(() => { connect(); });
-  onBeforeUnmount(() => { resize?.disconnect(); gesture = undefined; });
+  onBeforeUnmount(() => { resize?.disconnect(); releaseGesture(); });
 
   return { overflow, canPrev, canNext, isDragging, step, update, onPointerdown, onPointermove, onPointerend, onClickCapture, onKeydown, onDragStart };
 }

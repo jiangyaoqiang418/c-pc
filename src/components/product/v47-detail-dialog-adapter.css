@@ -1,4 +1,4 @@
-/* Reka portal position and Presence motion follow the original Vue Transition parameters. */
+/* Nested Reka content inherits its mask fade, as in the original Vue Transition. */
 .v47-reference-mask { z-index:100; }
 .v47-reference-dialog { position:fixed; top:50%; left:50%; z-index:101; transform:translate(-50%,-50%); width:calc(100vw - 48px); outline:none; }
 .v47-reference-mask[data-state="open"] { animation:v47DetailShadeIn .22s; }
@@ -7,14 +7,15 @@
 .v47-reference-dialog[data-state="closed"] { animation:v47DetailLeave .28s; }
 :root[data-ui-theme="web3-meme"] .v47-reference-mask[data-state="open"] { animation-duration:.2s; }
 :root[data-ui-theme="web3-meme"] .v47-reference-mask[data-state="closed"] { animation-duration:.2s; }
-:root[data-ui-theme="web3-meme"] .v47-reference-dialog[data-state="open"] { animation:v47DetailMemeEnter .3s var(--meme-ease); }
-:root[data-ui-theme="web3-meme"] .v47-reference-dialog[data-state="closed"] { animation:v47DetailMemeLeave .16s; }
+:root[data-ui-theme="web3-meme"] .v47-reference-dialog[data-state="open"] { animation:v47DetailMemeEnter .3s var(--meme-ease),v47DetailShadeIn .2s; }
+/* Presence must wait for the original parent's 200ms fade after the 160ms move. */
+:root[data-ui-theme="web3-meme"] .v47-reference-dialog[data-state="closed"] { animation:v47DetailMemeLeave .2s; }
 @keyframes v47DetailShadeIn { from { opacity:0; } to { opacity:1; } }
 @keyframes v47DetailShadeOut { from { opacity:1; } to { opacity:0; } }
-@keyframes v47DetailEnter { from { opacity:0; transform:translate(-50%,calc(-50% + 20px)) scale(.98); } to { opacity:1; transform:translate(-50%,-50%); } }
-@keyframes v47DetailLeave { from { opacity:1; transform:translate(-50%,-50%); } to { opacity:0; transform:translate(-50%,calc(-50% + 20px)) scale(.98); } }
-@keyframes v47DetailMemeEnter { from { opacity:0; transform:translate(-50%,calc(-50% + 18px)) scale(.97); } to { opacity:1; transform:translate(-50%,-50%); } }
-@keyframes v47DetailMemeLeave { from { opacity:1; transform:translate(-50%,-50%); } to { opacity:0; transform:translate(-50%,calc(-50% + 8px)) scale(.985); } }
+@keyframes v47DetailEnter { from { transform:translate(-50%,calc(-50% + 20px)) scale(.98); } to { transform:translate(-50%,-50%); } }
+@keyframes v47DetailLeave { from { transform:translate(-50%,-50%); } to { transform:translate(-50%,calc(-50% + 20px)) scale(.98); } }
+@keyframes v47DetailMemeEnter { from { transform:translate(-50%,calc(-50% + 18px)) scale(.97); } to { transform:translate(-50%,-50%); } }
+@keyframes v47DetailMemeLeave { from { transform:translate(-50%,-50%); } 80%,to { transform:translate(-50%,calc(-50% + 8px)) scale(.985); } }
 @media (max-width:700px) {
   .v47-reference-dialog { top:auto; bottom:0; transform:translateX(-50%); }
   .v47-reference-dialog[data-state="open"] { animation:v47DetailSheetEnter .28s; }
@@ -22,8 +23,8 @@
   :root[data-ui-theme="web3-meme"] .v47-reference-dialog { left:0; transform:none; }
   :root[data-ui-theme="web3-meme"] .v47-reference-dialog[data-state="open"] { animation:v47DetailMemeSheetEnter .32s var(--meme-ease); }
   :root[data-ui-theme="web3-meme"] .v47-reference-dialog[data-state="closed"] { animation:v47DetailMemeSheetLeave .22s ease-in; }
-  @keyframes v47DetailSheetEnter { from { opacity:0; transform:translate(-50%,100%); } to { opacity:1; transform:translateX(-50%); } }
-  @keyframes v47DetailSheetLeave { from { opacity:1; transform:translateX(-50%); } to { opacity:0; transform:translate(-50%,100%); } }
+  @keyframes v47DetailSheetEnter { from { transform:translate(-50%,100%); } to { transform:translateX(-50%); } }
+  @keyframes v47DetailSheetLeave { from { transform:translateX(-50%); } to { transform:translate(-50%,100%); } }
   @keyframes v47DetailMemeSheetEnter { from { transform:translateY(100%); } to { transform:none; } }
   @keyframes v47DetailMemeSheetLeave { from { transform:none; } to { transform:translateY(100%); } }
 }

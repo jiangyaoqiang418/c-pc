@@ -38,11 +38,12 @@ function move(event: PointerEvent) {
 }
 
 function cancel() { settle(undefined, true); }
+function cancelPointer(event: PointerEvent) { settle(event, true); }
 watch([() => props.disabled, () => props.open, currentTheme], cancel);
-onMounted(() => window.addEventListener('resize', cancel));
-onBeforeUnmount(() => { cancel(); window.removeEventListener('resize', cancel); });
+onMounted(() => { window.addEventListener('resize', cancel); window.addEventListener('blur', cancel); });
+onBeforeUnmount(() => { cancel(); window.removeEventListener('resize', cancel); window.removeEventListener('blur', cancel); });
 </script>
 
 <template>
-  <div class="meme-sheet-grip" aria-hidden="true" @pointerdown="start" @pointermove="move" @pointerup="settle($event)" @pointercancel="cancel" @lostpointercapture="cancel" />
+  <div class="meme-sheet-grip" aria-hidden="true" @pointerdown="start" @pointermove="move" @pointerup="settle($event)" @pointercancel="cancelPointer" @lostpointercapture="cancelPointer" />
 </template>

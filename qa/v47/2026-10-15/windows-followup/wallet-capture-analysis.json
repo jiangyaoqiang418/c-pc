@@ -1,0 +1,198 @@
+{
+  "scope": "MEME wallet deterministic visible main; no inference about other routes, states or production asset supplements.",
+  "cssViewport": [
+    1440,
+    900
+  ],
+  "dpr": 1,
+  "capturePixels": [
+    1425,
+    900
+  ],
+  "captureNote": "Native capture excludes the 15px vertical scrollbar; dimensions are recorded, never rescaled.",
+  "processing": {
+    "rescale": false,
+    "mask": null,
+    "alignmentShift": null,
+    "colorConversion": null
+  },
+  "inputs": {
+    "reference": {
+      "filename": "reference-wallet-1440.png",
+      "mode": "RGB",
+      "sha256": "1cd7180d2b0fc097a4e5a966fc0027bf82b467443b4b34f827bc37d427adfa4a"
+    },
+    "implementation": {
+      "filename": "implementation-wallet-after-1440.png",
+      "mode": "RGB",
+      "sha256": "f9d1fffdf6c35d7c634782269bc5a656b97d498021c710d226690484e85aed23"
+    },
+    "implementationRepeat": {
+      "filename": "implementation-wallet-repeat-1440.png",
+      "mode": "RGB",
+      "sha256": "f9d1fffdf6c35d7c634782269bc5a656b97d498021c710d226690484e85aed23"
+    }
+  },
+  "referenceVersusImplementation": {
+    "crop": [
+      32,
+      148,
+      1393,
+      858
+    ],
+    "cropPixels": [
+      1361,
+      710
+    ],
+    "channels": [
+      "R",
+      "G",
+      "B"
+    ],
+    "maximumAbsoluteDifferencePerChannel": {
+      "R": 1,
+      "G": 1,
+      "B": 1
+    },
+    "changedPixelCount": 2,
+    "changedChannelValueCount": 3,
+    "differenceBoundsInCrop": [
+      1158,
+      285,
+      1222,
+      324
+    ],
+    "differenceBoundsInCapture": [
+      1190,
+      433,
+      1254,
+      472
+    ],
+    "changedPixels": [
+      {
+        "cropCoordinate": [
+          1221,
+          285
+        ],
+        "captureCoordinate": [
+          1253,
+          433
+        ],
+        "left": [
+          48,
+          67,
+          37
+        ],
+        "right": [
+          48,
+          66,
+          37
+        ],
+        "absoluteChannelDifference": {
+          "R": 0,
+          "G": 1,
+          "B": 0
+        }
+      },
+      {
+        "cropCoordinate": [
+          1158,
+          323
+        ],
+        "captureCoordinate": [
+          1190,
+          471
+        ],
+        "left": [
+          33,
+          46,
+          28
+        ],
+        "right": [
+          32,
+          46,
+          29
+        ],
+        "absoluteChannelDifference": {
+          "R": 1,
+          "G": 0,
+          "B": 1
+        }
+      }
+    ]
+  },
+  "implementationRepeat": {
+    "crop": [
+      32,
+      148,
+      1393,
+      858
+    ],
+    "cropPixels": [
+      1361,
+      710
+    ],
+    "channels": [
+      "R",
+      "G",
+      "B"
+    ],
+    "maximumAbsoluteDifferencePerChannel": {
+      "R": 0,
+      "G": 0,
+      "B": 0
+    },
+    "changedPixelCount": 0,
+    "changedChannelValueCount": 0,
+    "differenceBoundsInCrop": null,
+    "differenceBoundsInCapture": null,
+    "changedPixels": []
+  },
+  "amountAndButtons": {
+    "crop": [
+      48,
+      300,
+      500,
+      515
+    ],
+    "cropPixels": [
+      452,
+      215
+    ],
+    "channels": [
+      "R",
+      "G",
+      "B"
+    ],
+    "maximumAbsoluteDifferencePerChannel": {
+      "R": 0,
+      "G": 0,
+      "B": 0
+    },
+    "changedPixelCount": 0,
+    "changedChannelValueCount": 0,
+    "differenceBoundsInCrop": null,
+    "differenceBoundsInCapture": null,
+    "changedPixels": []
+  },
+  "referenceRepeat": {
+    "verified": false,
+    "used": false,
+    "reason": "A matching-state repeated reference capture was not successfully collected; the older reference-wallet-repeat-1440.png is excluded."
+  },
+  "computedEvidence": {
+    "desktopNodes": 10,
+    "desktopDifferences": 0,
+    "mobileCssWidth": 375,
+    "mobileDifferences": 0,
+    "source": "Root Chrome computed-style comparison; separate from these raster calculations."
+  },
+  "interpretation": "Counts, channel magnitudes and coordinates describe this sample only. No restoration percentage or full-page/site acceptance is claimed.",
+  "outputs": [
+    "compare-wallet-main-native-1440.png",
+    "diff-wallet-main-native-1440.png",
+    "compare-wallet-repeat-native-1440.png",
+    "diff-wallet-implementation-repeat-native-1440.png",
+    "compare-wallet-amount-buttons-native-1440.png"
+  ]
+}

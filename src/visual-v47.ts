@@ -5,11 +5,15 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import DefaultLayout from '@/layouts/default.vue';
 import HomeView from '@/views/home/index.vue';
+import WalletView from '@/views/wallet/index.vue';
 import V47DetailGallery from '@/components/product/v47-detail-gallery.vue';
 import V47DetailShare from '@/components/product/v47-detail-share.vue';
 import V47DetailPreview from '@/components/product/v47-detail-preview.vue';
 import { categoryNavigationKey } from '@/composables/use-category-navigation';
+import { DEFAULT_UI_THEME, UI_THEMES } from '@/composables/use-ui-theme';
+import { useUserStore } from '@/stores';
 import type { HomeVisualFixture, VisualProductRecord } from '@/visual/types';
+import type { WalletVisualFixture } from '@/components/wallet/v47-types';
 import data from '@/visual/v47-reference-data.json';
 import './styles/tokens.scss';
 import './styles/shop.scss';
@@ -37,17 +41,45 @@ const fixture: HomeVisualFixture = {
   categories
 };
 // Component states use the same existing read-only reference assets. No account or write API is involved.
-const view = new URLSearchParams(window.location.search).get('view');
+const visualParams = new URLSearchParams(window.location.search);
+const view = visualParams.get('view');
+// Use the composable's in-memory storage-event observer, without persisting a
+// palette or changing another same-origin production tab's saved preference.
+function setVisualTheme(id: string | null) {
+  const theme = UI_THEMES.find(item => item.id === id)?.id || DEFAULT_UI_THEME;
+  window.dispatchEvent(new StorageEvent('storage', { key: 'um.uiTheme', newValue: theme }));
+}
+window.addEventListener('storage', event => {
+  if (event.isTrusted && (event.key === 'um.uiTheme' || event.key === null)) event.stopImmediatePropagation();
+}, true);
+document.addEventListener('click', event => {
+  const option = event.target instanceof Element ? event.target.closest('.theme-option') : null;
+  if (!option) return;
+  const theme = UI_THEMES.find(item => item.name === option.querySelector('strong')?.textContent);
+  if (!theme) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  setVisualTheme(theme.id);
+}, true);
+setVisualTheme(visualParams.get('theme'));
+// Matches a fresh prototype wallet: balance 2,400 USDT, no transactions or orders.
+// WalletView short-circuits all account/ledger reads when visualFixture is supplied.
+const walletFixture: WalletVisualFixture = {
+  account: { userId: 'visual-only', userName: 'visual-only', available: '2400', nonWithdrawable: '0', lockedFinance: '0',
+    frozenOrder: '0', frozenRisk: '0', depositAvailable: '0', depositGuaranteed: '0', interestAccrued: '0',
+    payPwdSet: false, frozen: false, updatedAt: '' },
+  totalAssets: '2400', today: { depositIn: '0', withdrawOut: '0' }, recentTxns: [], showProductionDetails: false
+};
 const ComponentStates = defineComponent({
   setup() {
     const share = ref(false);
     const photo = ref(false);
     const product = records[0]!;
-    return () => h('div', { class: 'product-layout' }, [
+    return () => h('div', { class: 'product-detail' }, [
       h(V47DetailGallery, { images: product.images, title: product.title, onShare: () => { share.value = true; } }),
       h('section', { class: 'product-info' }, [
         h('span', { class: 'eyebrow' }, product.brandName + ' / ' + product.categoryPath),
-        h('h1', product.title), h('p', { class: 'lead' }, product.summary),
+        h('h1', product.title), h('p', { class: 'subtitle' }, product.summary),
         h('button', { type: 'button', class: 'outline', onClick: () => { photo.value = true; } }, '查看评价配图')
       ]),
       h(V47DetailShare, { modelValue: share.value, 'onUpdate:modelValue': (value: boolean) => { share.value = value; }, url: 'http://127.0.0.1:4173/#/product/1' }),
@@ -59,16 +91,30 @@ const router = createRouter({ history: createMemoryHistory(), routes: [
   { path: '/', name: 'home', component: HomeView },
   { path: '/product/list', name: 'product-list', component: HomeView },
   { path: '/product/:id', name: 'product-detail', component: HomeView },
+  { path: '/wallet', name: 'wallet', component: WalletView, meta: { title: '我的钱包' } },
   { path: '/:pathMatch(.*)*', component: HomeView }
 ] });
 const Host = defineComponent({
   setup() { return () => h(TooltipProvider, { delayDuration: 300 }, () => h(DefaultLayout, {}, {
-    default: () => view === 'gallery' ? h(ComponentStates) : h(HomeView, { visualFixture: fixture })
+    default: () => view === 'gallery' ? h(ComponentStates)
+      : view === 'wallet' ? h(WalletView, { visualFixture: walletFixture }) : h(HomeView, { visualFixture: fixture })
   })); }
 });
 const app = createApp(Host);
-app.use(createPinia());
+const visualPinia = createPinia();
+app.use(visualPinia);
+// Same-origin production tabs may hold a real session. Keep identity/audience
+// actions inert in this app instance without reading, clearing or rewriting it.
+const visualUser = useUserStore(visualPinia);
+visualUser.init = async () => {};
+visualUser.syncExternalSession = async () => false;
+visualUser.setAudience = () => false;
+visualUser.logout = () => {};
 app.use(router);
 app.provide(categoryNavigationKey, { categories: readonly(ref(categories)), loading: readonly(ref(false)),
   loadError: readonly(ref('')), activeMenu: ref(null), loadCategories: async () => {} });
-void router.isReady().then(async () => { await router.replace({ name: 'home' }); app.mount('#app'); });
+// Only the local memory route changes. No production router guards or user init run.
+void router.isReady().then(async () => {
+  await router.replace(view === 'wallet' ? { name: 'wallet' } : view === 'gallery' ? { name: 'product-detail', params: { id: '1' } } : { name: 'home' });
+  app.mount('#app');
+});

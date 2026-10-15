@@ -143,6 +143,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
 
 <template>
   <div class="wallet-page" :aria-busy="loading">
+    <div class="page-heading compact"><h1>我的钱包</h1></div>
     <div v-if="loadError" class="status-banner wallet-status" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
     <div v-if="!visualFixture && walletStore.partialData" class="status-banner wallet-status" role="status"><UmIcon name="clock" /><span>钱包总额或今日收支尚未取得，请重新加载。</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
     <section class="wallet-hero">

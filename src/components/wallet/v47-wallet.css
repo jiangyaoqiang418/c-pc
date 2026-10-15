@@ -2,6 +2,9 @@
    come from the single globally loaded original v47 stylesheet cascade. */
 
 .wallet-page { min-width: 0; }
+/* The page wrapper separates this heading from the shell breadcrumb. Preserve
+   the reference sibling spacing and override the legacy 24px heading margin. */
+.wallet-page > .page-heading.compact { margin: 0 0 18px; }
 .wallet-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .wallet-status > span { flex: 1; }
 .wallet-status svg { width: 22px; height: 22px; }
@@ -24,6 +27,7 @@
 .wallet-safety > .status-banner { margin-bottom: 14px; }
 .wallet-safety > p { margin-top: 16px; font-size: 13px; }
 @media (max-width: 700px) {
+  .wallet-page > .page-heading.compact { margin: 16px 0 12px; }
   .wallet-assets .section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
   .wallet-transaction > b, .asset-bucket > b { font-size: 12px; overflow-wrap: anywhere; }
   .asset-bucket { gap: 10px; }

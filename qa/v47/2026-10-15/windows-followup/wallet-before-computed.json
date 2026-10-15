@@ -1,0 +1,117 @@
+{
+  "nodes": [
+    {
+      "animation": "none",
+      "box": [
+        "0px 0px 44px",
+        "0px 32px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(242, 242, 237)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        148,
+        1361,
+        667.296875
+      ],
+      "selector": "main",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "15px 0px",
+        "0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(177, 181, 189)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(177, 181, 189)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "12px",
+        "400",
+        "19.8px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        148,
+        1361,
+        49.796875
+      ],
+      "selector": ".global-breadcrumb",
+      "transition": "all"
+    },
+    {
+      "missing": true,
+      "selector": ".page-heading"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "28px",
+        "0px",
+        "16px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(60, 81, 59)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        197.796875,
+        1361,
+        247.515625
+      ],
+      "selector": ".wallet-hero",
+      "transition": "all"
+    },
+    {
+      "missing": true,
+      "selector": ".wallet-main-card"
+    },
+    {
+      "missing": true,
+      "selector": ".wallet-summary"
+    },
+    {
+      "missing": true,
+      "selector": ".wallet-stats"
+    },
+    {
+      "missing": true,
+      "selector": ".wallet-section"
+    }
+  ],
+  "scroll": [
+    0,
+    0
+  ],
+  "viewport": [
+    1440,
+    900,
+    1
+  ]
+}

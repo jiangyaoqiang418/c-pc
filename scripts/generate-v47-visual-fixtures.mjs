@@ -39,15 +39,18 @@ const visual = resolve(root, 'src/visual');
 mkdirSync(resolve(visual, 'assets'), { recursive: true });
 const serviceTypes = { '7 天无理由': '7day-no-reason', '全国联保': 'national-warranty', '店铺保修': 'shop-warranty', '无售后': 'none' };
 const records = products.map(product => {
-  const source = resolve(reference, 'assets', product.img);
-  if (!source.startsWith(resolve(reference, 'assets') + sep)) throw new Error('Invalid reference asset path');
-  const destination = resolve(visual, 'assets', product.img);
-  mkdirSync(dirname(destination), { recursive: true });
-  copyFileSync(source, destination);
+  const images = (product.gallery || [product.img]).map((image, index) => {
+    const source = resolve(reference, 'assets', image);
+    if (!source.startsWith(resolve(reference, 'assets') + sep)) throw new Error('Invalid reference asset path');
+    const destination = resolve(visual, 'assets', image);
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(source, destination);
+    return { url: image, name: image, type: 'image', sort: index };
+  });
   return { id: String(product.id), code: String(product.id), title: product.name, brandName: product.brand,
     sellerId: 'visual-only', sellerName: product.seller, categoryId: categories.find(item => item.name === product.cat)?.id || '',
     categoryPath: product.cat, price: String(product.price), stock: product.stock, shippingFee: String(product.shipping || 0),
-    tax: String(product.tax || 0), images: [{ url: product.img, name: product.img, type: 'image', sort: 0 }],
+    tax: String(product.tax || 0), images,
     summary: product.subtitle, description: '', aftersaleType: serviceTypes[product.service] || 'unknown',
     overseasCustoms: !!product.overseas, status: 'NORMAL', shelfStatus: 'on-shelf', salesCount: product.sales,
     viewCount: 0, favoriteCount: 0, createdAt: '', submittedAt: '', updatedAt: '' };

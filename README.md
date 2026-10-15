@@ -1,6 +1,6 @@
 # Umaomao C 端 PC
 
-基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。当前在 `feat/pc-ui-v47` 将 UI 迁移到 Umaomao v47，状态为部分完成；真实请求、业务状态和权限边界保留。准确进度和下一步见 [当前承接状态](./docs/api-integration-plan.md)，设计红线与后端缺口见 [迁移计划](./PC-v47-migration-plan.md) 和 [后端清单](./PC-v47-backend-requirements.md)。
+基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。当前在 `feat/pc-ui-v47` 将 UI 迁移到 Umaomao v47，状态为部分完成；真实请求、业务状态和权限边界保留。最新还原验证结果见 [设计验收记录](./design-qa.md)，跨设备保存基线见 [当前承接状态](./docs/api-integration-plan.md)，设计红线与后端缺口见 [迁移计划](./PC-v47-migration-plan.md) 和 [后端清单](./PC-v47-backend-requirements.md)。
 
 ## 环境与命令
 

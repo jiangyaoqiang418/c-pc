@@ -1,0 +1,117 @@
+{
+  "date": "2026-10-15",
+  "baselineHead": "12e7bda",
+  "environment": "https://testhou.merchantsale.store",
+  "scope": "Authorized isolated QA accounts only. Login and existing read/query endpoints; no business writes, group creation, read marking, payment recovery, transaction reporting, uploads, or production access.",
+  "privacy": "Account roles and aggregate qualification results only. No credentials, email addresses, tokens, business IDs, wallet addresses, transaction hashes, or order/message bodies are persisted.",
+  "sourceAuditBoundary": "The separate 8-route/14-SFC offline source audit passes engineering checks only. It does not establish live normal-state, visual, animation, or write acceptance.",
+  "accounts": [
+    {
+      "alias": "qa-customer",
+      "roles": ["CUSTOMER"],
+      "loginPasswordSet": true,
+      "financeProductsVisible": 0,
+      "financeHoldings": 0,
+      "ownedBoughtOrders": 6,
+      "ownedOrderStatusCounts": {
+        "REFUNDED": 2,
+        "COMPLETED": 2,
+        "PAID": 1,
+        "CANCELED": 1
+      },
+      "completedOrdersEligibilityChecked": 2,
+      "reviewEligibilityReasonCounts": {
+        "ALREADY_REVIEWED": 1,
+        "WINDOW_EXPIRED": 1
+      },
+      "reviewableOrdersFound": 0,
+      "existingOrderGroupsCheckedForWalletPayment": 6,
+      "existingWalletPaymentOrdersFound": 0,
+      "existingConversations": 0
+    },
+    {
+      "alias": "qa-buyer",
+      "roles": ["CUSTOMER", "BUYER"],
+      "loginPasswordSet": true,
+      "financeProductsVisible": 0,
+      "financeHoldings": 0,
+      "ownedBoughtOrders": 0,
+      "existingConversations": 0,
+      "ownedProducts": 1,
+      "ownedProductStatusCounts": {
+        "ON_SALE": 1
+      },
+      "editableOffShelfOrRejectedProductsFound": 0
+    }
+  ],
+  "routes": [
+    {
+      "name": "login-password",
+      "normalState": "blocked-by-test-data",
+      "missing": "A legitimate isolated QA account whose loginPasswordSet is false; an additional email-null account is needed for that form branch.",
+      "chromeObservedByRoot": ["Existing-password account redirects away from the setup form."],
+      "normalStateAcceptance": false
+    },
+    {
+      "name": "checkout-wallet-pay",
+      "normalState": "blocked-by-test-data",
+      "missing": "An existing QA wallet payment order; all six known customer order groups returned no latest wallet payment. The local recovery context must also be checked before entry.",
+      "normalStateAcceptance": false
+    },
+    {
+      "name": "finance-detail",
+      "normalState": "blocked-by-test-data",
+      "missing": "A legitimate visible finance product; both QA product lists are empty.",
+      "normalStateAcceptance": false
+    },
+    {
+      "name": "finance-lockup-detail",
+      "normalState": "blocked-by-test-data",
+      "missing": "An existing holding owned by a QA account; both account holding totals are zero.",
+      "normalStateAcceptance": false
+    },
+    {
+      "name": "aftersale-create",
+      "normalState": "partially-checked-in-chrome",
+      "chromeObservedByRoot": [
+        "Opened the real owned PAID order refund application form.",
+        "Opened the confirmation and canceled without submitting.",
+        "No document horizontal overflow at CSS viewport width 375."
+      ],
+      "checkedViewportWidths": [375],
+      "normalStateAcceptance": "partial",
+      "pixelAcceptance": "not-complete",
+      "animationAcceptance": "not-complete",
+      "writeAcceptance": "not-performed"
+    },
+    {
+      "name": "review-write",
+      "normalState": "blocked-by-test-data",
+      "missing": "An owned completed order with server reviewable=true; the two known completed orders are already reviewed or expired.",
+      "chromeObservedByRoot": [
+        "ALREADY_REVIEWED is displayed as an unavailable review form state.",
+        "WINDOW_EXPIRED is displayed as an unavailable review form state."
+      ],
+      "normalStateAcceptance": false
+    },
+    {
+      "name": "im-order-group",
+      "normalState": "blocked-by-test-data",
+      "missing": "An existing QA order conversation; both conversation lists are empty. A safe read-only visit additionally requires zero unread and a read watermark covering the latest message with no concurrent new message.",
+      "normalStateAcceptance": false
+    },
+    {
+      "name": "buyer-product-edit",
+      "normalState": "blocked-by-test-data",
+      "missing": "An owned OFF_SHELF or REJECTED QA product with complete image metadata; the only QA buyer product is ON_SALE.",
+      "normalStateAcceptance": false
+    }
+  ],
+  "summary": {
+    "routesAuditedOffline": 8,
+    "routesWithPartialLiveNormalStateCoverage": 1,
+    "routesBlockedFromLiveNormalStateByExistingQaData": 7,
+    "routesWithCompletePixelAndAnimationAcceptance": 0,
+    "businessWriteAcceptancePerformed": false
+  }
+}

@@ -1,0 +1,377 @@
+{
+  "nodes": [
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(12, 13, 16, 0.96)",
+        "rgb(45, 48, 54)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        0,
+        31,
+        1425,
+        117
+      ],
+      "selector": ".header",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "0px 32px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(242, 242, 237)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "12px",
+        "400",
+        "19.8px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        105,
+        1361,
+        42
+      ],
+      "selector": ".desktop-nav",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "16px 0px 12px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(242, 242, 237)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        164,
+        1361,
+        35.4375
+      ],
+      "selector": ".meme-market-heading",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "0px",
+        "14px"
+      ],
+      "colors": [
+        "rgb(22, 19, 31)",
+        "rgb(197, 173, 255)",
+        "rgb(197, 173, 255)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        220,
+        211.4375,
+        919,
+        450.65625
+      ],
+      "selector": ".hero",
+      "transition": "all"
+    },
+    {
+      "animation": "0.55s both enter",
+      "box": [
+        "36px 26px 60px",
+        "0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(22, 19, 31)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(22, 19, 31)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        221,
+        212.4375,
+        531.859375,
+        380.546875
+      ],
+      "selector": ".hero-content",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(22, 19, 31)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(22, 19, 31)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        758,
+        287.703125,
+        380,
+        334.390625
+      ],
+      "selector": ".meme-hero-art",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "15px",
+        "0px",
+        "14px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgb(23, 25, 30)",
+        "rgb(51, 55, 62)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        1151,
+        211.4375,
+        242,
+        450.65625
+      ],
+      "selector": ".home-account",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "12px 0px",
+        "7px 0px 0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(242, 242, 237) rgb(242, 242, 237) rgb(45, 48, 54)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        669.09375,
+        1361,
+        69.234375
+      ],
+      "selector": ".trust-strip",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "0px",
+        "13px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgb(23, 25, 30)",
+        "rgb(51, 54, 61)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        32,
+        828.328125,
+        261,
+        482.234375
+      ],
+      "selector": ".product-card",
+      "transition": "border-color 0.18s, transform 0.18s, box-shadow 0.18s"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "8px 8px 0px",
+        "9px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgb(238, 239, 233)",
+        "rgb(47, 55, 48)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        41,
+        872.328125,
+        243,
+        243
+      ],
+      "selector": ".product-image",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "12px 13px 13px",
+        "0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(242, 242, 237)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(242, 242, 237)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "16px",
+        "400",
+        "26.4px",
+        "normal"
+      ],
+      "rect": [
+        33,
+        1115.328125,
+        259,
+        194.234375
+      ],
+      "selector": ".product-meta",
+      "transition": "all"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "0px",
+        "5px 0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(244, 244, 239)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(244, 244, 239)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "17px",
+        "600",
+        "24.65px",
+        "normal"
+      ],
+      "rect": [
+        46,
+        1150.328125,
+        233,
+        24.640625
+      ],
+      "selector": ".product-name",
+      "transition": "color 0.16s, background 0.16s, border-color 0.16s, transform 0.16s, box-shadow 0.16s"
+    },
+    {
+      "animation": "none",
+      "box": [
+        "13px 0px 0px",
+        "12px 0px 0px",
+        "0px"
+      ],
+      "colors": [
+        "rgb(234, 245, 220)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(234, 245, 220)"
+      ],
+      "font": [
+        "-apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "24px",
+        "700",
+        "33.6px",
+        "-0.6px"
+      ],
+      "rect": [
+        46,
+        1209.96875,
+        233,
+        46.59375
+      ],
+      "selector": ".product-price",
+      "transition": "all"
+    }
+  ],
+  "scroll": [
+    0,
+    0
+  ],
+  "viewport": [
+    1440,
+    900,
+    1
+  ]
+}

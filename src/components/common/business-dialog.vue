@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,9 @@ const emit = defineEmits<{
   close: [];
 }>();
 const pending = ref(false);
+let operation = 0;
+// A late guard must not close a dialog that the parent has since reopened.
+watch(() => props.visible, () => { operation += 1; pending.value = false; }, { flush: 'sync' });
 const busy = computed(() => pending.value || props.okLoading);
 const buyerDialog = computed(() => props.contentClass?.split(/\s+/).includes('buyer-dialog'));
 const dialogWidth = computed(() => typeof props.width === 'number' || /^\d+$/.test(props.width)
@@ -41,54 +44,59 @@ const dialogWidth = computed(() => typeof props.width === 'number' || /^\d+$/.te
 
 async function cancel() {
   if (busy.value) return;
+  const current = ++operation;
   pending.value = true;
   try {
     if (await props.onBeforeCancel?.() === false) return;
+    if (current !== operation || !props.visible) return;
     emit('cancel');
     emit('update:visible', false);
     emit('close');
   } catch (error) {
-    Message.error(error instanceof Error ? error.message : '操作未完成，请稍后重试');
-  } finally { pending.value = false; }
+    if (current === operation && props.visible) Message.error(error instanceof Error ? error.message : '操作未完成，请稍后重试');
+  } finally { if (current === operation) pending.value = false; }
 }
 
 async function confirm() {
   if (busy.value || props.okButtonProps?.disabled) return;
+  const current = ++operation;
   pending.value = true;
   try {
     if (await props.onBeforeOk?.() === false) return;
+    if (current !== operation || !props.visible) return;
     emit('ok');
     emit('update:visible', false);
     emit('close');
   } catch (error) {
-    Message.error(error instanceof Error ? error.message : '操作未完成，请核对后重试');
-  } finally { pending.value = false; }
+    if (current === operation && props.visible) Message.error(error instanceof Error ? error.message : '操作未完成，请核对后重试');
+  } finally { if (current === operation) pending.value = false; }
 }
 </script>
 
 <template>
   <DialogRoot :open="visible" @update:open="value => { if (!value) void cancel(); }">
     <DialogPortal>
-      <DialogOverlay class="um-dialog-mask modal-overlay" />
-      <DialogContent class="um-dialog dialog" :class="contentClass" :style="{ width: dialogWidth }"
-        @escape-key-down="event => { if (!escToClose || busy) event.preventDefault(); }"
-        @pointer-down-outside="event => { if (!maskClosable || busy) event.preventDefault(); }">
-        <V47SheetGrip v-if="closable" :open="visible" :disabled="busy" @dismiss="cancel" />
-        <header class="um-dialog-header">
-          <DialogTitle class="um-dialog-title">{{ title }}</DialogTitle>
-          <button v-if="closable" type="button" class="um-dialog-close icon-btn dialog-close" :class="{ 'buyer-dialog-close': buyerDialog }" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
-        </header>
-        <DialogDescription class="sr-only">请核对弹窗内容后继续操作。</DialogDescription>
-        <div class="um-dialog-body"><slot /></div>
-        <footer v-if="footer" class="um-dialog-footer" :class="{ 'buyer-dialog-footer': buyerDialog }">
-          <slot name="footer">
-            <Button v-if="!hideCancel" class="outline" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
-            <Button class="primary" :class="{ 'um-dialog-danger': okButtonProps?.status === 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
-              <Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ okText }}
-            </Button>
-          </slot>
-        </footer>
-      </DialogContent>
+      <DialogOverlay class="um-dialog-mask modal-overlay">
+        <DialogContent class="um-dialog dialog" :class="contentClass" :style="{ width: dialogWidth }"
+          @escape-key-down="event => { if (!escToClose || busy) event.preventDefault(); }"
+          @pointer-down-outside="event => { if (!maskClosable || busy) event.preventDefault(); }">
+          <V47SheetGrip v-if="closable" :open="visible" :disabled="busy" @dismiss="cancel" />
+          <header class="um-dialog-header">
+            <DialogTitle class="um-dialog-title">{{ title }}</DialogTitle>
+            <button v-if="closable" type="button" class="um-dialog-close icon-btn dialog-close" :class="{ 'buyer-dialog-close': buyerDialog }" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
+          </header>
+          <DialogDescription class="sr-only">请核对弹窗内容后继续操作。</DialogDescription>
+          <div class="um-dialog-body"><slot /></div>
+          <footer v-if="footer" class="um-dialog-footer" :class="{ 'buyer-dialog-footer': buyerDialog }">
+            <slot name="footer">
+              <Button v-if="!hideCancel" class="outline" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
+              <Button class="primary" :class="{ 'um-dialog-danger': okButtonProps?.status === 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
+                <Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ okText }}
+              </Button>
+            </slot>
+          </footer>
+        </DialogContent>
+      </DialogOverlay>
     </DialogPortal>
   </DialogRoot>
 </template>
