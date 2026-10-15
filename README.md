@@ -1,6 +1,8 @@
 # Umaomao C 端 PC
 
-基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。当前在 `feat/pc-ui-v47` 将 UI 迁移到 Umaomao v47，状态为部分完成；真实请求、业务状态和权限边界保留。最新还原验证结果见 [设计验收记录](./design-qa.md)，跨设备保存基线见 [当前承接状态](./docs/api-integration-plan.md)，设计红线与后端缺口见 [迁移计划](./PC-v47-migration-plan.md) 和 [后端清单](./PC-v47-backend-requirements.md)。
+基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。当前在 `feat/pc-ui-v47` 将 UI 迁移到 Umaomao v47，状态为部分完成；真实请求、业务状态和权限边界保留。最新还原验证结果见 [设计验收记录](./design-qa.md)，跨设备继续以 [当前承接状态](./docs/api-integration-plan.md) 为准，设计红线与后端缺口见 [迁移计划](./PC-v47-migration-plan.md) 和 [后端清单](./PC-v47-backend-requirements.md)。
+
+10月15日已保存钱包/弹层修正及下单原键恢复、SKU购买链路、采购/售后阶段适配，最新业务代码为 `659282b`。剩余7项功能接入、SKU写表单和充值矩阵补全尚未完成；后续先做功能，浏览器/像素/资金验收后置。原始[后端交付回复](./PC-v47-后端适配交付.md)已入库，发布状态以实际版本和Swagger为准。
 
 ## 环境与命令
 
