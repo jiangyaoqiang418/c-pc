@@ -268,6 +268,7 @@ onBeforeUnmount(() => {
 .category-browser-home { align-self:stretch; }
 .category-menu-trigger { min-height:42px; }
 .category-root-list { max-height:var(--category-panel-height); overflow-y:auto; scrollbar-width:thin; }
+.category-browser-home .category-root-list { max-height:none; }
 .category-root-button { width:100%; flex-shrink:0; }
 .category-root-button > span { overflow-wrap:anywhere; }
 .category-root-button small { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
