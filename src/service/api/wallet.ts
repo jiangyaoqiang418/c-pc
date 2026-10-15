@@ -303,7 +303,25 @@ export function createRecharge(params: Api.RealWallet.RechargeCreateParams, opti
 export async function fetchRechargeByKey(idempotencyKey: string) {
   const result = await realUserRequest.get<Api.RealWallet.RechargeVO | null>('/recharge/by-key', { params: { idempotencyKey }, showError: false, preserveDecimals: true });
   if (result !== null && (!result || typeof result !== 'object')) throw new Error('充值原单回查响应不完整');
+  if (result !== null && result.asset !== 'USDT') throw new Error('充值原单资产无法核对，请联系平台核实');
+  if (result !== null && result.source !== 'DECLARATION') throw new Error('充值原单来源无法核对，请联系平台核实');
   return result;
+}
+
+/** 原申报详情必须与已提交快照一致，错误回包不能展示可转账地址。 */
+export function validateRechargeDeclaration(record: Api.RealWallet.RechargeVO,
+  expected: { id: string | number; chain?: string; amount: string | number }) {
+  const validId = (id: unknown) => typeof id === 'string' && !!id.trim() || typeof id === 'number' && Number.isSafeInteger(id);
+  let matchesAmount = false;
+  try {
+    const amount = sumPaymentAmounts([record?.amount]);
+    matchesAmount = amount !== '0' && amount === sumPaymentAmounts([expected.amount]);
+  } catch { /* 缺失与损坏金额均拒绝。 */ }
+  if (!record || !validId(record.id) || !validId(expected.id) || String(record.id) !== String(expected.id)
+    || record.asset !== 'USDT' || record.source !== 'DECLARATION' || !expected.chain || record.chain !== expected.chain || !matchesAmount) {
+    throw new Error('充值申报回读与原网络、金额或来源不一致，请核实原申报，勿转账');
+  }
+  return record;
 }
 
 export async function fetchWithdrawByKey(idempotencyKey: string) {
@@ -315,6 +333,40 @@ export async function fetchWithdrawByKey(idempotencyKey: string) {
 export async function fetchRechargeChains(options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const list = await realUserRequest.get<Api.RealWallet.RechargeChainVO[]>('/recharge/chains', { ...options, preserveDecimals: true });
   return requireArray<Api.RealWallet.RechargeChainVO>(list, '充值链列表');
+}
+
+export function sameRechargeContract(chain: string, left: string, right: string) {
+  return chain === 'TRON' ? left === right : left.toLowerCase() === right.toLowerCase();
+}
+
+export function rechargeMethodEnabled(config: Api.RealWallet.RechargeAssetVO | undefined, method: Api.RealWallet.RechargeMethod) {
+  return config?.asset === 'USDT' && config.enabled && config.methods.includes(method);
+}
+
+/** 配置是充值入口的唯一能力来源；不从平台共享地址或订单付款配置推导可充值。 */
+export async function fetchRechargeAssets(options: { signal?: AbortSignal; showError?: boolean } = {}) {
+  const list = requireArray<Api.RealWallet.RechargeAssetVO>(await realUserRequest.get<Api.RealWallet.RechargeAssetVO[]>(
+    '/recharge/assets', { ...options, preserveDecimals: true }), '充值资产与网络矩阵');
+  const identities = new Set<string>();
+  for (const item of list) {
+    if (!item || !['USDT', 'USDC'].includes(item.asset) || !['ETH', 'TRON', 'BSC'].includes(item.chain)
+      || typeof item.enabled !== 'boolean' || typeof item.label !== 'string' || !Array.isArray(item.methods)
+      || item.methods.some(method => !['ADDRESS', 'DECLARATION', 'WALLET'].includes(method))) {
+      throw new Error('充值配置不完整，请重新读取');
+    }
+    const key = `${item.asset}:${item.chain}`;
+    if (identities.has(key)) throw new Error('充值资产与网络配置重复，请重新读取');
+    identities.add(key);
+    if (item.asset === 'USDC' && (item.enabled || item.methods.length)) throw new Error('USDC 暂未开放充值');
+    if (item.enabled && (!item.tokenContract?.trim() || !item.methods.length
+      || !Number.isSafeInteger(item.decimals) || item.decimals < 0 || item.decimals > 18
+      || !Number.isSafeInteger(item.minConfirmations) || item.minConfirmations! < 0
+      || (item.minAmount != null && optionalAmount(item.minAmount) === undefined)
+      || (item.methods.includes('WALLET') && !item.walletNetwork?.trim()))) {
+      throw new Error('充值网络配置尚未就绪，请稍后重试');
+    }
+  }
+  return list;
 }
 
 export function fetchRechargeAddress(chain: string, options: { signal?: AbortSignal; showError?: boolean } = {}) {
@@ -340,7 +392,10 @@ export async function fetchRechargePage(
     current,
     size: resolvePageSize(page, params.pageSize ?? 10),
     total: toPageTotal(page.total),
-    records: requireArray<Api.RealWallet.RechargeVO>(page.records, '充值记录分页记录')
+    records: requireArray<Api.RealWallet.RechargeVO>(page.records, '充值记录分页记录').map(record => {
+      if (record.asset !== 'USDT') throw new Error('充值记录资产无法核对，请重新读取');
+      return record;
+    })
   };
 }
 

@@ -1,9 +1,16 @@
 declare namespace Api.RealReview {
   type ReviewStatus = 'PENDING' | 'PUBLISHED' | 'REJECTED' | 'HIDDEN';
   type AppealStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+  type ReviewTopic = 'QUALITY' | 'LOGISTICS' | 'SERVICE' | 'VALUE';
+  type ReviewSort = 'NEWEST' | 'MOST_HELPFUL' | 'SCORE_DESC' | 'SCORE_ASC';
 
   interface ReviewDTO {
     reviewId: string | number;
+    topic?: ReviewTopic | null;
+    helpful?: boolean | null;
+    helpfulCount?: string | number;
+    skuId?: string | number | null;
+    skuSpecs?: Api.RealProduct.ProductSkuOption[];
     orderId: string | number;
     orderNo?: string;
     productId?: string | number;
@@ -46,6 +53,7 @@ declare namespace Api.RealReview {
   }
 
   interface ReviewSummaryDTO {
+    topics?: Array<{ topic: ReviewTopic; count: string | number }>;
     productId: string | number;
     totalCount: number;
     averageScore: string | number;
@@ -61,8 +69,9 @@ declare namespace Api.RealReview {
   interface SellerRatingDTO { sellerId: string | number; totalCount: number; averageScore: string | number; }
   interface PageQuery { pageNo?: number; pageSize?: number; }
   interface ReviewPageQuery extends PageQuery { status?: ReviewStatus; hasImage?: boolean; }
-  interface ProductReviewPageQuery extends ReviewPageQuery { productId: string | number; productScore?: number; }
-  interface ReviewSubmitParams { orderId: string | number; productScore: number; sellerScore: number; content?: string; images?: string[]; anonymous?: boolean; }
+  interface ProductReviewPageQuery extends ReviewPageQuery { productId: string | number; productScore?: number; keyword?: string; topic?: ReviewTopic; sortBy?: ReviewSort; }
+  interface ReviewSubmitParams { orderId: string | number; productScore: number; sellerScore: number; content?: string; images?: string[]; anonymous?: boolean; topic?: ReviewTopic; }
+  interface ReviewHelpfulVO { reviewId: string | number; helpful: boolean; helpfulCount: string | number }
   interface ReviewReplyParams { reviewId: string | number; content: string; }
   interface ReviewAppealParams { reviewId: string | number; reason: string; evidenceImages?: string[]; }
   interface ReviewAppealDTO {

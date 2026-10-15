@@ -19,6 +19,7 @@ import RichTextContent from '@/components/common/rich-text-content.vue';
 import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
 import { useCartStore, useUserStore } from '@/stores';
+import { useProductFavoritesStore } from '@/stores/product-favorites';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
 import { createCheckoutIntent, formatPaymentAmount } from '@/utils/checkout';
@@ -30,6 +31,7 @@ const route = useRoute();
 const router = useRouter();
 const cart = useCartStore();
 const userStore = useUserStore();
+const favorites = useProductFavoritesStore();
 
 const product = ref<Api.RealProduct.Record>();
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
@@ -41,6 +43,9 @@ const reviewError = ref('');
 const reviewsGuard = createLatestRequestGuard();
 const summaryGuard = createLatestRequestGuard();
 const sellerRatingGuard = createLatestRequestGuard();
+const qualificationGuard = createLatestRequestGuard();
+const sellerQualification = ref<Api.RealProduct.SellerQualification>();
+const sellerQualificationError = ref(false);
 const reviewSummaryLoading = ref(false);
 const reviewSummaryError = ref('');
 const sellerScoreLoading = ref(false);
@@ -99,9 +104,15 @@ function syncSpecViewport() { if (!specViewport?.matches) closeMobileSpecs(false
 const loading = ref(false);
 const loadError = ref('');
 const favoriting = ref(false);
+const favoriteState = computed(() => product.value ? favorites.entries[String(product.value.id)] : undefined);
+const favoriteBusy = computed(() => favoriting.value || favoriteState.value?.loading || favoriteState.value?.writing);
 const content = ref<InstanceType<typeof V47DetailContent>>();
 const reviewStars = ref(0);
 const reviewHasImage = ref(false);
+const reviewKeyword = ref('');
+const reviewSort = ref<Api.RealReview.ReviewSort>('MOST_HELPFUL');
+const helpfulBusy = ref<Record<string, boolean>>({});
+let helpfulTargets = new Map<string, boolean>();
 const allReviewCount = ref<number>();
 const related = ref<Api.RealProduct.Record[]>([]);
 const relatedLoading = ref(false);
@@ -126,12 +137,19 @@ async function load() {
   reviewsGuard.invalidate();
   summaryGuard.invalidate();
   sellerRatingGuard.invalidate();
+  qualificationGuard.invalidate();
+  sellerQualification.value = undefined;
+  sellerQualificationError.value = false;
+  helpfulBusy.value = {};
+  helpfulTargets = new Map();
   relatedGuard.invalidate();
   related.value = [];
   relatedError.value = false;
   relatedLoading.value = false;
   reviewStars.value = 0;
   reviewHasImage.value = false;
+  reviewKeyword.value = '';
+  reviewSort.value = 'MOST_HELPFUL';
   allReviewCount.value = undefined;
   previewVisible.value = false;
   shareVisible.value = false;
@@ -155,6 +173,7 @@ async function load() {
     const nextProduct = await productApi.fetchProductDetail(id.value, { signal: isCurrent.signal });
     if (!isCurrent()) return;
     product.value = nextProduct;
+    favorites.ensure(nextProduct.id);
     const firstSku = nextProduct.skus?.find(skuCanPurchase);
     selectedSpecs.value = firstSku ? Object.fromEntries(firstSku.specs.map(spec => [spec.name, spec.value])) : {};
     qty.value = Math.max(1, Math.min(qty.value, selectedStock.value || 1));
@@ -165,6 +184,7 @@ async function load() {
       void loadRelated();
       void loadReviewSummary();
       void loadSellerRating();
+      void loadSellerQualification();
     }
   } catch {
     if (!isCurrent()) return;
@@ -214,6 +234,20 @@ async function loadSellerRating() {
   }
 }
 
+async function loadSellerQualification() {
+  const sellerId = product.value?.sellerId;
+  if (sellerId === undefined || sellerId === '') return;
+  const isCurrent = qualificationGuard.begin();
+  sellerQualification.value = undefined;
+  sellerQualificationError.value = false;
+  try {
+    const result = await productApi.fetchSellerQualification(sellerId, { signal:isCurrent.signal });
+    if (isCurrent() && String(product.value?.sellerId) === String(sellerId)) sellerQualification.value = result;
+  } catch {
+    if (isCurrent()) sellerQualificationError.value = true;
+  }
+}
+
 async function loadReviews(page: number) {
   const productId = product.value?.id;
   if (productId === undefined) return;
@@ -223,18 +257,19 @@ async function loadReviews(page: number) {
   reviewPage.value = page;
   reviews.value = [];
   try {
-    let result = await reviewApi.fetchStorefrontReviews({ productId, pageNo: page, pageSize: reviewPageSize.value, productScore: reviewStars.value || undefined, hasImage: reviewHasImage.value || undefined }, { signal: isCurrent.signal });
+    const query = { productId, pageSize: reviewPageSize.value, productScore: reviewStars.value || undefined, hasImage: reviewHasImage.value || undefined, keyword:reviewKeyword.value || undefined, sortBy:reviewSort.value };
+    let result = await reviewApi.fetchStorefrontReviews({ ...query, pageNo:page }, { signal: isCurrent.signal });
     if (!isCurrent()) return;
     reviewPageSize.value = resolvePageSize(result, reviewPageSize.value);
     const lastPage = Math.max(1, Math.ceil(result.total / reviewPageSize.value));
     if (page > lastPage) {
       reviewPage.value = lastPage;
-      result = await reviewApi.fetchStorefrontReviews({ productId, pageNo: lastPage, pageSize: reviewPageSize.value, productScore: reviewStars.value || undefined, hasImage: reviewHasImage.value || undefined }, { signal: isCurrent.signal });
+      result = await reviewApi.fetchStorefrontReviews({ ...query, pageNo:lastPage }, { signal: isCurrent.signal });
     }
     if (!isCurrent()) return;
     reviews.value = result.records;
     reviewTotal.value = result.total;
-    if (!reviewStars.value && !reviewHasImage.value) allReviewCount.value = result.total;
+    if (!reviewStars.value && !reviewHasImage.value && !reviewKeyword.value) allReviewCount.value = result.total;
   } catch {
     if (isCurrent()) reviewError.value = '评价读取失败，请重新加载';
   } finally {
@@ -252,12 +287,13 @@ onBeforeUnmount(() => {
   reviewsGuard.invalidate();
   summaryGuard.invalidate();
   sellerRatingGuard.invalidate();
+  qualificationGuard.invalidate();
   relatedGuard.invalidate();
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
-  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextId, nextUserId, nextSession], [prevId, prevUserId, prevSession]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession) return;
   writeVersion += 1;
   favoriting.value = false;
   if (String(nextId) !== String(prevId)) {
@@ -296,22 +332,23 @@ function startPurchase() {
 
 async function favorite() {
   if (!product.value) return;
-  if (favoriting.value) return;
+  if (favoriteBusy.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) {
     Message.warning('请先登录后再收藏');
     return;
   }
   const requestedProductId = product.value.id;
-  const operation = ++writeVersion;
+  const operation = writeVersion;
   const isCurrentWrite = () => operation === writeVersion
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && String(product.value?.id) === String(requestedProductId);
   favoriting.value = true;
   try {
-    await productApi.toggleProductFavorite(requestedProductId, { showError: false });
+    const result = await favorites.toggle(requestedProductId);
     if (!isCurrentWrite()) return;
-    Message.success('收藏状态已更新');
+    if (result === undefined) return;
+    Message.success(result ? '已收藏' : '已取消收藏');
     favoriteCountError.value = true;
     try {
       const latest = await productApi.fetchProductDetail(requestedProductId);
@@ -321,8 +358,8 @@ async function favorite() {
     } catch {
       if (isCurrentWrite()) Message.warning('收藏已成功，数量刷新失败，请重新加载商品查看');
     }
-  } catch {
-    if (isCurrentWrite()) Message.error('收藏失败，请稍后重试');
+  } catch (error) {
+    if (isCurrentWrite()) Message.error(error instanceof Error ? error.message : '收藏状态待确认，请点击重试');
   } finally {
     if (operation === writeVersion) favoriting.value = false;
   }
@@ -351,10 +388,57 @@ function openPreview(images: string[], index: number, title = '评价配图') {
   previewIndex.value = index;
   previewVisible.value = true;
 }
-function filterReviews(value: { stars: number; hasImage: boolean }) {
+function filterReviews(value: { stars: number; hasImage: boolean; keyword: string; sort: Api.RealReview.ReviewSort }) {
   reviewStars.value = value.stars;
   reviewHasImage.value = value.hasImage;
+  reviewKeyword.value = value.keyword;
+  reviewSort.value = value.sort;
   void loadReviews(1);
+}
+
+async function voteHelpful(review: Api.RealReview.ReviewDTO) {
+  const userId = userStore.currentUser?.id;
+  if (userId === undefined) { Message.warning('请先登录后再投票'); return; }
+  const key = String(review.reviewId);
+  if (helpfulBusy.value[key]) return;
+  const productId = product.value?.id;
+  const context = writeVersion;
+  const isCurrent = () => context === writeVersion && String(userStore.currentUser?.id) === String(userId) && String(product.value?.id) === String(productId);
+  helpfulBusy.value[key] = true;
+  try {
+    let target = helpfulTargets.get(key);
+    if (target === undefined && typeof review.helpful !== 'boolean') {
+      await loadReviews(reviewPage.value);
+      if (!isCurrent()) return;
+      const current = reviews.value.find(item => String(item.reviewId) === key);
+      const state = reviewApi.validateHelpfulState(current as Api.RealReview.ReviewHelpfulVO, review.reviewId);
+      Object.assign(review, state);
+    }
+    target ??= !review.helpful;
+    helpfulTargets.set(key, target);
+    let result: Api.RealReview.ReviewHelpfulVO;
+    try {
+      result = await reviewApi.setReviewHelpful(review.reviewId, target);
+    } catch (error) {
+      if (!isCurrent()) return;
+      // 公开评价投票不能读取仅作者/买手可见的私有详情；回读公开当前页。
+      // 未能定位时保留原目标，下一次明确点击按该目标幂等重试。
+      await loadReviews(reviewPage.value);
+      if (!isCurrent()) return;
+      const current = reviews.value.find(item => String(item.reviewId) === key);
+      result = reviewApi.validateHelpfulState(current as Api.RealReview.ReviewHelpfulVO, review.reviewId);
+      if (result.helpful !== target) throw error;
+    }
+    if (!isCurrent()) return;
+    const row = reviews.value.find(item => String(item.reviewId) === key);
+    if (row) Object.assign(row, result);
+    helpfulTargets.delete(key);
+    if (reviewSort.value === 'MOST_HELPFUL') await loadReviews(reviewPage.value);
+  } catch (error) {
+    if (isCurrent()) Message.error(error instanceof Error ? error.message : '帮助状态待确认，请点击重试');
+  } finally {
+    if (isCurrent()) helpfulBusy.value[key] = false;
+  }
 }
 async function loadRelated() {
   const productId = product.value?.id;
@@ -391,7 +475,7 @@ function share() {
         <UmIcon name="chevron" /><span aria-current="page">{{ product.title }}</span>
       </nav>
       <div class="product-detail">
-        <V47DetailGallery :images="galleryImages" :title="product.title" :favoriting="favoriting" @favorite="favorite" @share="share" />
+        <V47DetailGallery :images="galleryImages" :title="product.title" :favoriting="favoriteBusy" :saved="favoriteState?.value" :favorite-error="favoriteState?.error" @favorite="favorite" @share="share" />
         <section class="product-info" aria-label="商品信息与购买">
           <span class="eyebrow">{{ product.categoryPath }}</span>
           <h1>{{ product.title }}</h1>
@@ -424,8 +508,9 @@ function share() {
             <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy ? 0 : undefined"><button type="button" class="gold" :disabled="!canBuy" @click="buyNow">{{ product.stock ? '立即购买' : '暂时售罄' }}<UmIcon name="arrow" /></button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason">{{ buyDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
           </div>
           <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" @click="router.push('/im')"><UmIcon name="headset" />咨询买手</button></div>
-          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ product.sellerName?.slice(0, 1) || 'U' }}</span><span><b>{{ product.sellerName || '商品买手' }}</b><small>{{ sellerScoreLoading ? '正在读取买手评分…' : sellerScoreError ? '买手评分读取失败' : '用心挑选每一件好物' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
+          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ product.sellerName?.slice(0, 1) || 'U' }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small>{{ sellerScoreLoading ? '正在读取买手评分…' : sellerScoreError ? '买手评分读取失败' : '用心挑选每一件好物' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
           <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新读取买手评分</button>
+          <button v-if="sellerQualificationError" type="button" class="text-link seller-score-retry" @click="loadSellerQualification">重新核对买手资格</button>
         </section>
       </div>
       <V47DetailContent ref="content" :key="String(product.id)" :initial-review="route.query.tab === 'reviews'">
@@ -434,11 +519,11 @@ function share() {
             <div class="detail-editorial"><div><span class="eyebrow">MADE FOR YOUR EVERYDAY</span><h2>细节，值得认真看。</h2><p>{{ product.summary }}<br />好的设计，让每一次使用都恰到好处。</p></div><img v-if="product.images[0]?.url" :src="product.images[0].url" :alt="product.title" @error="setImageFallback" /></div>
             <div class="info-columns"><div><h3>关于这件好物</h3><RichTextContent :content="product.description" /></div><div><h3>认真挑选，安心入手</h3><p>请核对当前商品资料、包装清单、配送与售后信息后购买。</p></div></div>
           </template>
-          <dl v-else-if="tab === '规格参数'" class="spec-table"><dt>品牌</dt><dd>品牌信息未提供</dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
+          <dl v-else-if="tab === '规格参数'" class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
           <template v-else-if="tab === '配送与售后'"><h2>配送与售后</h2><p>运费 {{ money(product.shippingFee) }} USDT，税费 {{ money(product.tax) }} USDT。{{ product.overseasCustoms ? '此商品为海外直邮，过关后不可退货退款。' : '' }}售后类型：{{ aftersaleMeta?.label || '待确认' }}。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
           <template v-else><h2>支付说明</h2><p>支持站内余额与 USDT 钱包直付。支付网络以平台实际开放情况为准，金额以服务端订单为准。链上提交后需等待平台确认，请勿重复付款。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
         </template>
-        <template #reviews><V47DetailReviews :rows="reviews" :summary="reviewSummary" :summary-loading="reviewSummaryLoading" :summary-error="reviewSummaryError" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" :error="reviewError" :stars="reviewStars" :has-image="reviewHasImage" @filter="filterReviews" @retry-summary="loadReviewSummary" @page="loadReviews" @photo="openPreview" /></template>
+        <template #reviews><V47DetailReviews :rows="reviews" :summary="reviewSummary" :summary-loading="reviewSummaryLoading" :summary-error="reviewSummaryError" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" :error="reviewError" :stars="reviewStars" :has-image="reviewHasImage" :keyword="reviewKeyword" :sort="reviewSort" :helpful-busy="helpfulBusy" @helpful="voteHelpful" @filter="filterReviews" @retry-summary="loadReviewSummary" @page="loadReviews" @photo="openPreview" /></template>
       </V47DetailContent>
       <section class="section related-section"><div class="section-heading"><h2>一起选购，更合心意</h2><RouterLink to="/product/list">发现更多 →</RouterLink></div><div v-if="relatedLoading" class="product-grid related" role="status"><Skeleton v-for="index in 4" :key="index" class="h-72 w-full" /></div><div v-else-if="related.length" class="product-grid related"><ProductCard v-for="item in related" :key="item.id" :product="item" /></div><div v-else class="empty"><p>{{ relatedError ? '推荐商品读取失败' : '暂无推荐商品' }}</p><button v-if="relatedError" type="button" class="outline" @click="loadRelated">重新加载</button></div></section>
     </template>
@@ -459,5 +544,7 @@ function share() {
 .seller-card > span:nth-child(2) { min-width:0; }
 .seller-card b { overflow-wrap:anywhere; }
 .seller-score-retry { margin-top:10px; }
+.seller-verified { display:inline-flex; align-items:center; gap:4px; margin-left:8px; color:var(--primary); font-size:11px; font-weight:500; }
+.seller-verified :deep(svg) { width:13px; height:13px; }
 @media (max-width:700px) { .detail-skeleton { grid-template-columns:1fr; } }
 </style>

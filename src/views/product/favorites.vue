@@ -9,10 +9,12 @@ import { Message, Modal } from '@/lib/feedback';
 import ProductCard from '@/components/product/product-card.vue';
 import * as productApi from '@/service/api/product';
 import { useUserStore } from '@/stores';
+import { useProductFavoritesStore } from '@/stores/product-favorites';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const router = useRouter();
 const userStore = useUserStore();
+const favorites = useProductFavoritesStore();
 const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -28,6 +30,7 @@ let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
+  const session = userStore.sessionVersion;
   if (!userId) {
     loading.value = false;
     list.value = [];
@@ -39,7 +42,7 @@ async function load() {
   loadError.value = '';
   try {
     const r = await productApi.fetchMyFavorites({ current: current.value, size: size.value, signal: isCurrent.signal });
-    if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    if (!isCurrent() || session !== userStore.sessionVersion || String(userStore.currentUser?.id || '') !== userId) return;
     size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
     if (current.value > maxPage) {
@@ -63,9 +66,10 @@ function cancelFavorite(product: Api.RealProduct.Record) {
   const productId = String(product.id);
   if (cancelingId.value || cancellationPendingId.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const session = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === writeVersion && session === userStore.sessionVersion && String(userStore.currentUser?.id) === String(requestedUserId);
   cancellationPendingId.value = productId;
   confirmationModal = Modal.confirm({
     title: '取消收藏？',
@@ -80,14 +84,15 @@ function cancelFavorite(product: Api.RealProduct.Record) {
       if (!isCurrentWrite()) return;
       cancelingId.value = productId;
       try {
-        await productApi.cancelProductFavorite(product.id);
+        const confirmed = await favorites.set(product.id, false);
         if (!isCurrentWrite()) return;
+        if (confirmed !== false) { Message.warning('收藏状态正在核对，请稍后重试'); return; }
         if (list.value.length === 1 && current.value > 1) current.value -= 1;
         await load();
         if (!isCurrentWrite()) return;
         Message.success('已取消收藏');
-      } catch {
-        // 请求层已展示错误，保留当前收藏项，避免把取消失败误显示为成功。
+      } catch (error) {
+        if (isCurrentWrite()) Message.error(error instanceof Error ? error.message : '取消收藏结果待确认，请重试');
       } finally {
         if (operation === writeVersion) {
           cancelingId.value = undefined;
@@ -104,7 +109,7 @@ onBeforeUnmount(() => {
   confirmationModal?.close();
   requestGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, () => {
+watch(() => [userStore.currentUser?.id, userStore.sessionVersion], () => {
   writeVersion += 1;
   confirmationModal?.close();
   requestGuard.invalidate();

@@ -12,6 +12,10 @@ declare namespace Api.RealProduct {
     image?: string | null;
   }
   interface ProductSku extends Omit<ProductSkuDTO, 'price'> { price: string }
+  interface ProductSkuSaveParams extends Omit<ProductSkuDTO, 'id' | 'price'> {
+    id?: Id | null;
+    price: string;
+  }
   interface ProductSkuFields {
     hasSku?: boolean;
     specGroups?: ProductSpecGroup[];
@@ -27,6 +31,9 @@ declare namespace Api.RealProduct {
     salesCount?: number;
     viewCount?: number;
     favoriteCount?: number;
+    brandId?: Id | null;
+    brand?: Api.RealBrand.BrandDTO | null;
+    brandName?: string;
     shippingFee?: string;
     tax?: string;
     rawAfterSaleType?: string;
@@ -40,6 +47,8 @@ declare namespace Api.RealProduct {
   type ProductStatus = 'REVIEWING' | 'REJECTED' | 'ON_SALE' | 'OFF_SHELF' | 'FROZEN';
 
   interface ProductDTO {
+    brandId?: Id | null;
+    brand?: Api.RealBrand.BrandDTO | null;
     hasSku?: boolean;
     specGroups?: ProductSpecGroup[];
     skus?: ProductSkuDTO[];
@@ -73,6 +82,8 @@ declare namespace Api.RealProduct {
   }
 
   interface StorefrontProductVO {
+    brandId?: Id | null;
+    brand?: Api.RealBrand.BrandDTO | null;
     id: string;
     title: string;
     coverImage?: string;
@@ -89,6 +100,7 @@ declare namespace Api.RealProduct {
   }
 
   interface StorefrontProductPageQuery {
+    brandId?: Id;
     pageNo?: number;
     pageSize?: number;
     keyword?: string;
@@ -117,8 +129,9 @@ declare namespace Api.RealProduct {
   }
 
   interface ProductCreateParams {
+    brandId?: Id | null;
     specGroups?: ProductSpecGroup[];
-    skus?: Array<Omit<ProductSkuDTO, 'price'> & { price: string }>;
+    skus?: ProductSkuSaveParams[];
     title: string;
     categoryId: string | number;
     price: string | number;
@@ -154,6 +167,9 @@ declare namespace Api.RealProduct {
     pageNo?: number;
     pageSize?: number;
   }
+
+  interface FavoriteState { productId: Id; favorited: boolean }
+  interface SellerQualification { sellerId: Id; verifiedBuyer: boolean; approvedAt?: string | number | null }
 
   interface FileUploadResult {
     id: string;

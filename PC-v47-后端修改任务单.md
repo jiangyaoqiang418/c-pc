@@ -1,298 +1,112 @@
-# PC v47 后端修改任务单
+# PC v47 后端剩余交付任务单
 
-整理日期：2026-10-15。前端基线：`feat/pc-ui-v47`，提交 `223b117`。
+更新：2026-10-15。范围仅 `c-pc / feat/pc-ui-v47`。本单依据当前前端代码、后端交付回复和本轮 live OpenAPI 复核整理；原始需求语义保存在 [后端清单](./PC-v47-backend-requirements.md)，后端原回复见 [适配交付](./PC-v47-后端适配交付.md)。
 
-**用途：供后端确认、拆分开发和安排联调。共12项功能差额（B01–B12）、2项共用交易契约问题（C01–C02），另列环境和测试条件。** 编号沿用[原后端清单](./PC-v47-backend-requirements.md)，便于逐项回复。
+**当前不是“14项接口仍未提供”。** 原键恢复、SKU、金额、采购/售后、品牌、评价排序/正文搜索/投票、收藏资格、正式内容读取、订单搜索、每日利息和充值矩阵的契约已公开。相应前端已封装并接到页面；真实交易和非空内容尚未完整验收。以下只列仍需后端、发布、运营或测试协作完成的部分。
 
-本次重新读取了测试环境 admin、user、order、notify 四组公开 OpenAPI，并核对前端 API 封装、相关页面和迁移记录。四组现有关键契约检查通过；这只能证明已检查的基础契约仍在，不能证明下面的扩展能力已经提供或真实交易已经验收。
+服务前缀：O=`/api/order`，U=`/api/user`，N=`/api/notify`。ID保持原值；金额按十进制字符串、最多28位整数/8位小数处理。
 
-“缺少”指**当前发布的 C 端契约尚未表达完整能力**，不据此断言后端内部没有实现。有现成实现的，请提供准确路径、字段及语义；确需新增的，请先发布 Swagger。下文的“需要返回/支持”是业务需求，未确认的新接口路径和字段名不预先杜撰。
+## 优先级总表
 
-## 1. 优先级和排期总表
-
-P0：影响对应交易能力或操作资格，必须先明确才能开放该项操作；不表示已经可用的普通商品、USDT或基础订单功能全部被阻塞。P1：补全新版页面主要功能。P2：先决定产品或运营范围，再按需建设。
-
-| 顺序 | 编号 | 优先级 | 后端需要处理什么 | 主要对应页面 |
+| 优先级 | 编号 | 剩余交付 | 对应页面 | 当前阻塞 |
 | --- | --- | --- | --- | --- |
-| 1 | C01 | P0 | 单笔/批量下单按原幂等键只读确认结果；补同键异参和处理中语义 | `/checkout`、订单创建恢复 |
-| 2 | B02 | P0 | 真实SKU、规格价格库存、下单入参和订单快照 | `/product/:id`、`/cart`、`/checkout`、`/order/:id`、买手商品创建/编辑 |
-| 3 | C02 | P0，契约澄清 | 售价、运费、税费必返/空值及金额精度、上下限和舍入规则 | 商品详情、结算、商品发布、资金表单 |
-| 4 | B05 | P0，仅多资产扩展 | USDC/USDT×网络支持矩阵、资产归属及三种充值方式统一追踪 | `/wallet/deposit`及充值弹层、记录、流水 |
-| 5 | B08 | 操作资格P0；展示P1 | 采购中/已采购、待审核/审核中、售后确认的权威阶段和动作规则 | `/buyer/dashboard`、`/buyer/orders`、`/buyer/products`、`/buyer/aftersales` |
-| 6 | B01 | P1 | 品牌模型、品牌关联、品牌查询与筛选 | `/`、`/brand`、`/product/list`、商品详情、买手商品表单 |
-| 7 | B03 | P1 | 评价关键词、主题、排序及对应全量分页/聚合 | 商品详情“评价”区域 |
-| 8 | B04 | P1 | 评价“对我有帮助”的计数、本人状态、设置/取消 | 商品详情评价卡及“最有帮助”排序 |
-| 9 | B07 | P1，正式内容交付项 | 正式帮助、协议及公开公告来源、版本、发布/下线状态 | `/help`、协议弹窗、`/announcement`、`/checkout`协议链接 |
-| 10 | B09 | P1 | 订单按商品名/订单号服务端搜索；明确分类申请搜索是否含理由 | `/buyer/orders`、`/order`、`/buyer/categories/apply` |
-| 11 | B11 | P1 | 小金库“每日总预估利息”的权威聚合和计息口径 | `/finance` |
-| 12 | B12 | P1 | 商品读取返回本人收藏态；公开卖家认证资格 | 商品列表/推荐/详情、`/favorites`、详情卖家卡 |
-| 13 | B10 | P1；明确延期后P2 | 正式AI选购助手，或明确本期不开放 | `/ai-guide` |
-| 14 | B06 | P2；需要动态运营时P1 | 决定首页/品牌专题哪些固定交付、哪些运营配置 | `/`、`/brand` |
+| P0 | ENV-01 | 实际部署SHA、数据库增量升级及历史数据处理说明 | 结算、买手商品/订单/售后、充值 | 后端原回复称未部署，但Swagger已更新，无法据此确认实际运行版本 |
+| P0 | B05 | 测试网络、USDT合约、确认数、地址及链服务配置 | `/wallet/deposit`、充值详情/记录/钱包流水 | 前端能按矩阵选择方式，缺可验收链配置和隔离资金 |
+| P0 | CONTRACT-01 | 统一充值asset及采购凭证校验声明 | 充值与`/buyer/orders`采购弹窗 | Swagger必填/default、minItems与文字规则不一致 |
+| P0 | QA-01 | SKU/采购/售后/审核/原键四态隔离样本 | 商品、购物袋、结算、订单及买手面板 | 不能用普通商品/空态替代新交易闭环 |
+| P1 | B03 | 评价主题和关键词域与v47对齐 | `/product/:id`评价区、写评价 | 仅正文搜索已接；主题及作者/规格搜索未满足原型 |
+| P1 | B07 | 正式内容正文、版本、生效时间、帮助topic编码 | `/help`、协议弹窗、`/announcement`、结算协议入口 | 公共列表为空、协议无有效版本；Ray待交付 |
+| P1 | QA-02 | 品牌/投票/收藏/每日利息非空样本与角色验证 | 品牌专区、商品卡/详情、`/finance` | API及页面已接，非空/失败/权限验收仍需条件 |
+| P2 | B10/B06/USDC | 本期延期或固定范围维持 | AI导购、首页专题、充值币种 | 不据此要求重复建设现有接口 |
 
-建议先确认 C01、B02、C02、B05、B08 的契约，再并行处理品牌、评价、搜索、正式内容及展示字段。B03“最有帮助”排序依赖B04；B03购买规格展示依赖B02；B06品牌运营依赖B01。
+## P0：发布和真实交易前提
 
-## 2. 接口标记与地址规则
+### ENV-01 实际发布及历史数据
 
-下文只写服务内路径，拼接规则如下，避免把页面路由当成API：
+需要交付：
 
-| 标记 | 服务前缀 | 例子 |
+- order/user/notify/admin各服务当前部署提交SHA、发布时间及相应配置版本；说明后端交付回复中的未提交改动是否已经进入该版本。
+- 在既有数据库上的增量迁移脚本/执行顺序、回滚边界和结果。空库init.sql通过不能证明存量库已升级。
+- 明确旧商品缺费用、旧已支付订单缺采购凭证、旧SKU/审核记录怎样处理，不能让前端猜测或自动清理。
+- 保留既有TronLink/钱包/审核及通知能力，不因适配覆盖回退。
+
+涉及接口：O `/orders/by-key`、`/products/create`、`/products/update`、`/orders/procure`、`/orders/ship`、`/orders/refunds/confirm`及新增公开读取接口。验收需在所报版本逐项HTTP及业务回读，不能只提供Swagger截图。
+
+### B05 USDT充值通道
+
+对应：`/wallet/deposit`地址充值、钱包充值、金额申报、详情、记录及流水。
+
+已提供并已接：U `GET /recharge/assets`，`GET /recharge/address`，`POST /recharge/create`，`GET /recharge/by-key`，`GET /recharge/detail`，`POST /recharge/page`，`PUT /recharge/cancel`。本期仅USDT；USDC保持禁用。
+
+仍需配置并确认：
+
+1. ETH/TRON/BSC各测试通道的 `enabled/methods/tokenContract/decimals/minAmount/minConfirmations/walletNetwork/memoRule`，明确测试网，不能借用主网合约。前端按真实矩阵开放ADDRESS/WALLET/DECLARATION。
+2. 专属地址分配和链到账回调服务；共享地址只允许先创建申报，再展示该申报的地址和Memo，不得冒充专属地址。
+3. 真实到账样本与 `asset/chain/source/txHash/reportedTxHash/logIndex/tokenContract/confirmations/minConfirmations`；确认数是快照。以`CONFIRMED`和钱包余额/流水回读确认入账。
+4. 隔离账号、测试资金和回调/链服务责任人；验证错误网络/合约、少确认数、重复链事件和同原键不会重复入账。
+
+当前PC钱包采用注入式钱包（含TronLink）签名，未新增手机DeepLink会话流程。后端已有`/tronlink/sessions/create/detail`的SUCCESS不代表到账，也不能因有该接口就宣称PC已接会话。
+
+### CONTRACT-01 声明一致性
+
+| 接口/模型 | 当前差异 | 请后端确认 |
 | --- | --- | --- |
-| O | `/api/order` | O `GET /storefront/product/detail` → `/api/order/storefront/product/detail` |
-| U | `/api/user` | U `GET /recharge/chains` → `/api/user/recharge/chains` |
-| N | `/api/notify` | N `POST /im/messages/page` → `/api/notify/im/messages/page` |
+| U `POST /recharge/page`及充值create/address | asset的required与“默认USDT”说明不一致 | 每个入口是否必传、缺省行为、只允许USDT的错误码；同步Swagger。前端当前显式传USDT |
+| O `POST /orders/procure` / `purchaseVouchers` | 描述要求1–6张，minItems声明不足 | 真正拒绝0张和超过6张，HTTPS、单号长度和重复提交规则；同步schema与实际校验 |
 
-## 3. P0：交易及权威状态契约
+### QA-01 新状态隔离样本
 
-### C01 下单结果只读确认与幂等冲突
+无需向前端交付凭据明文；在既有测试账号安全配置后提供记录ID、角色和可执行动作。
 
-**对应页面：** `/checkout`；单品购买、购物袋合并下单及刷新后的未知结果恢复。
-
-**已有接口：** O `POST /orders/create`、`POST /orders/create-batch`、`GET /orders/detail`、`GET /orders/group/pay-result`。创建参数已有 `idempotencyKey`；已知订单ID详情、组付款结果查询均已存在。
-
-**具体缺口：** 当前公开契约没有完整的“按下单原键只读确认单笔/批量创建结果”能力。`/orders/group/pay-result`需要已知订单组号，不能替代丢失创建响应时按原键找单。重发同键创建可能创建此前尚未落地的订单，不能称为只读查询；Swagger也未完整说明同键不同参数的冲突行为。
-
-**后端交付：**
-
-1. 提供已有等价查询或新增只读确认能力，限制为当前账号自己的原键。
-2. 区分尚未找到、仍在处理、已经创建、确定拒绝；说明“未找到”是否足以证明最终未创建，不能用含糊的空值要求前端换键重下。
-3. 已创建时返回原订单ID，或原订单组号及完整订单ID列表；明确单笔和批量的键作用域、有效期与原子性。
-4. 明确同键同参重试返回原结果、同键异参的拒绝规则及错误码，并同步Swagger；不能只停留在口头回复。
-
-**验收：** 创建响应丢失、网络超时、处理中、刷新/重试及同键异参均能确定原结果；并发不重复创建；跨账号不可查询原键；只读确认本身不产生新订单。
-
-### B02 真实SKU与规格交易
-
-**对应页面：** `/product/:id`、`/cart`、`/checkout`、`/order/:id`、`/buyer/products/create`、`/buyer/products/:id/edit`。
-
-**已有接口：** O `GET /storefront/product/detail`、`GET /products/detail`、`POST /products/create`、`PUT /products/update`、`POST /orders/create`、`POST /orders/create-batch`、`GET /orders/detail`。涉及 `ProductDTO`、`ProductSaveQO`、`OrderCreateQO`、`OrderCreateItemQO`、`OrderDTO`。
-
-**具体缺口：** 当前价格/库存主要在商品层，创建订单仅有商品ID、数量和秒杀场次等信息，没有真实SKU选择及组合价格库存的完整契约。颜色/容量等原型选项不能直接当成交易规格。
-
-**后端交付：**
-
-- 商品返回规格组、选项、可用组合、稳定组合ID、各组合价格/库存/启用状态及需要切换的图片；无规格商品兼容原流程。
-- 商品创建/编辑能维护相应规格与组合，并说明审核、上下架及历史数据兼容规则。
-- 单笔及批量下单能传递真实组合；如果采用真实子商品映射，需明确映射规则，不能只提交选项文字。
-- 服务端核验最终组合、数量、秒杀资格及费用并重算价格；订单保存不可变的商品/组合/规格/价格快照。
-- 返回缺货、组合失效、下架、价格变化等可识别结果。规格说明、尺寸表可使用明确的正式商品正文来源，不强制另建接口。
-
-**验收：** 多组规格、不同价格、部分缺货、历史规格删除及单笔/批量下单均保持正确；修改商品不改写历史订单规格和成交价；未知创建结果按C01恢复。
-
-### C02 商品费用与金额契约
-
-**对应页面：** 商品详情、`/checkout`、买手商品创建/编辑、充值/转出/押金及小金库金额输入。
-
-**已有接口：** O `GET /storefront/product/detail`、`GET /products/detail`、`POST /products/create`、`PUT /products/update`、`POST /orders/create`、`POST /orders/create-batch`；U各现有资金写接口继续复用。
-
-**具体缺口：** `ProductDTO.price/shippingFee/taxFee`已有字段，但读取时必返、`null`/省略与合法零的语义不够明确。`ProductSaveQO`写入费用留空默认0，不等于读取省略也可以按0处理。金额允许精度、上限和数字/字符串入参支持需统一写清。
-
-**后端交付：**
-
-- 明确可购买商品详情的售价、运费、税费是否必返；未知/尚未计算与确定为0分开表达。列表展示无需为此强制补全部费用，但用于确认购买的详情必须可核对。
-- 列明金额单位、小数位、最大值、最小值、舍入方式、科学计数及字符串入参是否支持；新增金额采用精确十进制语义。
-- 下单和付款由服务端核对权威应付金额；历史商品缺费值时给出正式处理方式。
-
-**验收：** 零运费/零税费正常购买，缺失费用不会变成免费；高精度或超限输入明确拒绝，不能静默舍入。此项首先补字段约定，不要求新建费用接口或重写所有资金接口。
-
-**前端现状：** 已保留精确金额原文；缺售价拒绝，费用未知保留未知并阻止购买；不能无损传入旧number参数的值已拒绝。这些前端保护不是要求后端修复的解析缺陷。
-
-### B05 多资产、多网络充值
-
-**对应页面：** `/wallet/deposit`及钱包充值弹层；地址充值、钱包充值、金额申报、充值记录与资金流水。
-
-**已有接口：** U `GET /recharge/chains`、`GET /recharge/address`、`POST /recharge/create`、`GET /recharge/by-key`、`GET /recharge/detail`、`POST /recharge/page`、`PUT /recharge/cancel`、`POST /tronlink/sessions/create`、`GET /tronlink/sessions/detail`。
-
-**具体缺口：** 当前链配置、合约、精度、申报和记录以USDT为语义，缺USDC等资产的授权支持矩阵与统一资产归属。不是缺整套USDT充值能力。
-
-**后端交付：**
-
-- 明确资产×网络支持矩阵：资产/网络标识、是否启用、合约、精度、最低额、Memo/Tag、确认数及钱包支持方式。
-- 地址读取、金额申报、详情/by-key/取消/列表均能表达相同资产和网络，禁止将USDC发送到仅授权USDT的地址或合约。
-- 明确地址/钱包/申报三种方式的记录来源、唯一身份、去重、确认进度及到账关联。
-- 明确USDC独立记账还是折算USDT；折算时返回来源/目标资产及金额、汇率、费用和计价时点。
-- 沿用现有TronLink结果语义：`SUCCESS`只代表钱包确认；`rechargeId`为空仍表示尚未关联到账。不得将拿到`txHash`直接当成余额增加。
-
-**验收：** 切资产/网络废弃旧地址和二维码；未确认不加余额；同交易哈希/原键不重复入账；三种方式都可追踪。只开放后端授权组合，暂不支持的USDC保持禁用。本项不扩大为USDC提现。
-
-### B08 采购、审核与售后确认阶段
-
-**对应页面：** `/buyer/dashboard`、`/buyer/orders`、`/buyer/products`、`/buyer/aftersales`及对应详情/操作按钮。
-
-**已有接口：** O `POST /orders/sold/page`、`GET /orders/detail`、`POST /orders/ship`、`POST /products/my/page`、`GET /products/detail`、`GET /stats/mine`，以及现有退款分页/详情接口；后台审核流程与C端阶段展示分别核对。
-
-**具体缺口：** 新版订单区分`PROCURING`、`PROCURED`、`AFTERSALE_CONFIRM`等展示阶段；公开订单状态主要是`CREATED/PAID/SHIPPED/REFUND_REVIEW/REFUNDED/COMPLETED/CANCELED`。商品新版有`PENDING_AUDIT/IN_AUDIT`，公开商品审核主要只有`REVIEWING`。发货时能提交采购凭证，不等于已有发货前“完成采购”阶段。
-
-**后端交付：**
-
-- 先确认每个新版阶段在真实业务中是否独立存在；已有字段能表达时给出权威组合规则，否则说明需要新增什么阶段/操作。
-- 同步列表过滤、详情状态、Tab/KPI计数及允许动作；采购完成、签收、确认收货、退款审核和售后确认不能混为一个状态。
-- 明确状态流转、权限、并发冲突及历史记录的兼容方式。现有`/stats/mine`已有经营指标，不需要整体重做；阶段计数可复用既有分页total或提供等价权威统计。
-
-**验收：** 提供可区分的订单和商品样本；Tab、KPI、分页、操作资格一致。确无独立业务阶段时，先给正式映射和产品决定，不能让前端猜测或填假数量。影响动作资格的部分按P0处理，其余展示按P1。
-
-## 4. P1：新版主要功能补齐
-
-### B01 品牌模型、关联与筛选
-
-**对应页面：** `/`品牌条、`/brand`、`/product/list`、`/product/:id`及买手商品创建/编辑。
-
-**已有接口：** O `POST /storefront/products/page`、`GET /storefront/product/detail`、`GET /storefront/recommend`、`POST /storefront/best-sellers/page`、`POST /storefront/new-arrivals/page`、`POST /products/create`、`PUT /products/update`。
-
-**缺什么：** 当前`ProductDTO/ProductListVO/ProductSaveQO`无完整品牌关联，`PublicProductPageQuery`没有品牌过滤；没有可供品牌专区消费的完整品牌目录契约。
-
-**需要补：** 稳定品牌ID、名称/必要别名、启用/排序及Logo等正式来源；商品读写关联品牌；公开商品列表按品牌ID分页；明确keyword是否覆盖品牌与分类（当前只说明商品标题）；推荐/热销/新品保持同一品牌展示语义。
-
-**验收：** 同一品牌不因大小写变成不同关联；品牌过滤/分页/total正确；停用和不存在有明确结果。历史无品牌保持真实空值。当前品牌页仅保留设计文案及未开放状态，尚未接入真实品牌筛选。
-
-### B03 评价搜索、主题、排序及聚合
-
-**对应页面：** `/product/:id`的评价搜索、主题标签和排序区域。
-
-**已有接口：** O `POST /storefront/reviews/page`、`GET /storefront/reviews/summary`。`ProductReviewPageQuery`已有分页、商品ID、星级及有图筛选；`ReviewSummaryDTO`已有平均分、各星级数量、好评率及带图数量。
-
-**缺什么：** 关键词、主题筛选、最有帮助/评分最高/评分最低排序，以及新增条件下的全量计数。默认时间倒序已经存在，不要求重建。
-
-**需要补：** 服务端组合查询参数、排序枚举及稳定兜底规则；真实主题/标签来源、主题计数和筛选结果total；购买规格快照复用B02。明确筛选计数与商品全量评分摘要各自统计域，保留既有已发布/未删除及匿名脱敏规则。
-
-**验收：** 超过一页的数据组合筛选仍正确，不能只排序/过滤当前页。最有帮助依赖B04。基础评价和摘要已封装并调用；新增条件尚未接入，当前不伪造本地搜索或排序。
-
-### B04 评价帮助投票
-
-**对应页面：** 商品详情评价卡“对我有帮助”及帮助数排序。
-
-**已有接口：** O `POST /storefront/reviews/page`、`GET /reviews/detail`等基础评价接口。
-
-**缺什么：** `ReviewDTO`没有权威帮助数量和本人投票状态；当前公开C端契约无设置/取消帮助投票能力。
-
-**需要补：** 读取权威计数/本人状态；按目标状态设置或取消的幂等写入，操作后返回最新结果；明确游客、重复、并发、评价隐藏/删除和不可投票时的结果。具体新路径由后端发布，不复用浏览器本地计数。
-
-**验收：** 重复请求不重复累计，取消正确，刷新/换设备保持本人状态，跨账号隔离；隐藏/删除评价不继续允许投票。当前按钮明确未开放。
-
-### B07 正式帮助、协议和公开公告
-
-**对应页面：** `/help`、`/help?agreement=user/privacy/service/kyc/aml`、协议弹窗、`/announcement`、`/checkout`协议链接及页脚政策入口。
-
-**已有基础：** N `POST /notifications/page`是个人通知，不能替代公开公告。当前协议组件仍调用本地`cmsApi.fetchAgreementCurrent`并标注“演示协议”；帮助/公告正式内容未开放。
-
-**缺什么：** 当前四组公开契约没有完整的C端帮助、正式协议、公开公告消费来源和版本规则。
-
-**需要补：**
-
-- 帮助：主题/条目ID、标题、正文、排序及发布/可见状态。
-- 协议：种类、正式版本、生效时间、正文及发布状态；明确结算引用的有效版本。若业务需要保存同意版本，另明确是否需要服务端记录及其契约，不擅自增加前端流程。
-- 公告：稳定ID、标题、正文、发布时间、受众、置顶及分页；公开与个人受众分开鉴权。
-- 未发布/下线/无内容/无权限/读取失败分别表达；约定富文本和链接安全规则。
-
-**验收：** 正式来源和版本可核对，游客仅读取可公开内容，下线内容不继续充当有效协议。可先交付审核发布的静态内容及版本清单，不强制新建CMS后台。
-
-### B09 订单搜索与分类申请搜索域
-
-**对应页面：** `/buyer/orders`；共用查询适用时包括`/order`；`/buyer/categories/apply`。
-
-**已有接口：** O `POST /orders/sold/page`、`POST /orders/bought/page`、`POST /categories/apply/my/page`。
-
-**缺什么：** `OrderPageQuery`只有`pageNo/pageSize/status`，缺订单号/商品名搜索。`CategoryApplyPageQuery.keyword`已有，但描述仅含申请人/新分类名称，未说明是否匹配申请理由。
-
-**需要补：** 明确订单号精确/模糊及商品标题搜索参数、与状态/阶段的组合规则；服务端total与分页同条件；确认或扩展分类申请keyword覆盖reason。订单号和业务ID按原值处理，查询只限当前账号可见记录。
-
-**验收：** 多页搜索、组合过滤、清空恢复及跨账号权限正确。不把售后按订单号查询列为缺口：现有`OrderRefundPageQuery.orderNo`已支持精确查询。
-
-### B11 小金库每日总预估利息
-
-**对应页面：** `/finance`总览的每日预估收益槽位。
-
-**已有接口：** U `GET /finance/orders/overview`、`POST /finance/orders/page`及产品/持仓详情。总览已有`holdingPrincipal/totalInterest/pendingInterest/expectedInterest/holdingCount`。
-
-**缺什么：** 没有明确“每日总预估利息”的权威聚合；`expectedInterest`是预计到期收益，不能当每日值。
-
-**需要补：** 先确定是否按当前有效持仓计算下一计息日预估收益；明确时区、计息日、开始/到期/提前赎回边界和精度/取整；在现有总览补等价聚合或指出可复用字段，覆盖全部持仓而非当前分页。
-
-**验收：** 多页、不同期限/年率、起息/到期/赎回和无持仓均准确；合法零、未知和失败可区分。基础小金库API已封装并调用，当前每日值待确认；理论单笔测算不冒充服务端聚合。
-
-### B12 本人收藏态与卖家认证标识
-
-**对应页面：** `/product/list`、首页推荐/热销/新品、`/product/:id`、`/favorites`及详情卖家卡。
-
-**已有接口：** O `POST /products/favorite`、`DELETE /products/favorite`、`POST /products/favorites/page`、商品列表/详情及`GET /storefront/reviews/seller-rating`。收藏/取消已明确为幂等操作，前端保留。
-
-**缺什么：** `ProductDTO`只有收藏数量，`ProductListVO`没有当前用户收藏态；`SellerRatingDTO`只有评价指标，不能证明卖家认证资格。
-
-**需要补：** 商品读取携带当前账号收藏目标状态，或提供受账号权限保护的批量状态查询；游客、未知与未收藏分开。补卖家可公开展示的认证/资格标识，明确撤销/过期/隐藏规则。写响应丢失后能读取权威收藏态。
-
-**验收：** 超过一页收藏、刷新、换账号、响应丢失及卖家资格变化均正确；不能用收藏数量或收藏第一页推断本人状态，不能用评分/销量/当前登录人角色推断其他卖家认证。
-
-### B10 正式AI选购助手
-
-**对应页面：** `/ai-guide`。
-
-**已有基础：** N客服/订单群接口是人工会话能力，不能当作AI接口。前端当前为明确未开放页，输入和发送禁用。
-
-**缺什么：** 正式导购会话、消息和真实商品引用契约。
-
-**需要补或决定：** 明确本期是否开放；开放则给规则/模型导购的能力边界、会话ID、用户消息、客户端消息去重标识、回复/处理状态和可访问的真实在售商品引用。说明超时、重试、重复消息、失败、限流及历史保留；库存价格仍以正式商品接口为准，服务密钥不进入前端。
-
-**验收：** 不虚构商品、库存、价格或下单结果；重复消息不重复执行，故障可恢复。明确延期可降为P2并保留未开放，不能用本地固定回复宣称已接入。
-
-## 5. P2：先确定范围，再按需开发
-
-### B06 首页和品牌运营内容
-
-**对应页面：** `/`主视觉/专题、`/brand`品牌内容。
-
-**已有接口：** O `GET /banners/list`已有`image/title/subtitle/tag/pathTo/sortOrder/enabled`；推荐、热销、新品和秒杀接口已有供数。
-
-**需要决定：** 固定v47场景、装饰、栏目文案可以作为前端正式版本资产交付，不需要后端重做。只有要求运营动态调整时，才补现有Banner不能覆盖的slot、内容ID、图片/文案、链接类型/目标、发布时段和空配置规则；品牌数据复用B01。
-
-**验收：** 后端内容填入既定版式；图片比例、文字长度、非法跳转、未发布/下线/空内容有明确约定。动态运营是本期要求时升P1，否则按固定内容交付。
-
-## 6. 环境、配置与验收数据：单独安排
-
-以下事项不是“再开发一套接口”，也不能凭历史报错认定当前服务仍故障。
-
-| 编号 | 优先级 | 对应页面/接口 | 需要后端或运维提供什么 | 当前边界 |
-| --- | --- | --- | --- | --- |
-| E01 | P1；第三方登录上线前 | `/auth/login`；现有Telegram登录链路 | 有效测试Bot、授权域名/前端来源与OAuth配置 | 最近Chrome出现`Bot domain invalid`；邮箱登录可用；配置变更后需实测 |
-| E02 | P1，联调数据 | 买手工作台；U `GET /auth/me`、`GET /buyer/application`、`GET /buyer/deposit/summary` | 角色、申请审批与实际买手资格一致的测试账号/夹具 | 曾有BUYER角色但押金称非买手的样本；另有APPROVED测试账号可用，不据此认定全局鉴权缺陷 |
-| E03 | P1，验收条件 | 商品、评价、订单、KYC、小金库、秒杀、积分申诉、IM | 隔离的非空/异常状态数据、可编辑商品、跨页样本及可控失效媒体；不提供真实证件或生产数据 | 缺特定状态不能算已真实验收，不等于必须新增接口 |
-| E04 | P0，仅资金真实验收前 | 充值、转出、付款、押金、小金库、链钱包 | 明确测试余额/回调/测试链范围和到账回读方式；必要敏感步骤由用户完成 | 页面/契约检查不等于实际付款或链上到账；不使用生产资金填验收覆盖 |
-
-历史KYC关联文件、充值回调配置等故障，应按当前有效测试样本重新确认后修复，不能将历史快照直接列为本日全局缺陷。当前未取得非空测试产品/持仓等情况，先补测试条件。
-
-## 7. 已有能力继续复用，不要求整体重做
-
-| 已有能力 | 现有接口或来源 | 本次边界 |
+| 样本 | 接口及页面 | 必须能验证 |
 | --- | --- | --- |
-| USDT充值/转出及结果恢复 | U `/recharge/*`、`/withdraw/*`及现有by-key | B05只补多资产差额；不扩大为USDC提现 |
-| 订单、付款、退款、物流、确认收货 | O现有`/orders/*`（含`/orders/refunds/*`） | 只补C01、B02、B08、B09及金额约定，不重建交易引擎 |
-| 基础评价与评分汇总 | O `/storefront/reviews/page`、`/storefront/reviews/summary`、现有创建/回复/申诉/资格 | B03/B04只补新增查询和帮助投票 |
-| 分类、申请、秒杀报名 | O `/categories/*`、现有秒杀接口 | 分类只澄清申请理由搜索；不重做层级与申请 |
-| 商品图片与正文 | O `POST /files/upload`，`scene=PRODUCT`；现有商品读写 | 封面1–6张、正文内嵌图最多30张等沿现有契约，不新增上传系统 |
-| 小金库、KYC、积分、VIP、押金 | U现有对应接口 | B11只补每日聚合；其他缺状态先准备测试数据 |
-| 消息中心、订单群、撤回、已读、增量和WebSocket | N现有`/im/*`与实时机制 | 本轮对话区空间、手机切换与布局已在前端修复，不要求后端重建消息系统；媒体故障需具体样本定位 |
-| 页面布局、主题、导航、商品卡和表单展示 | 当前前端实现 | 已发现的前端布局问题不转成后端任务 |
+| 至少2组不同价/库存/启停/图片的SKU，含超安全整数ID与高精度金额 | O商品create/update/detail、秒杀enroll；买手商品、详情、购物袋/结算 | 编辑保留旧ID；删/停用后历史订单快照；并发价格库存变化、模式切换限制 |
+| PROCURING/PROCURED/SHIPPED及AFTERSALE_CONFIRM | O订单sold/detail/procure/ship、refunds/confirm；买手订单/售后 | can*随账号和状态变化；已采购再发货；卖家意见不直接动账 |
+| PENDING_AUDIT/IN_AUDIT | O商品my/page，后台claim/release/audit | 领取归属、释放、重新送审和撤权 |
+| NOT_FOUND/PROCESSING/CREATED/REJECTED原键 | O `GET /orders/by-key`，结算恢复 | 只读不建单；同键异参、整批回滚、跨账号隔离；CREATED完整回执 |
 
-## 8. 每项交付和验收要求
+## P1：新版功能差异和正式内容
 
-后端请按B/C/E编号逐项回复，至少给出：
+### B03 评价搜索与主题
 
-1. **处理结论：** 已有可复用／需调整／需新增／明确延期；不只回复“支持”。
-2. **正式契约：** 服务、路径、HTTP方法、鉴权、请求/响应Schema、必填/可空/默认、枚举、示例和可识别错误结果；新增或变化同步Swagger。
-3. **业务规则：** 归属权限、过滤/分页/total、计数范围、状态流转、幂等/冲突/只读回查及历史兼容。
-4. **联调条件：** 测试环境、隔离样本、发布版本和前端可接入时间；任何凭据另走已有安全配置，不写本文或Git。
-5. **闭环验收：** 读取、写入结果回读、跨页/跨账号、并发、超时/结果未知及失效状态；只交Swagger不能直接标记为真实业务通过。
+已接：O `POST /storefront/reviews/page`中的星级、有图、正文keyword和四种sortBy；`PUT /reviews/helpful`及权威helpful/helpfulCount。
 
-金额采用精确十进制约定，Long业务ID保留原值；空结果、未知字段、读取失败、无权限分别表达。前端按“契约确认→API封装→页面调用→非空及异常真实验证”推进，四层不相互替代。
+仍缺：
 
-## 9. 本次核对来源
+- v47关键词包含评价正文、作者名称及购买规格文字；当前keyword明确只查正文。请扩展或给出可组合的正式条件并声明分页total，不能让前端只过滤当前页。
+- v47主题来自原型评价标签；当前topic仅`QUALITY/LOGISTICS/SERVICE/VALUE`，不能直接替换为另一套可见标签。请对齐标签与写入、分页、summary.topics全量计数的契约。
+- 返回SKU快照时使用历史购买规格，不从现商品推造。评价主题由用户实际选择，不按正文猜测。
 
-2026-10-15重新读取：
+相关页面：商品详情评价区及评价提交。当前没有把不匹配的主题强行开放；仅正文搜索的范围有明确提示，不能标记原型完整搜索已验收。
 
-- [order OpenAPI](https://testhou.merchantsale.store/api/order/v3/api-docs)：81条路径、83个操作。
-- [user OpenAPI](https://testhou.merchantsale.store/api/user/v3/api-docs)：63条路径、65个操作。
-- [admin OpenAPI](https://testhou.merchantsale.store/api/admin/v3/api-docs)：222条路径、223个操作。
-- [notify OpenAPI](https://testhou.merchantsale.store/api/notify/v3/api-docs)：25条路径、25个操作。
-- `pnpm check:swagger`：现有关键C端契约检查通过，不代表本文待补能力通过。
-- [原后端详细清单](./PC-v47-backend-requirements.md)、[前端验收及未验证边界](./design-qa.md)、[API匹配矩阵](./docs/api-swagger-match-matrix.md)。
-- 源码核对：[商品API](./src/service/api/product.ts)、[订单API](./src/service/api/order.ts)、[评价API](./src/service/api/review.ts)、[钱包API](./src/service/api/wallet.ts)、[小金库API](./src/service/api/finance.ts)、[分类API](./src/service/api/category.ts)、[协议组件](./src/components/cms/agreement-viewer.vue)。
+### B07 正式帮助/协议/公告
 
-本文为本次后端交付摘要；不修改接口计划顶部“当前承接状态”，不把历史浏览器检查、单元测试或构建结果当作新增后端能力验收。
+已接：N `POST /content/help/page`、`GET /content/help/detail`、`GET /content/agreements/current?kind=`、`POST /content/announcements/page`、`GET /content/announcements/detail`。
+
+请Ray/内容负责人交付并审核发布：
+
+- 用户、隐私、服务、KYC、AML五类协议正文；`code/kind`、`contentVersion`、`publishedAt/effectiveAt`及受众PUBLIC/LOGGED_IN。
+- 七类帮助的正文及主题编码。既有入口`pay/delivery/return/buyer`原样透传；购物指南、求购指南、钱包支付的编码尚未确认，前端保留标签但禁用。不要只给`orders`示例要求前端猜映射。
+- 正式公告及发布/下线流程。列表不带正文，详情必须能按ID读取；最新协议下线不能静默回退旧版。
+
+本轮游客只读：品牌、帮助、公告返回HTTP200/code1空分页；用户协议返回`-322`暂无有效协议。前端保留真实空态/未发布状态，不伪造内容；清洗正文并限制链接协议。本期未要求新增保存同意版本接口。
+
+### QA-02 其他已接能力的非空联调
+
+| 编号 | 已接页面与接口 | 还需要验证条件 |
+| --- | --- | --- |
+| B01 | `/brand`、商品卡/规格参数、买手品牌选择；O品牌page/detail、商品brandId/brand | 启用和停用品牌、关联商品、深页/搜索、编辑清品牌及旧停用关联样本 |
+| B04 | 商品评价投票；O `PUT /reviews/helpful`、公开reviews/page | 普通登录顾客给他人评价投票、重复/取消、-305繁忙和丢响应；不能用仅作者/卖家可见的私有详情作恢复 |
+| B09 | 顾客/买手订单搜索；O bought/page、sold/page的orderNo/productTitle | 同状态多页、空结果、精确订单号、模糊标题、权限边界和筛选计数；分类申请keyword需含理由 |
+| B11 | `/finance`每日预估；U `GET /finance/orders/overview` | 全量跨页持仓、未起息/到期/提前赎回、24小时边界、合法零及失败；返回dailyExpectedInterest/estimatedAt/estimateUntil |
+| B12 | 商品卡/图库/收藏页与卖家卡；O favorites/status、favorite POST/DELETE、sellers/qualification | 账号切换、深页收藏、丢响应、跨页更新；认证买手/冻结/撤销/非买手，不以销量或访问者角色推断 |
+
+## P2：本期保持既定范围
+
+- **B10 AI**：明确延期，保持未开放，不接固定回复冒充真实导购。
+- **B06运营**：首页和专题固定v47内容继续保留；需要动态运营时另确认字段与发布权限。
+- **USDC**：矩阵可返回禁用项，不开放充值、兑换或提现；未来独立记账/折算规则需另立契约。
+
+## 交付和验收口径
+
+按“部署版本/配置 → 隔离样本 → 页面读写 → 订单及钱包回读”推进。契约存在、API封装、页面调用、真实业务验证四层分别记录，不能合并成已验收。浏览器、像素、动画及资金验证按当前安排后置；类型/现有测试/构建通过只证明对应代码检查通过。本轮未安装依赖；本次按明确请求同批保存代码、任务单和当前承接信息，仅推送`feat/pc-ui-v47`，不合并main或发布。

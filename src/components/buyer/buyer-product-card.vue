@@ -7,6 +7,7 @@ import { getAftersaleMeta } from '@/service/api/product';
 import UmIcon from '@/components/common/um-icon.vue';
 import { formatUsdt } from '@shared/utils/currency';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
+import { productRequiresSku } from '@/utils/product-sku';
 
 interface Props {
   product: Api.RealProduct.DisplayRecord;
@@ -50,6 +51,7 @@ const editDisabledReason = computed(() => {
 });
 const priceDisabledReason = computed(() => {
   if (busyReason.value) return busyReason.value;
+  if (productRequiresSku(props.product)) return '多规格商品请先下架，再通过编辑分别维护 SKU 价格';
   if (rawStatus.value === 'ON_SALE' || rawStatus.value === 'OFF_SHELF') return '';
   if (rawStatus.value === 'REJECTED') return '审核驳回的商品请通过编辑修改价格并重新提交审核';
   return '仅在售或已下架的商品可快捷改价';

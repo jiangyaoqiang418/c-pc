@@ -7,12 +7,12 @@
 | 基线 | 当前值 |
 | --- | --- |
 | 计划日期 | 2026 年 10 月 14 日 |
-| 实施目录 | D:/other_code/w3/c-pc |
+| 实施目录 | c-pc（当前本机 `/Users/yaoqiangjiang/Desktop/w3/c-pc`） |
 | 工作分支 | feat/pc-ui-v47 |
 | 起始提交 | 26fe649 |
-| 设计来源 | D:/other_code/w3/Umaomao-v47/dist |
-| 当前状态 | 页面结构已迁移；本轮接入原键恢复、SKU购买和采购/售后阶段，真实非空及写入验收仍部分完成。最新证据见 design-qa.md；跨设备保存基线见 docs/api-integration-plan.md |
-| 现有页面 | 55 条业务路由；另需新增新版品牌入口 /brand |
+| 设计来源 | 旁侧 Umaomao-v47/dist；运行素材和冻结样式已入库 |
+| 当前状态 | 原键/SKU购买/采购阶段基础上，本轮已接品牌、评价扩展、收藏资格、内容、订单搜索、每日利息，补SKU写表单和充值矩阵；真实验收仍部分完成。工作区最新证据见 design-qa.md；已保存承接基线见 docs/api-integration-plan.md |
+| 现有页面 | 当前57条懒加载路由/56个独立页面，含品牌 /brand 与开发设计总览；数量不代表业务验收 |
 | 默认设计主题 | web3-meme；保留原型全部 27 套配色及其结构差异 |
 | 后端补充清单 | [PC v47 后端补充清单](./PC-v47-backend-requirements.md) |
 
@@ -42,7 +42,7 @@
 
 ## 2 当前工程基础与实施边界
 
-C PC 当前使用 Vue 3、Vite、TypeScript、Pinia、Vue Router、Tailwind CSS v4 和 shadcn-vue/Reka；已经进行了 v44 页面与组件迁移。已有六主题，默认森林绿，尚未满足 v47 的 MEME 主结构和 27 套配色。
+迁移起点已使用Vue 3、Vite、TypeScript、Pinia、Vue Router、Tailwind CSS v4和shadcn-vue/Reka；当前v47主结构、默认MEME及27主题已进入工程。已有页面样式和素材继续按冻结基准保留，工程接入不代表全部像素或真实业务验收通过。
 
 继续使用当前工程，不执行整仓回退。迁移前提交只作为高风险业务逻辑的对照。重点复用 src/service、src/stores、src/utils 中的请求、权限、精确金额、原请求恢复、提交互斥和消息机制；原型中的演示业务逻辑不进入生产。
 
@@ -244,9 +244,20 @@ E 表示原型已有明确主页面或弹层；P 表示已有框架但生产内�
 | 买手 | buyer-layout/sidebar、buyer-order-actions/info/dl/empty、paper | 演示状态条改为真实加载/失败/空态；独立采购/审核阶段无权威字段时显示未提供，不将PAID重复计入两阶段；保留真实上传/分类/富文本/资格/未知恢复 |
 | KYC/VIP/积分 | paper narrow、VIP原型标题、profile-assets、钱包流水与筛选 | 动态schema、私有材料/过期、真实等级/权益、流水/申诉/规则与空态；使用paper/soft/line/ink/muted语义变量，避免沿用浅色固定背景 |
 | 通知/IM | notice-item、paper chat-panel、message/chat-compose | 真实分页/已读/详情、会话侧栏、媒体/撤回/原消息重试、断线补偿；保留已有消息引擎，未提供的消息或状态不生成 |
-| 帮助/公告/AI | help-layout/faq、通知paper、chat-panel | 正式内容与AI缺口显示未开放；协议保留明确演示声明；已有真实搜索/联系客服入口有效，不用本地固定回答充当服务 |
+| 帮助/公告/AI | help-layout/faq、通知paper、chat-panel | 正式内容接口已接；空列表、未发布/下线协议、失败重试和清洗正文；不回退演示内容。AI继续未开放 |
 
 MEME ≤700px 的普通弹层复用原型 meme-sheet-grip：只拖专用手柄，向下超过80px才关闭；pointercancel、切主题、扩宽和卸载恢复位移，写入忙碌时禁止拖拽关闭。焦点、Tab循环和滚动锁沿现有Reka组件处理。
+
+### 7.1.1 本轮功能补充的实现边界（2026-10-15）
+
+| 范围 | v47锚点/复用组件 | 新增真实状态与边界 | 验证证据 |
+| --- | --- | --- | --- |
+| SKU写表单 | buyer商品表单、field/spec-table、Input/Select/上传组件；paper/soft/line/ink/muted变量 | 原ID/启停/组合/图片/精确价格与库存；显式删除/切模式；同账号草稿带版本锁，不恢复精度不明的旧金额 | 类型、现有测试及构建通过；无真实SKU样本，浏览器后置 |
+| 品牌与内容 | brand-layout/brand-strip、help-layout/faq、notice-item、协议Dialog | 品牌ID筛选和停用/无关联；正式正文、版本、空态/错误态；部分help topic未确认时禁用入口 | 品牌/帮助/公告真实空分页、用户协议无有效版本已只读核实；非空待交付 |
+| 评价与收藏 | review-search/review-helpful/review-variant、商品卡心形按钮/图库/卖家卡 | 正文搜索/四排序/目标投票；SKU快照；权威收藏与资格，写入未知先读回，不作乐观成功 | 现有测试覆盖迟到响应、未知状态和账号/会话隔离；主题不匹配保持未开放 |
+| 订单和充值 | buyer-filter、原订单Tab、wallet-operation-dialog及既有三方式 | 订单号/商品名由服务端分页；按真实矩阵开USDT方式；原申报和直充保留核对/互斥 | 类型/参数测试通过；非空搜索、链签名/到账与像素验收后置 |
+
+补充区域仅承载必要业务能力；原型已有CSS、主题和素材未修改。按当前安排未新增浏览器截图，这些实现不能登记为像素或交互验收通过。
 
 ### 7.2 本轮本地实施与验收状态（2026-10-15）
 

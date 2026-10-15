@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '@/stores';
 import { Message } from '@/lib/feedback';
-import { getAftersaleMeta, toggleProductFavorite } from '@/service/api/product';
+import { getAftersaleMeta } from '@/service/api/product';
+import { useProductFavoritesStore } from '@/stores/product-favorites';
 import UmIcon from '@/components/common/um-icon.vue';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
-// Brand metadata is optional until B01 is supplied by the real API. Never infer it from a category.
 interface Props {
   product: Api.RealProduct.DisplayRecord & { brandName?: string };
   demo?: boolean;
@@ -19,26 +19,32 @@ interface Props {
 const props = defineProps<Props>();
 const router = useRouter();
 const userStore = useUserStore();
-const favoriting = ref(false);
+const favorites = useProductFavoritesStore();
+const favoriteState = computed(() => favorites.entries[String(props.product.id)]);
+const savedState = computed(() => props.favoriteHandler ? props.saved : favoriteState.value?.value);
+const busy = computed(() => favoriteState.value?.loading || favoriteState.value?.writing);
+watch(() => [props.product.id, userStore.currentUser?.id, userStore.sessionVersion, props.demo, props.favoriteHandler], () => {
+  if (!props.demo && !props.favoriteHandler) favorites.ensure(props.product.id);
+}, { immediate: true });
 let active = true;
 onBeforeUnmount(() => { active = false; });
 
 async function favorite() {
-  if (favoriting.value || props.demo || props.favoriteDisabled) return;
+  if (busy.value || props.demo || props.favoriteDisabled) return;
   if (props.favoriteHandler) { await props.favoriteHandler(props.product); return; }
   const userId = userStore.currentUser?.id;
   if (userId === undefined) { Message.warning('请先登录后再收藏'); return; }
   const productId = props.product.id;
-  favoriting.value = true;
+  const session = userStore.sessionVersion;
+  const isCurrent = () => active && userStore.sessionVersion === session && String(userStore.currentUser?.id) === String(userId) && String(props.product.id) === String(productId);
   try {
-    await toggleProductFavorite(productId, { showError: false });
-    // This endpoint does not return the selected state. Do not invent an optimistic saved flag.
-    if (active && String(userStore.currentUser?.id) === String(userId) && String(props.product.id) === String(productId)) {
-      Message.success('收藏状态已更新，可在我的收藏查看');
+    const result = await favorites.toggle(productId);
+    if (isCurrent()) {
+      if (result !== undefined) Message.success(result ? '已收藏' : '已取消收藏');
     }
-  } catch {
-    if (active && String(userStore.currentUser?.id) === String(userId)) Message.error('收藏失败，请稍后重试');
-  } finally { if (active) favoriting.value = false; }
+  } catch (error) {
+    if (isCurrent()) Message.error(error instanceof Error ? error.message : '收藏状态待确认，请点击重试');
+  }
 }
 
 const cover = computed(() => props.product.images?.[0]?.url || PRODUCT_IMAGE_PLACEHOLDER);
@@ -75,8 +81,8 @@ function goDetail() {
       </button>
       <span v-if="!product.stock" class="tag">已售罄</span>
       <span v-else-if="product.overseasCustoms" class="tag">海外直邮</span>
-      <button type="button" class="favorite icon-btn" :class="{ saved }" :disabled="favoriting || demo || favoriteDisabled"
-        :aria-label="(saved ? '取消收藏 ' : '收藏 ') + product.title" :aria-pressed="saved" @click="favorite">
+      <button type="button" class="favorite icon-btn" :class="{ saved:savedState }" :disabled="busy || demo || favoriteDisabled"
+        :title="favoriteState?.error" :aria-label="(favoriteState?.error ? '重试读取收藏状态 ' : savedState ? '取消收藏 ' : '收藏 ') + product.title" :aria-pressed="savedState" @click="favorite">
         <UmIcon name="heart" />
       </button>
       <button type="button" class="quick-view" @click="goDetail">探索商品 <UmIcon name="arrow" /></button>

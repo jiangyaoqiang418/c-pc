@@ -5,6 +5,7 @@ import { toFiniteNumber } from './number';
 import { enums } from '@shared';
 import { sumPaymentAmounts } from '@/utils/checkout';
 import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
+import { validateProductSkuWrite } from '@/utils/product-sku';
 
 export function toAfterSaleType(value?: string): Api.RealProduct.DisplayAfterSaleType {
   if (value === 'SEVEN_DAY_NO_REASON') return '7day-no-reason';
@@ -115,6 +116,9 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
 
   return {
     ...readProductSkus(dto),
+    brandId: dto.brandId,
+    brand: dto.brand,
+    brandName: dto.brand?.name,
     id,
     code: String(dto.id || ''),
     title: dto.title,
@@ -149,6 +153,9 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
 
 function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Api.RealProduct.Record {
   return {
+    brandId: dto.brandId,
+    brand: dto.brand,
+    brandName: dto.brand?.name,
     id: dto.id,
     code: String(dto.id || ''),
     title: dto.title,
@@ -207,6 +214,7 @@ export function normalizeStorefrontSort(sort?: string): StorefrontSort {
 }
 
 export async function fetchStorefrontProducts(q: {
+  brandId?: Api.RealProduct.Id;
   current?: number;
   size?: number;
   keyword?: string;
@@ -225,6 +233,7 @@ export async function fetchStorefrontProducts(q: {
     pageNo: q.current || 1,
     pageSize: q.size || 20,
     keyword: q.keyword,
+    brandId: q.brandId,
     categoryId: q.categoryId,
     minPrice: q.minPrice,
     maxPrice: q.maxPrice,
@@ -320,9 +329,33 @@ export async function toggleProductFavorite(id: string | number, options: { show
   return { ok: true };
 }
 
-export async function cancelProductFavorite(id: string | number) {
-  await realOrderRequest.delete<boolean>('/products/favorite', { params: { id } });
+export async function cancelProductFavorite(id: string | number, options: { showError?: boolean } = {}) {
+  await realOrderRequest.delete<boolean>('/products/favorite', { ...options, params: { id } });
   return { ok: true };
+}
+
+/** 查询指定商品的本人状态；漏项、重复和未知 ID 都不是未收藏。 */
+export async function fetchFavoriteStates(productIds: Api.RealProduct.Id[], options: { signal?: AbortSignal } = {}) {
+  const ids = [...new Map(productIds.map(id => [String(id), id])).values()];
+  const states = new Map<string, boolean>();
+  for (let offset = 0; offset < ids.length; offset += 200) {
+    const batch = ids.slice(offset, offset + 200);
+    const records = requireArray<Api.RealProduct.FavoriteState>(await realOrderRequest.postQuery<Api.RealProduct.FavoriteState[]>(
+      '/products/favorites/status', { productIds: batch }, { ...options, showError: false }), '商品收藏状态');
+    for (const record of records) {
+      const key = String(record?.productId);
+      if (!batch.some(id => String(id) === key) || states.has(key) || typeof record?.favorited !== 'boolean') throw new Error('收藏状态响应异常，请重新读取');
+      states.set(key, record.favorited);
+    }
+    if (batch.some(id => !states.has(String(id)))) throw new Error('收藏状态响应漏项，请重新读取');
+  }
+  return states;
+}
+
+export async function fetchSellerQualification(sellerId: Api.RealProduct.Id, options: { signal?: AbortSignal } = {}) {
+  const result = await realOrderRequest.get<Api.RealProduct.SellerQualification>('/storefront/sellers/qualification', { ...options, params: { sellerId }, showError: false });
+  if (!result || String(result.sellerId) !== String(sellerId) || typeof result.verifiedBuyer !== 'boolean') throw new Error('卖家资格响应异常，请重新读取');
+  return result;
 }
 
 export async function fetchMyFavorites(q: { current?: number; size?: number; signal?: AbortSignal } = {}) {
@@ -347,8 +380,15 @@ export async function fetchSellerProductDetail(id: string | number, options: { s
 }
 
 export function updateProduct(params: Api.RealProduct.ProductUpdateParams) {
-  if (params.specGroups?.length || params.skus?.length) throw new Error('多规格商品需要使用规格编辑表单，当前编辑入口暂不支持提交');
-  return realOrderRequest.put<string, Api.RealProduct.ProductUpdateParams>('/products/update', params);
+  const skuWrite = validateProductSkuWrite(params.specGroups, params.skus);
+  const price = exactTransactionAmount(skuWrite.price ?? params.price);
+  const shippingFee = exactTransactionAmount(params.shippingFee, true);
+  const taxFee = exactTransactionAmount(params.taxFee, true);
+  if (price.value === undefined || shippingFee.value === undefined || taxFee.value === undefined) throw new Error(price.error || shippingFee.error || taxFee.error || '商品金额无法准确提交');
+  const stock = skuWrite.stock ?? params.stock;
+  if (!Number.isInteger(stock) || stock < 0 || stock > 2147483647) throw new Error('商品库存须为 0–2147483647 的整数');
+  return realOrderRequest.put<string, Api.RealProduct.ProductUpdateParams>('/products/update', { ...params,
+    specGroups:skuWrite.specGroups, skus:skuWrite.skus, price:price.value, shippingFee:shippingFee.value, taxFee:taxFee.value, stock });
 }
 
 export function changeProductPrice(id: Api.RealProduct.Id, price: string) {
@@ -395,6 +435,7 @@ export async function fetchMyProducts(q: {
 }
 
 export async function createProduct(p: {
+  brandId?: Api.RealProduct.Id | null;
   title: string;
   categoryId: string | number;
   price: string | number;
@@ -406,20 +447,29 @@ export async function createProduct(p: {
   summary: string;
   description: string;
   images: Api.RealProduct.ProductImageParam[];
+  specGroups?: Api.RealProduct.ProductSpecGroup[];
+  skus?: Api.RealProduct.ProductSkuSaveParams[];
 }) {
-  const price = exactTransactionAmount(p.price);
+  const skuWrite = validateProductSkuWrite(p.specGroups, p.skus);
+  if (skuWrite.skus.some(sku => sku.id !== undefined && sku.id !== null)) throw new Error('新增商品不能回传已有 SKU ID');
+  const price = exactTransactionAmount(skuWrite.price ?? p.price);
   const shippingFee = exactTransactionAmount(p.shippingFee, true);
   const taxFee = exactTransactionAmount(p.tax, true);
   if (price.value === undefined || shippingFee.value === undefined || taxFee.value === undefined) {
     throw new Error(price.error || shippingFee.error || taxFee.error || '商品金额无法准确提交');
   }
+  const stock = skuWrite.stock ?? p.stock;
+  if (!Number.isInteger(stock) || stock < 0 || stock > 2147483647) throw new Error('商品库存须为 0–2147483647 的整数');
   const id = await realOrderRequest.post<string, Api.RealProduct.ProductCreateParams>('/products/create', {
+    brandId: p.brandId,
     title: p.title,
     categoryId: p.categoryId,
     price: price.value,
     shippingFee: shippingFee.value,
     taxFee: taxFee.value,
-    stock: p.stock,
+    stock,
+    specGroups:skuWrite.specGroups,
+    skus:skuWrite.skus,
     afterSaleType: fromAfterSaleType(p.aftersaleType),
     overseasClearance: p.overseasCustoms,
     brief: p.summary,

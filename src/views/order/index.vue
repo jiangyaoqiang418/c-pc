@@ -37,6 +37,10 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
+const orderNo = ref('');
+const productTitle = ref('');
+const orderNoDraft = ref('');
+const productTitleDraft = ref('');
 const orders = ref<Api.RealOrder.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -44,6 +48,7 @@ const size = ref(8);
 const loading = ref(false);
 const loadError = ref('');
 const counts = ref<Record<string, number>>({});
+const countsSearchKey = ref('');
 const reviewableOrderIds = ref(new Set<string>());
 const reviewableError = ref('');
 const reviewableLoading = ref(false);
@@ -55,6 +60,10 @@ const orderView = ref<'buy' | 'sell'>('buy');
 const role = computed(() => (orderView.value === 'sell' ? 'shopper' : 'customer'));
 
 function syncFromQuery() {
+  orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo.trim() : '';
+  productTitle.value = typeof route.query.productTitle === 'string' ? route.query.productTitle.trim() : '';
+  orderNoDraft.value = orderNo.value;
+  productTitleDraft.value = productTitle.value;
   const view = route.query.view;
   orderView.value = resolveOrderView(view, userStore.canSwitchToBuyer, userStore.currentAudience);
   userStore.setAudience(orderView.value === 'sell' ? 'buyer' : 'customer');
@@ -82,6 +91,8 @@ function currentQuery() {
   return {
     view: orderView.value,
     ...(activeKey.value !== 'all' ? { tab: activeKey.value } : {}),
+    ...(orderNo.value ? { orderNo: orderNo.value } : {}),
+    ...(productTitle.value ? { productTitle: productTitle.value } : {}),
     ...(current.value > 1 ? { page: String(current.value) } : {})
   };
 }
@@ -115,6 +126,8 @@ async function load() {
     const params: Api.RealOrder.ListQuery = {
       current: current.value,
       size: size.value,
+      orderNo: orderNo.value || undefined,
+      productTitle: productTitle.value || undefined,
       statuses: tab?.statuses
     };
     if (role.value === 'shopper') params.shopperId = user.id;
@@ -175,7 +188,9 @@ async function loadCounts() {
     return;
   }
   try {
-    const next = await orderApi.countMyOrdersByStatus({ signal: isCurrent.signal });
+    const search = { orderNo: orderNo.value || undefined, productTitle: productTitle.value || undefined };
+    countsSearchKey.value = orderApi.orderSearchKey(search);
+    const next = await orderApi.countMyOrdersByStatus({ signal: isCurrent.signal, ...search });
     if (!isCurrent()) return;
     counts.value = next;
   } catch {
@@ -200,7 +215,7 @@ watch(() => route.fullPath, () => {
   if (!syncFromQuery()) return;
   if (previousView !== orderView.value) orders.value = [];
   void load();
-  if (previousView !== orderView.value || !Object.keys(counts.value).length) {
+  if (previousView !== orderView.value || countsSearchKey.value !== orderApi.orderSearchKey({ orderNo:orderNo.value, productTitle:productTitle.value }) || !Object.keys(counts.value).length) {
     counts.value = {};
     void loadCounts();
   }
@@ -212,6 +227,22 @@ function changeView(view: 'buy' | 'sell') {
 }
 
 function onTabChange() {
+  current.value = 1;
+  syncQuery();
+}
+
+function searchOrders() {
+  orderNo.value = orderNoDraft.value.trim();
+  productTitle.value = productTitleDraft.value.trim();
+  current.value = 1;
+  syncQuery();
+}
+function resetSearch() {
+  orderNo.value = '';
+  productTitle.value = '';
+  orderNoDraft.value = '';
+  productTitleDraft.value = '';
+  activeKey.value = 'all';
   current.value = 1;
   syncQuery();
 }
@@ -269,6 +300,7 @@ function changeTab(value: string | number) {
   <div class="order-list-page customer-orders">
     <header class="page-heading compact"><h1>我的订单</h1><span class="heading-meta">{{ orderView === 'sell' ? '卖出' : '买入' }}</span><div v-if="userStore.canSwitchToBuyer" class="view-switch" role="group" aria-label="订单视角"><button type="button" :class="orderView === 'buy' ? 'primary' : 'outline'" :aria-pressed="orderView === 'buy'" @click="changeView('buy')">买入订单</button><button type="button" :class="orderView === 'sell' ? 'primary' : 'outline'" :aria-pressed="orderView === 'sell'" @click="changeView('sell')">卖出订单</button></div></header>
     <div class="tabs" role="tablist" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" role="tab" :aria-selected="activeKey === tab.key" :class="{ active: activeKey === tab.key }" @click="changeTab(tab.key)">{{ tab.label }}<span v-if="tab.statuses && countOfTab(tab)" class="tab-count">{{ countOfTab(tab) > 99 ? '99+' : countOfTab(tab) }}</span></button></div>
+    <form class="buyer-filter order-search" role="search" @submit.prevent="searchOrders"><label><UmIcon name="search" /><input v-model="orderNoDraft" aria-label="订单号精确查询" placeholder="订单号（精确匹配）" autocomplete="off" /></label><label><UmIcon name="search" /><input v-model="productTitleDraft" aria-label="商品名称关键词" placeholder="商品名称" autocomplete="off" /></label><button type="submit" :disabled="loading">查询</button><button type="button" :disabled="loading" @click="resetSearch">重置</button></form>
     <section class="orders" :aria-busy="loading">
       <Alert v-if="reviewableError" class="review-notice"><AlertDescription>{{ reviewableError }}</AlertDescription><button type="button" class="outline" :disabled="reviewableLoading" @click="loadReviewableOrders"><Icon v-if="reviewableLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新核对</button></Alert>
       <p v-else-if="reviewableLoading" class="review-loading" role="status"><Icon icon="lucide:loader-circle" width="14" class="animate-spin" />正在核对评价资格…</p>
@@ -281,6 +313,7 @@ function changeTab(value: string | number) {
 </template>
 
 <style scoped>
+.order-search { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }.order-search label { display:flex; align-items:center; gap:8px; flex:1 1 220px; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); }.order-search input { width:100%; min-width:0; background:transparent; }.order-search button { padding:10px 18px; border:1px solid var(--line); border-radius:8px; }
 .view-switch { display:flex; gap:8px; margin-left:auto; }
 .tab-count { margin-left:6px; font-size:12px; }
 .order-skeletons { display:grid; gap:16px; }.order-skeleton { height:210px; }

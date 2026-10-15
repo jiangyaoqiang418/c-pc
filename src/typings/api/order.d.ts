@@ -161,6 +161,8 @@ declare namespace Api.RealOrder {
     statuses?: Api.Order.OrderStatus[];
     shopperId?: Id;
     customerId?: Id;
+    orderNo?: string;
+    productTitle?: string;
   }
 
   interface OrderIdParams {

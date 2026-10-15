@@ -43,6 +43,10 @@ const TABS: TabDef[] = [
 ];
 
 const activeKey = ref('all');
+const orderNo = ref('');
+const productTitle = ref('');
+const orderNoDraft = ref('');
+const productTitleDraft = ref('');
 const orders = ref<Api.RealOrder.Record[]>([]);
 const loading = ref(false);
 const loadError = ref('');
@@ -71,6 +75,10 @@ watch(shippingModalOpen, () => { shippingModalVersion += 1; }, { flush: 'sync' }
 watch(logisticsModalOpen, () => { logisticsModalVersion += 1; }, { flush: 'sync' });
 
 function syncFromQuery() {
+  orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo.trim() : '';
+  productTitle.value = typeof route.query.productTitle === 'string' ? route.query.productTitle.trim() : '';
+  orderNoDraft.value = orderNo.value;
+  productTitleDraft.value = productTitle.value;
   const tab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
   const matchedTab = TABS.some(item => item.key === tab);
   activeKey.value = matchedTab ? String(tab) : 'all';
@@ -83,6 +91,8 @@ function syncFromQuery() {
 function currentQuery() {
   return {
     ...(activeKey.value !== 'all' ? { tab: activeKey.value } : {}),
+    ...(orderNo.value ? { orderNo: orderNo.value } : {}),
+    ...(productTitle.value ? { productTitle: productTitle.value } : {}),
     ...(current.value > 1 ? { page: String(current.value) } : {})
   };
 }
@@ -112,6 +122,8 @@ async function load() {
       shopperId: user.id,
       current: current.value,
       size: size.value,
+      orderNo: orderNo.value || undefined,
+      productTitle: productTitle.value || undefined,
       statuses: tab?.statuses,
       signal: isCurrent.signal
     });
@@ -176,6 +188,22 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 });
 
 function onTabChange() {
+  current.value = 1;
+  syncQuery();
+}
+
+function searchOrders() {
+  orderNo.value = orderNoDraft.value.trim();
+  productTitle.value = productTitleDraft.value.trim();
+  current.value = 1;
+  syncQuery();
+}
+function resetSearch() {
+  orderNo.value = '';
+  productTitle.value = '';
+  orderNoDraft.value = '';
+  productTitleDraft.value = '';
+  activeKey.value = 'all';
   current.value = 1;
   syncQuery();
 }
@@ -383,7 +411,7 @@ function selectTab(value: unknown) {
 <template>
   <div class="buyer-orders-page shop-container">
     <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>买手订单</h1><p>从采购到交付，清晰掌握每一步。</p></div><Button class="outline" variant="outline" :disabled="loading" @click="load"><UmIcon name="return" />刷新</Button></header>
-    <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="selectTab(tab.key)">{{ tab.label }}</button></div><div class="buyer-filter"><label><UmIcon name="search" /><input aria-label="搜索订单，暂未开放" placeholder="搜索订单号或商品名称" disabled title="订单搜索暂未开放" /></label><button type="button" :disabled="loading" @click="activeKey = 'all'; onTabChange()">重置</button></div>
+    <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="selectTab(tab.key)">{{ tab.label }}</button></div><form class="buyer-filter order-search" role="search" @submit.prevent="searchOrders"><label><UmIcon name="search" /><input v-model="orderNoDraft" aria-label="订单号精确查询" placeholder="订单号（精确匹配）" autocomplete="off" /></label><label><UmIcon name="search" /><input v-model="productTitleDraft" aria-label="商品名称关键词" placeholder="商品名称" autocomplete="off" /></label><button type="submit" :disabled="loading">查询</button><button type="button" :disabled="loading" @click="resetSearch">重置</button></form>
     <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @procure="onProcure" @manage-logistics="manageLogistics" /></div>
     <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取买手订单"><Skeleton v-for="n in 3" :key="n" class="order-skeleton" /></div>
     <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
@@ -395,6 +423,7 @@ function selectTab(value: unknown) {
 </template>
 
 <style scoped>
+.order-search { flex-wrap:wrap; }.order-search label { flex:1 1 200px; }
 .loading-list { display:grid; gap:16px; }
 .order-skeleton { height:180px; }
 .price-form { display:grid; gap:22px; }

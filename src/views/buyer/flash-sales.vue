@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,6 +16,8 @@ import * as productApi from '@/service/api/product';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { setImageFallback } from '@/utils/image-placeholder';
+import { resolveProductPurchase } from '@/utils/product-sku';
+import { compareDecimalAmount, exactTransactionAmount } from '@/components/wallet/decimal-amount';
 
 const activeTab = ref<'sessions' | 'mine'>('sessions');
 const userStore = useUserStore();
@@ -38,9 +41,14 @@ const modalOpen = ref(false);
 const form = reactive<{
   sessionId: string;
   productId: string;
-  flashPrice?: number;
+  skuId?: Api.RealProduct.Id;
+  flashPrice: string;
   flashStock?: number;
-}>({ sessionId: '', productId: '' });
+}>({ sessionId: '', productId: '', flashPrice:'' });
+const productDetail = ref<Api.RealProduct.Record>();
+const productDetailLoading = ref(false);
+const productDetailError = ref('');
+const productDetailGuard = createLatestRequestGuard();
 let submitWriteVersion = 0;
 let cancelWriteVersion = 0;
 let modalVersion = 0;
@@ -48,6 +56,31 @@ watch(modalOpen, () => { modalVersion += 1; }, { flush: 'sync' });
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const selectedProduct = computed(() => products.value.find(item => String(item.id) === form.productId));
+const selectedPurchase = computed(() => productDetail.value && resolveProductPurchase(productDetail.value, form.skuId));
+
+async function loadProductDetail() {
+  const isCurrent = productDetailGuard.begin();
+  productDetail.value = undefined;
+  productDetailError.value = '';
+  productDetailLoading.value = false;
+  form.skuId = undefined;
+  if (!form.productId || !modalOpen.value) return;
+  const requestedUserId = userStore.currentUser?.id;
+  productDetailLoading.value = true;
+  try {
+    const detail = await productApi.fetchSellerProductDetail(selectedProduct.value?.id ?? form.productId, { signal:isCurrent.signal });
+    if (!isCurrent() || !modalOpen.value || String(requestedUserId) !== String(userStore.currentUser?.id)) return;
+    if (detail.rawStatus !== 'ON_SALE' || String(detail.sellerId) !== String(requestedUserId)) throw new Error('商品已不可报名，请重新选择在售商品');
+    productDetail.value = detail;
+  } catch (error) {
+    if (isCurrent()) productDetailError.value = error instanceof Error ? error.message : '商品规格读取失败';
+  } finally { if (isCurrent()) productDetailLoading.value = false; }
+}
+watch(() => form.productId, loadProductDetail);
+function selectSku(value: unknown) {
+  const sku = productDetail.value?.skus?.find(item => String(item.id) === value);
+  if (sku?.enabled) form.skuId = sku.id;
+}
 
 async function loadSection(section: Section) {
   const isCurrent = sectionGuards[section].begin();
@@ -129,22 +162,29 @@ function openEnroll(session: Api.RealFlashSale.SessionDTO) {
   modalVersion += 1;
   form.sessionId = session.id;
   form.productId = '';
-  form.flashPrice = undefined;
+  form.skuId = undefined;
+  form.flashPrice = '';
   form.flashStock = undefined;
   modalOpen.value = true;
 }
 
 async function submit() {
-  if (submitting.value || sectionLoading.products || sectionErrors.products) return;
+  if (submitting.value || sectionLoading.products || sectionErrors.products || productDetailLoading.value || productDetailError.value) return;
   if (!form.productId) {
     Message.warning('请选择报名商品');
     return;
   }
-  if (form.flashPrice != null && (!Number.isFinite(form.flashPrice) || form.flashPrice <= 0)) {
-    Message.warning('秒杀价必须大于 0');
+  const selection = selectedPurchase.value;
+  if (!productDetail.value || !selection?.available) {
+    Message.warning(productDetail.value?.hasSku ? '请选择启用且有库存的规格' : '商品当前不可报名，请重新读取商品');
     return;
   }
-  if (form.flashStock != null && (!Number.isFinite(form.flashStock) || form.flashStock < 1)) {
+  const flashPrice = form.flashPrice.trim() ? exactTransactionAmount(form.flashPrice) : undefined;
+  if (flashPrice && flashPrice.value === undefined) {
+    Message.warning(flashPrice.error);
+    return;
+  }
+  if (form.flashStock != null && (!Number.isInteger(form.flashStock) || form.flashStock < 1 || form.flashStock > selection.stock)) {
     Message.warning('秒杀库存至少为 1');
     return;
   }
@@ -154,15 +194,30 @@ async function submit() {
   const submittedModalVersion = modalVersion;
   const requestedSessionId = form.sessionId;
   const requestedProductId = form.productId;
-  const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const requestedSkuId = form.skuId;
+  const requestedStock = form.flashStock;
+  const requestedPrice = flashPrice?.value;
+  const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId)
+    && userStore.isBuyerActive && submittedModalVersion === modalVersion;
   submitting.value = true;
   try {
     try {
+      const latest = await productApi.fetchSellerProductDetail(requestedProductId);
+      if (!isCurrentWrite()) return;
+      const purchase = resolveProductPurchase(latest, requestedSkuId);
+      if (latest.rawStatus !== 'ON_SALE' || String(latest.sellerId) !== String(requestedUserId) || !purchase.available
+        || !!latest.hasSku !== !!productDetail.value?.hasSku || compareDecimalAmount(purchase.unitPrice!, selection.unitPrice!) !== 0 || purchase.stock !== selection.stock
+        || requestedStock !== undefined && requestedStock > purchase.stock) {
+        Message.warning('商品价格、规格或库存已变化，请重新选择并核对后报名');
+        await loadProductDetail();
+        return;
+      }
       await flashSaleApi.enrollFlashSale({
         sessionId: requestedSessionId,
         productId: requestedProductId,
-        flashPrice: form.flashPrice,
-        flashStock: form.flashStock
+        skuId: requestedSkuId,
+        flashPrice: requestedPrice,
+        flashStock: requestedStock
       });
       if (!isCurrentWrite()) return;
       Message.success('秒杀报名成功');
@@ -185,7 +240,7 @@ function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++cancelWriteVersion;
-  const isCurrentWrite = () => operation === cancelWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === cancelWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId) && userStore.isBuyerActive;
   cancelingEnrollmentKey.value = key;
   confirmationModal = Modal.confirm({
     title: '取消秒杀报名？',
@@ -227,13 +282,15 @@ onMounted(load);
 onBeforeUnmount(() => {
   confirmationModal?.close();
   productPageGuard.invalidate();
+  productDetailGuard.invalidate();
   submitWriteVersion += 1;
   cancelWriteVersion += 1;
   Object.values(sectionGuards).forEach(guard => guard.invalidate());
 });
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.isBuyerActive], () => {
   confirmationModal?.close();
   productPageGuard.invalidate();
+  productDetailGuard.invalidate();
   loadingMoreProducts.value = false;
   productTotal.value = 0;
   submitWriteVersion += 1;
@@ -244,6 +301,9 @@ watch(() => userStore.currentUser?.id, () => {
   sessions.value = [];
   enrollments.value = [];
   products.value = [];
+  productDetail.value = undefined;
+  productDetailLoading.value = false;
+  productDetailError.value = '';
   modalOpen.value = false;
   void load();
 });
@@ -263,9 +323,9 @@ function selectProduct(value: unknown) {
     <EmptyState v-if="loadError" title="秒杀数据加载失败" :description="loadError" action-text="重新加载" @action="loadSection(activeTab === 'sessions' ? 'sessions' : 'enrollments')" />
     <div v-else-if="loading" class="buyer-skeleton" aria-busy="true"><Skeleton v-for="n in 2" :key="n" class="h-72" /></div>
     <template v-else-if="activeTab === 'sessions'"><div v-if="sessions.length" class="buyer-flash-grid"><article v-for="(session,index) in sessions" :key="session.id" class="buyer-session"><span class="eyebrow">{{ String(index + 1).padStart(2,'0') }} / CURATED EVENT</span><UmIcon name="clock" /><h2>{{ session.name }}</h2><div><small>开始 {{ formatTime(session.startTime) }}</small><small>结束 {{ formatTime(session.endTime) }}</small></div><p class="buyer-inline-hint">已报名 {{ session.itemCount ?? '—' }} 件商品</p><button type="button" class="primary full" :disabled="sectionLoading.products || !!sectionErrors.products" @click="openEnroll(session)">{{ sectionLoading.products ? '正在读取商品…' : '选择在售商品报名' }}<UmIcon name="arrow" /></button></article></div><EmptyState v-else icon="lucide:zap" title="暂无可报名场次" description="可报名场次开放后会展示在这里。" /></template>
-    <template v-else><template v-if="enrollments.length"><article v-for="item in enrollments" :key="JSON.stringify([item.sessionId,item.productId])" class="paper buyer-enrollment"><div class="buyer-order-product"><img v-if="item.image" :src="item.image" :alt="item.title || '秒杀商品'" @error="setImageFallback" /><span><small>{{ sessionName(item.sessionId) }}</small><b>{{ item.title }}</b><small>结束 {{ formatTime(item.sessionEndTime) }}</small></span></div><dl class="buyer-dl"><dt>商品原价</dt><dd>{{ item.price === undefined || item.price === null ? '—' : formatAmount(item.price) }} USDT</dd><dt>秒杀价</dt><dd>{{ item.flashPrice === undefined || item.flashPrice === null ? '未单独设置' : formatAmount(item.flashPrice) + ' USDT' }}</dd><dt>秒杀库存</dt><dd>{{ item.flashStock ?? '未单独设置' }}</dd></dl><button type="button" class="outline" :disabled="!!cancelingEnrollmentKey" @click="cancel(item)">{{ cancelingEnrollmentKey === item.sessionId + ':' + item.productId ? '处理中…' : '取消报名' }}</button></article></template><EmptyState v-else title="暂无报名记录" action-text="查看可报名场次" @action="activeTab = 'sessions'" /></template>
+    <template v-else><template v-if="enrollments.length"><article v-for="item in enrollments" :key="JSON.stringify([item.sessionId,item.productId])" class="paper buyer-enrollment"><div class="buyer-order-product"><img v-if="item.image" :src="item.image" :alt="item.title || '秒杀商品'" @error="setImageFallback" /><span><small>{{ sessionName(item.sessionId) }}</small><b>{{ item.title }}</b><small v-if="item.skuId != null">{{ item.specText || '规格 ID：' + item.skuId }}</small><small>结束 {{ formatTime(item.sessionEndTime) }}</small></span></div><dl class="buyer-dl"><dt>商品原价</dt><dd>{{ item.price === undefined || item.price === null ? '—' : formatAmount(item.price) }} USDT</dd><dt>秒杀价</dt><dd>{{ item.flashPrice === undefined || item.flashPrice === null ? '未单独设置' : formatAmount(item.flashPrice) + ' USDT' }}</dd><dt>秒杀库存</dt><dd>{{ item.flashStock ?? '未单独设置' }}</dd></dl><button type="button" class="outline" :disabled="!!cancelingEnrollmentKey" @click="cancel(item)">{{ cancelingEnrollmentKey === item.sessionId + ':' + item.productId ? '处理中…' : '取消报名' }}</button></article></template><EmptyState v-else title="暂无报名记录" action-text="查看可报名场次" @action="activeTab = 'sessions'" /></template>
     <Alert v-if="sectionErrors.products"><AlertDescription class="error-row"><span>{{ sectionErrors.products }}，已有报名与场次仍可查看。</span><Button class="outline" variant="outline" size="sm" :disabled="sectionLoading.products" @click="loadSection('products')">重试商品读取</Button></AlertDescription></Alert>
-    <a-modal content-class="buyer-dialog" v-model:visible="modalOpen" :key="modalVersion" title="报名秒杀场次" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="enroll-form"><div class="buyer-field"><Label for="flash-product">报名商品 <span>*</span></Label><Select :model-value="form.productId || undefined" :disabled="submitting" @update:model-value="selectProduct"><SelectTrigger id="flash-product" class="full"><SelectValue placeholder="请选择在售商品" /></SelectTrigger><SelectContent><SelectItem v-for="product in products" :key="String(product.id)" :value="String(product.id)">{{ product.title }}（U {{ formatAmount(product.price) }} / 库存 {{ product.stock }}）</SelectItem><p v-if="!products.length" class="select-empty">暂无可报名商品</p></SelectContent></Select><Button class="outline" v-if="productLoadedCount < productTotal" type="button" variant="outline" :disabled="loadingMoreProducts || submitting" @click="loadMoreProducts">{{ loadingMoreProducts ? '正在读取…' : '加载更多商品' }}（已读取 {{ productLoadedCount }} / {{ productTotal }}，可报名 {{ products.length }}）</Button></div><div class="buyer-field"><Label for="flash-price">秒杀价（USDT）</Label><AmountInput id="flash-price" v-model="form.flashPrice" :disabled="submitting" :min="0.01" :precision="2" placeholder="选填" /><p v-if="selectedProduct" class="helper">商品原价 U {{ formatAmount(selectedProduct.price) }}</p></div><div class="buyer-field"><Label for="flash-stock">秒杀库存</Label><AmountInput id="flash-stock" v-model="form.flashStock" :disabled="submitting" :min="1" :max="selectedProduct?.stock" :precision="0" placeholder="选填" /></div></div></a-modal>
+    <a-modal content-class="buyer-dialog" v-model:visible="modalOpen" :key="modalVersion" title="报名秒杀场次" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="enroll-form"><div class="buyer-field"><Label for="flash-product">报名商品 <span>*</span></Label><Select :model-value="form.productId || undefined" :disabled="submitting" @update:model-value="selectProduct"><SelectTrigger id="flash-product" class="full"><SelectValue placeholder="请选择在售商品" /></SelectTrigger><SelectContent><SelectItem v-for="product in products" :key="String(product.id)" :value="String(product.id)">{{ product.title }}（U {{ formatAmount(product.price) }} / 库存 {{ product.stock }}）</SelectItem><p v-if="!products.length" class="select-empty">暂无可报名商品</p></SelectContent></Select><Button class="outline" v-if="productLoadedCount < productTotal" type="button" variant="outline" :disabled="loadingMoreProducts || submitting" @click="loadMoreProducts">{{ loadingMoreProducts ? '正在读取…' : '加载更多商品' }}（已读取 {{ productLoadedCount }} / {{ productTotal }}，可报名 {{ products.length }}）</Button></div><div v-if="productDetailLoading" class="helper" role="status">正在读取当前商品规格…</div><Alert v-if="productDetailError" variant="destructive"><AlertDescription>{{ productDetailError }}<button type="button" class="text-link" :disabled="submitting || productDetailLoading" @click="loadProductDetail">重新读取</button></AlertDescription></Alert><div v-if="productDetail?.hasSku" class="buyer-field"><Label for="flash-sku">报名规格 <span>*</span></Label><Select :model-value="form.skuId === undefined ? undefined : String(form.skuId)" :disabled="submitting || productDetailLoading" @update:model-value="selectSku"><SelectTrigger id="flash-sku"><SelectValue placeholder="请选择报名规格" /></SelectTrigger><SelectContent><SelectItem v-for="sku in productDetail.skus" :key="String(sku.id)" :value="String(sku.id)" :disabled="!sku.enabled || sku.stock < 1">{{ sku.specs.map(spec => spec.value).join(' / ') }}（U {{ formatAmount(sku.price) }} / 库存 {{ sku.stock }}）{{ !sku.enabled ? '（已停用）' : '' }}</SelectItem></SelectContent></Select><p class="helper">本场次每件商品仅可报名一个规格，其他规格不享受本次秒杀。</p></div><div class="buyer-field"><Label for="flash-price">秒杀价（USDT）</Label><Input id="flash-price" v-model="form.flashPrice" :disabled="submitting || productDetailLoading" inputmode="decimal" autocomplete="off" placeholder="选填，最多 8 位小数" /><p v-if="selectedPurchase?.unitPrice !== undefined" class="helper">{{ productDetail?.hasSku ? '规格' : '商品' }}原价 U {{ formatAmount(selectedPurchase.unitPrice) }}</p></div><div class="buyer-field"><Label for="flash-stock">秒杀库存</Label><AmountInput id="flash-stock" v-model="form.flashStock" :disabled="submitting" :min="1" :max="selectedPurchase?.stock" :precision="0" placeholder="选填" /></div></div></a-modal>
   </div>
 </template>
 

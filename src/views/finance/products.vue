@@ -5,7 +5,7 @@ import V47VaultHeader from '@/components/finance/v47-vault-header.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { formatAmount } from '@shared';
+import { formatFinanceAmount as formatAmount } from '@/components/finance/v47-interest-math';
 import * as financeApi from '@/service/api/finance';
 import { useUserStore, useWalletStore } from '@/stores';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -101,7 +101,7 @@ function knownRate(value: string | number) {
     <div v-if="loadError" class="status-banner vault-production-notice" role="alert"><UmIcon name="return" /><span>{{ loadError }}</span><button class="outline" :disabled="loading" @click="loadAll">重新读取</button></div>
     <div v-if="loading" class="vault-overview" aria-busy="true" aria-label="正在读取理财资产"><Skeleton class="vault-overview-skeleton" /><Skeleton class="vault-overview-skeleton" /></div>
     <div v-else class="vault-overview">
-      <section class="vault-balance-card"><div class="vault-card-top"><span><UmIcon name="shield" />锁仓资产 · USDT</span><button :aria-label="showBalance ? '隐藏资产金额' : '显示资产金额'" :aria-pressed="!showBalance" @click="showBalance = !showBalance"><UmIcon name="eye" /></button></div><div class="vault-total">{{ showBalance ? formatAmount(currentBalance) : '••••••' }}<small>USDT</small></div><div class="vault-balance-bottom"><span>待结算利息<strong>{{ showBalance ? overview ? '+ ' + formatAmount(overview.pendingInterest, { decimals: 4 }) : '—' : '••••' }}</strong></span><span>每日预估利息<strong>{{ showBalance ? '待确认' : '••••' }}</strong></span><button aria-label="查看锁仓资产" @click="router.push('/finance/my-lockups')"><UmIcon name="arrow" /></button></div><div class="vault-orbit" aria-hidden="true"><img :src="memeCat" alt="" /></div></section>
+      <section class="vault-balance-card"><div class="vault-card-top"><span><UmIcon name="shield" />锁仓资产 · USDT</span><button :aria-label="showBalance ? '隐藏资产金额' : '显示资产金额'" :aria-pressed="!showBalance" @click="showBalance = !showBalance"><UmIcon name="eye" /></button></div><div class="vault-total">{{ showBalance ? formatAmount(currentBalance) : '••••••' }}<small>USDT</small></div><div class="vault-balance-bottom"><span>待结算利息<strong>{{ showBalance ? overview ? '+ ' + formatAmount(overview.pendingInterest, { decimals: 4 }) : '—' : '••••' }}</strong></span><span title="全部计息中持仓在未来24小时的预估新增利息，实际结算以订单为准">每日预估利息<strong>{{ showBalance ? formatAmount(overview?.dailyExpectedInterest, { decimals: 8 }) : '••••' }}</strong></span><button aria-label="查看锁仓资产" @click="router.push('/finance/my-lockups')"><UmIcon name="arrow" /></button></div><div class="vault-orbit" aria-hidden="true"><img :src="memeCat" alt="" /></div></section>
       <section class="vault-available"><span class="vault-token">₮</span><div><small>钱包可用余额</small><strong>{{ balanceUnavailable ? '—' : formatAmount(walletStore.account?.available) }} <em>USDT</em></strong></div><p>锁仓金额从可用余额划入，<br />到期自动结算本金与利息。</p><button class="text-link" @click="router.push('/wallet')">查看钱包<UmIcon name="arrow" /></button></section>
     </div>
     <div class="vault-section-heading"><div><h2>锁仓产品</h2></div><div class="vault-periods" role="group" aria-label="筛选锁仓期限"><button v-for="value in ['全部', '30 天以内', '90 天']" :key="value" :class="{ active: period === value }" :aria-pressed="period === value" @click="period = value">{{ value }}</button></div></div>

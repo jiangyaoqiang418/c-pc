@@ -20,6 +20,7 @@ const route = useRoute();
 const filter = reactive({
   keyword: '',
   categoryId: undefined as string | undefined,
+  brandId: undefined as string | undefined,
   aftersaleType: undefined as Api.Product.AftersaleType | undefined,
   overseasCustoms: undefined as boolean | undefined,
   minPrice: undefined as number | undefined,
@@ -146,8 +147,10 @@ function optionalQueryNumber(value: unknown) {
 function syncFromQuery() {
   const queryKeyword = route.query.keyword;
   const queryCategoryId = route.query.categoryId;
+  const queryBrandId = route.query.brandId;
   filter.keyword = typeof queryKeyword === 'string' ? queryKeyword : '';
   filter.categoryId = typeof queryCategoryId === 'string' ? queryCategoryId || undefined : undefined;
+  filter.brandId = typeof queryBrandId === 'string' ? queryBrandId || undefined : undefined;
   const rawAftersaleType = Array.isArray(route.query.aftersaleType) ? route.query.aftersaleType[0] : route.query.aftersaleType;
   const validAftersaleType = typeof rawAftersaleType === 'string'
     && aftersaleOptions.some(option => option.value !== 'all' && option.value === rawAftersaleType);
@@ -169,6 +172,7 @@ function syncFromQuery() {
   current.value = validPage ? page : 1;
   return (queryKeyword !== undefined && typeof queryKeyword !== 'string')
     || (queryCategoryId !== undefined && typeof queryCategoryId !== 'string')
+    || (queryBrandId !== undefined && typeof queryBrandId !== 'string')
     || Array.isArray(route.query.sort)
     || (querySort !== undefined && querySort !== filter.sort)
     || (route.query.aftersaleType !== undefined && (Array.isArray(route.query.aftersaleType) || !validAftersaleType))
@@ -196,6 +200,7 @@ async function load() {
       size: size.value,
       keyword: filter.keyword || undefined,
       categoryId: filter.categoryId || undefined,
+      brandId: filter.brandId,
       aftersaleType: filter.aftersaleType,
       overseasCustoms: filter.overseasCustoms,
       minPrice: filter.minPrice,
@@ -230,6 +235,7 @@ function updateUrl(replace: boolean) {
     query: {
       keyword: filter.keyword || undefined,
       categoryId: filter.categoryId ? String(filter.categoryId) : undefined,
+      brandId: filter.brandId,
       aftersaleType: filter.aftersaleType,
       overseas: filter.overseasCustoms ? '1' : undefined,
       minPrice: filter.minPrice !== undefined ? String(filter.minPrice) : undefined,

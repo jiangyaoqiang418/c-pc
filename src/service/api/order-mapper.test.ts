@@ -12,7 +12,10 @@ import { createPurchase, fetchPurchaseDetail } from './purchase';
 import { realOrderRequest, realUserRequest } from '@/service/request';
 import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { resolveProductPurchase } from '@/utils/product-sku';
-import { fetchRechargePage } from './wallet';
+import { createRecharge, fetchRechargeAssets, fetchRechargeByKey, fetchRechargePage, rechargeMethodEnabled, sameRechargeContract, validateRechargeDeclaration } from './wallet';
+import { fetchFinanceOverview } from './finance';
+import { formatFinanceAmount } from '@/components/finance/v47-interest-math';
+import { submitKeyedFinancialOperation, withSubmissionLock } from '@/utils/financial-submission';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -53,6 +56,133 @@ describe('v47 交易契约边界', () => {
     const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ records: [], total: '0', pageNo: 1, pageSize: 10 });
     expect((await fetchRechargePage()).total).toBe(0);
     expect(post.mock.calls[0][1]).toMatchObject({ asset: 'USDT' });
+  });
+
+  it('订单号原字符串、商品关键词与每个阶段查询取交集，计数沿用相同搜索条件', async () => {
+    const post = vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ records: [], total: 0 });
+    await orderApi.fetchMyOrders({ customerId: '9007199254740993', orderNo: ' 0009007199254740993 ', productTitle: ' 手机 ',
+      statuses: ['PROCURING', 'PROCURED'] });
+    expect(post.mock.calls).toHaveLength(2);
+    expect(post.mock.calls.map(([, query]) => query)).toEqual([
+      { pageNo: 1, pageSize: 10, stage: 'PROCURING', orderNo: '0009007199254740993', productTitle: '手机' },
+      { pageNo: 1, pageSize: 10, stage: 'PROCURED', orderNo: '0009007199254740993', productTitle: '手机' }
+    ]);
+    post.mockClear();
+    await orderApi.countMyOrdersByStatus({ orderNo: '0009007199254740993', productTitle: '手机' });
+    expect(post.mock.calls.every(([, query]) => (query as Api.RealOrder.OrderPageQuery).orderNo === '0009007199254740993'
+      && (query as Api.RealOrder.OrderPageQuery).productTitle === '手机')).toBe(true);
+  });
+
+  it('计数记录已请求搜索快照，表单先改值再导航仍能识别查询和重置', () => {
+    const applied = { orderNo: '', productTitle: '' };
+    const counted = orderApi.orderSearchKey(applied);
+    Object.assign(applied, { orderNo: '0009007199254740993', productTitle: '手机' });
+    expect(orderApi.orderSearchKey(applied)).not.toBe(counted);
+    const filteredCounted = orderApi.orderSearchKey(applied);
+    Object.assign(applied, { orderNo: '', productTitle: '' });
+    expect(orderApi.orderSearchKey(applied)).not.toBe(filteredCounted);
+    expect(orderApi.orderSearchKey({ orderNo: ' 0001 ', productTitle: ' 手机 ' })).toBe(orderApi.orderSearchKey({ orderNo: '0001', productTitle: '手机' }));
+    expect(orderApi.orderSearchKey({ orderNo: '0001' })).not.toBe(orderApi.orderSearchKey({ orderNo: '1' }));
+  });
+
+  it('每日利息只读权威新字段，合法零与缺失分开，不用到期收益代替', async () => {
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({ holdingCount: 0, expectedInterest: '99',
+      dailyExpectedInterest: '0.00000000', estimatedAt: '1792022400000', estimateUntil: '1792108800000' });
+    const overview = await fetchFinanceOverview();
+    expect(formatFinanceAmount(overview.dailyExpectedInterest, { decimals: 8 })).toBe('0.00000000');
+    expect(overview.estimatedAt).toBe('1792022400000');
+    get.mockResolvedValue({ holdingCount: 0, expectedInterest: '99' });
+    expect(formatFinanceAmount((await fetchFinanceOverview()).dailyExpectedInterest)).toBe('—');
+    get.mockRejectedValue(new Error('读取失败'));
+    await expect(fetchFinanceOverview()).rejects.toThrow('读取失败');
+  });
+
+  it('充值能力取资产矩阵，共享地址只开放申报，不从平台地址推导专属能力', async () => {
+    const matrix = [{ asset: 'USDT', chain: 'TRON', label: '波场', enabled: true, tokenContract: 'CaseSensitive',
+      decimals: 6, minConfirmations: 19, methods: ['DECLARATION'], depositAddress: 'shared' },
+    { asset: 'USDC', chain: 'TRON', label: '波场', enabled: false, methods: [] }];
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue(matrix);
+    const result = await fetchRechargeAssets();
+    expect(get.mock.calls[0][0]).toBe('/recharge/assets');
+    expect(result[0].methods).toEqual(['DECLARATION']);
+    expect(rechargeMethodEnabled(result[0], 'ADDRESS')).toBe(false);
+    expect(rechargeMethodEnabled(result[0], 'WALLET')).toBe(false);
+    expect(rechargeMethodEnabled(result[0], 'DECLARATION')).toBe(true);
+    expect(result[1].enabled).toBe(false);
+    expect(rechargeMethodEnabled(result[1], 'DECLARATION')).toBe(false);
+    expect(rechargeMethodEnabled(undefined, 'ADDRESS')).toBe(false);
+    expect(sameRechargeContract('TRON', 'CaseSensitive', 'casesensitive')).toBe(false);
+    expect(sameRechargeContract('ETH', '0xAbCd', '0xabcd')).toBe(true);
+    for (const invalid of [
+      [{ ...matrix[1], enabled: true, methods: ['ADDRESS'] }],
+      [{ ...matrix[0], tokenContract: '' }],
+      [{ ...matrix[0], methods: ['WALLET'], walletNetwork: null }],
+      [matrix[0], matrix[0]]
+    ]) {
+      get.mockResolvedValue(invalid);
+      await expect(fetchRechargeAssets()).rejects.toThrow();
+    }
+  });
+
+  it('充值申报保留精准字符串及原键，原单资产不符拒绝恢复', async () => {
+    const post = vi.spyOn(realUserRequest, 'post').mockResolvedValue('9007199254740993');
+    await createRecharge({ chain: 'TRON', amount: '9007199254740993.12345678', idempotencyKey: 'original-key' });
+    expect(post.mock.calls[0][1]).toEqual({ asset: 'USDT', chain: 'TRON', amount: '9007199254740993.12345678', idempotencyKey: 'original-key' });
+    vi.spyOn(realUserRequest, 'get').mockResolvedValue({ id: '9007199254740993', asset: 'USDC', chain: 'TRON', amount: '1' });
+    await expect(fetchRechargeByKey('original-key')).rejects.toThrow('原单资产');
+  });
+
+  it('首次和待详情重试只接受原申报网络、金额及来源，不展示错误地址', () => {
+    const expected = { id: '9007199254740993', chain: 'TRON', amount: '9007199254740993.12345678' };
+    const record = { ...expected, asset: 'USDT', source: 'DECLARATION', depositAddress: 'declaration-address' } as Api.RealWallet.RechargeVO;
+    expect(validateRechargeDeclaration(record, expected)).toBe(record);
+    expect(validateRechargeDeclaration({ ...record, amount: '9007199254740993.123456780' }, expected)).toBeDefined();
+    for (const delta of [{ chain: 'ETH' }, { amount: '9007199254740993.12345679' }, { source: 'ADDRESS' },
+      { source: undefined }, { asset: 'USDC' }, { id: '9007199254740994' }, { amount: undefined }]) {
+      expect(() => validateRechargeDeclaration({ ...record, ...delta } as Api.RealWallet.RechargeVO, expected)).toThrow('原网络、金额或来源');
+    }
+    expect(() => validateRechargeDeclaration(record, { ...expected, chain: undefined })).toThrow();
+    expect(() => validateRechargeDeclaration({ ...record, amount: '0' }, { ...expected, amount: '0' })).toThrow();
+  });
+
+  it('跨标签充值锁阻止第二笔签名，原钱包结果未知时不移除标记', async () => {
+    let held = false;
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+    vi.stubGlobal('navigator', { locks: { request: async (_key: string, options: { ifAvailable: boolean }, callback: (lock: object | null) => Promise<unknown>) => {
+      expect(options.ifAvailable).toBe(true);
+      if (held) return callback(null);
+      held = true;
+      try { return await callback({}); } finally { held = false; }
+    } } });
+    let release!: () => void;
+    const wallet = new Promise<void>(resolve => { release = resolve; });
+    const sign = vi.fn(async () => { storage.set('direct-progress', 'UNKNOWN'); await wallet; throw new Error('钱包响应丢失'); });
+    const first = withSubmissionLock('cpc:wallet-direct:transfer:qa', sign);
+    const firstFailure = expect(first).rejects.toThrow('钱包响应丢失');
+    await expect(withSubmissionLock('cpc:wallet-direct:transfer:qa', sign)).rejects.toThrow('其他页面提交');
+    expect(sign).toHaveBeenCalledTimes(1);
+    release();
+    await firstFailure;
+    expect(storage.get('direct-progress')).toBe('UNKNOWN');
+  });
+
+  it('原申报by-key回查期间会话切换，既不接受原回包也不重发资金操作', async () => {
+    const storage = new Map<string, string>([['bw-shop-access-token', 'session-a']]);
+    const key = 'cpc:financial-pending:qa:recharge';
+    const original = JSON.stringify({ userId: 'qa', action: 'recharge', idempotencyKey: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      snapshot: { chain: 'TRON', amount: '0.00000001' } });
+    storage.set(key, original);
+    vi.stubGlobal('localStorage', { getItem: (name: string) => storage.get(name) ?? null, setItem: (name: string, value: string) => storage.set(name, value) });
+    vi.stubGlobal('navigator', { locks: { request: async (_name: string, _options: unknown, callback: (lock: object) => Promise<unknown>) => callback({}) } });
+    const submit = vi.fn();
+    const lookup = vi.fn(async () => {
+      storage.set('bw-shop-access-token', 'session-b');
+      return { id: '9007199254740993', chain: 'TRON', amount: '0.00000001' };
+    });
+    await expect(submitKeyedFinancialOperation('qa', 'recharge', undefined, { lookup, submit }, true)).rejects.toThrow('账号已切换');
+    expect(submit).not.toHaveBeenCalled();
+    expect(storage.get(key)).toBe(original);
   });
 });
 

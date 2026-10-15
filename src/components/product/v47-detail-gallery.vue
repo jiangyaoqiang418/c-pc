@@ -4,7 +4,7 @@ import UmIcon from '@/components/common/um-icon.vue';
 import V47DetailPreview from './v47-detail-preview.vue';
 import { PRODUCT_IMAGE_PLACEHOLDER } from '@/utils/image-placeholder';
 
-const props = defineProps<{ images: Api.Product.ProductMedia[]; title: string; favoriting?: boolean }>();
+const props = defineProps<{ images: Api.Product.ProductMedia[]; title: string; favoriting?: boolean; saved?: boolean; favoriteError?: string }>();
 const emit = defineEmits<{ favorite: []; share: [] }>();
 const photo = ref(0);
 const zoom = ref(false);
@@ -30,7 +30,7 @@ watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.va
       <span>每一个细节，都值得认真看。</span>
     </div>
     <div class="gallery-actions">
-      <button type="button" :disabled="favoriting" @click="emit('favorite')"><UmIcon name="heart" />{{ favoriting ? '正在更新' : '收藏这件好物' }}</button>
+      <button type="button" :disabled="favoriting" :aria-pressed="saved" :title="favoriteError" @click="emit('favorite')"><UmIcon name="heart" />{{ favoriting ? '正在更新' : favoriteError ? '重试收藏状态' : saved ? '已收藏 · 取消收藏' : '收藏这件好物' }}</button>
       <button type="button" @click="emit('share')"><UmIcon name="globe" />分享</button>
     </div>
     <V47DetailPreview v-model="zoom" :images="images.map(image => image.url)" :start-index="photo" :title="title" />

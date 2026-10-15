@@ -11,7 +11,8 @@ import * as productApi from '@/service/api/product';
 import { fetchBuyerDepositSummary } from '@/service/api/buyer';
 import { fetchCreateCategoryOptions, isSelectableCategory } from '@/service/api/category';
 import { useUserStore } from '@/stores';
-import { compareDecimalAmount } from '@/components/wallet/decimal-amount';
+import { productEditSnapshot, validateProductSkuWrite } from '@/utils/product-sku';
+import { fetchBrandDetail } from '@/service/api/brand';
 
 const router = useRouter();
 const route = useRoute();
@@ -43,7 +44,6 @@ async function loadDetail() {
     if (version !== detailVersion) return;
     if (String(p.sellerId) !== String(userStore.currentUser?.id)) throw new Error('无权编辑该商品');
     if (p.rawStatus !== 'OFF_SHELF' && p.rawStatus !== 'REJECTED') throw new Error('仅已下架或已驳回商品可编辑');
-    if (p.hasSku) throw new Error('该商品包含多规格，当前编辑表单尚未支持 SKU 维护，暂不能提交整体修改，以免覆盖已有规格和库存');
     if (!p.imageFiles?.length || p.imageFiles.length !== p.images.length || p.imageFiles.some(item => !item.bucket || !item.filePath || !item.url)) {
       throw new Error('商品图片信息不完整，请刷新详情后重试');
     }
@@ -54,35 +54,41 @@ async function loadDetail() {
     if (version === detailVersion) detailLoading.value = false;
   }
 }
-watch([() => route.params.id, editing, () => userStore.currentUser?.id], loadDetail, { immediate: true });
+watch([() => route.params.id, editing, () => userStore.currentUser?.id, () => userStore.sessionVersion], loadDetail, { immediate: true });
 
 async function onSubmit(form: {
   title: string;
   categoryId?: string | number;
-  price: number;
-  shippingFee: number;
-  tax: number;
+  brandId?: Api.RealProduct.Id | null;
+  price: string;
+  shippingFee: string;
+  tax: string;
   stock: number;
   aftersaleType: Api.Product.AftersaleType;
   overseasCustoms: boolean;
   summary: string;
   description: string;
   images: Api.RealProduct.ProductImageParam[];
+  specGroups: Api.RealProduct.ProductSpecGroup[];
+  skus: Api.RealProduct.ProductSkuSaveParams[];
 }) {
   if (!userStore.currentUser || submitting.value || confirmationOpen.value) return;
   if (editing.value && !initialProduct.value) return;
   const editProduct = initialProduct.value;
   const categoryId = form.categoryId;
   if (categoryId === undefined || categoryId === '') return;
+  const removedSkuCount = (editProduct?.skus || []).filter(sku => !form.skus.some(item => item.id !== undefined && item.id !== null && String(item.id) === String(sku.id))).length;
   const requestedUserId = userStore.currentUser.id;
+  const requestedSession = userStore.sessionVersion;
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion
+    && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && userStore.isBuyerActive;
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
     title: editing.value ? '确认提交商品修改？' : '确认提交商品审核？',
-    content: editing.value ? '修改后商品将进入平台审核，审核通过后自动上架，确认提交？' : '提交后将进入平台审核，预计 24h 内出结果。审核期间商品默认下架。',
+    content: editing.value ? `修改后商品将进入平台审核，审核通过后自动上架。${removedSkuCount ? `本次将移除 ${removedSkuCount} 个已有 SKU；历史订单快照保留。` : ''}${!!editProduct?.hasSku !== !!form.specGroups.length ? '本次将切换规格模式，存在未完成订单或有效秒杀时服务器会拒绝。' : ''}确认提交？` : '提交后将进入平台审核，预计 24h 内出结果。审核期间商品默认下架。',
     onCancel() {
       if (!isCurrentWrite()) return;
       confirmationOpen.value = false;
@@ -111,17 +117,26 @@ async function onSubmit(form: {
           if (editProduct) {
             const latest = await productApi.fetchSellerProductDetail(editProduct.id);
             if (!isCurrentWrite()) return;
-            if (latest.hasSku) {
-              Message.warning('该商品已更新为多规格，当前编辑表单暂不支持提交，请返回商品管理');
+            if (String(latest.sellerId) !== String(requestedUserId) || !['OFF_SHELF', 'REJECTED'].includes(latest.rawStatus || '')) {
+              Message.warning('当前商品归属或状态已变化，不能提交修改，表单保持保留');
               return;
             }
+            if (productEditSnapshot(latest) !== productEditSnapshot(editProduct)) {
+              Message.warning('商品资料或库存已变化，未提交任何修改。请保存本地草稿后重新加载并核对商品');
+              return;
+            }
+            validateProductSkuWrite(form.specGroups, form.skus, latest.skus);
+          }
+          if (form.brandId != null && String(form.brandId) !== String(editProduct?.brandId)) {
+            const brand = await fetchBrandDetail(form.brandId);
+            if (!isCurrentWrite()) return;
+            if (!brand.enabled) { Message.warning('品牌已停用，请重新选择'); return; }
           }
           const productId = editProduct ? await productApi.updateProduct({
-            id: editProduct.id, title: form.title.trim(), categoryId,
-            price: compareDecimalAmount(form.price, editProduct.price) === 0 ? String(editProduct.price) : String(form.price),
-            shippingFee: editProduct.shippingFee !== undefined && compareDecimalAmount(form.shippingFee, editProduct.shippingFee) === 0 ? String(editProduct.shippingFee) : String(form.shippingFee),
-            taxFee: editProduct.tax !== undefined && compareDecimalAmount(form.tax, editProduct.tax) === 0 ? String(editProduct.tax) : String(form.tax),
+            id: editProduct.id, title: form.title.trim(), categoryId, brandId:form.brandId,
+            price: form.price, shippingFee: form.shippingFee, taxFee: form.tax,
             stock: form.stock,
+            specGroups: form.specGroups, skus: form.skus,
             afterSaleType: ({ 'none': 'NONE', '7day-no-reason': 'SEVEN_DAY_NO_REASON', 'shop-warranty': 'SHOP_WARRANTY', 'national-warranty': 'NATIONAL_WARRANTY' } as const)[form.aftersaleType],
             overseasClearance: form.overseasCustoms, brief: form.summary.trim(),
             description: form.description, images: form.images
@@ -130,10 +145,12 @@ async function onSubmit(form: {
             summary: form.summary.trim() || form.title.trim(),
             description: form.description.trim() || '—',
             categoryId,
-            price: Number(form.price.toFixed(2)),
-            shippingFee: Number(form.shippingFee.toFixed(2)),
-            tax: Number(form.tax.toFixed(2)),
+            brandId:form.brandId,
+            price: form.price,
+            shippingFee: form.shippingFee,
+            tax: form.tax,
             stock: form.stock,
+            specGroups: form.specGroups, skus: form.skus,
             aftersaleType: form.aftersaleType,
             overseasCustoms: form.overseasCustoms,
             images: form.images
@@ -143,11 +160,7 @@ async function onSubmit(form: {
           Message.success(`商品已提交审核（ID：${productId}）`);
           router.push('/buyer/products');
         } catch (error) {
-          if (isCurrentWrite() && editProduct && error instanceof Error && error.message.includes('商品信息已变化')) {
-            formRef.value?.markSaved();
-            await loadDetail();
-            Message.warning('已重新读取商品信息，请核对库存等内容后再次提交');
-          }
+          if (isCurrentWrite() && error instanceof Error && !('code' in error)) Message.warning(error.message);
           // 请求层已展示错误，保留商品表单和上传结果供用户修正后重试。
         }
       } finally {
@@ -165,8 +178,8 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   confirmationModal?.close();
 });
-watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
-  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], ([nextUserId, nextAudience, nextSession], [previousUserId, previousAudience, previousSession]) => {
+  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience && nextSession === previousSession) return;
   writeVersion += 1;
   confirmationModal?.close();
   submitting.value = false;
@@ -182,7 +195,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([next
     <Alert v-if="detailError" variant="destructive"><AlertDescription class="alert-row"><span>{{ detailError }}</span><Button class="outline" variant="outline" size="sm" :disabled="detailLoading" @click="loadDetail">重新加载</Button></AlertDescription></Alert>
     <div v-if="detailLoading" class="loading-form" aria-busy="true" aria-label="正在读取当前商品信息"><Skeleton v-for="n in 3" :key="n" class="form-skeleton" /></div>
     <Alert v-if="initialProduct?.draftAuditOpinion"><AlertDescription>驳回原因：{{ initialProduct.draftAuditOpinion }}</AlertDescription></Alert>
-    <BuyerProductForm v-if="!editing || initialProduct" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${String(initialProduct?.id)}`" :initial-product="initialProduct" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
+    <BuyerProductForm v-if="!editing || initialProduct" ref="formRef" :key="`${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${userStore.sessionVersion}:${String(initialProduct?.id)}`" :initial-product="initialProduct" :submitting="submitting || confirmationOpen" @submit="onSubmit" />
   </div>
 </template>
 

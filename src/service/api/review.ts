@@ -53,8 +53,8 @@ export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuer
   return normalizePage(page);
 }
 
-export function fetchReviewDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  return realOrderRequest.get<Api.RealReview.ReviewDTO>('/reviews/detail', { params: { id }, signal: options.signal });
+export function fetchReviewDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
+  return realOrderRequest.get<Api.RealReview.ReviewDTO>('/reviews/detail', { ...options, params: { id } });
 }
 
 export function deleteReview(id: string | number) {
@@ -89,4 +89,20 @@ export function fetchReviewSummary(productId: string | number, options: { signal
 
 export function fetchSellerRating(sellerId: string | number, options: { signal?: AbortSignal } = {}) {
   return realOrderRequest.get<Api.RealReview.SellerRatingDTO>('/storefront/reviews/seller-rating', { params: { sellerId }, signal: options.signal });
+}
+
+export function validateHelpfulState(record: Api.RealReview.ReviewHelpfulVO, reviewId: string | number) {
+  const count = record?.helpfulCount;
+  if (!record || String(record.reviewId) !== String(reviewId) || typeof record.helpful !== 'boolean'
+    || !((typeof count === 'string' && /^\d+$/.test(count)) || (typeof count === 'number' && Number.isSafeInteger(count) && count >= 0))) {
+    throw new Error('评价帮助状态响应异常，请重新读取');
+  }
+  return record;
+}
+
+export async function setReviewHelpful(reviewId: string | number, helpful: boolean) {
+  const result = await realOrderRequest.put<Api.RealReview.ReviewHelpfulVO>('/reviews/helpful', { reviewId, helpful }, { showError: false });
+  const state = validateHelpfulState(result, reviewId);
+  if (state.helpful !== helpful) throw new Error('评价帮助状态未更新，请重新核对');
+  return state;
 }

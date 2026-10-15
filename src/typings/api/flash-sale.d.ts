@@ -21,12 +21,15 @@ declare namespace Api.RealFlashSale {
     salesCount?: string | number;
     sessionId: string;
     sessionEndTime?: string;
+    skuId?: Api.RealProduct.Id | null;
+    specText?: string | null;
   }
 
   interface EnrollParams {
     sessionId: string;
     productId: string;
-    flashPrice?: number;
+    skuId?: Api.RealProduct.Id;
+    flashPrice?: string;
     flashStock?: number;
   }
 }

@@ -64,13 +64,14 @@ declare namespace Api.RealWallet {
   }
 
   type RechargeStatus = 'PENDING' | 'CONFIRMED' | 'CANCELED' | string;
+  type RechargeMethod = 'ADDRESS' | 'DECLARATION' | 'WALLET';
   type WithdrawStatus = 'REVIEWING' | 'APPROVED' | 'SUCCESS' | 'REJECTED' | string;
 
   interface RechargeCreateParams {
     asset?: 'USDT';
     idempotencyKey?: string;
     chain: string;
-    amount: number;
+    amount: string | number;
   }
 
   interface RechargeChainVO {
@@ -78,18 +79,28 @@ declare namespace Api.RealWallet {
     label: string;
     decimals: number;
     depositAddress?: string;
-    minAmount?: string | number;
+    minAmount?: string | number | null;
     enabled: boolean;
   }
 
+  interface RechargeAssetVO extends RechargeChainVO {
+    asset: 'USDT' | 'USDC';
+    tokenContract?: string | null;
+    minConfirmations?: number | null;
+    walletNetwork?: string | null;
+    memoRule?: string | null;
+    methods: RechargeMethod[];
+  }
+
   interface RechargeAddressVO {
+    asset?: string;
     chain: string;
     address: string;
     tokenContract?: string;
     decimals?: number;
     memo?: string;
-    minAmount?: string | number;
-    minConfirmations?: number;
+    minAmount?: string | number | null;
+    minConfirmations?: number | null;
   }
 
   interface RechargePageQuery {
@@ -102,11 +113,18 @@ declare namespace Api.RealWallet {
 
   interface RechargeVO {
     id: string | number;
+    asset?: string;
     chain: string;
     amount: string | number;
     depositAddress?: string;
     memo?: string;
     txHash?: string;
+    source?: RechargeMethod | null;
+    reportedTxHash?: string | null;
+    logIndex?: number | null;
+    tokenContract?: string | null;
+    confirmations?: number | null;
+    minConfirmations?: number | null;
     status?: RechargeStatus;
     statusText?: string;
     confirmedAt?: string | number;

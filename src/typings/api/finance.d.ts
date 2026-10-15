@@ -54,6 +54,9 @@ declare namespace Api.RealFinance {
     totalInterest: string | number;
     pendingInterest: string | number;
     expectedInterest: string | number;
+    dailyExpectedInterest?: string | number;
+    estimatedAt?: string | number;
+    estimateUntil?: string | number;
     holdingCount: number;
   }
 

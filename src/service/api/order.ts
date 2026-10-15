@@ -6,6 +6,11 @@ import { submitOrderConfirmation, withOrderSubmissionLocks } from '@/utils/finan
 import { getAccessToken } from '@/service/request/token';
 import { getOrderCapabilities } from '@/utils/order';
 
+/** 记录计数实际使用的筛选，不能拿已被搜索表单修改的 refs 判断是否需要刷新。 */
+export function orderSearchKey(query: Pick<Api.RealOrder.ListQuery, 'orderNo' | 'productTitle'>) {
+  return JSON.stringify([query.orderNo?.trim() || '', query.productTitle?.trim() || '']);
+}
+
 export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: AbortSignal }) {
   const current = Math.max(1, Math.floor(q.current || 1));
   const size = Math.max(1, Math.floor(q.size || 10));
@@ -21,7 +26,9 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
     >(url, {
       pageNo,
       pageSize,
-      stage
+      stage,
+      orderNo: q.orderNo?.trim() || undefined,
+      productTitle: q.productTitle?.trim() || undefined
     }, { signal: q.signal, preserveDecimals: true });
   let pages: Array<Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number }>;
   let total = 0;
@@ -55,7 +62,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
 
 async function countOrdersByStatus(
   url: '/orders/bought/page' | '/orders/sold/page',
-  options: { showError?: boolean; signal?: AbortSignal } = {}
+  options: { showError?: boolean; signal?: AbortSignal; orderNo?: string; productTitle?: string } = {}
 ) {
   const counts = Object.fromEntries(
     Object.keys(reverseStatusMap).map(status => [status, 0])
@@ -76,7 +83,8 @@ async function countOrdersByStatus(
       const page = await realOrderRequest.postQuery<
         Api.Common.PaginatingQueryRecord<Api.RealOrder.OrderDTO> & { pageNo?: number; pageSize?: number },
         Api.RealOrder.OrderPageQuery
-      >(url, { pageNo: 1, pageSize: 1, stage }, { showError: options.showError, signal: options.signal });
+      >(url, { pageNo: 1, pageSize: 1, stage, orderNo: options.orderNo?.trim() || undefined,
+        productTitle: options.productTitle?.trim() || undefined }, { showError: options.showError, signal: options.signal });
       return [frontStatus, toPageTotal(page.total)] as const;
     })
   );
@@ -86,11 +94,11 @@ async function countOrdersByStatus(
   return counts;
 }
 
-export function countMyOrdersByStatus(options?: { showError?: boolean; signal?: AbortSignal }) {
+export function countMyOrdersByStatus(options?: { showError?: boolean; signal?: AbortSignal; orderNo?: string; productTitle?: string }) {
   return countOrdersByStatus('/orders/bought/page', options);
 }
 
-export function countMySoldOrdersByStatus(options?: { showError?: boolean; signal?: AbortSignal }) {
+export function countMySoldOrdersByStatus(options?: { showError?: boolean; signal?: AbortSignal; orderNo?: string; productTitle?: string }) {
   return countOrdersByStatus('/orders/sold/page', options);
 }
 

@@ -101,6 +101,9 @@ expectRequired(login, ['email', 'password'], '邮箱登录');
 operation(user, '/auth/me', 'get');
 
 operation(user, '/recharge/address', 'get');
+const rechargeAssets = responseDataSchema(user, operation(user, '/recharge/assets', 'get'));
+expectProperties(resolveSchema(user, rechargeAssets.items), ['asset', 'chain', 'enabled', 'methods', 'tokenContract', 'decimals', 'minAmount', 'minConfirmations', 'walletNetwork', 'memoRule'], '充值资产矩阵');
+expectProperties(responseDataSchema(user, operation(user, '/recharge/detail', 'get')), ['asset', 'chain', 'source', 'reportedTxHash', 'logIndex', 'tokenContract', 'confirmations', 'minConfirmations'], '充值记录关联');
 const rechargeCancel = requestSchema(user, operation(user, '/recharge/cancel', 'put'));
 expectRequired(rechargeCancel, ['id'], '取消充值申报');
 operation(user, '/points/rules', 'get');
@@ -117,6 +120,7 @@ const kycDetail = responseDataSchema(user, operation(user, '/kyc/detail', 'get')
 expectProperties(kycDetail, ['idCardFrontFileId', 'idCardBackFileId', 'holdingPhotoFileId', 'photoUrlExpireAt'], 'KYC 详情');
 ['/finance/products/list', '/finance/products/detail', '/finance/orders/overview', '/finance/orders/detail'].forEach(path => operation(user, path, 'get'));
 const financeSubscribe = requestSchema(user, operation(user, '/finance/orders/subscribe', 'post'));
+expectProperties(responseDataSchema(user, operation(user, '/finance/orders/overview', 'get')), ['dailyExpectedInterest', 'estimatedAt', 'estimateUntil'], '每日预估利息');
 expectRequired(financeSubscribe, ['productId', 'amount'], '理财申购');
 const financeRedeem = requestSchema(user, operation(user, '/finance/orders/redeem', 'post'));
 expectRequired(financeRedeem, ['id'], '理财提前赎回');
@@ -176,11 +180,17 @@ for (const schemaName of ['OrderCreateQO', 'OrderCreateItemQO']) {
 
 const productDto = order.components?.schemas?.ProductDTO;
 expectProperties(productDto, ['imageFiles'], '商品编辑原图');
-expectProperties(productDto, ['hasSku', 'specGroups', 'skus'], '商品真实规格');
+expectProperties(productDto, ['hasSku', 'specGroups', 'skus', 'brandId', 'brand'], '商品真实规格与品牌');
 expectProperties(resolveSchema(order, productDto.properties.skus.items), ['id', 'specs', 'price', 'stock', 'enabled', 'image'], '真实 SKU');
 expectProperties(order.components?.schemas?.OrderDTO, ['skuId', 'skuSpecs', 'stage', 'canProcure', 'canShip', 'canConfirmAftersale'], '订单规格与操作资格');
 expectEnum(order.components?.schemas?.OrderDTO, 'stage', ['PROCURING', 'PROCURED', 'AFTERSALE_CONFIRM', 'REFUND_REVIEW'], '订单权威阶段');
-expectProperties(order.components?.schemas?.OrderPageQuery, ['stage'], '订单阶段筛选');
+expectProperties(order.components?.schemas?.OrderPageQuery, ['stage', 'orderNo', 'productTitle'], '订单阶段与搜索');
+operation(order, '/storefront/brands/page', 'post');
+expectParameters(operation(order, '/storefront/brands/detail', 'get'), ['id'], '品牌详情');
+expectProperties(order.components?.schemas?.PublicProductPageQuery, ['brandId'], '品牌商品筛选');
+expectRequired(requestSchema(order, operation(order, '/products/favorites/status', 'post')), ['productIds'], '本人收藏状态');
+expectProperties(resolveSchema(order, responseDataSchema(order, operation(order, '/products/favorites/status', 'post')).items), ['productId', 'favorited'], '本人收藏状态响应');
+expectProperties(responseDataSchema(order, operation(order, '/storefront/sellers/qualification', 'get')), ['sellerId', 'verifiedBuyer', 'approvedAt'], '卖家资格');
 operation(order, '/products/update', 'put');
 expectRequired(requestSchema(order, operation(order, '/products/price', 'put')), ['id', 'price'], '快捷改价');
 expectProperties(productDto, ['sellerName', 'categoryName', 'reviewerId', 'reviewedAt'], '商品详情审核信息');
@@ -245,6 +255,11 @@ operation(order, '/orders/refunds/detail', 'get');
 ['/reviews/reviewable/page', '/reviews/mine/page', '/reviews/received/page', '/reviews/appeals/mine/page', '/storefront/reviews/page'].forEach(path => operation(order, path, 'post'));
 ['/reviews/detail', '/storefront/reviews/summary', '/storefront/reviews/seller-rating'].forEach(path => operation(order, path, 'get'));
 const reviewCreate = requestSchema(order, operation(order, '/reviews/create', 'post'));
+const publicReviewQuery = requestSchema(order, operation(order, '/storefront/reviews/page', 'post'));
+expectProperties(publicReviewQuery, ['keyword', 'topic', 'sortBy'], '评价服务端筛选');
+expectEnum(publicReviewQuery, 'sortBy', ['NEWEST', 'MOST_HELPFUL', 'SCORE_DESC', 'SCORE_ASC'], '评价排序');
+expectRequired(requestSchema(order, operation(order, '/reviews/helpful', 'put')), ['reviewId', 'helpful'], '评价帮助投票');
+expectProperties(responseDataSchema(order, operation(order, '/reviews/helpful', 'put')), ['reviewId', 'helpful', 'helpfulCount'], '评价帮助响应');
 expectRequired(reviewCreate, ['orderId', 'productScore', 'sellerScore'], '提交评价');
 const reviewReply = requestSchema(order, operation(order, '/reviews/reply', 'put'));
 expectRequired(reviewReply, ['reviewId', 'content'], '买手回复评价');
@@ -298,6 +313,11 @@ if (notifyResponse.status === 404) {
 } else {
   if (!notifyResponse.ok) throw new Error(`notify Swagger 请求失败：HTTP ${notifyResponse.status}`);
   const notify = await notifyResponse.json();
+  for (const path of ['/content/help', '/content/announcements']) {
+    operation(notify, `${path}/page`, 'post');
+    expectProperties(responseDataSchema(notify, operation(notify, `${path}/detail`, 'get')), ['id', 'title', 'body', 'contentVersion', 'status', 'audience', 'publishedAt', 'effectiveAt'], '正式内容详情');
+  }
+  expectParameters(operation(notify, '/content/agreements/current', 'get'), ['kind'], '当前协议');
   [
     ['/notifications/page', 'post'],
     ['/notifications/unread/count', 'get'],

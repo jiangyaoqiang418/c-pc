@@ -20,8 +20,226 @@ import { fetchKycSchema, kycSubmissionIssue } from './kyc';
 import { fetchRechargeByKey, fetchWithdrawByKey } from './wallet';
 import { fetchFinanceOrderByKey } from './finance';
 import { createCategoryOptions, fetchCategoryTree, fetchCreateCategoryOptions, isSelectableCategory } from './category';
+import { createPinia, setActivePinia } from 'pinia';
+import { useUserStore } from '@/stores/user';
+import { useProductFavoritesStore } from '@/stores/product-favorites';
+import * as productApi from './product';
+import { fetchBrandsPage, fetchBrandDetail } from './brand';
+import { fetchHelpPage, fetchHelpDetail, fetchAgreementCurrent, fetchAnnouncementsPage, contentReadMessage } from './content';
+import { fetchStorefrontReviews, setReviewHelpful, validateHelpfulState } from './review';
+import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite } from '@/utils/product-sku';
+import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
+import { enrollFlashSale } from './flash-sale';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe('v47 新接入契约与恢复边界', () => {
+  const productId = '9007199254740993';
+  const skuId = '9007199254740995';
+  const groups = [{ name:'颜色', options:['黑', '白'] }];
+  const sku = { id:skuId, specs:[{ name:'颜色', value:'黑' }], price:'9007199254740993.12345678', stock:2, enabled:true };
+
+  it('收藏态按200个分批并保留Long，漏项/重复/未知ID/无效状态拒绝', async () => {
+    const request = vi.spyOn(realOrderRequest, 'postQuery').mockImplementation(async (_url, payload) =>
+      (payload as { productIds: string[] }).productIds.map(id => ({ productId:id, favorited:false })) as never);
+    const ids = Array.from({ length:201 }, (_, i) => `${productId}${i}`);
+    expect((await productApi.fetchFavoriteStates([...ids, ids[0]])).size).toBe(201);
+    expect(request.mock.calls.map(call => (call[1] as {productIds:string[]}).productIds.length)).toEqual([200, 1]);
+    const invalid = [[], [{ productId, favorited:null }], [{ productId:'other', favorited:false }], [{ productId, favorited:false }, { productId, favorited:true }]];
+    for (const rows of invalid) {
+      request.mockResolvedValueOnce(rows);
+      await expect(productApi.fetchFavoriteStates([productId])).rejects.toThrow(/收藏状态/);
+    }
+  });
+
+  function favoriteStore() {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id:'test-owner' } as Api.RealSession.UserRecord;
+    return { user, store:useProductFavoritesStore() };
+  }
+
+  it('收藏写入丢响应后按权威状态恢复，未确认时保留原目标，重试不反向取消', async () => {
+    const { store } = favoriteStore();
+    const query = vi.spyOn(realOrderRequest, 'postQuery')
+      .mockResolvedValueOnce([{ productId, favorited:false }])
+      .mockRejectedValueOnce(new Error('read unavailable'))
+      .mockResolvedValueOnce([{ productId, favorited:true }]);
+    const post = vi.spyOn(realOrderRequest, 'post').mockRejectedValue(new RequestError('timeout', { code:'REQUEST_TIMEOUT' }));
+    const remove = vi.spyOn(realOrderRequest, 'delete');
+    await expect(store.toggle(productId)).rejects.toThrow('read unavailable');
+    expect(store.entries[productId]).toMatchObject({ value:undefined, target:true, writing:false });
+    expect(await store.toggle(productId)).toBe(true);
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  it('收藏取消读回为false才确认成功；账号切换丢弃在途旧结果', async () => {
+    const { user, store } = favoriteStore();
+    const query = vi.spyOn(realOrderRequest, 'postQuery')
+      .mockResolvedValueOnce([{ productId, favorited:true }])
+      .mockResolvedValueOnce([{ productId, favorited:false }]);
+    vi.spyOn(realOrderRequest, 'delete').mockRejectedValue(new Error('lost response'));
+    expect(await store.set(productId, false)).toBe(false);
+    let resolve!: (value:unknown) => void;
+    query.mockImplementationOnce(() => new Promise(done => { resolve = done; }) as never);
+    const read = store.refresh([productId]);
+    user.currentUser = { id:'another-owner' } as Api.RealSession.UserRecord;
+    resolve([{ productId, favorited:true }]);
+    await read;
+    expect(store.entries).toEqual({});
+  });
+
+  it('收藏同账号重叠读取丢弃旧结果，队列读取不覆盖刚确认的写入', async () => {
+    const { store } = favoriteStore();
+    let resolveOld!: (value:unknown) => void;
+    const query = vi.spyOn(realOrderRequest, 'postQuery')
+      .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }) as never)
+      .mockResolvedValueOnce([{ productId, favorited:true }]);
+    const old = store.refresh([productId]);
+    await store.refresh([productId]);
+    resolveOld([{ productId, favorited:false }]);
+    await old;
+    expect(store.entries[productId].value).toBe(true);
+
+    const nextId = 'another-product';
+    query.mockResolvedValueOnce([{ productId:nextId, favorited:false }]).mockResolvedValueOnce([{ productId:nextId, favorited:true }]);
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(true);
+    store.ensure(nextId);
+    expect(await store.toggle(nextId)).toBe(true);
+    expect(store.entries[nextId]).toMatchObject({ value:true, loading:false, writing:false });
+    expect(query).toHaveBeenCalledTimes(4);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('卖家资格仅使用匹配卖家的权威布尔值，失败不降为未认证', async () => {
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue({ sellerId:productId, verifiedBuyer:true, approvedAt:'1792022400000' });
+    expect(await productApi.fetchSellerQualification(productId)).toMatchObject({ verifiedBuyer:true });
+    for (const value of [{ sellerId:'other', verifiedBuyer:true }, { sellerId:productId }, null]) {
+      get.mockResolvedValueOnce(value);
+      await expect(productApi.fetchSellerQualification(productId)).rejects.toThrow('资格响应');
+    }
+  });
+
+  it('投票采用幂等目标状态，保留Long与合法零，拒绝错ID/反向状态/缺计数', async () => {
+    const put = vi.spyOn(realOrderRequest, 'put').mockResolvedValue({ reviewId:productId, helpful:false, helpfulCount:'0' });
+    expect(await setReviewHelpful(productId, false)).toMatchObject({ helpful:false, helpfulCount:'0' });
+    expect(put).toHaveBeenCalledWith('/reviews/helpful', { reviewId:productId, helpful:false }, { showError:false });
+    for (const value of [{ reviewId:'other', helpful:false, helpfulCount:0 }, { reviewId:productId, helpful:false }, { reviewId:productId, helpful:null, helpfulCount:0 }]) {
+      expect(() => validateHelpfulState(value as Api.RealReview.ReviewHelpfulVO, productId)).toThrow();
+    }
+    await expect(setReviewHelpful(productId, true)).rejects.toThrow('未更新');
+  });
+
+  it('评价关键词/排序组合在服务端分页，品牌ID不合并进商品关键词', async () => {
+    const post = vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ records:[], total:0, pageNo:2, pageSize:10 });
+    await fetchStorefrontReviews({ productId, pageNo:2, keyword:'发货', hasImage:true, productScore:5, sortBy:'MOST_HELPFUL' });
+    expect(post.mock.calls[0][1]).toMatchObject({ productId, keyword:'发货', hasImage:true, productScore:5, sortBy:'MOST_HELPFUL', pageNo:2 });
+    await productApi.fetchStorefrontProducts({ brandId:productId, keyword:'耳机' });
+    expect(post.mock.calls[1][1]).toMatchObject({ brandId:productId, keyword:'耳机' });
+  });
+
+  it('品牌分页/详情保留ID，禁用及错ID资料不得进入专区', async () => {
+    const brand = { id:productId, name:'正式品牌', enabled:true };
+    vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ records:[brand], total:1, pageSize:10 });
+    expect((await fetchBrandsPage({ keyword:' 正式 ', size:10 })).records[0].id).toBe(productId);
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue(brand);
+    expect((await fetchBrandDetail(productId)).id).toBe(productId);
+    get.mockResolvedValueOnce({ ...brand, enabled:false }).mockResolvedValueOnce({ ...brand, id:'other' });
+    await expect(fetchBrandDetail(productId)).rejects.toThrow('停用');
+    await expect(fetchBrandDetail(productId)).rejects.toThrow('停用');
+    const mapped = productApi.toProductRecord({ id:productId, title:'商品', price:'1', stock:1, brandId:productId, brand } as Api.RealProduct.ProductDTO);
+    expect(mapped).toMatchObject({ brandId:productId, brandName:brand.name, brand });
+  });
+
+  it('正式内容列表允许body=null，正文必须独立读取；错协议/下线内容不回退演示', async () => {
+    const article = { id:productId, contentType:'HELP', code:'guide', title:'正式帮助', status:'PUBLISHED', contentVersion:'1', body:null };
+    const post = vi.spyOn(realNotifyRequest, 'postQuery').mockResolvedValue({ records:[article], total:1 });
+    expect((await fetchHelpPage({ topic:'orders', keyword:' 标题 ' })).records[0].body).toBeNull();
+    expect(post.mock.calls[0][1]).toMatchObject({ topic:'orders', keyword:'标题' });
+    const get = vi.spyOn(realNotifyRequest, 'get').mockResolvedValue({ ...article, body:'<p>审核正文</p>' });
+    expect((await fetchHelpDetail(productId)).id).toBe(productId);
+    get.mockResolvedValueOnce({ ...article, body:null });
+    await expect(fetchHelpDetail(productId)).rejects.toThrow('资料不完整');
+    get.mockResolvedValueOnce({ ...article, contentType:'AGREEMENT', code:'privacy', body:'正文' });
+    await expect(fetchAgreementCurrent('user')).rejects.toThrow('种类');
+    get.mockRejectedValueOnce(new RequestError('offline', { code:'-324' }));
+    await expect(fetchAgreementCurrent('user')).rejects.toThrow('offline');
+    expect(contentReadMessage(new RequestError('offline', { code:'-324' }))).toContain('下线');
+    post.mockResolvedValueOnce({ records:[], total:0 });
+    expect((await fetchAnnouncementsPage()).records).toEqual([]);
+  });
+
+  it('SKU全量校验保留原ID与28+8金额，聚合仅包含启用项', () => {
+    const original = [sku, { ...sku, id:'second', specs:[{ name:'颜色', value:'白' }], stock:5, price:'0.00000001', enabled:false }];
+    const result = validateProductSkuWrite(groups, original, original);
+    expect(result).toMatchObject({ price:sku.price, stock:2 });
+    expect(result.skus).toEqual(original.map(item => ({ ...item, image:undefined })));
+    expect(productSkuEditorWrite({ enabled:false, groups, skus:[] })).toEqual({ specGroups:[], skus:[], price:undefined, stock:undefined });
+    expect(() => validateProductSkuWrite(groups, [{ ...sku, stock:2147483647 }, { ...original[1], stock:1, enabled:true }])).toThrow('总库存');
+    expect(() => validateProductSkuWrite(groups, [sku, { ...sku, id:'second' }])).toThrow('组合不能重复');
+    expect(() => validateProductSkuWrite(groups, [{ ...sku, enabled:false }])).toThrow('至少启用');
+    expect(() => validateProductSkuWrite(groups, [{ ...sku, specs:[{ name:'颜色', value:'白' }] }], [sku])).toThrow('不可改');
+    expect(() => validateProductSkuWrite(groups, [{ ...sku, id:'unknown' }], [sku])).toThrow('不可改');
+  });
+
+  it('SKU新增不带旧ID，编辑全量回传，品牌与原金额不经浮点转换', async () => {
+    const input = { title:'规格商品', categoryId:productId, brandId:productId, price:'1', shippingFee:'0', tax:'0', stock:1, aftersaleType:'none' as const, overseasCustoms:false, summary:'', description:'', images:[], specGroups:groups, skus:[{ ...sku, id:undefined }] };
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(productId);
+    await productApi.createProduct(input);
+    expect(post.mock.calls[0][1]).toMatchObject({ brandId:productId, price:sku.price, stock:2, skus:[{ price:sku.price }] });
+    await expect(productApi.createProduct({ ...input, skus:[sku] })).rejects.toThrow('不能回传已有');
+    const put = vi.spyOn(realOrderRequest, 'put').mockResolvedValue(productId);
+    await productApi.updateProduct({ ...input, id:productId, taxFee:'0', afterSaleType:'NONE', skus:[sku] });
+    expect(put.mock.calls[0][1]).toMatchObject({ id:productId, brandId:productId, price:sku.price, skus:[{ id:skuId, enabled:true }] });
+  });
+
+  it('编辑快照识别库存/SKU变化；归属草稿保留原SKU、停用行与精准输入', () => {
+    const product = productApi.toProductRecord({ id:productId, title:'商品', price:'1', stock:1 } as Api.RealProduct.ProductDTO);
+    expect(productEditSnapshot(product)).not.toBe(productEditSnapshot({ ...product, stock:2 }));
+    expect(productEditSnapshot(product)).not.toBe(productEditSnapshot({ ...product, hasSku:true, specGroups:groups, skus:[sku] }));
+    const draft = { version:1, ownerId:productId, productId:skuId, productSnapshot:'original', savedAt:Date.now(), imageFiles:[], form:{ title:'草稿', categoryId:productId, brandId:skuId, price:null, shippingFee:0, tax:0, stock:2, aftersaleType:'none', overseasCustoms:false, summary:'', description:'', images:[], amountTexts:{ price:sku.price, shippingFee:'0', tax:'0' }, skuEditor:{ enabled:true, groups, skus:[{ ...sku, price:sku.price, stock:'2', enabled:false, image:'https://example.com/sku.png' }] } } };
+    const restored = readBuyerProductDraft(JSON.stringify(draft), productId, skuId);
+    expect(restored.productSnapshot).toBe('original');
+    expect(restored.form.amountTexts?.price).toBe(sku.price);
+    expect(restored.form.skuEditor?.skus[0]).toMatchObject({ id:skuId, price:sku.price, enabled:false, image:'https://example.com/sku.png' });
+    expect(() => readBuyerProductDraft(JSON.stringify(draft), 'other', skuId)).toThrow('归属');
+    expect(() => readBuyerProductDraft(JSON.stringify({ ...draft, form:{ ...draft.form, amountTexts:undefined, price:9007199254740992 } }), productId, skuId)).toThrow('不完整');
+    expect(readBuyerProductDraft(JSON.stringify({ ...draft, form:{ ...draft.form, brandId:null } }), productId, skuId).form.brandId).toBeNull();
+  });
+
+  it('草稿保存串行核对原版本，其他标签更新与会话变化不会被静默覆盖', async () => {
+    const storage = new Map<string,string>();
+    vi.stubGlobal('localStorage', { getItem:(key:string) => storage.get(key) ?? null, setItem:(key:string,value:string) => storage.set(key,value) });
+    const lock = vi.fn((_key:string, _options:unknown, callback:(lock:unknown) => unknown) => callback({}));
+    vi.stubGlobal('navigator', { locks:{ request:lock } });
+    const draft = { version:1 as const, ownerId:productId, savedAt:Date.now(), imageFiles:[], form:{ title:'草稿', price:100, shippingFee:0, tax:0, stock:1, overseasCustoms:false, summary:'', description:'', images:[], amountTexts:{ price:'0.00000001', shippingFee:'0', tax:'0' } } };
+    const saved = await saveBuyerProductDraft(draft, undefined, () => true);
+    const key = buyerProductDraftKey(productId);
+    expect(lock.mock.calls[0][0]).toBe('cpc:submission:' + key);
+    storage.set(key, 'newer-draft');
+    await expect(saveBuyerProductDraft(draft, saved.raw, () => true)).rejects.toThrow('其他页面更新');
+    expect(storage.get(key)).toBe('newer-draft');
+    await expect(saveBuyerProductDraft(draft, 'newer-draft', () => false)).rejects.toThrow('已切换');
+    expect(storage.get(key)).toBe('newer-draft');
+    const invalidLegacyRaw = JSON.stringify({ ...draft, form:{ ...draft.form, amountTexts:undefined, price:19.9 } });
+    storage.set(key, invalidLegacyRaw);
+    expect(() => readBuyerProductDraft(invalidLegacyRaw, productId)).toThrow('不完整');
+    // 显式重新保存可替换本页已读到的损坏版本，仍不能覆盖后来出现的新版本。
+    const replaced = await saveBuyerProductDraft(draft, invalidLegacyRaw, () => true);
+    expect(storage.get(key)).toBe(replaced.raw);
+  });
+
+  it('秒杀报名保留SKU及最小金额，并在请求前拒绝超精度', async () => {
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('entry');
+    await enrollFlashSale({ sessionId:productId, productId, skuId, flashPrice:'0.00000001', flashStock:1 });
+    expect(post.mock.calls[0][1]).toMatchObject({ skuId, flashPrice:'0.00000001' });
+    expect(() => enrollFlashSale({ sessionId:productId, productId, skuId, flashPrice:'0.000000001' })).toThrow('秒杀价');
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('本轮交互边界', () => {
   it('创建分类允许启用的一至五级，拒绝停用节点和错误父子关系', async () => {
