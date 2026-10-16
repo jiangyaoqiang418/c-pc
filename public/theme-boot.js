@@ -6,5 +6,7 @@
     var saved = localStorage.getItem('um.uiTheme');
     if (themes.indexOf(saved) >= 0) theme = saved;
   } catch (_) {}
-  document.documentElement.dataset.uiTheme = theme;
+  document.documentElement.dataset.uiTheme = 'web3-meme';
+  document.documentElement.dataset.uiLayout = 'v47';
+  document.documentElement.dataset.uiPalette = theme;
 })();

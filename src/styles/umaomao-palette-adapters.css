@@ -1,0 +1,80 @@
+/* Shared MEME structure has a few exclusive surfaces with literal brand colors.
+   Only their color roles change here; no sizes, spacing, typography or artwork. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) {
+  --meme-lime:var(--green)!important;
+  --meme-purple:var(--gold-light)!important;
+  --meme-yellow:var(--gold)!important;
+  --meme-negative:var(--yb-danger)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.primary,.account-auth .primary,.all-categories) {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .header-actions .account-trigger {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero {
+  background:var(--gold-light)!important;
+  color:var(--accent-ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero :is(h1,h1 em,p,.eyebrow,.meme-hero-index,.hero-controls) {
+  color:var(--accent-ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero h1 em:after { background:color-mix(in srgb,var(--green) 25%,white)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero .gold {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.category-browser-home,.product-card,.meme-card-top,.meme-market-tabs) {
+  background:var(--paper)!important;
+  color:var(--muted)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-card-top small { color:var(--muted)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .trust-strip { background:transparent!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .trust-strip span { color:var(--ink)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .trust-strip small { color:var(--muted)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .trust-strip svg { color:var(--green)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-market-tabs button {
+  background:transparent!important;
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-market-tabs button:is(:hover,[aria-pressed="true"]) {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .home-discovery-cell {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .discovery-cell-heading h2 { color:var(--ink)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .mobile-nav {
+  background:var(--paper)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .mobile-nav button { color:var(--muted)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .mobile-nav button.active { color:var(--green)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .wallet-hero {
+  background:linear-gradient(125deg,var(--dark),color-mix(in srgb,var(--dark) 88%,black))!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .wallet-hero .gold {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .wallet-hero .outline {
+  background:transparent!important;
+  color:#fff!important;
+  border-color:color-mix(in srgb,white 35%,transparent)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .wallet-hero .button-row>button:last-child { color:#fff!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.dialog,.vault-dialog,.account-menu-dialog) {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}

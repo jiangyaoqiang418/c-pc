@@ -138,12 +138,12 @@ onBeforeUnmount(() => { brandGuard.invalidate(); productGuard.invalidate(); });
 .brand-products .empty > .text-link { margin-top:12px; }
 .brand-tabs { overflow-x: auto; scrollbar-width: none; }
 .brand-tabs > button { flex-shrink: 0; }
-:root[data-ui-theme="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,#181421 40%,transparent 70%); }
+:root[data-ui-palette="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,#181421 40%,transparent 70%); }
 @media (max-width:700px) {
   .brand-hero { height:auto; min-height:295px; }
   .brand-hero h1 { overflow-wrap:anywhere; }
   .brand-tabs { margin-right:-14px; padding-right:14px; }
   :root[data-ui-theme="web3-meme"] .brand-tabs { margin-right:-12px; padding-right:12px; }
-  :root[data-ui-theme="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,color-mix(in srgb,#181421 90.196%,transparent),color-mix(in srgb,#181421 25.098%,transparent)); }
+  :root[data-ui-palette="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,color-mix(in srgb,#181421 90.196%,transparent),color-mix(in srgb,#181421 25.098%,transparent)); }
 }
 </style>

@@ -4,7 +4,7 @@ import { useUiTheme } from '@/composables/use-ui-theme';
 
 const props = withDefaults(defineProps<{ disabled?: boolean; open?: boolean }>(), { open: true });
 const emit = defineEmits<{ dismiss: [] }>();
-const { currentTheme } = useUiTheme();
+const { currentTheme, isMemeLayout } = useUiTheme();
 let drag: { start: number; delta: number; pointerId: number; grip: HTMLElement; dialog: HTMLElement; transform: string } | undefined;
 
 function settle(event?: PointerEvent, cancelled = false) {
@@ -18,7 +18,7 @@ function settle(event?: PointerEvent, cancelled = false) {
 }
 
 function start(event: PointerEvent) {
-  if (props.disabled || !props.open || currentTheme.value !== 'web3-meme' || window.innerWidth > 700 || event.button !== 0 || !event.isPrimary) return;
+  if (props.disabled || !props.open || !isMemeLayout || window.innerWidth > 700 || event.button !== 0 || !event.isPrimary) return;
   const grip = event.currentTarget as HTMLElement;
   const dialog = grip.closest<HTMLElement>('[role="dialog"]');
   if (!dialog) return;

@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useUiTheme } from '@/composables/use-ui-theme';
-
 withDefaults(defineProps<{ name?: string }>(), { name: 'grid' });
-const { currentTheme } = useUiTheme();
 const standardPaths: Record<string, string> = {thumb:'M7 10v11H3V10h4zM7 10l5-8c3 0 2 5 1 7h7l2 2-3 10H7',search:'M21 21l-5-5M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0',bag:'M5 7h14l2 14H3L5 7zM8 8V5a4 4 0 0 1 8 0v3',heart:'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8',user:'M20 21v-2a7 7 0 0 0-14 0v2M16 6a4 4 0 1 1-8 0 4 4 0 0 1 8 0',arrow:'M4 12h16M14 6l6 6-6 6',chevron:'M9 5l7 7-7 7',close:'M5 5l14 14M19 5L5 19',menu:'M3 6h18M3 12h18M3 18h18',home:'M3 10l9-8 9 8v11h-7v-7h-4v7H3z',grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',wallet:'M20 7H4V3h15v4M3 7h18v14H3zM16 12h5v5h-5z',box:'M12 2l10 5v10l-10 5-10-5V7l10-5zM2 7l10 5 10-5M12 12v10M7 4l10 5',truck:'M1 5h13v12H1zM14 9h5l4 5v3h-9M8 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0M21 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0',shield:'M12 2l9 4v6c0 5-9 10-9 10S3 17 3 12V6zM8 12l3 3 5-6',headset:'M3 14v-3a9 9 0 0 1 18 0v3M3 12h4v8H3zM17 12h4v8h-4zM17 20l-5 2',pin:'M19 9c0 6-7 13-7 13S5 15 5 9a7 7 0 1 1 14 0zM15 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0',phone:'M6 2h12v20H6zM10 18h4',laptop:'M4 3h16v13H4zM1 20h22l-3-4H4z',sun:'M12 3v2M12 19v2M3 12h2M19 12h2M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2M17 12a5 5 0 1 1-10 0 5 5 0 0 1 10 0',check:'M5 12l4 4L20 5',filter:'M4 7h16M4 17h16M8 4v6M16 14v6',star:'M12 2l3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z',chat:'M3 3h18v14H8l-5 4V3zM7 7h10M7 11h7',logout:'M9 3H3v18h6M9 12h13M17 7l5 5-5 5',return:'M9 5l-6 6 6 6M3 11h11a6 6 0 0 1 0 12',plus:'M12 4v16M4 12h16',minus:'M4 12h16',clock:'M12 8v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',bell:'M5 16V9a7 7 0 0 1 14 0v7l2 3H3zM9 22h6',edit:'M14 4l6 6M3 21l2-7L17 2l5 5-12 12z',trash:'M3 6h18M5 6l1 15h12l1-15M9 6V2h6v4M9 10v7M15 10v7',globe:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M2 12h20M12 2c7 6 7 14 0 20-7-6-7-14 0-20',eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0'};
 const memePaths: Record<string, string> = { ...standardPaths };
 Object.assign(memePaths,{
@@ -42,7 +38,7 @@ Object.assign(memePaths,{
  globe:'M7 2h10l5 5v10l-5 5H7l-5-5V7zM2 12h20M12 2l-4 5v10l4 5 4-5V7z',
  eye:'M2 12l5-7h10l5 7-5 7H7zM9 9h6v6H9z'
 });
-const paths = computed(() => currentTheme.value === 'web3-meme' ? memePaths : standardPaths);
+const paths = memePaths;
 </script>
 
 <template>

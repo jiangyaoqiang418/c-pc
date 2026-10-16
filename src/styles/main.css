@@ -8,7 +8,9 @@
 @import './umaomao.css';
 @import './umaomao-themes-v47.css';
 @import './umaomao-reference-v47.css';
+@import './umaomao-palette-v47.css';
 @import './umaomao-v47.css';
+@import './umaomao-palette-adapters.css';
 
 @theme inline {
   --color-background: var(--background);

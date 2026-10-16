@@ -1,6 +1,7 @@
 import { computed, readonly, ref } from 'vue';
 
 export const DEFAULT_UI_THEME = 'web3-meme';
+export const UI_LAYOUT = 'web3-meme';
 
 // Palette card metadata from Umaomao v47; CSS is the actual rendered palette.
 export const UI_THEMES = [
@@ -50,7 +51,11 @@ function applyTheme(value: unknown, animate = false) {
   const root = document.documentElement;
   const paint = ++themePaint;
   if (animate && changed) root.classList.add('theme-changing');
-  root.dataset.uiTheme = nextTheme;
+  // Frozen CSS uses this legacy attribute for structure as well as color.
+  // Keep its MEME structure stable; the separate palette cascade changes colors only.
+  root.dataset.uiTheme = UI_LAYOUT;
+  root.dataset.uiLayout = 'v47';
+  root.dataset.uiPalette = nextTheme;
   document.querySelector('meta[name="theme-color"]')?.setAttribute(
     'content',
     UI_THEMES.find(theme => theme.id === nextTheme)!.primary
@@ -68,7 +73,7 @@ function applyTheme(value: unknown, animate = false) {
 }
 
 if (typeof document !== 'undefined') {
-  applyTheme(document.documentElement.dataset.uiTheme);
+  applyTheme(document.documentElement.dataset.uiPalette ?? document.documentElement.dataset.uiTheme);
   window.addEventListener('storage', event => {
     if (event.key === 'um.uiTheme' || event.key === null) {
       applyTheme(event.key === null ? null : event.newValue, true);
@@ -86,5 +91,5 @@ export function useUiTheme() {
     try { localStorage.setItem('um.uiTheme', currentTheme.value); } catch { /* Session-only theme remains usable. */ }
   }
 
-  return { currentTheme: readonly(currentTheme), selectedTheme, isMeme, isDark, setTheme, themes: UI_THEMES };
+  return { currentTheme: readonly(currentTheme), selectedTheme, isMeme, isMemeLayout: true, isDark, setTheme, themes: UI_THEMES };
 }
