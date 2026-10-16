@@ -94,6 +94,7 @@ const brandLoading = ref(false);
 const brandError = ref('');
 const brandCurrent = ref(1);
 const brandTotal = ref(0);
+let loadedBrandKeyword = '';
 const skuEditor = ref(productSkuEditorState(props.initialProduct));
 
 const form = reactive<FormState>({
@@ -279,13 +280,16 @@ function onBrandSearchEnter(event: KeyboardEvent) {
 async function loadBrands(append = false) {
   if (!currentContext.value || brandLoading.value) return;
   const isCurrent = brandGuard.begin();
-  const current = append ? brandCurrent.value + 1 : 1;
+  const keyword = brandKeyword.value.trim();
+  const appendCurrentSearch = append && keyword === loadedBrandKeyword;
+  const current = appendCurrentSearch ? brandCurrent.value + 1 : 1;
   brandLoading.value = true;
   brandError.value = '';
   try {
-    const page = await fetchBrandsPage({ current, size:50, keyword:brandKeyword.value.trim() || undefined, signal:isCurrent.signal });
+    const page = await fetchBrandsPage({ current, size:50, keyword:keyword || undefined, signal:isCurrent.signal });
     if (!isCurrent() || !currentContext.value) return;
-    brands.value = append ? [...new Map([...brands.value, ...page.records].map(brand => [String(brand.id), brand])).values()] : page.records;
+    brands.value = appendCurrentSearch ? [...new Map([...brands.value, ...page.records].map(brand => [String(brand.id), brand])).values()] : page.records;
+    loadedBrandKeyword = keyword;
     brandCurrent.value = current;
     brandTotal.value = page.total;
   } catch {

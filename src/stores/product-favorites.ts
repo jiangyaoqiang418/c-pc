@@ -1,4 +1,4 @@
-import { reactive, watch } from 'vue';
+import { onScopeDispose, reactive, watch } from 'vue';
 import { defineStore } from 'pinia';
 import { useUserStore } from './user';
 import { cancelProductFavorite, fetchFavoriteStates, toggleProductFavorite } from '@/service/api/product';
@@ -66,6 +66,24 @@ export const useProductFavoritesStore = defineStore('product-favorites', () => {
     });
   }
 
+  function refreshKnown() {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    const ids = Object.keys(entries).filter(id => !entries[id].loading && !entries[id].writing);
+    void refresh(ids).catch(() => undefined);
+  }
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('focus', refreshKnown);
+    const visibilityDocument = typeof document === 'undefined' ? undefined : document;
+    visibilityDocument?.addEventListener('visibilitychange', refreshKnown);
+    onScopeDispose(() => {
+      window.removeEventListener('focus', refreshKnown);
+      visibilityDocument?.removeEventListener('visibilitychange', refreshKnown);
+      generation += 1;
+      queued.clear();
+      readVersions.clear();
+    });
+  }
+
   async function change(id: Api.RealProduct.Id, desired?: boolean) {
     if (user.currentUser?.id === undefined) throw new Error('请先登录后再收藏');
     const item = entry(id);
@@ -93,7 +111,7 @@ export const useProductFavoritesStore = defineStore('product-favorites', () => {
       await refresh([id]);
       if (context !== generation) return;
       if (item.value !== target) {
-        item.target = undefined;
+        // 一次旧状态回读不能证明原写入失败；保留目标，重试仍只确认/提交原方向。
         throw writeError ?? new Error('收藏状态尚未更新，请重试');
       }
       item.target = undefined;

@@ -264,12 +264,15 @@ async function loadReviews(page: number) {
   try {
     const query = { productId, pageSize: reviewPageSize.value, productScore: reviewStars.value || undefined, hasImage: reviewHasImage.value || undefined, keyword:reviewKeyword.value || undefined, sortBy:reviewSort.value };
     let result = await reviewApi.fetchStorefrontReviews({ ...query, pageNo:page }, { signal: isCurrent.signal });
-    if (!isCurrent()) return;
-    reviewPageSize.value = resolvePageSize(result, reviewPageSize.value);
-    const lastPage = Math.max(1, Math.ceil(result.total / reviewPageSize.value));
-    if (page > lastPage) {
+    for (let correction = 0; ; correction += 1) {
+      if (!isCurrent()) return;
+      reviewPageSize.value = resolvePageSize(result, reviewPageSize.value);
+      const lastPage = Math.max(1, Math.ceil(result.total / reviewPageSize.value));
+      if (reviewPage.value <= lastPage) break;
+      // 分页回读期间评价仍可能被删除/下线，重新检查每个回包；限制续读次数。
+      if (correction >= 3) throw new Error('评价分页持续变化');
       reviewPage.value = lastPage;
-      result = await reviewApi.fetchStorefrontReviews({ ...query, pageNo:lastPage }, { signal: isCurrent.signal });
+      result = await reviewApi.fetchStorefrontReviews({ ...query, pageNo:lastPage, pageSize:reviewPageSize.value }, { signal: isCurrent.signal });
     }
     if (!isCurrent()) return;
     reviews.value = result.records;
@@ -282,12 +285,23 @@ async function loadReviews(page: number) {
   }
 }
 
+function refreshReviewsOnFocus() {
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+  if (!product.value || loading.value || reviewLoading.value || Object.values(helpfulBusy.value).some(Boolean)) return;
+  void loadReviews(reviewPage.value);
+  void loadReviewSummary();
+}
+
 onMounted(() => {
   specViewport = matchMedia('(max-width:700px)');
   specViewport.addEventListener('change', syncSpecViewport);
+  window.addEventListener('focus', refreshReviewsOnFocus);
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', refreshReviewsOnFocus);
   void load();
 });
 onBeforeUnmount(() => {
+  window.removeEventListener('focus', refreshReviewsOnFocus);
+  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', refreshReviewsOnFocus);
   specViewport?.removeEventListener('change', syncSpecViewport);
   reviewsGuard.invalidate();
   summaryGuard.invalidate();

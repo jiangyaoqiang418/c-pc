@@ -31,6 +31,8 @@ import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpf
 import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
+import { createRenderer, ssrContextKey } from 'vue';
+import InterestPreview from '@/components/finance/interest-preview.vue';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -882,5 +884,48 @@ describe('分页总数适配', () => {
     expect(toPageTotal()).toBe(0);
     expect(toPageTotal('invalid')).toBe(0);
     expect(toPageTotal(-1)).toBe(0);
+  });
+});
+
+describe('锁仓确认金额快照', () => {
+  it('确认期间本金改变立即撤销勾选，改回原金额也必须重新确认', () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id: 'qa-owner' } as Api.RealSession.UserRecord;
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const subscribe = vi.fn();
+    const product: Api.RealFinance.FinanceProductVO = {
+      id: '9007199254740993', name: 'QA', code: 'QA', annualRate: '0.05', lockDays: 30,
+      minAmount: '1', maxAmount: '1000', earlyRedeemEnabled: false, status: 'ON_SALE'
+    };
+    const app = renderer.createApp({ ...InterestPreview, render: () => null }, {
+      product, availableBalance: '1000', onSubscribe: subscribe
+    });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const state = (app as unknown as { _instance: { setupState: {
+      amount: string; acknowledged: boolean; confirmVisible: boolean; openConfirm: () => void; submit: () => void;
+    } } })._instance.setupState;
+    try {
+      state.openConfirm();
+      state.acknowledged = true;
+      state.amount = '2';
+      expect(state.confirmVisible).toBe(false);
+      expect(state.acknowledged).toBe(false);
+      state.submit();
+      expect(subscribe).not.toHaveBeenCalled();
+      state.amount = '1';
+      state.submit();
+      expect(subscribe).not.toHaveBeenCalled();
+      state.amount = '2';
+      state.openConfirm();
+      state.acknowledged = true;
+      state.submit();
+      expect(subscribe).toHaveBeenCalledExactlyOnceWith('2.00');
+    } finally { app.unmount(); }
   });
 });

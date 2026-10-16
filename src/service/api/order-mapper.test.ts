@@ -16,10 +16,228 @@ import { createRecharge, fetchRechargeAssets, fetchRechargeByKey, fetchRechargeP
 import { fetchFinanceOverview } from './finance';
 import { formatFinanceAmount } from '@/components/finance/v47-interest-math';
 import { submitKeyedFinancialOperation, withSubmissionLock } from '@/utils/financial-submission';
+import { createRenderer, nextTick, reactive, ssrContextKey } from 'vue';
+import * as vueRouter from 'vue-router';
+import { useUserStore } from '@/stores/user';
+import { useProductFavoritesStore } from '@/stores/product-favorites';
+import * as reviewApi from './review';
+import ProductDetail from '@/views/product/detail.vue';
+import { Message } from '@/lib/feedback';
 
 afterEach(() => {
+  Message.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('v47 收藏及公开评价异步恢复', () => {
+  const productId = '9007199254740993';
+
+  function session() {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id: 'qa-owner' } as Api.RealSession.UserRecord;
+    return user;
+  }
+
+  it('收藏丢响应且回读旧状态时保留原目标，后续成功状态不会被重试反向取消', async () => {
+    session();
+    const store = useProductFavoritesStore();
+    vi.spyOn(productApi, 'fetchFavoriteStates')
+      .mockResolvedValueOnce(new Map([[productId, false]]))
+      .mockResolvedValueOnce(new Map([[productId, false]]))
+      .mockResolvedValueOnce(new Map([[productId, true]]));
+    const save = vi.spyOn(productApi, 'toggleProductFavorite').mockRejectedValue(new Error('response lost'));
+    const remove = vi.spyOn(productApi, 'cancelProductFavorite');
+    await expect(store.toggle(productId)).rejects.toThrow('response lost');
+    expect(store.entries[productId]).toMatchObject({ value: false, target: true, writing: false });
+    expect(await store.toggle(productId)).toBe(true);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(remove).not.toHaveBeenCalled();
+    expect(store.entries[productId].target).toBeUndefined();
+    store.$dispose();
+  });
+
+  it('返回可见标签时回读收藏，隐藏不请求；新会话丢弃旧回包，释放Store后移除监听', async () => {
+    const target = new EventTarget();
+    const visibility = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+    vi.stubGlobal('window', target);
+    vi.stubGlobal('document', visibility);
+    const user = session();
+    const store = useProductFavoritesStore();
+    const query = vi.spyOn(productApi, 'fetchFavoriteStates').mockResolvedValue(new Map([[productId, false]]));
+    await store.refresh([productId]);
+    visibility.visibilityState = 'hidden';
+    visibility.dispatchEvent(new Event('visibilitychange'));
+    target.dispatchEvent(new Event('focus'));
+    expect(query).toHaveBeenCalledTimes(1);
+    visibility.visibilityState = 'visible';
+    visibility.dispatchEvent(new Event('visibilitychange'));
+    await Promise.resolve();
+    expect(query).toHaveBeenCalledTimes(2);
+    let finish!: (value: Map<string, boolean>) => void;
+    query.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    target.dispatchEvent(new Event('focus'));
+    expect(query).toHaveBeenCalledTimes(3);
+    user.sessionVersion += 1;
+    finish(new Map([[productId, true]]));
+    await Promise.resolve();
+    expect(store.entries).toEqual({});
+    query.mockResolvedValue(new Map([[productId, true]]));
+    await store.refresh([productId]);
+    expect(store.entries[productId].value).toBe(true);
+    store.$dispose();
+    target.dispatchEvent(new Event('focus'));
+    visibility.dispatchEvent(new Event('visibilitychange'));
+    expect(query).toHaveBeenCalledTimes(4);
+  });
+
+  async function detail() {
+    const user = session();
+    const events = new EventTarget();
+    const visibility = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+    vi.stubGlobal('window', events);
+    vi.stubGlobal('document', visibility);
+    const route = reactive({ params: { id: productId }, query: {}, fullPath: `/product/${productId}` });
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    vi.spyOn(productApi, 'fetchProductDetail').mockImplementation(async id => ({ id, price: '1', stock: 1, images: [], specGroups: [] } as unknown as Api.RealProduct.Record));
+    vi.spyOn(productApi, 'trackProductBrowse').mockResolvedValue({ ok: true });
+    vi.spyOn(productApi, 'trackProductView').mockResolvedValue({ ok: true });
+    vi.spyOn(productApi, 'fetchFavoriteStates').mockResolvedValue(new Map([[productId, false]]));
+    vi.spyOn(productApi, 'fetchHomeRecommendations').mockResolvedValue([]);
+    vi.spyOn(reviewApi, 'fetchReviewSummary').mockResolvedValue({ totalCount: 0 } as Api.RealReview.ReviewSummaryDTO);
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const app = renderer.createApp({ ...ProductDetail, render: () => null });
+    app.provide(ssrContextKey, {});
+    app.provide(vueRouter.routeLocationKey, route as unknown as vueRouter.RouteLocationNormalizedLoaded);
+    app.provide(vueRouter.routerKey, { push: vi.fn() } as unknown as vueRouter.Router);
+    app.mount({});
+    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    await nextTick();
+    interface DetailState {
+      reviews: Api.RealReview.ReviewDTO[];
+      reviewPage: number;
+      reviewError: string;
+      reviewLoading: boolean;
+      reviewSort: Api.RealReview.ReviewSort;
+      helpfulBusy: Record<string, boolean>;
+      loadReviews: (page: number) => Promise<void>;
+      voteHelpful: (row: Api.RealReview.ReviewDTO) => Promise<void>;
+    }
+    const state = (app as unknown as { _instance: { setupState: DetailState } })._instance.setupState;
+    let closed = false;
+    return { state, route, user, events, visibility, close: () => {
+      if (closed) return;
+      closed = true;
+      app.unmount();
+      useProductFavoritesStore().$dispose();
+    } };
+  }
+
+  it('公开评价回到末页期间总数再次缩减，继续校正到实际可读取的末页', async () => {
+    const query = vi.spyOn(reviewApi, 'fetchStorefrontReviews').mockResolvedValue({ total: 100, records: [], pageSize: 20 });
+    const { state, close } = await detail();
+    try {
+      query.mockClear();
+      query.mockResolvedValueOnce({ total: 61, records: [], pageSize: 20 })
+        .mockResolvedValueOnce({ total: 41, records: [], pageSize: 20 })
+        .mockResolvedValueOnce({ total: 41, records: [{ reviewId: 'last-review' } as Api.RealReview.ReviewDTO], pageSize: 20 });
+      await state.loadReviews(5);
+      expect(query.mock.calls.map(([params]) => params.pageNo)).toEqual([5, 4, 3]);
+      expect(state.reviewPage).toBe(3);
+      expect(state.reviews).toEqual([{ reviewId: 'last-review' }]);
+      expect(state.reviewError).toBe('');
+    } finally { close(); }
+  });
+
+  it('公开评价分页持续变化时停止续读并保留可重试错误，不展示越界空页', async () => {
+    const query = vi.spyOn(reviewApi, 'fetchStorefrontReviews').mockResolvedValue({ total: 100, records: [], pageSize: 20 });
+    const { state, close } = await detail();
+    try {
+      query.mockClear();
+      for (const total of [161, 141, 121, 101]) query.mockResolvedValueOnce({ total, records: [], pageSize: 20 });
+      await state.loadReviews(10);
+      expect(query.mock.calls.map(([params]) => params.pageNo)).toEqual([10, 9, 8, 7]);
+      expect(state.reviewError).toBe('评价读取失败，请重新加载');
+      expect(state.reviewLoading).toBe(false);
+      expect(state.reviews).toEqual([]);
+    } finally { close(); }
+  });
+
+  it('可见性恢复公开评价，隐藏和投票中不请求；卸载移除监听并忽略旧回包', async () => {
+    const row = { reviewId: '9007199254740997', helpful: false, helpfulCount: 0 } as Api.RealReview.ReviewDTO;
+    const query = vi.spyOn(reviewApi, 'fetchStorefrontReviews').mockResolvedValue({ total: 1, records: [row], pageSize: 20 });
+    const { state, events, visibility, close } = await detail();
+    try {
+      query.mockClear();
+      state.helpfulBusy[row.reviewId] = true;
+      events.dispatchEvent(new Event('focus'));
+      visibility.dispatchEvent(new Event('visibilitychange'));
+      expect(query).not.toHaveBeenCalled();
+      state.helpfulBusy[row.reviewId] = false;
+      visibility.visibilityState = 'hidden';
+      visibility.dispatchEvent(new Event('visibilitychange'));
+      events.dispatchEvent(new Event('focus'));
+      expect(query).not.toHaveBeenCalled();
+      query.mockResolvedValueOnce({ total: 1, records: [{ ...row, helpful: true, helpfulCount: 1 }], pageSize: 20 });
+      visibility.visibilityState = 'visible';
+      visibility.dispatchEvent(new Event('visibilitychange'));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      expect(state.reviews[0]).toMatchObject({ helpful: true, helpfulCount: 1 });
+      let finish!: (value: Api.RealReview.PageResult<Api.RealReview.ReviewDTO>) => void;
+      query.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const pending = state.loadReviews(1);
+      close();
+      finish({ total: 1, records: [row] });
+      await pending;
+      expect(state.reviews).toEqual([]);
+      const calls = query.mock.calls.length;
+      events.dispatchEvent(new Event('focus'));
+      visibility.dispatchEvent(new Event('visibilitychange'));
+      expect(query).toHaveBeenCalledTimes(calls);
+    } finally { close(); }
+  });
+
+  it('商品路由切换后忽略未能中止的旧评价回包', async () => {
+    const query = vi.spyOn(reviewApi, 'fetchStorefrontReviews').mockResolvedValue({ total: 0, records: [] });
+    const { state, route, close } = await detail();
+    try {
+      let finish!: (value: Api.RealReview.PageResult<Api.RealReview.ReviewDTO>) => void;
+      query.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const previous = state.loadReviews(1);
+      route.params.id = '9007199254741993';
+      await nextTick();
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      finish({ total: 1, records: [{ reviewId: 'old-product-review' } as Api.RealReview.ReviewDTO] });
+      await previous;
+      expect(query.mock.calls.at(-1)?.[0].productId).toBe(route.params.id);
+      expect(state.reviews).toEqual([]);
+      expect(state.reviewError).toBe('');
+    } finally { close(); }
+  });
+
+  it('投票丢响应且评价移出当前页时保留原目标，重新出现后仍只按原方向重试', async () => {
+    const row = { reviewId: '9007199254740997', helpful: false, helpfulCount: 0 } as Api.RealReview.ReviewDTO;
+    const query = vi.spyOn(reviewApi, 'fetchStorefrontReviews').mockResolvedValue({ total: 1, records: [row], pageSize: 20 });
+    const { state, close } = await detail();
+    try {
+      state.reviewSort = 'NEWEST';
+      const vote = vi.spyOn(reviewApi, 'setReviewHelpful').mockRejectedValueOnce(new Error('response lost'))
+        .mockResolvedValueOnce({ reviewId: row.reviewId, helpful: true, helpfulCount: 1 });
+      query.mockResolvedValueOnce({ total: 1, records: [], pageSize: 20 });
+      await state.voteHelpful(row);
+      expect(state.helpfulBusy[row.reviewId]).toBe(false);
+      query.mockResolvedValueOnce({ total: 1, records: [{ ...row, helpful: true, helpfulCount: 1 }], pageSize: 20 });
+      await state.loadReviews(1);
+      await state.voteHelpful(state.reviews[0]);
+      expect(vote.mock.calls).toEqual([[row.reviewId, true], [row.reviewId, true]]);
+      expect(state.reviews[0]).toMatchObject({ helpful: true, helpfulCount: 1 });
+    } finally { close(); }
+  });
 });
 
 describe('v47 交易契约边界', () => {
