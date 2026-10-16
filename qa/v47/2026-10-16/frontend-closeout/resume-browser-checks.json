@@ -1,0 +1,1168 @@
+{
+  "boundary": [
+    {
+      "client": 305,
+      "controls": [
+        {
+          "right": 272,
+          "w": 239
+        },
+        {
+          "right": 272,
+          "w": 239
+        },
+        {
+          "right": 141,
+          "w": 108
+        },
+        {
+          "right": 146.5,
+          "w": 98.5
+        },
+        {
+          "right": 257,
+          "w": 98.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 146.5,
+          "w": 98.5
+        },
+        {
+          "right": 257,
+          "w": 98.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 146.5,
+          "w": 98.5
+        },
+        {
+          "right": 257,
+          "w": 98.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 146.5,
+          "w": 98.5
+        },
+        {
+          "right": 257,
+          "w": 98.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        }
+      ],
+      "document": 305,
+      "height": 900,
+      "labels": [
+        {
+          "scroll": 239,
+          "width": 239,
+          "wrap": "anywhere"
+        },
+        {
+          "scroll": 239,
+          "width": 239,
+          "wrap": "anywhere"
+        }
+      ],
+      "overflows": [],
+      "palette": "web3-meme",
+      "skuWidth": 239,
+      "width": 320
+    },
+    {
+      "client": 360,
+      "controls": [
+        {
+          "right": 174,
+          "w": 141
+        },
+        {
+          "right": 327,
+          "w": 141
+        },
+        {
+          "right": 141,
+          "w": 108
+        },
+        {
+          "right": 174,
+          "w": 126
+        },
+        {
+          "right": 312,
+          "w": 126
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 174,
+          "w": 126
+        },
+        {
+          "right": 312,
+          "w": 126
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 174,
+          "w": 126
+        },
+        {
+          "right": 312,
+          "w": 126
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 174,
+          "w": 126
+        },
+        {
+          "right": 312,
+          "w": 126
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        }
+      ],
+      "document": 360,
+      "height": 900,
+      "labels": [
+        {
+          "scroll": 141,
+          "width": 141,
+          "wrap": "anywhere"
+        },
+        {
+          "scroll": 141,
+          "width": 141,
+          "wrap": "anywhere"
+        }
+      ],
+      "overflows": [],
+      "palette": "web3-meme",
+      "skuWidth": 294,
+      "width": 375
+    },
+    {
+      "client": 685,
+      "controls": [
+        {
+          "right": 276.5,
+          "w": 243.5
+        },
+        {
+          "right": 532,
+          "w": 243.5
+        },
+        {
+          "right": 652,
+          "w": 108
+        },
+        {
+          "right": 336.5,
+          "w": 288.5
+        },
+        {
+          "right": 637,
+          "w": 288.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 336.5,
+          "w": 288.5
+        },
+        {
+          "right": 637,
+          "w": 288.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 336.5,
+          "w": 288.5
+        },
+        {
+          "right": 637,
+          "w": 288.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 336.5,
+          "w": 288.5
+        },
+        {
+          "right": 637,
+          "w": 288.5
+        },
+        {
+          "right": 65,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        }
+      ],
+      "document": 685,
+      "height": 900,
+      "labels": [
+        {
+          "scroll": 244,
+          "width": 243.5,
+          "wrap": "anywhere"
+        },
+        {
+          "scroll": 244,
+          "width": 243.5,
+          "wrap": "anywhere"
+        }
+      ],
+      "overflows": [],
+      "palette": "web3-meme",
+      "skuWidth": 619,
+      "width": 700
+    },
+    {
+      "client": 686,
+      "controls": [
+        {
+          "right": 282.25,
+          "w": 239.25
+        },
+        {
+          "right": 533.5,
+          "w": 239.25
+        },
+        {
+          "right": 663.5,
+          "w": 118
+        },
+        {
+          "right": 343.25,
+          "w": 281.25
+        },
+        {
+          "right": 644.5,
+          "w": 281.25
+        },
+        {
+          "right": 79,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 343.25,
+          "w": 281.25
+        },
+        {
+          "right": 644.5,
+          "w": 281.25
+        },
+        {
+          "right": 79,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 343.25,
+          "w": 281.25
+        },
+        {
+          "right": 644.5,
+          "w": 281.25
+        },
+        {
+          "right": 79,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 343.25,
+          "w": 281.25
+        },
+        {
+          "right": 644.5,
+          "w": 281.25
+        },
+        {
+          "right": 79,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        }
+      ],
+      "document": 686,
+      "height": 900,
+      "labels": [
+        {
+          "scroll": 306,
+          "width": 239.25,
+          "wrap": "normal"
+        },
+        {
+          "scroll": 295,
+          "width": 239.25,
+          "wrap": "normal"
+        }
+      ],
+      "overflows": [
+        {
+          "cls": "meme-card-open",
+          "tag": "BUTTON"
+        }
+      ],
+      "palette": "web3-meme",
+      "skuWidth": 360,
+      "width": 701
+    },
+    {
+      "client": 1425,
+      "controls": [
+        {
+          "right": 506.5,
+          "w": 447.5
+        },
+        {
+          "right": 966,
+          "w": 447.5
+        },
+        {
+          "right": 1096,
+          "w": 118
+        },
+        {
+          "right": 567.5,
+          "w": 489.5
+        },
+        {
+          "right": 1077,
+          "w": 489.5
+        },
+        {
+          "right": 95,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 567.5,
+          "w": 489.5
+        },
+        {
+          "right": 1077,
+          "w": 489.5
+        },
+        {
+          "right": 95,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 567.5,
+          "w": 489.5
+        },
+        {
+          "right": 1077,
+          "w": 489.5
+        },
+        {
+          "right": 95,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        },
+        {
+          "right": 567.5,
+          "w": 489.5
+        },
+        {
+          "right": 1077,
+          "w": 489.5
+        },
+        {
+          "right": 95,
+          "w": 17
+        },
+        {
+          "right": 0,
+          "w": 0
+        }
+      ],
+      "document": 1425,
+      "height": 900,
+      "labels": [
+        {
+          "scroll": 448,
+          "width": 447.5,
+          "wrap": "normal"
+        },
+        {
+          "scroll": 448,
+          "width": 447.5,
+          "wrap": "normal"
+        }
+      ],
+      "overflows": [],
+      "palette": "web3-meme",
+      "skuWidth": 1037,
+      "width": 1440
+    }
+  ],
+  "sku701After": {
+    "client": 686,
+    "controls": [
+      {
+        "right": 217,
+        "w": 174
+      },
+      {
+        "right": 403,
+        "w": 174
+      },
+      {
+        "right": 161,
+        "w": 118
+      },
+      {
+        "right": 213,
+        "w": 151
+      },
+      {
+        "right": 384,
+        "w": 151
+      },
+      {
+        "right": 79,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      },
+      {
+        "right": 213,
+        "w": 151
+      },
+      {
+        "right": 384,
+        "w": 151
+      },
+      {
+        "right": 79,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      },
+      {
+        "right": 213,
+        "w": 151
+      },
+      {
+        "right": 384,
+        "w": 151
+      },
+      {
+        "right": 79,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      },
+      {
+        "right": 213,
+        "w": 151
+      },
+      {
+        "right": 384,
+        "w": 151
+      },
+      {
+        "right": 79,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      }
+    ],
+    "document": 686,
+    "height": 900,
+    "labels": [
+      {
+        "scroll": 174,
+        "width": 174,
+        "wrap": "anywhere"
+      },
+      {
+        "scroll": 174,
+        "width": 174,
+        "wrap": "anywhere"
+      }
+    ],
+    "overflows": [
+      {
+        "cls": "meme-card-open",
+        "tag": "BUTTON"
+      }
+    ],
+    "palette": "web3-meme",
+    "skuWidth": 360,
+    "width": 701
+  },
+  "sku1440After": {
+    "client": 1425,
+    "controls": [
+      {
+        "right": 506.5,
+        "w": 447.5
+      },
+      {
+        "right": 966,
+        "w": 447.5
+      },
+      {
+        "right": 1096,
+        "w": 118
+      },
+      {
+        "right": 567.5,
+        "w": 489.5
+      },
+      {
+        "right": 1077,
+        "w": 489.5
+      },
+      {
+        "right": 95,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      },
+      {
+        "right": 567.5,
+        "w": 489.5
+      },
+      {
+        "right": 1077,
+        "w": 489.5
+      },
+      {
+        "right": 95,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      },
+      {
+        "right": 567.5,
+        "w": 489.5
+      },
+      {
+        "right": 1077,
+        "w": 489.5
+      },
+      {
+        "right": 95,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      },
+      {
+        "right": 567.5,
+        "w": 489.5
+      },
+      {
+        "right": 1077,
+        "w": 489.5
+      },
+      {
+        "right": 95,
+        "w": 17
+      },
+      {
+        "right": 0,
+        "w": 0
+      }
+    ],
+    "document": 1425,
+    "height": 900,
+    "labels": [
+      {
+        "scroll": 448,
+        "width": 447.5,
+        "wrap": "anywhere"
+      },
+      {
+        "scroll": 448,
+        "width": 447.5,
+        "wrap": "anywhere"
+      }
+    ],
+    "overflows": [],
+    "palette": "web3-meme",
+    "skuWidth": 1037,
+    "width": 1440
+  },
+  "forms": [
+    {
+      "buttons": [
+        {
+          "bottom": 841.4609375,
+          "text": "保存地址",
+          "y": 795.0625
+        }
+      ],
+      "client": 1440,
+      "dialog": [
+        {
+          "client": 790,
+          "h": 792,
+          "scroll": 822,
+          "w": 540,
+          "x": 450,
+          "y": 54
+        }
+      ],
+      "document": 1440,
+      "height": 900,
+      "step": "address1440",
+      "width": 1440
+    },
+    {
+      "client": 1425,
+      "controls": [
+        {
+          "label": "预览凭证 1",
+          "right": 513.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 1",
+          "right": 508.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 2",
+          "right": 621.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 2",
+          "right": 616.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 3",
+          "right": 729.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 3",
+          "right": 724.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 4",
+          "right": 837.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 4",
+          "right": 832.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 5",
+          "right": 945.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 5",
+          "right": 940.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 6",
+          "right": 513.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 6",
+          "right": 508.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": null,
+          "right": 494.5,
+          "text": "取消",
+          "w": 76
+        },
+        {
+          "label": null,
+          "right": 1006.5,
+          "text": "提交仅退款申请",
+          "w": 500
+        }
+      ],
+      "document": 1425,
+      "height": 900,
+      "images": [
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 513.5,
+          "w": 94,
+          "x": 419.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 621.5,
+          "w": 94,
+          "x": 527.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 729.5,
+          "w": 94,
+          "x": 635.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 837.5,
+          "w": 94,
+          "x": 743.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 945.5,
+          "w": 94,
+          "x": 851.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 513.5,
+          "w": 94,
+          "x": 419.5,
+          "y": 844.984375
+        }
+      ],
+      "panel": [
+        {
+          "scroll": 668,
+          "w": 670,
+          "x": 377.5
+        }
+      ],
+      "step": "aftersale1440",
+      "width": 1440
+    },
+    {
+      "client": 1009,
+      "controls": [
+        {
+          "label": "预览凭证 1",
+          "right": 305.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 1",
+          "right": 300.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 2",
+          "right": 413.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 2",
+          "right": 408.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 3",
+          "right": 521.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 3",
+          "right": 516.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 4",
+          "right": 629.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 4",
+          "right": 624.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 5",
+          "right": 737.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 5",
+          "right": 732.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": "预览凭证 6",
+          "right": 305.5,
+          "text": "",
+          "w": 94
+        },
+        {
+          "label": "删除凭证 6",
+          "right": 300.5,
+          "text": "",
+          "w": 24
+        },
+        {
+          "label": null,
+          "right": 286.5,
+          "text": "取消",
+          "w": 76
+        },
+        {
+          "label": null,
+          "right": 798.5,
+          "text": "提交仅退款申请",
+          "w": 500
+        }
+      ],
+      "document": 1009,
+      "height": 900,
+      "images": [
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 305.5,
+          "w": 94,
+          "x": 211.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 413.5,
+          "w": 94,
+          "x": 319.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 521.5,
+          "w": 94,
+          "x": 427.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 629.5,
+          "w": 94,
+          "x": 535.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 737.5,
+          "w": 94,
+          "x": 643.5,
+          "y": 736.984375
+        },
+        {
+          "complete": true,
+          "decoded": true,
+          "right": 305.5,
+          "w": 94,
+          "x": 211.5,
+          "y": 844.984375
+        }
+      ],
+      "panel": [
+        {
+          "scroll": 668,
+          "w": 670,
+          "x": 169.5
+        }
+      ],
+      "step": "aftersale1024",
+      "width": 1024
+    }
+  ],
+  "themeBeforeFix": {
+    "initialAndEscape": [
+      {
+        "palette": "web3-meme",
+        "selectedFocused": true,
+        "step": "initial"
+      },
+      {
+        "label": null,
+        "step": "forward-wrap"
+      },
+      {
+        "step": "reverse-wrap",
+        "text": ""
+      },
+      {
+        "focus": "切换界面配色",
+        "masks": 0,
+        "palette": "web3-meme",
+        "panels": 0,
+        "step": "closed"
+      }
+    ],
+    "forward": {
+      "active": "<summary data-v-5fbcd1bc=\"\">配色参考</summary>",
+      "inside": true,
+      "palette": "web3-meme"
+    },
+    "reverse": {
+      "active": "<button data-v-5fbcd1bc=\"\" type=\"button\" aria-label=\"关闭配色面板\"><svg data-v-e4de7c17=\"\" data-v-5fbcd1bc=\"\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path data-v-e4de7c17=\"\" d=\"M5 5l14 14M19 5 5 19\"></path></svg></button>",
+      "focusables": [
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "BUTTON",
+          "text": "查看页面",
+          "visible": true
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "SUMMARY",
+          "text": "配色参考",
+          "visible": true
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "A",
+          "text": "Coinbase · 明暗语义色彩",
+          "visible": false
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "A",
+          "text": "Solana · 官方品牌配色",
+          "visible": true
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "A",
+          "text": "Radix · 色阶与使用场景",
+          "visible": true
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "A",
+          "text": "WCAG · 文字对比度标准",
+          "visible": true
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "A",
+          "text": "Shopify · 电商配色案例",
+          "visible": true
+        },
+        {
+          "label": null,
+          "tab": 0,
+          "tag": "A",
+          "text": "Shopify · 色彩系统设计",
+          "visible": true
+        }
+      ],
+      "inside": true
+    }
+  },
+  "filter": [
+    {
+      "bodyInline": "hidden",
+      "bodyOverflow": "hidden",
+      "client": 700,
+      "dialogs": 1,
+      "document": 700,
+      "focus": "关闭筛选",
+      "hiddenBackground": null,
+      "inside": true,
+      "locked": false,
+      "open": 1,
+      "step": "open700",
+      "width": 700
+    },
+    {
+      "bodyInline": "hidden",
+      "bodyOverflow": "hidden",
+      "client": 700,
+      "dialogs": 1,
+      "document": 700,
+      "focus": "关闭筛选",
+      "hiddenBackground": null,
+      "inside": true,
+      "locked": false,
+      "open": 1,
+      "step": "fast-reopen700",
+      "width": 700
+    },
+    {
+      "bodyInline": "",
+      "bodyOverflow": "clip visible",
+      "client": 686,
+      "dialogs": 0,
+      "document": 686,
+      "focus": "\n    数字货币 / 人民币1 USDT≈¥ 6.68171 USD",
+      "hiddenBackground": null,
+      "inside": false,
+      "locked": false,
+      "open": 0,
+      "step": "cross701",
+      "width": 701
+    }
+  ]
+}

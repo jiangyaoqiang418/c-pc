@@ -109,7 +109,7 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
 </template>
 
 <style scoped>
-.buyer-sku-editor { display:grid; gap:18px; }
+.buyer-sku-editor { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; }
 .sku-group,.sku-row { display:grid; gap:14px; padding:18px; border:1px solid var(--line); border-radius:8px; min-width:0; }
 .sku-group-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; overflow-wrap:anywhere; }
 .sku-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
@@ -118,6 +118,7 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
 .text-button { color:var(--muted); font-size:12px; white-space:nowrap; }
 .sku-add { display:flex; align-items:end; gap:12px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:18px; }
 .sku-add .buyer-field { flex:1 1 130px; margin:0; min-width:0; }
+.sku-add .buyer-field > label { overflow-wrap:anywhere; }
 .sku-enabled { display:flex; align-items:center; gap:8px; }
 .helper { color:var(--muted); font-size:12px; line-height:1.7; }
 .sku-row :deep(.cell),.sku-row :deep(.add) { width:72px; height:72px; }

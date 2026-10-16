@@ -1,0 +1,11 @@
+{
+  "viewportReset": true,
+  "afterReset": {
+    "body": "clip visible",
+    "height": 871,
+    "palette": "web3-meme",
+    "panels": 0,
+    "width": 2048
+  },
+  "ownTabClosed": true
+}

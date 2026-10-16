@@ -14,6 +14,16 @@ const current = computed(() => images.value[photo.value] || images.value[0]);
 function source(url?: string) { return url && !failed.value.has(url) ? url : PRODUCT_IMAGE_PLACEHOLDER; }
 const canZoom = computed(() => Boolean(current.value?.url && !failed.value.has(current.value.url)));
 function imageError(url?: string) { if (url) failed.value = new Set(failed.value).add(url); }
+function selectPhoto(index: number) {
+  const image = images.value[index];
+  if (!image) return;
+  photo.value = index;
+  if (failed.value.has(image.url)) {
+    const remaining = new Set(failed.value);
+    remaining.delete(image.url);
+    failed.value = remaining;
+  }
+}
 watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.value = new Set(); });
 </script>
 
@@ -24,7 +34,7 @@ watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.va
       <span v-if="canZoom"><UmIcon name="search" />点击查看大图</span>
     </button>
     <div class="thumbnails">
-      <button v-for="(image, index) in images" :key="`${image.url}-${index}`" type="button" :class="{ active: photo === index }" :aria-label="'商品图片 ' + (index + 1)" :aria-pressed="photo === index" @click="photo = index">
+      <button v-for="(image, index) in images" :key="`${image.url}-${index}`" type="button" :class="{ active: photo === index }" :aria-label="(failed.has(image.url) ? '重试商品图片 ' : '商品图片 ') + (index + 1)" :title="failed.has(image.url) ? '图片加载失败，点击重试' : undefined" :aria-pressed="photo === index" @click="selectPhoto(index)">
         <img :src="source(image.url)" :alt="title + ' ' + (index + 1)" @error="imageError(image.url)" />
       </button>
       <span>每一个细节，都值得认真看。</span>

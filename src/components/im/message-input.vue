@@ -4,6 +4,7 @@ import UmIcon from '@/components/common/um-icon.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useMediaQuery } from '@vueuse/core';
 import { Message, Modal } from '@/lib/feedback';
 import { uploadImFile } from '@/service/api/notify';
 import { shouldSendOnEnter } from '@/utils/im';
@@ -36,6 +37,8 @@ const emit = defineEmits<{
 }>();
 
 const text = ref('');
+const isPhone = useMediaQuery('(max-width:700px)');
+const inputDisabled = computed(() => props.disabled || (props.submitting && !isPhone.value));
 const sending = ref(false);
 const uploading = ref(false);
 const preparingVideo = ref(false);
@@ -51,6 +54,7 @@ let recordingStartedAt = 0;
 let recordingTimer: ReturnType<typeof setInterval> | undefined;
 let uploadVersion = 0;
 let videoConfirmation: ReturnType<typeof Modal.confirm> | undefined;
+let cancelVideoRead: (() => void) | undefined;
 
 const canRecord = computed(() => typeof MediaRecorder !== 'undefined' && !!navigator.mediaDevices?.getUserMedia);
 
@@ -77,6 +81,7 @@ async function readVideo(file: File) {
       video.removeAttribute('src');
       video.load();
       URL.revokeObjectURL(url);
+      if (cancelVideoRead === cancel) cancelVideoRead = undefined;
     };
     const finish = (result?: { duration: number; cover?: Blob }) => {
       if (settled) return;
@@ -86,6 +91,8 @@ async function readVideo(file: File) {
       else reject(new Error('无法读取视频信息，请检查文件格式后重试'));
     };
     const timer = setTimeout(() => finish(), 15000);
+    const cancel = () => finish();
+    cancelVideoRead = cancel;
     video.onerror = () => finish();
     video.onloadedmetadata = () => {
       const duration = Math.ceil(video.duration);
@@ -179,6 +186,12 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault();
     send();
   }
+}
+
+function keepPhoneInputFocus(event: PointerEvent) {
+  const active = document.activeElement;
+  if (isPhone.value && active instanceof HTMLTextAreaElement && event.currentTarget instanceof HTMLElement
+    && event.currentTarget.closest('.message-input')?.contains(active)) event.preventDefault();
 }
 
 function chooseImage() {
@@ -288,6 +301,7 @@ async function startRecording() {
 
 function cancelMedia() {
   uploadVersion += 1;
+  cancelVideoRead?.();
   videoConfirmation?.close();
   videoConfirmation = undefined;
   preparingVideo.value = false;
@@ -298,8 +312,8 @@ function cancelMedia() {
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
   mediaRecorder = undefined;
 }
-watch(() => props.contextKey, () => { text.value = ''; cancelMedia(); });
-watch(() => props.disabled, value => { if (value) cancelMedia(); });
+watch(() => props.contextKey, () => { text.value = ''; cancelMedia(); }, { flush: 'sync' });
+watch(() => props.disabled, value => { if (value) cancelMedia(); }, { flush: 'sync' });
 
 function stopRecording() {
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
@@ -332,9 +346,9 @@ onBeforeUnmount(() => {
       <span v-if="uploading || preparingVideo" class="media-state" role="status"><Icon icon="lucide:loader-circle" width="15" class="animate-spin" />{{ preparingVideo ? '正在读取视频…' : '媒体上传中…' }}</span>
       <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音</span>
     </div>
-    <div class="chat-compose"><Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="disabled || submitting" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
+    <div class="chat-compose"><Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
 
-      <button type="button" :disabled="disabled || submitting || mediaBusy || !text.trim()" @click="send" class="primary"><Icon v-if="sending || submitting" icon="lucide:loader-circle" class="animate-spin" width="16" /><UmIcon v-else name="arrow" />{{ sending || submitting ? '发送中' : '发送' }}</button>
+      <button type="button" :disabled="disabled || submitting || mediaBusy || !text.trim()" @pointerdown="keepPhoneInputFocus" @click="send" class="primary"><Icon v-if="sending || submitting" icon="lucide:loader-circle" class="animate-spin" width="16" /><UmIcon v-else name="arrow" />{{ sending || submitting ? '发送中' : '发送' }}</button>
     </div><p class="message-input-hint">Enter 发送 · Shift+Enter 换行</p>
   </div>
 </template>

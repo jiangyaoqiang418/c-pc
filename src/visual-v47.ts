@@ -1,5 +1,5 @@
 // Independent DEV-only read-only visual entry. Not imported by the production entry or build.
-import { createApp, defineComponent, h, onBeforeUnmount, readonly, ref } from 'vue';
+import { createApp, defineComponent, h, nextTick, onBeforeUnmount, readonly, ref } from 'vue';
 import { createPinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -12,6 +12,11 @@ import V47DetailShare from '@/components/product/v47-detail-share.vue';
 import V47DetailPreview from '@/components/product/v47-detail-preview.vue';
 import BusinessDialog from '@/components/common/business-dialog.vue';
 import ImagePreview from '@/components/common/image-preview.vue';
+import MessageInput from '@/components/im/message-input.vue';
+import MessageBubble from '@/components/im/message-bubble.vue';
+import ProductCard from '@/components/product/product-card.vue';
+import BuyerProductSkus from '@/components/buyer/buyer-product-skus.vue';
+import type { ProductSkuEditorState } from '@/utils/product-sku';
 import AmountInput from '@/components/common/amount-input.vue';
 import FeedbackHost from '@/components/common/feedback-host.vue';
 import { Modal } from '@/lib/feedback';
@@ -113,7 +118,7 @@ const ComponentStates = defineComponent({
     const timers: ReturnType<typeof setTimeout>[] = [];
     const motionSamples = ref('');
     let motionFrame: number | undefined;
-    function reverseShare() {
+    function reverseModal(kind: 'share' | 'photo') {
       if (timers.length || motionFrame !== undefined) return;
       motionSamples.value = '';
       const started = performance.now();
@@ -133,7 +138,7 @@ const ComponentStates = defineComponent({
       }
       motionFrame = requestAnimationFrame(sample);
       for (const [delay, value] of [[300, true], [420, false], [500, true], [1300, false]] as const) {
-        const timer = setTimeout(() => { timers.splice(timers.indexOf(timer), 1); share.value = value; }, delay);
+        const timer = setTimeout(() => { timers.splice(timers.indexOf(timer), 1); (kind === 'share' ? share : photo).value = value; }, delay);
         timers.push(timer);
       }
     }
@@ -145,7 +150,8 @@ const ComponentStates = defineComponent({
         h('span', { class: 'eyebrow' }, product.brandName + ' / ' + product.categoryPath),
         h('h1', product.title), h('p', { class: 'subtitle' }, product.summary),
         h('button', { type: 'button', class: 'outline', onClick: () => { photo.value = true; } }, '查看评价配图'),
-        h('button', { type:'button', class:'outline', onClick:reverseShare }, '测试分享弹窗快速开关'),
+        h('button', { type:'button', class:'outline', onClick:() => reverseModal('share') }, '测试分享弹窗快速开关'),
+        h('button', { type:'button', class:'outline', onClick:() => reverseModal('photo') }, '测试评价配图快速开关'),
         h('output', { 'data-motion-samples':'', class:'sr-only' }, motionSamples.value)
       ]),
       h(V47DetailShare, { modelValue: share.value, 'onUpdate:modelValue': (value: boolean) => { share.value = value; }, url: 'http://127.0.0.1:4173/#/product/1' }),
@@ -160,6 +166,15 @@ const LocalControls = defineComponent({
     const preview = ref(false);
     const amount = ref('2.22345678');
     const busy = ref(false);
+    const messagePending = ref(false);
+    const localMessage = ref('');
+    const localContext = ref(0);
+    function blockLocalMedia(event: Event) {
+      if (event.target instanceof Element && event.target.closest('.media-toolbar')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
     let confirmation: ReturnType<typeof Modal.confirm> | undefined;
     onBeforeUnmount(() => confirmation?.close());
     return () => h('section', { class: 'buyer-panel' }, [
@@ -171,6 +186,19 @@ const LocalControls = defineComponent({
       h('label', ['精确金额输入', h(AmountInput, { exactDecimal:true, precision:8, rawValue:amount.value,
         'onUpdate:rawValue':(value: string) => { amount.value = value; } })]),
       h('output', { 'aria-label':'当前原始金额' }, amount.value),
+      h('section', { 'data-local-composer':'', onClickCapture:blockLocalMedia }, [
+        h('h2', '本地聊天输入'),
+        h('p', '仅记录本地文本，不发送消息；媒体入口不执行操作。'),
+        h(MessageInput, { submitting:messagePending.value, contextKey:String(localContext.value),
+          onSend:(payload: { type:string; content?:string }) => {
+            if (payload.type !== 'text') return;
+            localMessage.value = payload.content || '';
+            messagePending.value = true;
+          } }),
+        h('output', { 'aria-label':'本地已记录文本' }, localMessage.value),
+        h('button', { type:'button', class:'outline', onClick:() => { messagePending.value = false; } }, '结束本地发送等待'),
+        h('button', { type:'button', class:'outline', onClick:() => { localContext.value += 1; messagePending.value = false; } }, '切换本地会话')
+      ]),
       h(BusinessDialog, { visible:dialog.value, title:'本地弹窗交互', okLoading:busy.value,
         'onUpdate:visible':(value: boolean) => { dialog.value = value; } }, () => [
         h('label', ['本地测试输入', h('input', { 'aria-label':'本地测试输入' })]),
@@ -185,6 +213,66 @@ const LocalControls = defineComponent({
     ]);
   }
 });
+// Explicit boundary samples: local component state only; no uploads or submissions.
+const BoundaryStates = defineComponent({
+  setup() {
+    const price = '9'.repeat(28) + '.12345678';
+    const product = { ...records[0]!, brandName:'BoundaryBrand'.repeat(6), title:'长标题与精确金额边界'.repeat(8), price };
+    const groups = [0, 1].map(index => ({ name:String.fromCharCode(65 + index).repeat(32), options:['X'.repeat(64), 'Y'.repeat(64)] }));
+    const skus = ref<ProductSkuEditorState>({ enabled:true, groups, skus:[0, 1, 2, 3].map(index => ({
+      id:'local-sku-' + index, specs:groups.map((group, groupIndex) => ({ name:group.name, value:group.options[index >> groupIndex & 1] })),
+      price, stock:index === 0 ? '2147483647' : '0', enabled:true, image:''
+    })) });
+    function blockBoundaryUpload(event: Event) {
+      if (event.target instanceof Element && event.target.closest('.evidence')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+    // Silent PCM is generated locally to exercise the browser decoder, without a file or microphone.
+    const wav = new Uint8Array(44 + 8000 * 2 * 30);
+    const header = new DataView(wav.buffer);
+    for (const [offset, value] of [[0,'RIFF'], [8,'WAVE'], [12,'fmt '], [36,'data']] as const) {
+      for (let index = 0; index < value.length; index++) wav[offset + index] = value.charCodeAt(index);
+    }
+    header.setUint32(4, wav.length - 8, true); header.setUint32(16, 16, true);
+    header.setUint16(20, 1, true); header.setUint16(22, 1, true); header.setUint32(24, 8000, true);
+    header.setUint32(28, 16000, true); header.setUint16(32, 2, true); header.setUint16(34, 16, true);
+    header.setUint32(40, wav.length - 44, true);
+    const mediaUrls = [URL.createObjectURL(new Blob([wav], { type:'audio/wav' })), URL.createObjectURL(new Blob([wav], { type:'audio/wav' }))];
+    const message = ref<Api.RealNotify.ImMessageVO>({ id:'local-media', conversationId:'local-only', msgType:'VOICE', mediaUrl:mediaUrls[0], duration:30, senderName:'本地媒体验收' });
+    const mediaVisible = ref(true);
+    const mediaState = ref('');
+    function changeLocalMedia(action: 'recall' | 'source' | 'remove' | 'reset') {
+      const previous = document.querySelector<HTMLMediaElement>('[data-local-media] audio');
+      if (action === 'remove') mediaVisible.value = false;
+      else {
+        mediaVisible.value = true;
+        message.value = { ...message.value, recalled:action === 'recall', mediaUrl:action === 'source' ? mediaUrls[1] : mediaUrls[0] };
+      }
+      void nextTick(() => { mediaState.value = JSON.stringify({ action, previous:previous ? {
+        paused:previous.paused, source:previous.getAttribute('src'), readyState:previous.readyState, connected:previous.isConnected
+      } : null }); });
+    }
+    onBeforeUnmount(() => { for (const url of mediaUrls) URL.revokeObjectURL(url); });
+    return () => h('section', { class:'buyer-panel', 'data-local-boundaries':'' }, [
+      h('h1', '本地前端边界验收'), h('p', '只用本地长文本、金额与媒体；不上传、不发布、不发送业务消息。'),
+      h('div', { class:'product-grid' }, [h(ProductCard, { product, demo:true })]),
+      h('div', { class:'buyer-content' }, [h('form', { class:'buyer-editor', onSubmit:(event: Event) => event.preventDefault() }, [
+        h('div', { class:'buyer-editor-fields', style:{ minWidth:0 } }, [h('section', { class:'paper', onClickCapture:blockBoundaryUpload }, [
+          h(BuyerProductSkus, { modelValue:skus.value, contextKey:'local-boundary',
+            'onUpdate:modelValue':(value: ProductSkuEditorState) => { skus.value = value; } })
+        ])])
+      ])]),
+      h('section', { 'data-local-media':'' }, [h('h2', '本地媒体生命周期'),
+        mediaVisible.value ? h(MessageBubble, { msg:message.value, side:'left' }) : h('p', '本地媒体已移除'),
+        ...([['reset','恢复本地媒体'], ['recall','本地模拟撤回'], ['source','切换本地媒体源'], ['remove','移除本地媒体']] as const)
+          .map(([action, label]) => h('button', { type:'button', class:'outline', onClick:() => changeLocalMedia(action) }, label)),
+        h('output', { 'data-local-media-state':'', style:{ overflowWrap:'anywhere' } }, mediaState.value)
+      ])
+    ]);
+  }
+});
 const router = createRouter({ history: createMemoryHistory(), routes: [
   { path: '/', name: 'home', component: HomeView },
   { path: '/product/list', name: 'product-list', component: CatalogView },
@@ -196,6 +284,7 @@ const Host = defineComponent({
   setup() { return () => h(TooltipProvider, { delayDuration: 300 }, () => [h(DefaultLayout, {}, {
     default: () => view === 'gallery' ? h(ComponentStates)
       : view === 'components' ? h(LocalControls)
+      : view === 'boundaries' ? h(BoundaryStates)
       : view === 'forms' ? h(FormStates, { images:records.slice(0, 6).map(product => product.images[0]!.url) })
       : view === 'catalog' ? h(CatalogView, { visualFixture:catalogFixture })
       : view === 'wallet' ? h(WalletView, { visualFixture: walletFixture }) : h(HomeView, { visualFixture: fixture })

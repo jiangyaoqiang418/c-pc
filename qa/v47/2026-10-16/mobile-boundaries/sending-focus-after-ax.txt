@@ -1,0 +1,8 @@
+Browser tab: 1281853558, Title: "Umaomao v47 · 只读视觉验收", URL: "http://127.0.0.1:5173/visual-v47.html?view=components".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+~			38 button (disabled) 上传聊天图片
+~			39 button (disabled) 上传聊天视频
+~			40 button (disabled) 录制语音
+~			42 button (disabled) 发送中
++				60 text 手机连续输入检查
+The focused UI element is 41 text entry area (settable) 聊天消息

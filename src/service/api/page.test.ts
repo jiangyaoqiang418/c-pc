@@ -31,22 +31,30 @@ import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpf
 import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
-import { createRenderer, h, nextTick, reactive, readonly, ref, ssrContextKey, type Component } from 'vue';
+import { createRenderer, h, nextTick, reactive, readonly, ref, ssrContextKey, type App, type Component } from 'vue';
 import { routeLocationKey, routerKey, type RouteLocationNormalizedLoaded, type Router } from 'vue-router';
 import InterestPreview from '@/components/finance/interest-preview.vue';
 import BusinessDialog from '@/components/common/business-dialog.vue';
 import CatalogView from '@/views/product/list.vue';
+import CategoryView from '@/views/category/index.vue';
+import * as categoryApi from './category';
 import { categoryNavigationKey } from '@/composables/use-category-navigation';
 import type { AddressVisualFixture, CatalogVisualFixture, EvidenceVisualFixture } from '@/visual/types';
 import AddressForm from '@/components/profile/address-form.vue';
 import EvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import DetailGallery from '@/components/product/v47-detail-gallery.vue';
+import MessageInput from '@/components/im/message-input.vue';
+import DetailView from '@/views/product/detail.vue';
+import DetailReviews from '@/components/product/v47-detail-reviews.vue';
+import ThemePicker from '@/components/layout/theme-picker.vue';
+import { provideSSRWidth } from '@vueuse/core';
 import * as addressApi from './address';
 import { Message } from '@/lib/feedback';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-describe('v47地址与凭证本地边界', () => {
-  function mountSubject<T>(component: Component, input: Record<string, unknown>) {
+describe('v47前端本地边界', () => {
+  function mountSubject<T>(component: Component, input: Record<string, unknown>, viewportWidth?: number, configure?: (app: App) => void) {
     const properties = reactive(input);
     const subject = { ...component, render:() => null };
     const renderer = createRenderer<object, object>({
@@ -55,6 +63,8 @@ describe('v47地址与凭证本地边界', () => {
     });
     const app = renderer.createApp({ render:() => h(subject, properties) });
     app.provide(ssrContextKey, {});
+    if (viewportWidth !== undefined) provideSSRWidth(viewportWidth, app);
+    configure?.(app);
     app.mount({});
     const state = (app as unknown as { _instance:{ subTree:{ component:{ setupState:T } } } })._instance.subTree.component.setupState;
     return { app, state, properties };
@@ -66,6 +76,108 @@ describe('v47地址与凭证本地边界', () => {
   interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
   const file = () => new File(['local-only'], 'evidence.png', { type:'image/png' });
   const uploaded: Api.RealProduct.FileUploadResult = { id:'local-only', bucket:'local-only', filePath:'local-only', url:'https://example.com/local-only.png' };
+
+  it('配色参考展开状态同步原生toggle，重开面板恢复折叠', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    const { app, state } = mountSubject<{
+      open:boolean; sourcesOpen:boolean; syncSources:(event: Event) => void;
+    }>(ThemePicker, {}, undefined, app => {
+      app.provide(routeLocationKey, { fullPath:'/' } as RouteLocationNormalizedLoaded);
+    });
+    try {
+      expect(state.sourcesOpen).toBe(false);
+      state.open = true;
+      await nextTick();
+      state.syncSources({ currentTarget:{ open:true } } as unknown as Event);
+      expect(state.sourcesOpen).toBe(true);
+      state.syncSources({ currentTarget:{ open:false } } as unknown as Event);
+      expect(state.sourcesOpen).toBe(false);
+      state.syncSources({ currentTarget:{ open:true } } as unknown as Event);
+      state.open = false;
+      await nextTick();
+      state.open = true;
+      await nextTick();
+      expect(state.sourcesOpen).toBe(false);
+    } finally { app.unmount(); }
+  });
+
+  it('商品买手与公开评价头像保留完整首码点，匿名评价不泄露昵称首字', () => {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('matchMedia', () => Object.assign(new EventTarget(), { matches:false }));
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    const detail = mountSubject<{ product?: Api.RealProduct.Record; sellerInitial:string }>(DetailView, {}, undefined, app => {
+      app.use(createPinia());
+      app.provide(routeLocationKey, { params:{}, query:{} } as RouteLocationNormalizedLoaded);
+      app.provide(routerKey, {} as Router);
+    });
+    const reviews = mountSubject<{ initial:(review: Api.RealReview.ReviewDTO) => string; shortText:(review: Api.RealReview.ReviewDTO) => string }>(DetailReviews, {
+      rows:[], total:0, current:1, pageSize:20, loading:false, error:'', stars:0, hasImage:false, keyword:'', sort:'MOST_HELPFUL'
+    });
+    try {
+      for (const [userName, initial] of [['😀买手', '😀'], ['𠮷野家', '𠮷'], ['普通买手', '普'], ['Alice', 'A']]) {
+        detail.state.product = { sellerName:userName } as Api.RealProduct.Record;
+        expect(detail.state.sellerInitial).toBe(initial);
+        expect(reviews.state.initial({ userName, anonymous:false } as Api.RealReview.ReviewDTO)).toBe(initial);
+      }
+      detail.state.product = { sellerName:'' } as Api.RealProduct.Record;
+      expect(detail.state.sellerInitial).toBe('U');
+      expect(reviews.state.initial({ userName:'😀实名', anonymous:true } as Api.RealReview.ReviewDTO)).toBe('匿');
+      expect(reviews.state.initial({} as Api.RealReview.ReviewDTO)).toBe('匿');
+      expect(reviews.state.shortText({ content:'a'.repeat(84) + '😀x' } as Api.RealReview.ReviewDTO)).toBe('a'.repeat(84) + '…');
+      expect(reviews.state.shortText({ content:'a'.repeat(83) + '😀x' } as Api.RealReview.ReviewDTO)).toBe('a'.repeat(83) + '😀…');
+      expect(reviews.state.shortText({ content:'a'.repeat(86) } as Api.RealReview.ReviewDTO)).toBe('a'.repeat(85) + '…');
+    } finally { detail.app.unmount(); reviews.app.unmount(); }
+  });
+
+  it('手机发送等待保留输入框和下一条草稿，PC与会话禁用保持原规则', async () => {
+    const sent = vi.fn();
+    const { app, state, properties } = mountSubject<{
+      inputDisabled:boolean; text:string; send:() => Promise<void>;
+    }>(MessageInput, { submitting:true, onSend:sent }, 375);
+    try {
+      expect(state.inputDisabled).toBe(false);
+      state.text = '下一条草稿';
+      await state.send();
+      expect(sent).not.toHaveBeenCalled();
+      expect(state.text).toBe('下一条草稿');
+      properties.submitting = false;
+      await nextTick();
+      await state.send();
+      expect(sent).toHaveBeenCalledExactlyOnceWith({ type:'text', content:'下一条草稿' });
+      expect(state.text).toBe('');
+      properties.disabled = true;
+      await nextTick();
+      expect(state.inputDisabled).toBe(true);
+    } finally { app.unmount(); }
+    const pc = mountSubject<{ inputDisabled:boolean }>(MessageInput, { submitting:true }, 1440);
+    try {
+      expect(pc.state.inputDisabled).toBe(true);
+      pc.properties.submitting = false;
+      await nextTick();
+      expect(pc.state.inputDisabled).toBe(false);
+    } finally { pc.app.unmount(); }
+  });
+
+  it('点击失败缩略图可重新加载，仅重试当前图片', () => {
+    const { app, state } = mountSubject<{
+      imageError:(url: string) => void; selectPhoto:(index: number) => void;
+      source:(url: string) => string; canZoom:boolean;
+    }>(DetailGallery, { images:[{ type:'image', url:'first.jpg' }, { type:'image', url:'second.jpg' }], title:'图片恢复' });
+    try {
+      state.imageError('first.jpg');
+      state.imageError('second.jpg');
+      expect(state.canZoom).toBe(false);
+      state.selectPhoto(0);
+      expect(state.source('first.jpg')).toBe('first.jpg');
+      expect(state.canZoom).toBe(true);
+      expect(state.source('second.jpg')).not.toBe('second.jpg');
+      state.imageError('first.jpg');
+      state.selectPhoto(1);
+      expect(state.source('second.jpg')).toBe('second.jpg');
+      expect(state.source('first.jpg')).not.toBe('first.jpg');
+    } finally { app.unmount(); }
+  });
 
   it('验收字典失败保留错误态，不调用真实字典作为回退', async () => {
     const real = vi.spyOn(addressApi, 'fetchCountries');
@@ -157,6 +269,61 @@ describe('v47地址与凭证本地边界', () => {
       expect(mounted.state.failedFiles).toHaveLength(0);
       expect(real).not.toHaveBeenCalled();
     } finally { mounted.app.unmount(); Message.clear(); }
+  });
+});
+
+describe('手机分类搜索焦点恢复', () => {
+  function mountCategory() {
+    vi.spyOn(categoryApi, 'fetchCategoryTree').mockResolvedValue([]);
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const push = vi.fn().mockResolvedValue(undefined);
+    const app = renderer.createApp({ ...CategoryView, render:() => null });
+    app.provide(ssrContextKey, {});
+    app.provide(routeLocationKey, reactive({ query:{}, fullPath:'/category', path:'/category' }) as RouteLocationNormalizedLoaded);
+    app.provide(routerKey, { push, options:{ history:{ state:{ back:'/' } } } } as unknown as Router);
+    app.mount({});
+    const state = (app as unknown as { _instance:{ setupState:{
+      searchOpen:boolean; searchInput:HTMLInputElement; searchTrigger:HTMLButtonElement;
+      openSearch:() => void; closeSearch:() => void; exitCategory:() => void;
+    } } })._instance.setupState;
+    const inputFocus = vi.fn();
+    const triggerFocus = vi.fn();
+    state.searchInput = { focus:inputFocus } as unknown as HTMLInputElement;
+    state.searchTrigger = { focus:triggerFocus } as unknown as HTMLButtonElement;
+    return { app, state, push, inputFocus, triggerFocus };
+  }
+
+  it.each(['closeSearch', 'exitCategory'] as const)('%s收起输入后将焦点还给搜索触发按钮', async close => {
+    const { app, state, push, inputFocus, triggerFocus } = mountCategory();
+    try {
+      state.openSearch();
+      await nextTick();
+      expect(inputFocus).toHaveBeenCalledOnce();
+      state[close]();
+      expect(state.searchOpen).toBe(false);
+      expect(triggerFocus).not.toHaveBeenCalled();
+      await nextTick();
+      expect(triggerFocus).toHaveBeenCalledOnce();
+      expect(push).not.toHaveBeenCalled();
+    } finally { app.unmount(); }
+  });
+
+  it('重新展开或卸载后不执行过期的焦点恢复', async () => {
+    const { app, state, inputFocus, triggerFocus } = mountCategory();
+    state.openSearch();
+    await nextTick();
+    state.closeSearch();
+    state.openSearch();
+    await nextTick();
+    expect(triggerFocus).not.toHaveBeenCalled();
+    expect(inputFocus).toHaveBeenCalledTimes(2);
+    state.closeSearch();
+    app.unmount();
+    await nextTick();
+    expect(triggerFocus).not.toHaveBeenCalled();
   });
 });
 

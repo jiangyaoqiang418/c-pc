@@ -1,0 +1,15 @@
+{
+  "focusTag": "BODY",
+  "output": "本地键盘检查",
+  "textareas": [
+    {
+      "disabled": true,
+      "focused": false,
+      "value": ""
+    }
+  ],
+  "viewport": [
+    375,
+    812
+  ]
+}

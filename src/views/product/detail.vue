@@ -34,6 +34,7 @@ const userStore = useUserStore();
 const favorites = useProductFavoritesStore();
 
 const product = ref<Api.RealProduct.Record>();
+const sellerInitial = computed(() => Array.from(product.value?.sellerName || 'U')[0]);
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
 const reviewPage = ref(1);
 const reviewPageSize = ref(20);
@@ -528,7 +529,7 @@ function share() {
             <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy ? 0 : undefined"><button type="button" class="gold" :disabled="!canBuy" @click="buyNow">{{ product.stock ? '立即购买' : '暂时售罄' }}<UmIcon name="arrow" /></button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason">{{ buyDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
           </div>
           <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" @click="router.push('/im')"><UmIcon name="headset" />咨询买手</button></div>
-          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ product.sellerName?.slice(0, 1) || 'U' }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small>{{ sellerScoreLoading ? '正在读取买手评分…' : sellerScoreError ? '买手评分读取失败' : '用心挑选每一件好物' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
+          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small>{{ sellerScoreLoading ? '正在读取买手评分…' : sellerScoreError ? '买手评分读取失败' : '用心挑选每一件好物' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
           <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新读取买手评分</button>
           <button v-if="sellerQualificationError" type="button" class="text-link seller-score-retry" @click="loadSellerQualification">重新核对买手资格</button>
         </section>

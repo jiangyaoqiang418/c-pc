@@ -3,8 +3,116 @@ import { createCoalescedRefresh, createLatestRequestGuard } from './latest-reque
 import { waitForScrollPosition } from './scroll';
 import { reactive } from 'vue';
 import { createUnsavedFormState } from '@/composables/use-unsaved-form';
+import { installMobileViewport } from './mobile-viewport';
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+describe('手机软键盘视口', () => {
+  function setup(width = 393) {
+    class Element {
+      isContentEditable = false;
+      getBoundingClientRect() { return { top: 10, bottom: 50 }; }
+      scrollIntoView = vi.fn();
+    }
+    class Input extends Element { type = 'text'; disabled = false; readOnly = false; }
+    class Textarea extends Element { disabled = false; readOnly = false; }
+    const viewport = Object.assign(new EventTarget(), { height: 800, offsetTop: 0, scale: 1 });
+    const mobile = Object.assign(new EventTarget(), { matches: width <= 700 });
+    const target = Object.assign(new EventTarget(), { innerHeight: 800, innerWidth: width, visualViewport: viewport, matchMedia: () => mobile });
+    const values = new Map<string, string>();
+    const root = { dataset: {} as { mobileKeyboard?: string }, style: {
+      setProperty: (name: string, value: string) => values.set(name, value),
+      removeProperty: (name: string) => values.delete(name)
+    } };
+    const input = new Input();
+    const page = Object.assign(new EventTarget(), { documentElement: root, activeElement: input as Element });
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal('window', target);
+    vi.stubGlobal('document', page);
+    vi.stubGlobal('HTMLElement', Element);
+    vi.stubGlobal('HTMLInputElement', Input);
+    vi.stubGlobal('HTMLTextAreaElement', Textarea);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal('cancelAnimationFrame', () => { frame = undefined; });
+    const dispose = installMobileViewport();
+    const flush = () => { const callback = frame; frame = undefined; callback?.(0); };
+    const resize = (height: number, layoutHeight = height, scale = 1) => {
+      target.innerHeight = layoutHeight;
+      viewport.height = height;
+      viewport.scale = scale;
+      viewport.dispatchEvent(new Event('resize'));
+      flush();
+    };
+    const focus = (editable: boolean) => {
+      page.activeElement = editable ? input : new Element();
+      page.dispatchEvent(new Event(editable ? 'focusin' : 'focusout'));
+      flush();
+    };
+    return { root, values, target, viewport, mobile, resize, focus, dispose, input, flush };
+  }
+
+  it('布局随键盘缩小后，短暂失焦与重新聚焦不丢失基线，恢复高度后清理', () => {
+    const state = setup();
+    state.resize(450);
+    expect(state.root.dataset.mobileKeyboard).toBe('true');
+    expect(state.values.get('--mobile-viewport-height')).toBe('450px');
+    state.focus(false);
+    expect(state.root.dataset.mobileKeyboard).toBe('true');
+    state.focus(true);
+    expect(state.root.dataset.mobileKeyboard).toBe('true');
+    state.resize(800);
+    expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+    expect(state.values.size).toBe(0);
+    state.dispose();
+  });
+
+  it('纯缩放不识别为键盘，PC 视口缩小也不启用手机状态', () => {
+    for (const width of [393, 1440]) {
+      const state = setup(width);
+      state.resize(400, 800, 2);
+      expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+      expect(state.values.size).toBe(0);
+      if (width > 700) {
+        state.resize(450);
+        expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+        expect(state.values.size).toBe(0);
+      }
+      state.dispose();
+    }
+    const state = setup();
+    state.focus(false);
+    state.resize(450);
+    expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+    state.resize(800);
+    state.focus(true);
+    state.resize(450);
+    expect(state.root.dataset.mobileKeyboard).toBe('true');
+    state.target.innerWidth = 1440;
+    state.mobile.matches = false;
+    state.mobile.dispatchEvent(new Event('change'));
+    state.flush();
+    expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+    expect(state.values.size).toBe(0);
+    state.dispose();
+  });
+
+  it('失焦时等待可见高度恢复，卸载取消排队更新并移除手机状态', () => {
+    const state = setup();
+    state.resize(450, 800);
+    expect(state.values.get('--mobile-keyboard-inset')).toBe('350px');
+    state.focus(false);
+    expect(state.root.dataset.mobileKeyboard).toBe('true');
+    state.resize(800);
+    expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+    state.focus(true);
+    state.resize(450);
+    state.viewport.dispatchEvent(new Event('scroll'));
+    state.dispose();
+    state.flush();
+    expect(state.root.dataset.mobileKeyboard).toBeUndefined();
+    expect(state.values.size).toBe(0);
+  });
+});
 
 describe('实时刷新合并与取消', () => {
   it('密集事件合成一次读取，在途新事件只保留一次续读', async () => {

@@ -1,0 +1,118 @@
+[
+  {
+    "clientWidth": 375,
+    "documentWidth": 375,
+    "main": {
+      "bottom": 900,
+      "height": 900,
+      "left": 0,
+      "right": 375,
+      "top": 0,
+      "width": 375,
+      "x": 0,
+      "y": 0
+    },
+    "toolbar": {
+      "bottom": 53,
+      "height": 53,
+      "left": 0,
+      "right": 375,
+      "top": 0,
+      "width": 375,
+      "x": 0,
+      "y": 0
+    },
+    "toolbarDisplay": "grid",
+    "viewport": [
+      375,
+      900
+    ]
+  },
+  {
+    "clientWidth": 700,
+    "documentWidth": 700,
+    "main": {
+      "bottom": 900,
+      "height": 900,
+      "left": 0,
+      "right": 700,
+      "top": 0,
+      "width": 700,
+      "x": 0,
+      "y": 0
+    },
+    "toolbar": {
+      "bottom": 53,
+      "height": 53,
+      "left": 0,
+      "right": 700,
+      "top": 0,
+      "width": 700,
+      "x": 0,
+      "y": 0
+    },
+    "toolbarDisplay": "grid",
+    "viewport": [
+      700,
+      900
+    ]
+  },
+  {
+    "clientWidth": 686,
+    "documentWidth": 686,
+    "main": {
+      "bottom": 771.796875,
+      "height": 623.796875,
+      "left": 20,
+      "right": 666,
+      "top": 148,
+      "width": 646,
+      "x": 20,
+      "y": 148
+    },
+    "toolbar": {
+      "bottom": 0,
+      "height": 0,
+      "left": 0,
+      "right": 0,
+      "top": 0,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "toolbarDisplay": "none",
+    "viewport": [
+      701,
+      900
+    ]
+  },
+  {
+    "clientWidth": 1425,
+    "documentWidth": 1425,
+    "main": {
+      "bottom": 751.796875,
+      "height": 603.796875,
+      "left": 32,
+      "right": 1393,
+      "top": 148,
+      "width": 1361,
+      "x": 32,
+      "y": 148
+    },
+    "toolbar": {
+      "bottom": 0,
+      "height": 0,
+      "left": 0,
+      "right": 0,
+      "top": 0,
+      "width": 0,
+      "x": 0,
+      "y": 0
+    },
+    "toolbarDisplay": "none",
+    "viewport": [
+      1440,
+      900
+    ]
+  }
+]

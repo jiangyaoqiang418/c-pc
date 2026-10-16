@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-16",
+  "branch": "main",
+  "base": "9ddd348",
+  "status": "completed_for_six_local_frontend_checks",
+  "tests": {
+    "files": 9,
+    "passed": 324,
+    "addedInExistingFiles": 8
+  },
+  "typecheck": "passed",
+  "referenceContract": "passed",
+  "diffCheck": "passed",
+  "productionComponentStylesEqualHead": {
+    "src/components/im/message-bubble.vue": true,
+    "src/components/product/v47-detail-reviews.vue": true,
+    "src/views/product/detail.vue": true,
+    "src/views/im/index.vue": true,
+    "src/components/layout/theme-picker.vue": true
+  },
+  "completed": [
+    "unicode avatar codepoint and review clipping repair with regressions",
+    "media node release and stale error isolation with regressions",
+    "long amount/SKU lifecycle source review, existing guards retained",
+    "SKU intrinsic grid shrink and long-word wrapping; five width measurements",
+    "theme source links mounted only while expanded; real Tab loop and Escape recovery",
+    "six scoped browser checks completed after Chrome recovery"
+  ],
+  "browser": {
+    "name": "Google Chrome",
+    "acceptedSteps": 6,
+    "palette": "web3-meme; never changed",
+    "scope": "local DEV components, actual DOM and UI controls",
+    "records": [
+      "resume-browser-checks.json",
+      "filter-reopen.json",
+      "theme-focus-after.json",
+      "local-media-playback.json",
+      "photo-motion-1440.json",
+      "photo-motion-375-repeat.json"
+    ],
+    "screenshots": {
+      "01-address-1024.jpg": [
+        1024,
+        900
+      ],
+      "03-boundaries-320-after.jpg": [
+        305,
+        858
+      ],
+      "04-address-1440.jpg": [
+        1440,
+        900
+      ],
+      "05-aftersale-six-1024.jpg": [
+        1009,
+        887
+      ]
+    },
+    "screenshotNote": "Original Chrome bytes; PNG copies preserve the same pixels. Phone/1024 captures are visible content crops rather than full requested CSS viewport. No resize, same-data full-page comparison, or physical-device claim.",
+    "priorBlock": "Previous platform access block stopped the earlier run. User restored Chrome; this run used only owned localhost tabs. Transient CDP timeouts and foreground switching occurred; only completed measurements accepted.",
+    "cleanup": "viewport reset; all own temporary tabs closed; existing 5173 service retained"
+  },
+  "pendingBrowserChecks": [],
+  "realDeviceAndBusinessAcceptance": "unchanged; not claimed complete",
+  "delivery": {
+    "dependenciesInstalled": false,
+    "productionBuild": true,
+    "commit": false,
+    "push": false,
+    "publish": false,
+    "backendTasksAdded": false
+  },
+  "ordinaryUnrecalledFieldNormalization": "undefined and false do not interrupt playback",
+  "productionBuild": "passed",
+  "pc1440GeometryUnchanged": true,
+  "motion": {
+    "1440": {
+      "frames": 198,
+      "maxGapMs": 21.4
+    },
+    "375repeat": {
+      "frames": 197,
+      "maxGapMs": 27.3
+    },
+    "375initial": {
+      "frames": 166,
+      "maxGapMs": 154.3,
+      "acceptedForContinuousMotion": false
+    },
+    "maxMasks": 1,
+    "finalMasks": 0,
+    "claim": "DOM trajectory and cleanup only; not continuous paint or full-site motion acceptance"
+  }
+}

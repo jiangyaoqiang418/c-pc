@@ -117,6 +117,14 @@ const guards = {
   isolatedIdentityActions: entry.includes('visualUser.init = async () => {}') && entry.includes('visualUser.syncExternalSession = async () => false')
     && entry.includes('visualUser.setAudience = () => false') && entry.includes('visualUser.logout = () => {}'),
   noDirectStorageMutation: !/\blocalStorage\.(?:setItem|removeItem|clear)\s*\(/.test(entry),
+  localComposerTextOnly: entry.includes('onClickCapture:blockLocalMedia')
+    && entry.includes("event.target.closest('.media-toolbar')")
+    && entry.includes('event.stopImmediatePropagation()')
+    && entry.includes("if (payload.type !== 'text') return"),
+  boundarySamplesLocalOnly: entry.includes("view === 'boundaries' ? h(BoundaryStates)")
+    && entry.includes('h(ProductCard, { product, demo:true })')
+    && entry.includes('onClickCapture:blockBoundaryUpload') && entry.includes("event.target.closest('.evidence')")
+    && entry.includes('URL.revokeObjectURL(url)'),
   paletteInMemory: entry.includes("new StorageEvent('storage', { key: 'um.uiTheme', newValue: theme })")
     && entry.includes("event.target.closest('.theme-option')") && entry.includes('event.stopImmediatePropagation()'),
   notImportedByProductionEntry: !read('src/main.ts').includes('visual-v47') && !read('index.html').includes('visual-v47'),

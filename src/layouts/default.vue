@@ -139,7 +139,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
   .nav-rail-host > .store-nav-links { display:flex; align-items:stretch; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; overscroll-behavior-x:contain; }
   .nav-rail-host > .store-nav-links > a { flex-shrink:0; }
 }
-@media (max-width:700px) { .category-focus-mode > .main { width:100%; padding:0; } }
+@media (max-width:700px) { .layout-default.category-focus-mode > .main.um-wrap { width:100%; padding:0; } }
 @media (max-width:700px) { .buyer-workspace-mode .buyer-focus-header { grid-template-columns:auto minmax(0,1fr) auto; } .buyer-focus-header>div { min-width:0; } }
 @media (max-width:700px) { .is-messaging .main-container { padding-bottom:max(8px,env(safe-area-inset-bottom)); } }
 </style>

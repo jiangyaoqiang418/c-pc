@@ -1,0 +1,13 @@
+{
+  "clientWidth": 320,
+  "documentWidth": 320,
+  "focus": {
+    "label": "打开分类搜索",
+    "tag": "BUTTON"
+  },
+  "open": false,
+  "viewport": [
+    320,
+    700
+  ]
+}

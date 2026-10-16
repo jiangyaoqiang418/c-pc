@@ -1,0 +1,32 @@
+{
+  "clientWidth": 305,
+  "documentWidth": 305,
+  "focus": {
+    "rect": {
+      "bottom": 513.71875,
+      "height": 46.3984375,
+      "left": 36,
+      "right": 269,
+      "top": 467.3203125,
+      "width": 233,
+      "x": 36,
+      "y": 467.3203125
+    },
+    "tag": "BUTTON",
+    "text": "注册账户 "
+  },
+  "nav": {
+    "bottom": 700,
+    "height": 64,
+    "left": 0,
+    "right": 305,
+    "top": 636,
+    "width": 305,
+    "x": 0,
+    "y": 636
+  },
+  "viewport": [
+    320,
+    700
+  ]
+}

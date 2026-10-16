@@ -902,7 +902,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
           <div v-else-if="currentCandidates().length" class="conv-list chat-scroll">
             <button v-for="item in currentCandidates()" :key="item.id" type="button" class="conv-row" :class="{ active: sameBusinessId(selectedConversationId, item.id) }" :aria-current="sameBusinessId(selectedConversationId, item.id) ? 'page' : undefined" @click="selectConversation(item, true)">
               <img v-if="activeTab === 'group' && item.peerAvatar" :src="item.peerAvatar" :alt="item.peerName || '会话头像'" class="avatar" />
-              <span v-else class="avatar" :class="activeTab">{{ activeTab === 'cs' ? '客' : (item.peerName || item.title || '订').slice(0, 1) }}</span>
+              <span v-else class="avatar" :class="activeTab">{{ activeTab === 'cs' ? '客' : Array.from(item.peerName || item.title || '订')[0] }}</span>
               <span class="info">
                 <span class="conv-title-row"><span class="conv-name" :title="activeTab === 'cs' ? item.title || '平台客服' : item.peerName || item.title || '订单会话'">{{ activeTab === 'cs' ? item.title || '平台客服' : item.peerName || item.title || '订单会话' }}</span><span v-if="item.unreadCount" class="unread-badge">{{ item.unreadCount > 99 ? '99+' : item.unreadCount }}</span></span>
                 <span class="preview" :title="lastPreview(item)">{{ lastPreview(item) }}</span>

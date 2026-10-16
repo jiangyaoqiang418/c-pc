@@ -34,11 +34,17 @@ const rootElement = ref<HTMLElement>();
 const searchOpen = ref(false);
 const search = ref('');
 const searchInput = ref<HTMLInputElement>();
+const searchTrigger = ref<HTMLButtonElement>();
 const composing = ref(false);
-function openSearch() { searchOpen.value = true; void nextTick(() => searchInput.value?.focus()); }
+let searchFocusActive = true;
+function openSearch() { searchOpen.value = true; void nextTick(() => { if (searchFocusActive && searchOpen.value) searchInput.value?.focus(); }); }
+function closeSearch() {
+  searchOpen.value = false;
+  void nextTick(() => { if (searchFocusActive && !searchOpen.value) searchTrigger.value?.focus(); });
+}
 function doSearch() { if (!composing.value) void router.push({ name:'product-list', query:{ keyword:search.value.trim() || undefined } }); }
 function exitCategory() {
-  if (searchOpen.value) { searchOpen.value = false; return; }
+  if (searchOpen.value) { closeSearch(); return; }
   const previous = router.options.history.state.back;
   void router.push(typeof previous === 'string' && previous.startsWith('/') && !previous.startsWith('//') && !previous.startsWith('/category') ? previous : '/');
 }
@@ -196,6 +202,7 @@ watch(() => route.query.categoryId, restoreCategory);
 
 onMounted(() => { void loadTree(); });
 onBeforeUnmount(() => {
+  searchFocusActive = false;
   productRequestGuard.invalidate();
   treeRequestGuard.invalidate();
 });
@@ -227,7 +234,7 @@ function rootKeyboard(event: KeyboardEvent, index: number) {
 <template>
   <div class="category-browser-view">
     <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">发现分类</span></nav>
-    <div class="category-focus-toolbar"><button type="button" :aria-label="searchOpen ? '收起分类搜索' : '返回上一页'" @click="exitCategory"><UmIcon name="chevron" /></button><form v-if="searchOpen" class="category-focus-search" @submit.prevent="doSearch"><input ref="searchInput" v-model="search" type="search" aria-label="分类页搜索商品" placeholder="搜索商品、品牌" enterkeyhint="search" @compositionstart="composing = true" @compositionend="composing = false" @keydown.esc.prevent="searchOpen = false" /></form><span v-else>全部分类</span><ThemePicker /><button type="button" :aria-label="searchOpen ? '提交商品搜索' : '打开分类搜索'" :aria-expanded="searchOpen" @click="searchOpen ? doSearch() : openSearch()"><UmIcon name="search" /></button></div>
+    <div class="category-focus-toolbar"><button type="button" :aria-label="searchOpen ? '收起分类搜索' : '返回上一页'" @click="exitCategory"><UmIcon name="chevron" /></button><form v-if="searchOpen" class="category-focus-search" @submit.prevent="doSearch"><input ref="searchInput" v-model="search" type="search" aria-label="分类页搜索商品" placeholder="搜索商品、品牌" enterkeyhint="search" @compositionstart="composing = true" @compositionend="composing = false" @keydown.esc.prevent="closeSearch" /></form><span v-else>全部分类</span><ThemePicker /><button ref="searchTrigger" type="button" :aria-label="searchOpen ? '提交商品搜索' : '打开分类搜索'" :aria-expanded="searchOpen" @click="searchOpen ? doSearch() : openSearch()"><UmIcon name="search" /></button></div>
     <h1 class="catalog-sr-only">商品分类</h1>
     <div ref="rootElement" class="category-browser category-browser-page">
       <div class="category-menu-surface">

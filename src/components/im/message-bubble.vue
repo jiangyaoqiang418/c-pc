@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { parseOrderMessageCard } from '@/utils/im';
 
 interface Props {
@@ -25,14 +25,33 @@ const isOrderCard = computed(() => type.value === 'ORDER_CARD');
 const isImage = computed(() => type.value === 'IMAGE');
 const isVoice = computed(() => type.value === 'VOICE');
 const isVideo = computed(() => type.value === 'VIDEO');
+const senderInitial = computed(() => Array.from(props.senderName || props.msg.senderName || '成员')[0]);
 const mediaFailed = ref(false);
 const mediaAttempt = ref(0);
+const mediaElement = ref<HTMLImageElement | HTMLMediaElement>();
+const mediaKey = computed(() => JSON.stringify([props.msg.id, props.msg.mediaUrl, type.value, mediaAttempt.value]));
 const avatarFailed = ref(false);
 watch(() => props.msg.senderAvatar, () => { avatarFailed.value = false; });
-watch([() => props.msg.id, () => props.msg.mediaUrl, type], () => {
+function releaseMedia() {
+  const element = mediaElement.value;
+  mediaElement.value = undefined;
+  if (element && 'pause' in element) {
+    element.pause();
+    element.removeAttribute('src');
+    element.load();
+  }
+}
+watch([() => props.msg.id, () => props.msg.mediaUrl, type, () => Boolean(props.msg.recalled)], () => {
+  releaseMedia();
   mediaFailed.value = false;
   mediaAttempt.value = 0;
-});
+}, { flush:'sync' });
+onBeforeUnmount(releaseMedia);
+function onMediaError(event: Event) {
+  if (event.currentTarget !== mediaElement.value) return;
+  mediaFailed.value = true;
+  releaseMedia();
+}
 function retryMedia() {
   mediaFailed.value = false;
   mediaAttempt.value += 1;
@@ -91,17 +110,17 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
     </button>
     <div v-else class="bubble system">{{ msg.content || '订单卡片' }}</div>
   </div>
-  <div v-else class="msg-row message" :class="[side, { me: side === 'right' }]"><span class="avatar"><img v-if="msg.senderAvatar && !avatarFailed" :src="msg.senderAvatar" :alt="senderName || msg.senderName || '成员'" @error="avatarFailed = true" /><template v-else>{{ (senderName || msg.senderName || '成员').slice(0, 1) }}</template></span><div class="message-body">
+  <div v-else class="msg-row message" :class="[side, { me: side === 'right' }]"><span class="avatar"><img v-if="msg.senderAvatar && !avatarFailed" :src="msg.senderAvatar" :alt="senderName || msg.senderName || '成员'" @error="avatarFailed = true" /><template v-else>{{ senderInitial }}</template></span><div class="message-body">
     <div class="msg-meta"><span class="sender-name">{{ senderName || msg.senderName || '成员' }}</span><span v-if="roleMeta" class="role-tag" :class="roleMeta.cls">{{ roleMeta.label }}</span><span class="time">{{ time }}</span></div>
     <div v-if="(isImage || isVoice || isVideo) && (!msg.mediaUrl || mediaFailed)" class="bubble media media-error" :class="side" role="status">
       <Icon icon="lucide:file-warning" width="20" /><span>{{ isImage ? '图片' : isVoice ? '语音' : '视频' }}{{ msg.mediaUrl ? '加载失败，链接可能已失效或格式不受支持' : '暂不可用' }}</span>
       <button v-if="msg.mediaUrl" type="button" @click="retryMedia" class="outline">重新加载</button>
     </div>
     <div v-else-if="isImage && msg.mediaUrl" class="bubble media" :class="side">
-      <button type="button" class="media-image-button" :aria-label="'预览图片：' + (msg.content || '聊天图片')" @click="emit('preview-image', msg.mediaUrl)"><img :key="mediaAttempt" :src="msg.mediaUrl" alt="图片消息" class="media-img" @error="mediaFailed = true" /></button>
+      <button type="button" class="media-image-button" :aria-label="'预览图片：' + (msg.content || '聊天图片')" @click="emit('preview-image', msg.mediaUrl)"><img :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl" alt="图片消息" class="media-img" @error="onMediaError" /></button>
     </div>
-    <div v-else-if="isVoice" class="bubble media voice" :class="side"><audio :key="mediaAttempt" :src="msg.mediaUrl || undefined" aria-label="语音消息" controls preload="metadata" @error="mediaFailed = true" /><span v-if="msg.duration">{{ msg.duration }} 秒</span></div>
-    <div v-else-if="isVideo" class="bubble media video" :class="side"><video :key="mediaAttempt" :src="msg.mediaUrl || undefined" :poster="msg.coverUrl || undefined" aria-label="视频消息" controls preload="none" playsinline @error="mediaFailed = true" /><span v-if="msg.duration" class="video-duration">{{ msg.duration }} 秒</span></div>
+    <div v-else-if="isVoice" class="bubble media voice" :class="side"><audio :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl || undefined" aria-label="语音消息" controls preload="metadata" @error="onMediaError" /><span v-if="msg.duration">{{ msg.duration }} 秒</span></div>
+    <div v-else-if="isVideo" class="bubble media video" :class="side"><video :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl || undefined" :poster="msg.coverUrl || undefined" aria-label="视频消息" controls preload="none" playsinline @error="onMediaError" /><span v-if="msg.duration" class="video-duration">{{ msg.duration }} 秒</span></div>
     <p v-else class="bubble text" :class="side">{{ msg.content || '—' }}</p>
     <div v-if="side === 'right'" class="message-status" aria-live="polite">
       <span v-if="msg.failed" class="failed"><Icon icon="lucide:circle-alert" width="13" />发送失败</span><span v-else-if="msg.pending">发送中…</span><span v-else-if="readText">{{ readText }}</span>

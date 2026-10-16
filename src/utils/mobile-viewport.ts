@@ -7,6 +7,7 @@ export function installMobileViewport() {
   let frame = 0;
   let restingHeight = window.innerHeight;
   let restingWidth = window.innerWidth;
+  let keyboardVisible = false;
   const properties = ['--mobile-viewport-height', '--mobile-viewport-top', '--mobile-keyboard-inset'];
 
   function clear() {
@@ -21,24 +22,31 @@ export function installMobileViewport() {
       || active instanceof HTMLTextAreaElement && !active.disabled && !active.readOnly
       || active instanceof HTMLInputElement && !active.disabled && !active.readOnly
         && /^(text|search|email|url|tel|number|password)$/.test(active.type));
-    if (!editable || restingWidth !== window.innerWidth) {
+    if (restingWidth !== window.innerWidth) {
       restingHeight = window.innerHeight;
       restingWidth = window.innerWidth;
+      keyboardVisible = false;
+    } else if (!editable && !keyboardVisible) {
+      restingHeight = window.innerHeight;
     } else {
+      // 失焦不代表键盘已收起；等待可见高度恢复，避免缩小后的布局覆盖基线。
       restingHeight = Math.max(restingHeight, window.innerHeight);
     }
     const inset = Math.max(0, window.innerHeight - viewport!.height - viewport!.offsetTop);
     const unscaledVisibleHeight = viewport!.height * viewport!.scale;
     // 还原缩放前的可见高度，纯缩放不当作键盘；定位仍使用真实 visual viewport。
-    if (!mobile.matches || !editable || !Number.isFinite(unscaledVisibleHeight) || unscaledVisibleHeight <= 0
+    if (!mobile.matches || (!editable && !keyboardVisible) || !Number.isFinite(unscaledVisibleHeight) || unscaledVisibleHeight <= 0
       || Math.max(restingHeight, window.innerHeight) - unscaledVisibleHeight < 120) {
+      keyboardVisible = false;
       clear();
       return;
     }
+    keyboardVisible = true;
     root.dataset.mobileKeyboard = 'true';
     root.style.setProperty(properties[0], `${viewport!.height}px`);
     root.style.setProperty(properties[1], `${viewport!.offsetTop}px`);
     root.style.setProperty(properties[2], `${inset}px`);
+    if (!editable) return;
     const box = active.getBoundingClientRect();
     if (box.top < viewport!.offsetTop + 8 || box.bottom > viewport!.offsetTop + viewport!.height - 8) {
       active.scrollIntoView({ block:'nearest', inline:'nearest', behavior:'instant' });

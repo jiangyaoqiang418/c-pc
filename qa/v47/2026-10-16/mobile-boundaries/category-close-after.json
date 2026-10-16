@@ -1,0 +1,10 @@
+{
+  "focus": {
+    "label": "打开分类搜索",
+    "tag": "BUTTON"
+  },
+  "viewport": [
+    320,
+    700
+  ]
+}

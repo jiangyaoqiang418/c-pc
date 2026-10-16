@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createRenderer, markRaw, ssrContextKey, type Component } from 'vue';
+import MessageInput from '@/components/im/message-input.vue';
+import MessageBubble from '@/components/im/message-bubble.vue';
+import * as notifyApi from '@/service/api/notify';
+import { closeConfirmation, confirmations, Message } from '@/lib/feedback';
 import {
   applyReadEvent,
   captureMessageAnchor,
@@ -16,6 +21,219 @@ import {
   parseOrderMessageCard,
   markUnconfirmedMessageFailed
 } from './im';
+
+describe('IM 媒体播放节点生命周期', () => {
+  interface BubbleState {
+    senderInitial:string;
+    mediaElement:HTMLMediaElement | undefined;
+    mediaFailed:boolean;
+    mediaAttempt:number;
+    onMediaError:(event: Event) => void;
+    retryMedia:() => void;
+  }
+
+  function mountBubble() {
+    const subject = { ...MessageBubble, render:() => null } as Component;
+    const renderer = createRenderer<object, object>({
+      insert:() => undefined, remove:() => undefined, createElement:() => ({}), createText:() => ({}), createComment:() => ({}),
+      setText:() => undefined, setElementText:() => undefined, parentNode:() => null, nextSibling:() => null, patchProp:() => undefined
+    });
+    const app = renderer.createApp(subject, { msg:{ id:'m', conversationId:'c', msgType:'VOICE', mediaUrl:'https://example.test/a.ogg' }, side:'left' });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const instance = (app as unknown as { _instance:{ setupState:BubbleState; props:{ msg:Api.RealNotify.ImMessageVO } } })._instance;
+    return { app, state:instance.setupState, properties:instance.props };
+  }
+
+  function playingMedia() {
+    return markRaw({ pause:vi.fn(), removeAttribute:vi.fn(), load:vi.fn() }) as unknown as HTMLMediaElement;
+  }
+
+  it.each(['recalled', 'mediaUrl', 'unmount'] as const)('%s 时停止旧播放并释放媒体源', reason => {
+    const { app, state, properties } = mountBubble();
+    const media = playingMedia();
+    state.mediaElement = media;
+    try {
+      if (reason === 'unmount') app.unmount();
+      else properties.msg = { ...properties.msg, [reason]:reason === 'recalled' ? true : 'https://example.test/b.ogg' };
+      expect(media.pause).toHaveBeenCalledOnce();
+      expect(media.removeAttribute).toHaveBeenCalledExactlyOnceWith('src');
+      expect(media.load).toHaveBeenCalledOnce();
+    } finally { if (reason !== 'unmount') app.unmount(); }
+  });
+
+  it('普通消息元数据更新不打断当前播放', () => {
+    const { app, state, properties } = mountBubble();
+    const media = playingMedia();
+    state.mediaElement = media;
+    try {
+      properties.msg = { ...properties.msg, duration:5, createdAt:'1792162800000' };
+      properties.msg = { ...properties.msg, recalled:false };
+      properties.msg = { ...properties.msg, recalled:undefined };
+      expect(media.pause).not.toHaveBeenCalled();
+      expect(media.removeAttribute).not.toHaveBeenCalled();
+      expect(media.load).not.toHaveBeenCalled();
+      expect(state.mediaElement).toBe(media);
+    } finally { app.unmount(); }
+  });
+
+  it('消息头像保留完整首码点，名称变化不打断播放', () => {
+    const { app, state, properties } = mountBubble();
+    const media = playingMedia();
+    state.mediaElement = media;
+    try {
+      for (const [senderName, initial] of [['😀成员','😀'], ['𠮷野','𠮷'], ['普通成员','普'], ['Alice','A'], ['','成']]) {
+        properties.msg = { ...properties.msg, senderName };
+        expect(state.senderInitial).toBe(initial);
+      }
+      expect(media.pause).not.toHaveBeenCalled();
+    } finally { app.unmount(); }
+  });
+
+  it('切换媒体后忽略旧节点的迟到错误，当前节点错误仍显示失败并释放', () => {
+    const { app, state, properties } = mountBubble();
+    const oldMedia = playingMedia();
+    const currentMedia = playingMedia();
+    state.mediaElement = oldMedia;
+    try {
+      properties.msg = { ...properties.msg, mediaUrl:'https://example.test/b.ogg' };
+      state.mediaElement = currentMedia;
+      state.onMediaError({ currentTarget:oldMedia } as unknown as Event);
+      expect(state.mediaFailed).toBe(false);
+      expect(currentMedia.pause).not.toHaveBeenCalled();
+      state.onMediaError({ currentTarget:currentMedia } as unknown as Event);
+      expect(state.mediaFailed).toBe(true);
+      expect(currentMedia.pause).toHaveBeenCalledOnce();
+      expect(currentMedia.removeAttribute).toHaveBeenCalledExactlyOnceWith('src');
+      expect(currentMedia.load).toHaveBeenCalledOnce();
+      state.onMediaError({ currentTarget:currentMedia } as unknown as Event);
+      expect(currentMedia.pause).toHaveBeenCalledOnce();
+      state.retryMedia();
+      const retry = playingMedia();
+      state.mediaElement = retry;
+      state.onMediaError({ currentTarget:currentMedia } as unknown as Event);
+      expect(state.mediaFailed).toBe(false);
+      expect(state.mediaAttempt).toBe(1);
+      expect(retry.pause).not.toHaveBeenCalled();
+    } finally { app.unmount(); }
+  });
+});
+
+describe('IM 媒体操作生命周期', () => {
+  interface InputState {
+    onImageSelected:(event: Event) => Promise<void>;
+    onVideoSelected:(event: Event) => Promise<void>;
+    uploading:boolean;
+    preparingVideo:boolean;
+  }
+
+  function mountInput() {
+    const send = vi.fn();
+    const subject = { ...MessageInput, render:() => null } as Component;
+    const renderer = createRenderer<object, object>({
+      insert:() => undefined, remove:() => undefined, createElement:() => ({}), createText:() => ({}), createComment:() => ({}),
+      setText:() => undefined, setElementText:() => undefined, parentNode:() => null, nextSibling:() => null, patchProp:() => undefined
+    });
+    const app = renderer.createApp(subject, { contextKey:'conversation-a', onSend:send });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const instance = (app as unknown as { _instance:{ setupState:InputState; props:Record<string, unknown> } })._instance;
+    return { app, state:instance.setupState, properties:instance.props, send };
+  }
+
+  function selectedFile(type: string) {
+    return { target:{ files:[new File(['local-only'], type.startsWith('image/') ? 'local.png' : 'local.mp4', { type })], value:'selected' } } as unknown as Event;
+  }
+
+  function stubVideo() {
+    const video = {
+      duration:3, videoWidth:640, videoHeight:360, currentTime:0, src:'', preload:'', muted:false,
+      onloadedmetadata:null as (() => void) | null, onseeked:null as (() => void) | null, onerror:null as (() => void) | null,
+      removeAttribute:vi.fn(), load:vi.fn()
+    };
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:local-video');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    vi.stubGlobal('document', { createElement:(tag: string) => tag === 'video' ? video : {
+      width:0, height:0, getContext:() => ({ drawImage:vi.fn() }), toBlob:(callback: BlobCallback) => callback(null)
+    } });
+    return { video, createObjectURL, revokeObjectURL };
+  }
+
+  afterEach(() => {
+    [...confirmations].forEach(item => closeConfirmation(item.key));
+    Message.clear();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it.each(['disabled', 'contextKey'] as const)('短暂改变 %s 并恢复后，旧图片上传不能发送', async key => {
+    let finish!: (value: Api.RealNotify.ImFileUploadResult) => void;
+    vi.spyOn(notifyApi, 'uploadImFile').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const { app, state, properties, send } = mountInput();
+    try {
+      const pending = state.onImageSelected(selectedFile('image/png'));
+      const previous = properties[key];
+      properties[key] = key === 'disabled' ? true : 'conversation-b';
+      properties[key] = previous;
+      finish({ id:'local-upload', url:'https://example.test/local.png' } as Api.RealNotify.ImFileUploadResult);
+      await pending;
+      expect(send).not.toHaveBeenCalled();
+      expect(state.uploading).toBe(false);
+    } finally { app.unmount(); }
+  });
+
+  it('禁用再恢复会关闭视频确认，旧确认回调不能上传或发送', async () => {
+    const upload = vi.spyOn(notifyApi, 'uploadImFile').mockResolvedValue({ id:'local-upload', url:'https://example.test/local.mp4' } as Api.RealNotify.ImFileUploadResult);
+    const { video } = stubVideo();
+    const { app, state, properties, send } = mountInput();
+    try {
+      const pending = state.onVideoSelected(selectedFile('video/mp4'));
+      video.onloadedmetadata?.();
+      video.onseeked?.();
+      await pending;
+      const confirmation = confirmations[0];
+      expect(confirmation).toBeDefined();
+      properties.disabled = true;
+      properties.disabled = false;
+      expect(confirmations).toHaveLength(0);
+      await confirmation.onOk?.();
+      expect(upload).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+    } finally { app.unmount(); }
+  });
+
+  it.each(['disabled', 'unmount'] as const)('%s 立即释放未完成的视频读取资源并结束等待', async reason => {
+    vi.useFakeTimers();
+    const { video, revokeObjectURL } = stubVideo();
+    const { app, state, properties, send } = mountInput();
+    const pending = state.onVideoSelected(selectedFile('video/mp4'));
+    let settled = false;
+    void pending.then(() => { settled = true; });
+    try {
+      expect(vi.getTimerCount()).toBe(1);
+      if (reason === 'disabled') properties.disabled = true;
+      else app.unmount();
+      expect(video.removeAttribute).toHaveBeenCalledWith('src');
+      expect(video.load).toHaveBeenCalledOnce();
+      expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:local-video');
+      expect(video.onloadedmetadata).toBeNull();
+      expect(video.onseeked).toBeNull();
+      expect(video.onerror).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+      await pending;
+      await Promise.resolve();
+      expect(settled).toBe(true);
+      expect(state.preparingVideo).toBe(false);
+      expect(confirmations).toHaveLength(0);
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      video.onerror?.();
+      await pending;
+      if (reason !== 'unmount') app.unmount();
+    }
+  });
+});
 
 describe('IM Long ID 与乐观消息', () => {
   it('撤回清理内容和媒体，迟到原消息不能复活', () => {
