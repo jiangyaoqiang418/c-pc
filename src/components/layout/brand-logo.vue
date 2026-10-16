@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { useUiTheme } from '@/composables/use-ui-theme';
-import fullLogo from '@/assets/images/brand/umaomao-full-logo.svg';
+import BrandWordmark from './brand-wordmark.vue';
 import catLogo from '@/assets/images/brand/umaomao-cat-logo.svg';
-
-const { isDark } = useUiTheme();
 </script>
 
 <template>
-  <RouterLink to="/" class="logo um-brand" aria-label="Umaomao 首页"><picture class="brand-art" :style="{ background: isDark ? 'transparent' : '#101210' }"><source media="(max-width:700px)" :srcset="catLogo" /><img :src="fullLogo" alt="Umaomao" width="1385" height="210" decoding="async" /></picture></RouterLink>
+  <RouterLink to="/" class="logo um-brand" aria-label="Umaomao 首页"><span class="brand-art" style="background:transparent"><BrandWordmark class="brand-full" /><img class="brand-cat" :src="catLogo" alt="" width="800" height="800" decoding="async" /></span></RouterLink>
 </template>
+
+<style scoped>
+.um-brand .brand-art { display:block; }
+.um-brand .brand-art > .brand-full { display:block; width:100%; height:auto; margin:0; }
+.um-brand .brand-art > .brand-cat { display:none; }
+@media (max-width:700px) {
+  .um-brand .brand-art > .brand-full { display:none; }
+  .um-brand .brand-art > .brand-cat { display:block; }
+}
+</style>

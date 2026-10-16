@@ -1,6 +1,14 @@
 /* v47 integration adapters. The authoritative reference cascade is loaded once before this file. */
 html, body, #app { background: var(--bg); color: var(--ink); font-family: var(--font-ui); }
 html.theme-changing * { transition: none !important; }
+/* Prevent focus zoom on mobile controls, including later component-level font rules.
+   The reference's two large amount controls already exceed the minimum size. */
+@media (max-width:700px), (hover:none) and (pointer:coarse) {
+  :root[data-ui-theme] :is(
+    input:not([type="hidden"], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"]),
+    textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]
+  ):not(:is(.deposit-amount,.vault-amount-input) input) { font-size:16px !important; }
+}
 .empty > svg { display:inline-block; }
 /* Wallet-row chevrons stay inline with amounts despite Tailwind's SVG reset. */
 .buyer-wallet :is(.buyer-bucket,.buyer-ledger) > strong > svg { display:inline-block; }
