@@ -100,7 +100,19 @@ const login = requestSchema(user, operation(user, '/auth/login', 'post'));
 expectRequired(login, ['email', 'password'], '邮箱登录');
 operation(user, '/auth/me', 'get');
 
-operation(user, '/recharge/address', 'get');
+const rechargeAddress = operation(user, '/recharge/address', 'get');
+const addressAsset = rechargeAddress.parameters?.find(parameter => parameter.name === 'asset');
+if (!addressAsset || addressAsset.required === true || addressAsset.schema?.type !== 'string' || addressAsset.schema?.default !== 'USDT') {
+  throw new Error('充值地址 asset 应为可选字符串，默认 USDT');
+}
+for (const path of ['/recharge/create', '/recharge/page']) {
+  const schema = requestSchema(user, operation(user, path, 'post'));
+  const asset = schema.properties?.asset;
+  if (schema.required?.includes('asset') || asset?.type !== 'string' || asset.default !== 'USDT'
+    || asset.enum?.length !== 1 || asset.enum[0] !== 'USDT') {
+    throw new Error(`${path} asset 应为可选字符串，默认且仅支持 USDT`);
+  }
+}
 const rechargeAssets = responseDataSchema(user, operation(user, '/recharge/assets', 'get'));
 expectProperties(resolveSchema(user, rechargeAssets.items), ['asset', 'chain', 'enabled', 'methods', 'tokenContract', 'decimals', 'minAmount', 'minConfirmations', 'walletNetwork', 'memoRule'], '充值资产矩阵');
 expectProperties(responseDataSchema(user, operation(user, '/recharge/detail', 'get')), ['asset', 'chain', 'source', 'reportedTxHash', 'logIndex', 'tokenContract', 'confirmations', 'minConfirmations'], '充值记录关联');
@@ -212,6 +224,14 @@ expectRequired(ship, ['carrier', 'id', 'trackingNo'], '买手发货');
 expectProperties(ship, ['carrier', 'carrierName', 'trackingNo', 'eta', 'shipVouchers', 'remark'], '买手发货');
 const procure = requestSchema(order, operation(order, '/orders/procure', 'post'));
 expectRequired(procure, ['id', 'purchaseNo', 'purchaseVouchers'], '完成采购');
+expectFieldType(procure, 'purchaseNo', 'string', '完成采购');
+expectFieldType(procure, 'purchaseVouchers', 'array', '完成采购');
+const purchaseVouchers = procure.properties.purchaseVouchers;
+if (procure.properties.purchaseNo.maxLength !== 128 || purchaseVouchers.minItems !== 1 || purchaseVouchers.maxItems !== 6
+  || purchaseVouchers.items?.type !== 'string' || purchaseVouchers.items.maxLength !== 1024
+  || purchaseVouchers.items.pattern !== 'https://[^\\s]+') {
+  throw new Error('采购凭证契约应为1–6张无空白HTTPS地址，每项最多1024字符，单号最多128字符');
+}
 const confirmAftersale = requestSchema(order, operation(order, '/orders/refunds/confirm', 'post'));
 expectRequired(confirmAftersale, ['refundId', 'agree', 'remark'], '卖家售后确认');
 expectEnum(order.components?.schemas?.OrderRefundDTO, 'status', ['CONFIRMING', 'APPLYING', 'AGREED', 'REJECTED', 'CANCELED'], '退款阶段');
@@ -257,6 +277,8 @@ operation(order, '/orders/refunds/detail', 'get');
 const reviewCreate = requestSchema(order, operation(order, '/reviews/create', 'post'));
 const publicReviewQuery = requestSchema(order, operation(order, '/storefront/reviews/page', 'post'));
 expectProperties(publicReviewQuery, ['keyword', 'topic', 'sortBy'], '评价服务端筛选');
+expectFieldType(publicReviewQuery, 'keyword', 'string', '评价关键词');
+if (publicReviewQuery.properties.keyword.maxLength !== 100) throw new Error('评价关键词长度契约变更');
 expectEnum(publicReviewQuery, 'sortBy', ['NEWEST', 'MOST_HELPFUL', 'SCORE_DESC', 'SCORE_ASC'], '评价排序');
 expectRequired(requestSchema(order, operation(order, '/reviews/helpful', 'put')), ['reviewId', 'helpful'], '评价帮助投票');
 expectProperties(responseDataSchema(order, operation(order, '/reviews/helpful', 'put')), ['reviewId', 'helpful', 'helpfulCount'], '评价帮助响应');
@@ -318,6 +340,13 @@ if (notifyResponse.status === 404) {
     expectProperties(responseDataSchema(notify, operation(notify, `${path}/detail`, 'get')), ['id', 'title', 'body', 'contentVersion', 'status', 'audience', 'publishedAt', 'effectiveAt'], '正式内容详情');
   }
   expectParameters(operation(notify, '/content/agreements/current', 'get'), ['kind'], '当前协议');
+  const helpQuery = requestSchema(notify, operation(notify, '/content/help/page', 'post'));
+  expectFieldType(helpQuery, 'topic', 'string', '帮助主题');
+  // 七类已确认编码可用；description不是结构化枚举，不以文案检查代替真实查询。
+  const helpTopicEnum = helpQuery.properties.topic.enum;
+  if (helpTopicEnum && ['pay', 'delivery', 'return', 'buyer', 'shopping', 'demand', 'wallet'].some(topic => !helpTopicEnum.includes(topic))) {
+    throw new Error('帮助主题枚举缺少已确认的七类编码');
+  }
   [
     ['/notifications/page', 'post'],
     ['/notifications/unread/count', 'get'],

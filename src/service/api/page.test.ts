@@ -250,8 +250,8 @@ describe('v47 新接入契约与恢复边界', () => {
   it('正式内容列表允许body=null，正文必须独立读取；错协议/下线内容不回退演示', async () => {
     const article = { id:productId, contentType:'HELP', code:'guide', title:'正式帮助', status:'PUBLISHED', contentVersion:'1', body:null };
     const post = vi.spyOn(realNotifyRequest, 'postQuery').mockResolvedValue({ records:[article], total:1 });
-    expect((await fetchHelpPage({ topic:'orders', keyword:' 标题 ' })).records[0].body).toBeNull();
-    expect(post.mock.calls[0][1]).toMatchObject({ topic:'orders', keyword:'标题' });
+    expect((await fetchHelpPage({ topic:'shopping', keyword:' 标题 ' })).records[0].body).toBeNull();
+    expect(post.mock.calls[0][1]).toMatchObject({ topic:'shopping', keyword:'标题' });
     const get = vi.spyOn(realNotifyRequest, 'get').mockResolvedValue({ ...article, body:'<p>审核正文</p>' });
     expect((await fetchHelpDetail(productId)).id).toBe(productId);
     get.mockResolvedValueOnce({ ...article, body:null });

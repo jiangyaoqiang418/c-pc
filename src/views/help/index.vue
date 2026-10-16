@@ -24,11 +24,12 @@ const AGREEMENTS: { kind: Api.RealContent.AgreementKind; label: string }[] = [
 ];
 const agreementVisible = ref(false);
 const agreementKind = ref<Api.RealContent.AgreementKind>('user');
-// 已有入口编码原样透传；其余参考主题待正式发布清单或主题字典确认后开放。
-const TOPICS: { label: string; value?: string }[] = [
-  { label: '购物指南' }, { label: '支付说明', value: 'pay' },
+// 2026-10-16 确认七类编码；新增入口在当前账号能读取已发布内容后开放。
+const TOPICS: { label: string; value: string; requiresPublication?: boolean }[] = [
+  { label: '购物指南', value: 'shopping', requiresPublication: true }, { label: '支付说明', value: 'pay' },
   { label: '配送与售后', value: 'delivery' }, { label: '退款流程', value: 'return' },
-  { label: '求购指南' }, { label: '钱包支付' }, { label: '买手入驻', value: 'buyer' }
+  { label: '求购指南', value: 'demand', requiresPublication: true },
+  { label: '钱包支付', value: 'wallet', requiresPublication: true }, { label: '买手入驻', value: 'buyer' }
 ];
 const rows = ref<Api.RealContent.PublicContentVO[]>([]);
 const loading = ref(false);
@@ -44,6 +45,36 @@ const detailLoading = ref(false);
 const detailError = ref('');
 const listGuard = createLatestRequestGuard();
 const detailGuard = createLatestRequestGuard();
+const topicGuard = createLatestRequestGuard(() => `${userStore.currentUser?.id ?? ''}:${userStore.sessionVersion}`);
+const topicStates = ref<Record<string, 'loading' | 'published' | 'empty' | 'error'>>({});
+
+function topicDisabled(item: typeof TOPICS[number]) {
+  return !!item.requiresPublication && topicStates.value[item.value] !== 'published';
+}
+
+function topicHint(item: typeof TOPICS[number]) {
+  if (!topicDisabled(item)) return undefined;
+  const state = topicStates.value[item.value];
+  return state === 'error' ? '帮助主题读取失败，请重新查询或刷新页面'
+    : state === 'empty' ? '该帮助主题暂未发布' : '正在读取帮助主题';
+}
+
+async function loadNewTopics() {
+  const isCurrent = topicGuard.begin();
+  const pending = TOPICS.filter(item => item.requiresPublication);
+  topicStates.value = Object.fromEntries(pending.map(item => [item.value, 'loading']));
+  await Promise.all(pending.map(async item => {
+    try {
+      const page = await fetchHelpPage({ topic: item.value, current: 1, size: 1, signal: isCurrent.signal });
+      if ((page.total > 0) !== (page.records.length > 0) || page.records.some(row => row.topic !== item.value)) {
+        throw new Error('帮助主题响应不一致');
+      }
+      if (isCurrent()) topicStates.value[item.value] = page.total > 0 ? 'published' : 'empty';
+    } catch {
+      if (isCurrent()) topicStates.value[item.value] = 'error';
+    }
+  }));
+}
 
 function openAgreement(kind: Api.RealContent.AgreementKind) {
   agreementKind.value = kind;
@@ -74,6 +105,7 @@ function closeArticle() {
 }
 
 async function load() {
+  void loadNewTopics();
   const isCurrent = listGuard.begin();
   closeArticle();
   rows.value = [];
@@ -122,6 +154,8 @@ function search() {
 }
 
 function selectTopic(value: string) {
+  const item = TOPICS.find(item => item.value === value);
+  if (item && topicDisabled(item)) return;
   if (value === topic.value && current.value === 1) { closeArticle(); return; }
   void router.push({ query: { ...route.query, topic: value || undefined, page: undefined } });
 }
@@ -137,7 +171,7 @@ watch([() => route.query.keyword, () => route.query.topic, () => route.query.pag
   void load();
 }, { immediate: true });
 
-onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); });
+onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); topicGuard.invalidate(); });
 
 </script>
 
@@ -145,7 +179,7 @@ onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); });
 
   <div class="help-page">
     <header class="page-heading compact help-heading"><h1>帮助中心</h1><button type="button" class="text-link" @click="router.push('/im')"><UmIcon name="headset" />联系客服</button></header>
-    <div class="help-layout"><aside class="paper"><h3>帮助主题</h3><button type="button" :class="{ active: !topic }" :aria-pressed="!topic" @click="selectTopic('')">全部帮助<UmIcon name="chevron" /></button><button v-for="item in TOPICS" :key="item.label" type="button" :disabled="!item.value" :title="item.value ? undefined : '该帮助主题尚未开放'" :class="{ active: !!item.value && topic === item.value }" :aria-pressed="!!item.value && topic === item.value" @click="item.value && selectTopic(item.value)">{{ item.label }}<UmIcon name="chevron" /></button><h3>协议与政策</h3><button v-for="a in AGREEMENTS" :key="a.kind" type="button" @click="openAgreement(a.kind)">{{ a.label }}<UmIcon name="chevron" /></button></aside>
+    <div class="help-layout"><aside class="paper"><h3>帮助主题</h3><button type="button" :class="{ active: !topic }" :aria-pressed="!topic" @click="selectTopic('')">全部帮助<UmIcon name="chevron" /></button><button v-for="item in TOPICS" :key="item.label" type="button" :disabled="topicDisabled(item)" :title="topicHint(item)" :class="{ active: topic === item.value }" :aria-pressed="topic === item.value" @click="selectTopic(item.value)">{{ item.label }}<UmIcon name="chevron" /></button><h3>协议与政策</h3><button v-for="a in AGREEMENTS" :key="a.kind" type="button" @click="openAgreement(a.kind)">{{ a.label }}<UmIcon name="chevron" /></button></aside>
       <section class="help-content" :aria-busy="loading">
         <form class="help-search" role="search" @submit.prevent="search"><input v-model="keyword" class="table-search" type="search" maxlength="100" placeholder="搜索帮助标题" aria-label="搜索帮助标题" /><button type="submit" class="outline" :disabled="loading">搜索</button></form>
         <div v-if="loading" class="paper" role="status" aria-label="正在读取帮助"><Skeleton v-for="n in 3" :key="n" class="help-skeleton" /></div>
