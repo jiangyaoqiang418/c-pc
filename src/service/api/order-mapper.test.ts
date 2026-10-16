@@ -466,7 +466,10 @@ describe('购物车读取和数量边界', () => {
 
   it('缓存损坏不显示为正常空车、不覆盖原记录，修复后可重新读取', async () => {
     const cart = createCart();
-    for (const raw of ['{broken', 'null', '{}', '', JSON.stringify([{ productId: '1', qty: -1, addedAt: '' }])]) {
+    for (const raw of ['{broken', 'null', '{}', '', JSON.stringify([{ productId: '1', qty: -1, addedAt: '' }]),
+      JSON.stringify([{ productId: '', qty: 1, addedAt: '' }]),
+      JSON.stringify([{ productId: '  ', qty: 1, addedAt: '' }]),
+      '[{"productId":9007199254740993,"qty":1,"addedAt":""}]']) {
       localStorage.setItem(cartStorageKey(), raw);
       await cart.retryLoad();
       expect(cart.cacheError).toContain('原记录未清空');
@@ -510,6 +513,16 @@ describe('购物车读取和数量边界', () => {
     expect(cart.items[0].qty).toBe(3);
     cart.upsertProduct({ ...product, stock: 0 });
     expect(cart.enrichedItems[0].confirmedInvalid).toBe(true);
+  });
+
+  it('空ID和已丢精度的数字ID不能加购，Long字符串保持原值', async () => {
+    const cart = createCart();
+    for (const id of ['', '  ', Number.MAX_SAFE_INTEGER + 1]) {
+      expect(await cart.add(id, 1, { ...product, id })).toBe(false);
+    }
+    expect(cart.items).toHaveLength(0);
+    expect(await cart.add(product.id, 1, product)).toBe(true);
+    expect(cart.items[0].productId).toBe('9007199254740993');
   });
 
   it('付款仅消耗提交快照，不清除之后添加或重新加入的商品', async () => {

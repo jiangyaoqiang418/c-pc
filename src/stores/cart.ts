@@ -36,6 +36,11 @@ export interface EnrichedCartItem extends CartItem {
 
 type CartOwnerId = string | number | undefined;
 
+function validCartId(value: unknown): value is string | number {
+  return typeof value === 'string' && value.trim().length > 0
+    || typeof value === 'number' && Number.isSafeInteger(value);
+}
+
 function sameBusinessId(left: string | number | undefined, right: string | number | undefined) {
   return left !== undefined && right !== undefined && String(left) === String(right);
 }
@@ -77,9 +82,8 @@ export const useCartStore = defineStore('bw-cart', () => {
     try {
       const raw = localStorage.getItem(cartStorageKey(ownerId.value));
       const parsed = JSON.parse(raw === null ? '[]' : raw) as CartItem[];
-      if (!Array.isArray(parsed) || parsed.some(item => !item || !['string', 'number'].includes(typeof item.productId)
-        || (item.skuId !== undefined && ((!['string', 'number'].includes(typeof item.skuId) || !String(item.skuId).trim())
-          || (typeof item.skuId === 'number' && !Number.isSafeInteger(item.skuId))))
+      if (!Array.isArray(parsed) || parsed.some(item => !item || !validCartId(item.productId)
+        || (item.skuId !== undefined && !validCartId(item.skuId))
         || (item.confirmedUnitPrice !== undefined && finiteNonNegative(item.confirmedUnitPrice) === undefined)
         || !Number.isSafeInteger(item.qty) || item.qty < 0 || typeof item.addedAt !== 'string')) {
         throw new Error('invalid cart');
@@ -218,6 +222,7 @@ export const useCartStore = defineStore('bw-cart', () => {
   }
 
   function add(productId: string | number, qty = 1, product?: Api.RealProduct.DisplayRecord, skuId?: string | number) {
+    if (!validCartId(productId) || (skuId !== undefined && !validCartId(skuId))) return false;
     if (product) upsertProduct(product);
     const safeQty = finiteQuantity(qty);
     const exist = items.value.find(i => sameCartLine(i, productId, skuId));

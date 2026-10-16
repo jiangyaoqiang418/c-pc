@@ -3,7 +3,7 @@ import V47VaultHeader from '@/components/finance/v47-vault-header.vue';
 import { formatAmount } from '@shared';
 import { Skeleton } from '@/components/ui/skeleton';
 import BusinessPagination from '@/components/common/business-pagination.vue';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import * as financeApi from '@/service/api/finance';
@@ -31,6 +31,7 @@ const loading = ref(false);
 const loadError = ref('');
 const allCounts = ref<Partial<Record<Api.RealFinance.OrderStatus, number>>>({});
 const overview = ref<Api.RealFinance.FinanceOverviewVO>();
+const accumulatedInterest = computed(() => financeApi.financeAccumulatedInterest(overview.value));
 const overviewError = ref(false);
 const overviewReading = ref(false);
 const unlockModalOpen = ref(false);
@@ -254,7 +255,7 @@ function handleEmptyAction() {
   <div class="vault-workspace">
     <V47VaultHeader section="holdings" :holding-count="overview?.holdingCount" />
     <div v-if="overviewError" class="status-banner vault-production-notice" role="alert"><span>部分锁仓概览未能读取，列表仍可查看。</span><button class="outline" :disabled="overviewReading" @click="loadCounts">重新读取概览</button></div>
-    <div class="vault-holdings-summary"><span>锁仓本金<strong>{{ formatAmount(overview?.holdingPrincipal) }} <small>USDT</small></strong></span><span>累计利息<strong class="positive">{{ overview ? '+ ' + formatAmount(overview.totalInterest, { decimals: 4 }) : '—' }} <small>USDT</small></strong></span></div>
+    <div class="vault-holdings-summary"><span>锁仓本金<strong>{{ formatAmount(overview?.holdingPrincipal) }} <small>USDT</small></strong></span><span>累计利息<strong class="positive">{{ accumulatedInterest === undefined ? '—' : '+ ' + formatAmount(accumulatedInterest, { decimals: 4 }) }} <small>USDT</small></strong></span></div>
     <div class="vault-status-tabs" role="group" aria-label="锁仓状态"><button v-for="t in TABS" :key="t.key" :class="{ active: activeKey === t.key }" :aria-pressed="activeKey === t.key" @click="changeTab(t.key)">{{ t.label }}<span v-if="allCounts[t.key] !== undefined">{{ allCounts[t.key] }}</span></button></div>
     <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓列表"><Skeleton v-for="n in 3" :key="n" class="vault-lockup-skeleton" /></div>
     <EmptyState v-else-if="loadError" title="锁仓列表加载失败" :description="loadError" action-text="重新读取" @action="load" />

@@ -13,7 +13,7 @@ import { prepareAddress } from './address';
 import { createAddress, updateAddress } from './address';
 import { createRefund } from './refund';
 import { RequestError, isDefinitiveRejection } from '@/service/request/type';
-import { financeRedemptionIssue, financeSubscriptionIssue } from './finance';
+import { fetchFinanceOrderDetail, fetchFinanceProductDetail, financeAccumulatedInterest, financeRedemptionIssue, financeSubscriptionIssue } from './finance';
 import { createRecharge } from './wallet';
 import { submitBuyerApplication } from './buyer';
 import { fetchKycSchema, kycSubmissionIssue } from './kyc';
@@ -480,6 +480,31 @@ describe('本轮交互边界', () => {
     expect(financeRedemptionIssue({ ...order, canRedeem: false })).toContain('不可');
   });
 
+  it('理财详情保留原Long和精确金额，拒绝另一产品或锁仓替代请求对象', async () => {
+    const id = '9007199254740993';
+    const detail = { id, lockDays: '30', heldDays: '2', remainingDays: '28', principal: '9007199254740993.12345678' };
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue(detail);
+    expect(await fetchFinanceProductDetail(id)).toMatchObject({ id, lockDays: 30 });
+    expect(await fetchFinanceOrderDetail(id)).toMatchObject({ id, lockDays: 30, heldDays: 2, remainingDays: 28, principal: detail.principal });
+    for (const actualId of ['9007199254740994', undefined, '', Number.MAX_SAFE_INTEGER + 1]) {
+      get.mockResolvedValue({ ...detail, id: actualId });
+      await expect(fetchFinanceProductDetail(id)).rejects.toThrow('请求对象不一致');
+      await expect(fetchFinanceOrderDetail(id)).rejects.toThrow('请求对象不一致');
+    }
+  });
+
+  it('累计利息精确合并总览中的已结算和待结算，合法零与缺失非法值分开', () => {
+    expect(financeAccumulatedInterest({ totalInterest: '9007199254740993.12345678', pendingInterest: '0.00000001' }))
+      .toBe('9007199254740993.12345679');
+    expect(financeAccumulatedInterest({ totalInterest: '0', pendingInterest: 0 })).toBe('0');
+    expect(financeAccumulatedInterest({ totalInterest: '0', pendingInterest: '0.14794520' })).toBe('0.1479452');
+    expect(financeAccumulatedInterest(undefined)).toBeUndefined();
+    for (const value of [undefined, null, '', ' ', 'invalid', '-1', NaN, Infinity, true]) {
+      expect(financeAccumulatedInterest({ totalInterest: value as string, pendingInterest: '1' })).toBeUndefined();
+      expect(financeAccumulatedInterest({ totalInterest: '1', pendingInterest: value as string })).toBeUndefined();
+    }
+  });
+
   it('充值和买手申请可由页面接管未知结果提示，保持原参数且不重试', async () => {
     const error = new RequestError('timeout', { code: 'REQUEST_TIMEOUT' });
     const post = vi.spyOn(realUserRequest, 'post').mockRejectedValue(error);
@@ -582,6 +607,16 @@ describe('钱包部分金额未知', () => {
     }
     expect(prepareWithdrawal(params, '0').error).toBe('可用余额不足');
     expect(prepareWithdrawal(params, '20').error).toBe('');
+  });
+
+  it('提现最终确认按原始余额精确比较，不因Number舍入允许超额', () => {
+    const params = { chain: 'TRON' as const, toAddress: 'T'.repeat(34), amount: 9007199254740992 };
+    expect(prepareWithdrawal(params, '9007199254740991.99999999').error).toBe('可用余额不足');
+    expect(prepareWithdrawal(params, '9007199254740992').error).toBe('');
+    expect(prepareWithdrawal(params, '9007199254740992.00000001').error).toBe('');
+    for (const balance of ['-1', 'Infinity', 'NaN']) {
+      expect(prepareWithdrawal(params, balance).error).toBe('请先成功读取钱包余额');
+    }
   });
 });
 
@@ -773,6 +808,17 @@ describe('多条件分页实际页大小', () => {
     expect(result.records.map(item => item.id)).toEqual([4, 5, 6, 7].map(i => `CREATED-900719925474099${i}`));
     expect(result.total).toBe(16);
     expect(request).toHaveBeenCalledTimes(8);
+  });
+
+  it('订单单阶段沿用服务端实际页大小，不按较小的请求步长截掉本页尾部', async () => {
+    vi.spyOn(realOrderRequest, 'post').mockResolvedValue({ total: 6, pageSize: 3, records: [1, 2, 3].map(index => ({
+      orderId: `900719925474099${index}`, status: 'CREATED', stage: 'CREATED', totalAmount: '1',
+      createdAt: new Date(Date.UTC(2026, 0, 10) - index * 1000).toISOString()
+    })) });
+    const result = await fetchMyOrders({ current: 1, size: 2, statuses: ['PENDING_PAYMENT'] });
+    expect(result.size).toBe(3);
+    expect(result.records.map(item => item.id)).toEqual([1, 2, 3].map(index => `900719925474099${index}`));
+    expect(result.total).toBe(6);
   });
 
   it('钱包多原始类型合并时读取足够的较新流水，保留原始 Long ID', async () => {

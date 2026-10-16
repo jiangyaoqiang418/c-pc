@@ -3,6 +3,7 @@ import { fetchMergeSourcePages, requireArray, resolvePageSize, toPageTotal } fro
 import { toIsoDate } from './date';
 import { parseDateValue } from '@/utils/date-range';
 import { sumPaymentAmounts } from '@/utils/checkout';
+import { compareDecimalAmount } from '@/components/wallet/decimal-amount';
 
 /** 流水金额必须有权威值；校验十进制格式后保留原值，不转换金额或业务 ID。 */
 export function readLedgerAmount(value: unknown, label: string) {
@@ -406,14 +407,14 @@ export function cancelRecharge(id: string | number) {
 /** 打开确认框与最终提交使用同一份规范化参数和校验，不改变现有最低金额规则。 */
 export function prepareWithdrawal(params: Omit<Api.RealWallet.WithdrawCreateParams, 'payPassword'>, available?: string | number) {
   const normalized = { ...params, toAddress: params.toAddress.trim() };
-  const balance = optionalAmount(available) === undefined ? NaN : Number(available);
+  const balanceKnown = available !== undefined && compareDecimalAmount(available, 0) !== undefined;
   let error = '';
-  if (!Number.isFinite(balance) || balance < 0) error = '请先成功读取钱包余额';
+  if (!balanceKnown) error = '请先成功读取钱包余额';
   else if (!Number.isFinite(normalized.amount) || normalized.amount <= 0) error = '请输入转出金额';
   else if (normalized.amount < 20) error = '单笔最小转出 20 U';
   else if (!normalized.toAddress) error = '请输入目标地址';
   else if (normalized.toAddress.length < 26 || /\s/.test(normalized.toAddress)) error = '地址格式不合法';
-  else if (normalized.amount > balance) error = '可用余额不足';
+  else if (compareDecimalAmount(normalized.amount, available!) === 1) error = '可用余额不足';
   return { params: normalized, error };
 }
 

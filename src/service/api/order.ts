@@ -50,7 +50,7 @@ export async function fetchMyOrders(q: Api.RealOrder.ListQuery & { signal?: Abor
   const offset = statuses.length > 1 ? (current - 1) * size : 0;
   const records = [...recordsById.values()]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(offset, offset + size);
+    .slice(offset, statuses.length > 1 ? offset + size : undefined);
 
   return {
     current,

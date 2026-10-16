@@ -2,6 +2,7 @@ import { realUserRequest } from '@/service/request';
 import { requireArray } from './page';
 import { RequestError, isDefinitiveRejection } from '@/service/request/type';
 import { confirmFinanceRedemption, financialSubmissionIssue, submitFinancialOperation } from '@/utils/financial-submission';
+import { sumPaymentAmounts } from '@/utils/checkout';
 
 /** 只归一化天数和计数；金额、年率及业务 ID 保留请求层原值。 */
 function financeStatistic<T extends number | undefined>(value: T, label: string, minimum = 0, optional = false): T {
@@ -25,6 +26,16 @@ function toFinanceOrder(order: Api.RealFinance.FinanceOrderVO): Api.RealFinance.
   };
 }
 
+/** 详情必须仍是请求的原产品或原锁仓，不能用另一个有效对象替代。 */
+function requireFinanceDetail<T extends { id: string | number }>(detail: T, id: string | number, label: string): T {
+  const validId = (value: unknown) => typeof value === 'string' && !!value.trim()
+    || typeof value === 'number' && Number.isSafeInteger(value);
+  if (!detail || !validId(detail.id) || !validId(id) || String(detail.id) !== String(id)) {
+    throw new Error(`${label}与请求对象不一致，请重新读取`);
+  }
+  return detail;
+}
+
 export function financeSubscriptionIssue(product: Pick<Api.RealFinance.FinanceProductVO, 'status'>) {
   if (product.status === 'ON_SALE') return '';
   if (product.status === 'OFF_SALE') return '产品已下架，暂不可申购';
@@ -42,13 +53,24 @@ export function financeRedemptionIssue(order: Api.RealFinance.FinanceOrderVO) {
   return '';
 }
 
+/** v47累计利息包括已结算净利息与全部持仓已计未结利息，均取同次总览而非当前页。 */
+export function financeAccumulatedInterest(overview: Pick<Api.RealFinance.FinanceOverviewVO, 'totalInterest' | 'pendingInterest'> | undefined) {
+  if (!overview) return undefined;
+  const values = [overview.totalInterest, overview.pendingInterest];
+  if (values.some(value => (typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '')) return undefined;
+  try {
+    return sumPaymentAmounts(values.map(value => typeof value === 'string' ? value.trim() : value));
+  } catch { return undefined; }
+}
+
 export async function fetchFinanceProducts(options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const list = await realUserRequest.get<Api.RealFinance.FinanceProductVO[]>('/finance/products/list', { ...options, preserveDecimals: true });
   return requireArray<Api.RealFinance.FinanceProductVO>(list, '理财产品').map(toFinanceProduct);
 }
 
 export function fetchFinanceProductDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realUserRequest.get<Api.RealFinance.FinanceProductVO>('/finance/products/detail', { params: { id }, ...options, preserveDecimals: true }).then(toFinanceProduct);
+  return realUserRequest.get<Api.RealFinance.FinanceProductVO>('/finance/products/detail', { params: { id }, ...options, preserveDecimals: true })
+    .then(detail => toFinanceProduct(requireFinanceDetail(detail, id, '理财产品详情')));
 }
 
 export function subscribeFinance(params: Api.RealFinance.FinanceSubscribeParams, options: { showError?: boolean } = {}) {
@@ -89,7 +111,8 @@ export function fetchFinanceOverview(options: { signal?: AbortSignal; showError?
 }
 
 export function fetchFinanceOrderDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realUserRequest.get<Api.RealFinance.FinanceOrderVO>('/finance/orders/detail', { params: { id }, ...options, preserveDecimals: true }).then(toFinanceOrder);
+  return realUserRequest.get<Api.RealFinance.FinanceOrderVO>('/finance/orders/detail', { params: { id }, ...options, preserveDecimals: true })
+    .then(detail => toFinanceOrder(requireFinanceDetail(detail, id, '锁仓详情')));
 }
 
 export async function fetchFinanceOrders(params: Api.RealFinance.FinanceOrderPageQuery = {}, options: { signal?: AbortSignal } = {}) {
