@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import memeCat from '@/assets/images/v47/umaomao-meme-cat.svg';
+import memeCat from '@/assets/images/brand/umaomao-cat-logo.svg';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47VaultHeader from '@/components/finance/v47-vault-header.vue';
 import { Skeleton } from '@/components/ui/skeleton';
