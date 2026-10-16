@@ -1,0 +1,19 @@
+{
+  "browser": "IAB",
+  "viewport": {
+    "width": 375,
+    "height": 812
+  },
+  "shortDrag": {
+    "distance": 45,
+    "bottom": 812,
+    "computedTransform": "none",
+    "dragging": false,
+    "inlineTransform": ""
+  },
+  "longDrag": {
+    "distance": 110,
+    "closed": true
+  },
+  "limitation": "Not a physical touch device or Chrome mobile acceptance; pointercancel and disabled-during-drag not covered."
+}

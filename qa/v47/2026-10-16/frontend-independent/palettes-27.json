@@ -1,0 +1,650 @@
+[
+  {
+    "name": "MEME 荧光",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgb(45, 47, 56)",
+      "border": "rgb(70, 86, 56)",
+      "color": "rgb(223, 226, 233)",
+      "layout": "web3-meme",
+      "line": "#2d3036",
+      "palette": "web3-meme",
+      "paper": "rgb(23, 28, 23)"
+    }
+  },
+  {
+    "name": "深海蓝橙",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(217, 227, 238)",
+      "color": "rgb(82, 101, 122)",
+      "layout": "web3-meme",
+      "line": "#d9e3ee",
+      "palette": "navy-coral",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "森林绿金",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(220, 226, 215)",
+      "color": "rgb(84, 96, 87)",
+      "layout": "web3-meme",
+      "line": "#dce2d7",
+      "palette": "forest",
+      "paper": "rgb(255, 254, 250)"
+    }
+  },
+  {
+    "name": "海盐蓝",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(220, 229, 237)",
+      "color": "rgb(83, 99, 111)",
+      "layout": "web3-meme",
+      "line": "#dce5ed",
+      "palette": "ocean",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "陶土奶油",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(232, 218, 207)",
+      "color": "rgb(104, 87, 77)",
+      "layout": "web3-meme",
+      "line": "#e8dacf",
+      "palette": "clay",
+      "paper": "rgb(255, 253, 248)"
+    }
+  },
+  {
+    "name": "黑白琥珀",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(220, 220, 222)",
+      "color": "rgb(91, 93, 97)",
+      "layout": "web3-meme",
+      "line": "#dcdcde",
+      "palette": "graphite",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "莓紫雾粉",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(228, 214, 227)",
+      "color": "rgb(104, 86, 104)",
+      "layout": "web3-meme",
+      "line": "#e4d6e3",
+      "palette": "plum",
+      "paper": "rgb(255, 250, 253)"
+    }
+  },
+  {
+    "name": "抹茶燕麦",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(220, 226, 203)",
+      "color": "rgb(90, 96, 81)",
+      "layout": "web3-meme",
+      "line": "#dce2cb",
+      "palette": "matcha",
+      "paper": "rgb(255, 255, 249)"
+    }
+  },
+  {
+    "name": "薄荷蜜桃",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(204, 225, 215)",
+      "color": "rgb(75, 98, 88)",
+      "layout": "web3-meme",
+      "line": "#cce1d7",
+      "palette": "mint",
+      "paper": "rgb(251, 255, 253)"
+    }
+  },
+  {
+    "name": "可可香槟",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(223, 208, 193)",
+      "color": "rgb(99, 83, 76)",
+      "layout": "web3-meme",
+      "line": "#dfd0c1",
+      "palette": "cocoa",
+      "paper": "rgb(255, 252, 248)"
+    }
+  },
+  {
+    "name": "亚麻橄榄",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(222, 214, 194)",
+      "color": "rgb(97, 87, 73)",
+      "layout": "web3-meme",
+      "line": "#ded6c2",
+      "palette": "oat",
+      "paper": "rgb(255, 254, 247)"
+    }
+  },
+  {
+    "name": "赤陶日落",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(235, 202, 184)",
+      "color": "rgb(108, 79, 70)",
+      "layout": "web3-meme",
+      "line": "#ebcab8",
+      "palette": "canyon",
+      "paper": "rgb(255, 253, 248)"
+    }
+  },
+  {
+    "name": "钴蓝柠黄",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(209, 218, 243)",
+      "color": "rgb(79, 89, 113)",
+      "layout": "web3-meme",
+      "line": "#d1daf3",
+      "palette": "cobalt",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "午夜冰蓝",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(210, 221, 236)",
+      "color": "rgb(81, 92, 110)",
+      "layout": "web3-meme",
+      "line": "#d2ddec",
+      "palette": "navy",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "孔雀蓝铜",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(198, 223, 224)",
+      "color": "rgb(76, 95, 98)",
+      "layout": "web3-meme",
+      "line": "#c6dfe0",
+      "palette": "teal",
+      "paper": "rgb(251, 255, 255)"
+    }
+  },
+  {
+    "name": "靛蓝银灰",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(218, 215, 237)",
+      "color": "rgb(90, 86, 109)",
+      "layout": "web3-meme",
+      "line": "#dad7ed",
+      "palette": "indigo",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "樱桃红白",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(239, 205, 214)",
+      "color": "rgb(107, 80, 88)",
+      "layout": "web3-meme",
+      "line": "#efcdd6",
+      "palette": "cherry",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "玫瑰奶茶",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(230, 207, 210)",
+      "color": "rgb(104, 82, 91)",
+      "layout": "web3-meme",
+      "line": "#e6cfd2",
+      "palette": "blush",
+      "paper": "rgb(255, 252, 250)"
+    }
+  },
+  {
+    "name": "杏橙雾蓝",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(233, 209, 185)",
+      "color": "rgb(105, 81, 69)",
+      "layout": "web3-meme",
+      "line": "#e9d1b9",
+      "palette": "apricot",
+      "paper": "rgb(255, 253, 249)"
+    }
+  },
+  {
+    "name": "薰衣草金",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(222, 206, 235)",
+      "color": "rgb(95, 82, 106)",
+      "layout": "web3-meme",
+      "line": "#deceeb",
+      "palette": "lavender",
+      "paper": "rgb(255, 250, 255)"
+    }
+  },
+  {
+    "name": "晴空蓝白",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(200, 223, 237)",
+      "color": "rgb(76, 95, 107)",
+      "layout": "web3-meme",
+      "line": "#c8dfed",
+      "palette": "sky",
+      "paper": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "name": "青柠米白",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(221, 227, 181)",
+      "color": "rgb(92, 95, 66)",
+      "layout": "web3-meme",
+      "line": "#dde3b5",
+      "palette": "citron",
+      "paper": "rgb(255, 255, 247)"
+    }
+  },
+  {
+    "name": "极光薄荷",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(43, 64, 58)",
+      "color": "rgb(165, 186, 176)",
+      "layout": "web3-meme",
+      "line": "#2b403a",
+      "palette": "web3-aurora",
+      "paper": "rgb(17, 28, 27)"
+    }
+  },
+  {
+    "name": "赛博紫电",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(60, 49, 82)",
+      "color": "rgb(183, 172, 203)",
+      "layout": "web3-meme",
+      "line": "#3c3152",
+      "palette": "web3-cyber",
+      "paper": "rgb(27, 22, 43)"
+    }
+  },
+  {
+    "name": "深空冰蓝",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(44, 64, 92)",
+      "color": "rgb(166, 183, 206)",
+      "layout": "web3-meme",
+      "line": "#2c405c",
+      "palette": "web3-electric",
+      "paper": "rgb(17, 29, 48)"
+    }
+  },
+  {
+    "name": "黑曜琥珀",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(75, 59, 41)",
+      "color": "rgb(192, 178, 159)",
+      "layout": "web3-meme",
+      "line": "#4b3b29",
+      "palette": "web3-ember",
+      "paper": "rgb(33, 27, 20)"
+    }
+  },
+  {
+    "name": "霓虹玫红",
+    "box": {
+      "borderRadius": "14px",
+      "bottom": 603.6875,
+      "fontSize": "16px",
+      "height": 307.390625,
+      "padding": "36px",
+      "transform": "none",
+      "viewport": 1440,
+      "width": 540,
+      "x": 450,
+      "y": 296.296875
+    },
+    "colors": {
+      "background": "rgba(0, 0, 0, 0)",
+      "border": "rgb(81, 50, 79)",
+      "color": "rgb(201, 171, 196)",
+      "layout": "web3-meme",
+      "line": "#51324f",
+      "palette": "web3-prism",
+      "paper": "rgb(37, 23, 39)"
+    }
+  }
+]

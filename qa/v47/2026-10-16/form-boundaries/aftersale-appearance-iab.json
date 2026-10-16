@@ -1,0 +1,45 @@
+{
+  "source": {
+    "background": "rgb(15, 18, 16)",
+    "border": "rgb(45, 48, 54)",
+    "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+    "padding": "12px 14px",
+    "rect": {
+      "bottom": 503.59375,
+      "height": 116,
+      "left": 338.5,
+      "right": 926.5,
+      "top": 387.59375,
+      "width": 588,
+      "x": 338.5,
+      "y": 387.59375
+    },
+    "viewport": [
+      1280,
+      720,
+      1
+    ]
+  },
+  "implementation": {
+    "background": "rgb(15, 18, 16)",
+    "border": "rgb(45, 48, 54)",
+    "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+    "padding": "12px 14px",
+    "rect": {
+      "bottom": 682.15625,
+      "height": 116,
+      "left": 338.5,
+      "right": 926.5,
+      "top": 566.15625,
+      "width": 588,
+      "x": 338.5,
+      "y": 566.15625
+    },
+    "viewport": [
+      1280,
+      720,
+      1
+    ],
+    "voucherTitleFont": "500 16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif"
+  }
+}

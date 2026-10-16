@@ -78,3 +78,17 @@
   color:var(--ink)!important;
   border-color:var(--line)!important;
 }
+/* Match native reference input surfaces for the address SelectTrigger as well. */
+.address-form.v47 { --v47-address-control-bg:#0f1210; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .address-form.v47 {
+  --v47-address-control-bg:var(--paper);
+  --v47-address-control-border:var(--ui-d9ded5,#d9ded5);
+}
+/* Forest is the reference's base palette, so it has no theme alias override. */
+:root[data-ui-layout="v47"][data-ui-palette="forest"] :is(.address-form.v47,#refund-reason) {
+  --ui-d9ded5:#d9ded5;
+}
+/* The MEME close control has a literal green stroke; other palettes use their line color. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .dialog-close {
+  border-color:var(--line)!important;
+}

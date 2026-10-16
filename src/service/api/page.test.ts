@@ -31,10 +31,265 @@ import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpf
 import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
-import { createRenderer, ssrContextKey } from 'vue';
+import { createRenderer, h, nextTick, reactive, readonly, ref, ssrContextKey, type Component } from 'vue';
+import { routeLocationKey, routerKey, type RouteLocationNormalizedLoaded, type Router } from 'vue-router';
 import InterestPreview from '@/components/finance/interest-preview.vue';
+import BusinessDialog from '@/components/common/business-dialog.vue';
+import CatalogView from '@/views/product/list.vue';
+import { categoryNavigationKey } from '@/composables/use-category-navigation';
+import type { AddressVisualFixture, CatalogVisualFixture, EvidenceVisualFixture } from '@/visual/types';
+import AddressForm from '@/components/profile/address-form.vue';
+import EvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import * as addressApi from './address';
+import { Message } from '@/lib/feedback';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe('v47地址与凭证本地边界', () => {
+  function mountSubject<T>(component: Component, input: Record<string, unknown>) {
+    const properties = reactive(input);
+    const subject = { ...component, render:() => null };
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const app = renderer.createApp({ render:() => h(subject, properties) });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const state = (app as unknown as { _instance:{ subTree:{ component:{ setupState:T } } } })._instance.subTree.component.setupState;
+    return { app, state, properties };
+  }
+  interface AddressState {
+    reloadRegions:() => Promise<void>; onCountryChange:(code: string) => Promise<void>; submit:() => void;
+    form:Api.RealAddress.AddressSaveParams; provinces:Api.RealAddress.RegionVO[]; canSubmit:boolean; loadError:string;
+  }
+  interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
+  const file = () => new File(['local-only'], 'evidence.png', { type:'image/png' });
+  const uploaded: Api.RealProduct.FileUploadResult = { id:'local-only', bucket:'local-only', filePath:'local-only', url:'https://example.com/local-only.png' };
+
+  it('验收字典失败保留错误态，不调用真实字典作为回退', async () => {
+    const real = vi.spyOn(addressApi, 'fetchCountries');
+    const fixture: AddressVisualFixture = { countries:async () => { throw new Error('local dictionary failure'); }, regions:async () => [] };
+    const { app, state } = mountSubject<AddressState>(AddressForm, { visualFixture:fixture });
+    try {
+      await state.reloadRegions();
+      expect(state.loadError).toContain('字典加载失败');
+      expect(state.canSubmit).toBe(false);
+      expect(real).not.toHaveBeenCalled();
+    } finally { app.unmount(); }
+  });
+
+  it('国家切换后旧区划回包失效，海外地址只输出文本地区', async () => {
+    let finish!: (regions: Api.RealAddress.RegionVO[]) => void;
+    const fixture: AddressVisualFixture = {
+      countries:async () => [{ code:'JP', name:'日本', hasRegion:false }, { code:'CN', name:'中国大陆', hasRegion:true }],
+      regions:() => new Promise(resolve => { finish = resolve; })
+    };
+    const submit = vi.fn();
+    const { app, state } = mountSubject<AddressState>(AddressForm, { visualFixture:fixture, modelValue:{ countryCode:'JP', receiverName:'本地样例', receiverPhone:'00000000000', detail:'本地地址', province:'Tokyo', city:'Tokyo' }, onSubmit:submit });
+    try {
+      await state.reloadRegions();
+      const previous = state.onCountryChange('CN');
+      await state.onCountryChange('JP');
+      finish([{ code:'old', name:'旧地区', level:1, leaf:true }]);
+      await previous;
+      expect(state.form.countryCode).toBe('JP');
+      expect(state.provinces).toEqual([]);
+      state.form.province = 'Tokyo'; state.form.city = 'Tokyo';
+      state.submit();
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ countryCode:'JP', province:'Tokyo', city:'Tokyo' }));
+      expect(submit.mock.calls[0]![0]).not.toHaveProperty('provinceCode');
+    } finally { app.unmount(); }
+  });
+
+  it('叶子省份无需伪造城市，编辑地址Long原值保留', async () => {
+    const submit = vi.fn();
+    const fixture: AddressVisualFixture = {
+      countries:async () => [{ code:'CN', name:'中国大陆', hasRegion:true }],
+      regions:async () => [{ code:'110000', name:'北京市', level:1, leaf:true }]
+    };
+    const { app, state } = mountSubject<AddressState>(AddressForm, { visualFixture:fixture, modelValue:{ id:'9007199254740993', countryCode:'CN', provinceCode:'110000', receiverName:'本地样例', receiverPhone:'00000000000', detail:'本地地址' }, onSubmit:submit });
+    try {
+      await state.reloadRegions();
+      expect(state.canSubmit).toBe(true);
+      state.submit();
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ id:'9007199254740993', provinceCode:'110000' }));
+      expect(submit.mock.calls[0]![0]).not.toHaveProperty('province');
+    } finally { app.unmount(); }
+  });
+
+  it('凭证上传途中禁用后，迟到结果不再修改禁用中的表单', async () => {
+    let finish!: (value: Api.RealProduct.FileUploadResult) => void;
+    const fixture: EvidenceVisualFixture = { upload:() => new Promise(resolve => { finish = resolve; }) };
+    const update = vi.fn();
+    const { app, state, properties } = mountSubject<UploaderState>(EvidenceUploader, { modelValue:[], visualFixture:fixture, 'onUpdate:modelValue':update });
+    try {
+      const pending = state.uploadFiles([file()]);
+      properties.disabled = true;
+      await nextTick();
+      properties.disabled = false;
+      await nextTick();
+      finish(uploaded);
+      await pending;
+      expect(update).not.toHaveBeenCalled();
+      expect(state.uploading).toBe(false);
+    } finally { app.unmount(); Message.clear(); }
+  });
+
+  it('上传中删除原图仍合并当前列表，失败重试不调用真实上传', async () => {
+    let finish!: (value: Api.RealProduct.FileUploadResult) => void;
+    const real = vi.spyOn(productApi, 'uploadFile');
+    const upload = vi.fn<EvidenceVisualFixture['upload']>().mockRejectedValueOnce(new Error('local failure'))
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    let properties: Record<string, unknown>;
+    const update = vi.fn((images: string[]) => { properties.modelValue = images; });
+    const mounted = mountSubject<UploaderState>(EvidenceUploader, { modelValue:['first','second'], visualFixture:{ upload }, 'onUpdate:modelValue':update });
+    properties = mounted.properties;
+    try {
+      await mounted.state.uploadFiles([file()]);
+      expect(mounted.state.failedFiles).toHaveLength(1);
+      const pending = mounted.state.uploadFiles([...mounted.state.failedFiles]);
+      mounted.state.remove(0);
+      await nextTick();
+      finish(uploaded);
+      await pending;
+      expect(update).toHaveBeenLastCalledWith(['second', uploaded.url]);
+      expect(mounted.state.failedFiles).toHaveLength(0);
+      expect(real).not.toHaveBeenCalled();
+    } finally { mounted.app.unmount(); Message.clear(); }
+  });
+});
+
+describe('公共弹窗卸载', () => {
+  it.each(['confirm', 'cancel'] as const)('%s的异步检查在卸载后失败不再显示过期提示', async action => {
+    let reject!: (reason: Error) => void;
+    const guard = () => new Promise<void>((_resolve, fail) => { reject = fail; });
+    const error = vi.spyOn(Message, 'error');
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const app = renderer.createApp({ ...BusinessDialog, render: () => null }, { visible:true, onBeforeOk:guard, onBeforeCancel:guard });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const state = (app as unknown as { _instance: { setupState: { confirm: () => Promise<void>; cancel: () => Promise<void> } } })._instance.setupState;
+    const pending = state[action]();
+    app.unmount();
+    reject(new Error('late local guard failure'));
+    try {
+      await pending;
+      expect(error).not.toHaveBeenCalled();
+    } finally { Message.clear(); }
+  });
+});
+
+describe('v47商品列表连续浏览', () => {
+  const records = (start: number, length: number) => Array.from({ length }, (_, index) => ({
+    id:`9007199254740993${start + index}`, title:`商品${start + index}`
+  } as Api.RealProduct.Record));
+  const page = (current: number, size = 24, total = 50) => ({ current, size, total, records:records((current - 1) * size, Math.min(size, total - (current - 1) * size)) });
+  async function mountCatalog(load: CatalogVisualFixture['load']) {
+    vi.stubGlobal('window', { addEventListener:vi.fn(), removeEventListener:vi.fn() });
+    vi.stubGlobal('matchMedia', () => ({ matches:false, addEventListener:vi.fn(), removeEventListener:vi.fn() }));
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const app = renderer.createApp({ ...CatalogView, render:() => null }, { visualFixture:{ load } });
+    app.provide(ssrContextKey, {});
+    app.provide(routeLocationKey, reactive({ query:{}, fullPath:'/product/list', path:'/product/list' }) as RouteLocationNormalizedLoaded);
+    app.provide(routerKey, { push:vi.fn().mockResolvedValue(undefined), replace:vi.fn().mockResolvedValue(undefined) } as unknown as Router);
+    app.provide(categoryNavigationKey, { categories:readonly(ref([])), loading:readonly(ref(false)), loadError:readonly(ref('')), activeMenu:ref(null), loadCategories:async () => {} });
+    app.mount({});
+    await nextTick();
+    const state = (app as unknown as { _instance:{ setupState:{
+      load:(append?: boolean) => Promise<void>; loadMoreFeed:() => void;
+      list:Api.RealProduct.Record[]; visibleProducts:Api.RealProduct.Record[];
+      total:number; loadedPage:number; size:number; feedError:string; hasMoreFeed:boolean;
+      filter:{ keyword:string };
+    } } })._instance.setupState;
+    return { app, state };
+  }
+
+  it('先显示24条，按12条揭示缓存，再追加下一页，Long原值及末页保留', async () => {
+    const load = vi.fn<CatalogVisualFixture['load']>().mockImplementation(async query => page(query.current!));
+    const { app, state } = await mountCatalog(load);
+    try {
+      expect(state.visibleProducts).toHaveLength(24);
+      await state.load(true);
+      expect(state.list).toHaveLength(48);
+      expect(state.visibleProducts).toHaveLength(36);
+      state.loadMoreFeed();
+      expect(state.visibleProducts).toHaveLength(48);
+      expect(load).toHaveBeenCalledTimes(2);
+      await state.load(true);
+      expect(state.visibleProducts).toHaveLength(50);
+      expect(state.list[49]!.id).toBe('900719925474099349');
+      expect(state.hasMoreFeed).toBe(false);
+      expect(load.mock.calls.map(([query]) => query.current)).toEqual([1, 2, 3]);
+    } finally { app.unmount(); }
+  });
+
+  it('追加失败保留商品与总数，重试原页；在途重复点击不重复请求', async () => {
+    let fail!: (error: Error) => void;
+    const load = vi.fn<CatalogVisualFixture['load']>().mockResolvedValueOnce(page(1))
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }))
+      .mockResolvedValueOnce(page(2));
+    const { app, state } = await mountCatalog(load);
+    try {
+      const pending = state.load(true);
+      state.loadMoreFeed();
+      expect(load).toHaveBeenCalledTimes(2);
+      fail(new Error('local failure'));
+      await pending;
+      expect(state.list).toHaveLength(24);
+      expect(state.total).toBe(50);
+      expect(state.loadedPage).toBe(1);
+      expect(state.feedError).toContain('加载失败');
+      await state.load(true);
+      expect(state.feedError).toBe('');
+      expect(state.visibleProducts).toHaveLength(36);
+      expect(load.mock.calls.map(([query]) => query.current)).toEqual([1, 2, 2]);
+    } finally { app.unmount(); }
+  });
+
+  it('筛选切换后旧追加回包不覆盖新列表', async () => {
+    let finish!: (value: Awaited<ReturnType<CatalogVisualFixture['load']>>) => void;
+    const load = vi.fn<CatalogVisualFixture['load']>().mockResolvedValueOnce(page(1))
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+      .mockResolvedValueOnce({ current:1, size:24, total:1, records:records(99, 1) });
+    const { app, state } = await mountCatalog(load);
+    try {
+      const previous = state.load(true);
+      state.filter.keyword = '新查询';
+      await state.load();
+      finish(page(2));
+      await previous;
+      expect(state.list.map(product => product.id)).toEqual(['900719925474099399']);
+      expect(state.total).toBe(1);
+      expect(state.loadedPage).toBe(1);
+    } finally { app.unmount(); }
+  });
+
+  it('采用服务端实际页大小，追加去重，卸载后不再应用迟到回包', async () => {
+    let finish!: (value: Awaited<ReturnType<CatalogVisualFixture['load']>>) => void;
+    const load = vi.fn<CatalogVisualFixture['load']>().mockResolvedValueOnce(page(1, 20))
+      .mockResolvedValueOnce({ ...page(2, 20), records:[...records(19, 1), ...records(20, 20)] })
+      .mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { app, state } = await mountCatalog(load);
+    expect(state.size).toBe(20);
+    await state.load(true);
+    expect(load.mock.calls[1]![0]).toMatchObject({ current:2, size:20 });
+    expect(state.list).toHaveLength(40);
+    expect(new Set(state.list.map(product => product.id)).size).toBe(40);
+    const pending = state.load(true);
+    app.unmount();
+    finish(page(3, 20));
+    await pending;
+    expect(state.list).toHaveLength(40);
+    expect(state.loadedPage).toBe(2);
+  });
+});
 
 describe('v47 新接入契约与恢复边界', () => {
   const productId = '9007199254740993';

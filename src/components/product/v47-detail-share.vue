@@ -10,17 +10,19 @@ function selectAddress(event: FocusEvent) { if (event.target instanceof HTMLInpu
 
 <template>
   <DialogRoot :open="modelValue" @update:open="emit('update:modelValue', $event)">
-    <DialogPortal>
-      <DialogOverlay class="modal-overlay v47-reference-mask">
-        <DialogContent class="dialog v47-reference-dialog">
-          <V47SheetGrip :open="modelValue" @dismiss="emit('update:modelValue', false)" />
-          <DialogClose class="icon-btn dialog-close" aria-label="关闭分享弹窗"><UmIcon name="close" /></DialogClose>
-          <DialogTitle as="h2">分享商品</DialogTitle>
-          <DialogDescription as="p">复制下方地址，分享这件商品。</DialogDescription>
-          <input class="full" :value="url" readonly aria-label="商品页面地址" @focus="selectAddress" />
-          <p class="demo-note">复制页面完整地址，即可分享当前商品。</p>
-        </DialogContent>
-      </DialogOverlay>
+    <DialogPortal force-mount>
+      <Transition name="modal">
+        <DialogOverlay v-if="modelValue" force-mount class="modal-overlay v47-reference-mask">
+          <DialogContent force-mount class="dialog v47-reference-dialog">
+            <V47SheetGrip :open="modelValue" @dismiss="emit('update:modelValue', false)" />
+            <DialogClose class="icon-btn dialog-close" aria-label="关闭分享弹窗"><UmIcon name="close" /></DialogClose>
+            <DialogTitle as="h2">分享商品</DialogTitle>
+            <DialogDescription as="p">复制下方地址，分享这件商品。</DialogDescription>
+            <input class="full" :value="url" readonly aria-label="商品页面地址" @focus="selectAddress" />
+            <p class="demo-note">复制页面完整地址，即可分享当前商品。</p>
+          </DialogContent>
+        </DialogOverlay>
+      </Transition>
     </DialogPortal>
   </DialogRoot>
 </template>

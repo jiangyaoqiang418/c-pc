@@ -1,0 +1,21 @@
+{
+  "viewport": [
+    375,
+    812
+  ],
+  "cancelInFlight": {
+    "dragging": true,
+    "style": "width: 520px; pointer-events: auto; transform: translateY(53px);"
+  },
+  "afterTouchCancel": {
+    "count": 1,
+    "dragging": false,
+    "style": "width: 520px; pointer-events: auto;"
+  },
+  "afterBusyChange": {
+    "closeDisabled": true,
+    "dragging": false,
+    "style": "width: 520px; pointer-events: auto;"
+  },
+  "note": "Chrome emulated browser input. Busy switch uses keyboard while pointer remains down; not real device proof."
+}

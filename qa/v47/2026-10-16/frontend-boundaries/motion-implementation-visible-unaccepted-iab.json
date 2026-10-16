@@ -1,0 +1,62 @@
+{
+  "accepted": false,
+  "browser": "IAB",
+  "visibilityReported": "visible",
+  "frames": 9,
+  "maxGap": 1016.5,
+  "samples": [
+    {
+      "at": 40,
+      "masks": []
+    },
+    {
+      "at": 57.30000001192093,
+      "masks": []
+    },
+    {
+      "at": 73.09999999403954,
+      "masks": []
+    },
+    {
+      "at": 89.7000000178814,
+      "masks": []
+    },
+    {
+      "at": 106.30000001192093,
+      "masks": []
+    },
+    {
+      "at": 123,
+      "masks": []
+    },
+    {
+      "at": 140.59999999403954,
+      "masks": []
+    },
+    {
+      "at": 1157.0999999940395,
+      "masks": [
+        {
+          "node": 1,
+          "opacity": "0",
+          "class": "modal-overlay v47-reference-mask modal-enter-from modal-enter-active",
+          "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+          "height": 298.1689453125
+        }
+      ]
+    },
+    {
+      "at": 2173.5999999940395,
+      "masks": [
+        {
+          "node": 1,
+          "opacity": "0",
+          "class": "modal-overlay v47-reference-mask modal-enter-from modal-leave-from modal-leave-active",
+          "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+          "height": 298.1689453125
+        }
+      ]
+    }
+  ],
+  "reason": "Visible presentation did not remove frame gaps. Not usable as matching 80ms reverse-transition evidence."
+}

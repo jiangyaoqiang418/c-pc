@@ -8,14 +8,14 @@ import * as productApi from '@/service/api/product';
 import * as categoryApi from '@/service/api/category';
 import { useCategoryNavigation } from '@/composables/use-category-navigation';
 import ProductCard from '@/components/product/product-card.vue';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47CatalogCategories from '@/components/product/v47-catalog-categories.vue';
-import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { exactDecimalNumber } from '@/components/wallet/decimal-amount';
+import type { CatalogVisualFixture } from '@/visual/types';
 
+const props = defineProps<{ visualFixture?: CatalogVisualFixture }>();
 const router = useRouter();
 const route = useRoute();
 
@@ -63,9 +63,18 @@ function closeFilters(event: KeyboardEvent) { if (event.key === 'Escape' && filt
 const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
-const size = ref(20);
+const size = ref(24);
 const loading = ref(false);
+const appending = ref(false);
 const loadError = ref('');
+const feedError = ref('');
+const feedRoot = ref<HTMLElement>();
+const feedSentinel = ref<HTMLElement>();
+const loadedPage = ref(0);
+const visibleLimit = ref(24);
+const visibleProducts = computed(() => list.value.slice(0, visibleLimit.value));
+const hasMoreFeed = computed(() => visibleProducts.value.length < list.value.length || loadedPage.value * size.value < total.value);
+let feedObserver: IntersectionObserver | undefined;
 const requestGuard = createLatestRequestGuard();
 const { categories: navigationCategories, loadCategories } = useCategoryNavigation();
 const categoryTree = ref<Api.RealCategory.CategoryNodeDTO[]>([]);
@@ -99,6 +108,7 @@ const categoryLabel = computed(() => categoryPath.value.map(node => node.name).j
   || (categoryLoading.value ? '正在加载分类…' : categoryError.value || '当前分类'));
 
 async function loadCategoryPath(force = false) {
+  if (props.visualFixture) return;
   const isCurrent = categoryRequestGuard.begin();
   categoryLoading.value = true;
   categoryError.value = '';
@@ -202,21 +212,27 @@ function syncFromQuery() {
     || (route.query.page !== undefined && (Array.isArray(route.query.page) || !validPage));
 }
 
-async function load() {
+async function load(append = false) {
+  if (append && (loading.value || !hasMoreFeed.value)) return;
+  const page = append ? loadedPage.value + 1 : current.value;
+  const shown = visibleProducts.value.length;
   if (priceError.value || filter.minPrice !== undefined && filter.maxPrice !== undefined && filter.minPrice > filter.maxPrice) {
     requestGuard.invalidate();
     loading.value = false;
+    appending.value = false;
     list.value = [];
     total.value = 0;
     loadError.value = priceError.value || '最低价格不能高于最高价格，请调整筛选条件。';
     return;
   }
   const isCurrent = requestGuard.begin();
+  appending.value = append;
   loading.value = true;
   loadError.value = '';
+  feedError.value = '';
   try {
-    const r = await productApi.fetchStorefrontProducts({
-      current: current.value,
+    const r = await (props.visualFixture?.load || productApi.fetchStorefrontProducts)({
+      current: page,
       size: size.value,
       keyword: filter.keyword || undefined,
       categoryId: filter.categoryId || undefined,
@@ -231,22 +247,53 @@ async function load() {
     if (!isCurrent()) return;
     size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
-    if (current.value > maxPage) {
-      current.value = maxPage;
+    if (page > maxPage) {
+      current.value = append ? 1 : maxPage;
       updateUrl(true);
       return;
     }
-    list.value = r.records;
+    if (append) {
+      const ids = new Set(list.value.map(product => String(product.id)));
+      list.value = [...list.value, ...r.records.filter(product => {
+        const id = String(product.id);
+        if (ids.has(id)) return false;
+        ids.add(id);
+        return true;
+      })];
+      visibleLimit.value = shown + 12;
+    } else {
+      if (list.value.length && feedRoot.value && feedRoot.value.getBoundingClientRect().top < 120) {
+        feedRoot.value.scrollIntoView({ block:'start', behavior:'instant' });
+      }
+      list.value = r.records;
+      visibleLimit.value = 24;
+    }
+    loadedPage.value = page;
     total.value = r.total;
   } catch {
     if (!isCurrent()) return;
+    if (append) {
+      feedError.value = '商品列表加载失败，请检查网络后重试。';
+      return;
+    }
     list.value = [];
     total.value = 0;
     loadError.value = '商品列表加载失败，请检查网络后重试。';
   } finally {
-    if (isCurrent()) loading.value = false;
+    if (isCurrent()) { loading.value = false; appending.value = false; }
   }
 }
+
+function loadMoreFeed() {
+  if (loading.value || !hasMoreFeed.value) return;
+  if (visibleLimit.value < list.value.length) visibleLimit.value += 12;
+  else void load(true);
+}
+
+watch(feedSentinel, node => {
+  feedObserver?.disconnect();
+  if (node) feedObserver?.observe(node);
+}, { flush:'post' });
 
 function updateUrl(replace: boolean) {
   const before = route.fullPath;
@@ -300,6 +347,9 @@ function resetFilters() {
 }
 
 onMounted(() => {
+  if ('IntersectionObserver' in window) feedObserver = new IntersectionObserver(entries => {
+    if (entries.some(entry => entry.isIntersecting) && !feedError.value) loadMoreFeed();
+  }, { rootMargin:'0px 0px 480px 0px' });
   filterViewport = matchMedia('(max-width:700px)');
   filterViewport.addEventListener('change', syncFilterViewport);
   window.addEventListener('keydown', closeFilters);
@@ -307,6 +357,7 @@ onMounted(() => {
   else load();
 });
 onBeforeUnmount(() => {
+  feedObserver?.disconnect();
   filterViewport?.removeEventListener('change', syncFilterViewport);
   window.removeEventListener('keydown', closeFilters);
   if (filterOpen.value) document.body.style.overflow = previousOverflow;
@@ -328,11 +379,6 @@ const title = computed(() => {
   return '全部商品';
 });
 
-function onPageChange(p: number) {
-  current.value = p;
-  updateUrl(false);
-}
-
 function updatePrice(bound: 'minPrice' | 'maxPrice', value: string | number) {
   priceTexts[bound] = String(value);
   filter[bound] = readPrice(priceTexts[bound]).value;
@@ -353,6 +399,8 @@ function selectSort(value: unknown) {
   filter.sort = value as productApi.StorefrontSort;
   applyToUrl();
 }
+
+function ignoreVisualFavorite() {}
 </script>
 
 <template>
@@ -372,14 +420,14 @@ function selectSort(value: unknown) {
       </FocusScope>
       <div class="catalog-content">
         <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />
-        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button ref="filterTrigger" type="button" class="filter-button outline" :aria-expanded="filterOpen" @click="openFilters"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="catalog-sort-trigger" aria-label="商品排序"><SelectValue placeholder="综合排序" /></SelectTrigger><SelectContent align="end" :side-offset="6" class="min-w-40 border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]"><SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value" class="data-[highlighted]:bg-[var(--soft)] data-[highlighted]:text-[var(--ink)] data-[state=checked]:text-[var(--green)]">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
+        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button ref="filterTrigger" type="button" class="filter-button outline" :aria-expanded="filterOpen" @click="openFilters"><UmIcon name="filter" />筛选</button><select aria-label="商品排序" :value="filter.sort" @change="selectSort(($event.target as HTMLSelectElement).value)"><option v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</option></select></div></div>
         <div v-if="filter.categoryId || filter.aftersaleType || filter.overseasCustoms" class="active-filters" role="group" aria-label="已选筛选条件"><button v-if="filter.categoryId" type="button" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">{{ categoryLabel }} ×</button><button v-if="filter.aftersaleType" type="button" aria-label="清除售后服务筛选" @click="selectAftersale('all')">{{ aftersaleOptions.find(option => option.value === filter.aftersaleType)?.label }} ×</button><button v-if="filter.overseasCustoms" type="button" aria-label="清除海外直邮筛选" @click="selectOverseas('all')">海外直邮 ×</button><button v-if="categoryError && !categoryLoading" type="button" @click="loadCategoryPath(true)">重试分类名称</button></div>
-        <section class="catalog-results product-feed" :aria-busy="loading" aria-label="商品列表">
+        <section ref="feedRoot" class="catalog-results product-feed" :aria-busy="loading" aria-label="商品列表">
           <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
           <div v-if="loading && !list.length" class="product-grid feed-grid" aria-hidden="true"><div v-for="index in 8" :key="index" class="product-skeleton"><Skeleton class="aspect-square w-full rounded-[9px]" /><div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div></div></div>
-          <div v-else-if="list.length" class="product-grid feed-grid" :class="{ 'is-updating': loading }"><ProductCard v-for="product in list" :key="product.id" :product="product" variant="catalog" /></div>
+          <div v-else-if="list.length" class="product-grid feed-grid" :class="{ 'is-updating': loading && !appending }"><ProductCard v-for="product in visibleProducts" :key="product.id" :product="product" variant="catalog" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div>
           <div v-else class="empty"><UmIcon name="search" /><h2>{{ loadError || '暂时没有找到匹配商品' }}</h2><p>{{ loadError ? '请稍后重试。' : '不妨换一个方向，发现新的喜欢。' }}</p><button type="button" class="primary" @click="loadError ? load() : resetFilters()">{{ loadError ? '重新加载' : '重置筛选' }}</button></div>
-          <V47CatalogPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="onPageChange" />
+          <div v-if="list.length && !loadError" ref="feedSentinel" class="feed-status"><template v-if="hasMoreFeed || feedError"><span aria-live="polite">已展示 {{ visibleProducts.length }} / {{ total }} 件</span><button type="button" :disabled="loading" @click="loadMoreFeed">{{ feedError ? '重新加载' : loading ? '正在加载…' : '继续浏览' }}<UmIcon name="chevron" /></button></template><span v-else role="status">已展示全部 {{ visibleProducts.length }} 件好物</span></div>
         </section>
       </div>
     </div>
@@ -395,7 +443,6 @@ function selectSort(value: unknown) {
 .product-skeleton { overflow:hidden; background:var(--paper); border:1px solid var(--line); border-radius:13px; padding:8px 8px 0; }
 .skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
 .active-filters button { max-width:100%; white-space:normal; text-align:left; }
-.catalog-sort-trigger { width:auto; min-width:144px; height:38px; padding:0 10px 0 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); font-size:12px; }
 @media (max-width:700px) {
   .catalog-filter-touch-mask { position:fixed; inset:0; z-index:69; background:transparent; }
   .filters.open { overscroll-behavior:contain; }
@@ -403,7 +450,7 @@ function selectSort(value: unknown) {
   .catalog-toolbar > span { flex:0 0 auto; max-width:100%; }
   .catalog-toolbar > div { min-width:0; max-width:100%; gap:8px; }
   .catalog-toolbar .filter-button { flex:0 0 auto; white-space:nowrap; }
-  .catalog-sort-trigger { width:128px; min-width:112px; flex:0 1 128px; }
+  .catalog-toolbar select { min-width:0; max-width:100%; }
 }
 @media (prefers-reduced-motion:reduce) { .feed-grid { transition:none; } }
 </style>

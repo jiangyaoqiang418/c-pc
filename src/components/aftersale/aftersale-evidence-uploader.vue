@@ -8,6 +8,7 @@ import { onBeforeUnmount, ref, toRaw, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import { uploadFile } from '@/service/api/product';
 import { RequestError } from '@/service/request';
+import type { EvidenceVisualFixture } from '@/visual/types';
 
 interface Props {
   modelValue?: string[];
@@ -15,6 +16,7 @@ interface Props {
   scene?: 'REVIEW' | 'DEMAND' | 'PRODUCT' | 'ORDER_VOUCHER';
   disabled?: boolean;
   coverMode?: boolean;
+  visualFixture?: EvidenceVisualFixture;
 }
 const props = withDefaults(defineProps<Props>(), { max: 6, modelValue: () => [], scene: 'ORDER_VOUCHER' });
 const emit = defineEmits<{
@@ -29,6 +31,12 @@ watch(uploading, value => emit('uploading', value), { flush: 'sync' });
 const inputRef = ref<HTMLInputElement>();
 let uploadVersion = 0;
 let localImages: string[] | undefined;
+
+watch(() => props.disabled, disabled => {
+  if (!disabled) return;
+  uploadVersion += 1;
+  uploading.value = false;
+}, { flush:'sync' });
 
 watch(() => props.modelValue, value => {
   // 本组件删除/追加图片不更换业务上下文，上传结果仍可合并。
@@ -71,7 +79,7 @@ async function uploadFiles(files: File[]) {
   const operation = ++uploadVersion;
   uploading.value = true;
   try {
-    const results = await Promise.allSettled(picked.map(file => uploadFile(file, props.scene)));
+    const results = await Promise.allSettled(picked.map(file => (props.visualFixture?.upload || uploadFile)(file, props.scene)));
     if (operation !== uploadVersion) return;
     const uploaded = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
     const failures = results.flatMap((result, index) => result.status === 'rejected' ? [picked[index]!] : []);

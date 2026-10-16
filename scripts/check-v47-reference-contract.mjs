@@ -103,6 +103,10 @@ const themeIdsMatch = JSON.stringify(themeIds) === JSON.stringify(implementation
 const entry = read('src/visual-v47.ts');
 const wallet = read('src/views/wallet/index.vue');
 const home = read('src/views/home/index.vue');
+const catalog = read('src/views/product/list.vue');
+const forms = read('src/visual/v47-form-states.vue');
+const address = read('src/components/profile/address-form.vue');
+const evidence = read('src/components/aftersale/aftersale-evidence-uploader.vue');
 const guards = {
   devOnly: entry.includes("if (!import.meta.env.DEV) throw new Error"),
   independentMemoryRouter: entry.includes('createMemoryHistory()') && !/from ['"]@\/router/.test(entry),
@@ -120,7 +124,24 @@ const guards = {
   walletReadsShortCircuited: /async function loadAll\(\)\s*\{\s*if \(props\.visualFixture\) return;/.test(wallet),
   homeLoadShortCircuited: /async function loadSection[^]*?if \(props\.visualFixture\) return;/.test(home),
   homeRoleSwitchGuarded: /function switchRole[^]*?if \(props\.visualFixture\) return;/.test(home),
-  homeFavoriteNoop: home.includes('function ignoreVisualFavorite()') && home.includes('ignoreVisualFavorite')
+  homeFavoriteNoop: home.includes('function ignoreVisualFavorite()') && home.includes('ignoreVisualFavorite'),
+  catalogFixtureProvided: entry.includes('h(CatalogView, { visualFixture:catalogFixture })'),
+  catalogDataSourceExplicit: catalog.includes('props.visualFixture?.load || productApi.fetchStorefrontProducts'),
+  catalogCategoryReadsShortCircuited: /async function loadCategoryPath[^]*?if \(props\.visualFixture\) return;/.test(catalog),
+  catalogFavoriteNoop: catalog.includes('visualFixture ? ignoreVisualFavorite : undefined'),
+  formsDevEntryOnly: entry.includes("view === 'forms' ? h(FormStates,")
+    && !read('src/main.ts').includes('v47-form-states'),
+  formsNoBusinessApiImport: !/from ['"]@\/service\//.test(forms),
+  formsNoDirectWriteRequest: !/\b(?:fetch|XMLHttpRequest)\s*\(|\.\s*(?:post|put|patch|delete)\s*\(/.test(forms),
+  formsNoStorageOrIdentityMutation: !/\b(?:localStorage|sessionStorage)\.(?:setItem|removeItem|clear)\s*\(|\b(?:userStore|user)\./.test(forms),
+  formsExplicitLocalAdapters: forms.includes(':visual-fixture="addressFixture"')
+    && forms.includes(':evidence-visual-fixture="evidenceFixture"')
+    && forms.includes("onBeforeOk:() => { Message.info('本地验收不提交退款，请取消返回。'); return false; }"),
+  addressExplicitDataSource: address.includes('props.visualFixture?.countries || fetchCountries')
+    && address.includes('props.visualFixture?.regions || fetchRegionChildren'),
+  evidenceExplicitDataSource: evidence.includes('props.visualFixture?.upload || uploadFile'),
+  productionFormsWithoutFixtures: !read('src/views/aftersale/create.vue').includes('visual-fixture')
+    && !read('src/views/address/index.vue').includes('visual-fixture')
 };
 const views = [
   { page: 'home', reference: '/#/', visual: '/visual-v47.html', readiness: 'same 50 products; guest; hero 1; first image',
@@ -129,8 +150,10 @@ const views = [
     nodes: ['.product-detail', '.gallery', '.main-image', '.thumbnails', '.gallery-actions', '.dialog', '.dialog h2', '.dialog input', '.dialog .demo-note', '.zoom-overlay'] },
   { page: 'wallet', reference: '/#/wallet', visual: '/visual-v47.html?view=wallet', readiness: 'fresh prototype balance=2400; orders=[]; compare with production supplements hidden only by existing visualFixture; actual reference DOM has both breadcrumb and page heading',
     nodes: ['.breadcrumb', '.page-heading.compact', '.wallet-hero', '.wallet-hero h1', '.wallet-hero p', '.wallet-hero .button-row', '.stats-grid', '.stats-grid .paper', '.section-heading', '.transaction', '.muted.center'] },
-  { page: 'catalog', reference: '/#/product/list', visual: null, readiness: 'visual entry /product/list still maps to HomeView; needs a dedicated read-only fixture before same-data pixel acceptance',
+  { page: 'catalog', reference: '/#/product/list', visual: '/visual-v47.html?view=catalog', readiness: 'same 50 source records; 24 initial cards and 12-card continuation; production API pages are read into a separate cache; compare same loaded state',
     nodes: ['.catalog-layout', '.catalog-categories', '.catalog-toolbar', '.catalog-content', '.product-grid', '.product-card'] },
+  { page: 'form-components', reference: 'address dialog and refund-create fields', visual: '/visual-v47.html?view=forms', readiness: 'shared production fields with explicit local dictionaries/upload adapter; no save or refund submission; compare shared field geometry only, production country hierarchy/clearance and image uploader are supplements',
+    nodes: ['.um-dialog', '.address-form', '#refund-reason', '.evidence-grid'] },
   { page: 'login', reference: '/#/auth/login', visual: null, readiness: 'production additions include password visibility and real OAuth; compare shared art/form separately from added controls',
     nodes: ['.auth-layout', '.auth-art', '.auth-art img', '.auth-form', '.field', '.primary.full'] },
   { page: 'profile', reference: '/#/profile', visual: null, readiness: 'prototype guest page differs from production auth guard; match logged-in identity, balance, orders and VIP first',
@@ -151,7 +174,7 @@ const report = { checkedAt: new Date().toISOString(), commit: execFileSync('git'
   knownContentDifferences: ['Share link is complete production URL instead of prototype hash, and production share footer copy differs.',
     'Gallery view has complete source images but is a component harness, not the full product page.',
     'Actual reference wallet DOM contains both breadcrumb and .page-heading.compact. The missing heading and wrapper-dependent spacing have been restored; browser revalidation and pixel evidence are recorded separately in design-qa.md, not established by this source audit.',
-    'Only home/gallery/wallet are deterministic visual views. Other routes must not be counted as same-data accepted.'] };
+    'Home/gallery/wallet/catalog and form components have explicit isolated visual views. Other routes and full form pages must not be counted as same-data accepted.'] };
 mkdirSync(dirname(reportFile), { recursive: true });
 writeFileSync(reportFile, JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify({ pass, stylesheets: stylesheetChecks.length, assets: assets.length,

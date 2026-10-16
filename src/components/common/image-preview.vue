@@ -25,8 +25,8 @@ function move(direction: number) {
 </script>
 
 <template>
-  <BusinessDialog :visible="modelValue" :title="title" :width="920" :footer="false" @update:visible="emit('update:modelValue', $event)">
-    <div class="image-preview" @keydown.left.prevent="move(-1)" @keydown.right.prevent="move(1)">
+  <BusinessDialog :visible="modelValue" :title="title" :width="920" :footer="false" @update:visible="emit('update:modelValue', $event)" @keydown.left.prevent="move(-1)" @keydown.right.prevent="move(1)">
+    <div class="image-preview">
       <Button v-if="images.length > 1" variant="outline" size="icon" class="preview-prev" aria-label="上一张图片" @click="move(-1)"><Icon icon="lucide:chevron-left" width="20" /></Button>
       <img v-if="images[current]" :key="images[current]" :src="images[current]" :alt="`${title} ${current + 1}`" @error="setImageFallback" />
       <Button v-if="images.length > 1" variant="outline" size="icon" class="preview-next" aria-label="下一张图片" @click="move(1)"><Icon icon="lucide:chevron-right" width="20" /></Button>

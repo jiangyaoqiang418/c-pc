@@ -1,0 +1,11 @@
+{
+  "regionDesktopAfter": {
+    "focus": "中国大陆",
+    "trigger": true
+  },
+  "regionResizeAfter": {
+    "focusId": "main-content",
+    "focusTag": "MAIN",
+    "overflow": "clip visible"
+  }
+}

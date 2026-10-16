@@ -1,0 +1,158 @@
+[
+  {
+    "at": 1.5999999940395355,
+    "masks": []
+  },
+  {
+    "at": 18,
+    "masks": []
+  },
+  {
+    "at": 48.70000001788139,
+    "masks": []
+  },
+  {
+    "at": 51.20000001788139,
+    "masks": []
+  },
+  {
+    "at": 68,
+    "masks": []
+  },
+  {
+    "at": 95.90000000596046,
+    "masks": []
+  },
+  {
+    "at": 102.2000000178814,
+    "masks": []
+  },
+  {
+    "at": 118.80000001192093,
+    "masks": []
+  },
+  {
+    "at": 134.7000000178814,
+    "masks": []
+  },
+  {
+    "at": 151.40000000596046,
+    "masks": []
+  },
+  {
+    "at": 168.90000000596046,
+    "masks": []
+  },
+  {
+    "at": 185.30000001192093,
+    "masks": []
+  },
+  {
+    "at": 201.5,
+    "masks": []
+  },
+  {
+    "at": 233.59999999403954,
+    "masks": []
+  },
+  {
+    "at": 235,
+    "masks": []
+  },
+  {
+    "at": 251.59999999403954,
+    "masks": []
+  },
+  {
+    "at": 268.30000001192093,
+    "masks": []
+  },
+  {
+    "at": 285.09999999403954,
+    "masks": []
+  },
+  {
+    "at": 312.30000001192093,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0",
+        "class": "modal-overlay modal-enter-from modal-enter-active",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  },
+  {
+    "at": 318.09999999403954,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0",
+        "class": "modal-overlay modal-enter-from modal-enter-active",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  },
+  {
+    "at": 334.80000001192093,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0",
+        "class": "modal-overlay modal-enter-active modal-enter-to",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  },
+  {
+    "at": 352.09999999403954,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0.0734953",
+        "class": "modal-overlay modal-enter-active modal-enter-to",
+        "transform": "matrix(0.977275, 0, 0, 0.977275, 0, 13.6349)",
+        "height": 300.4051513671875
+      }
+    ]
+  },
+  {
+    "at": 369.09999999403954,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0.221017",
+        "class": "modal-overlay modal-enter-active modal-enter-to",
+        "transform": "matrix(0.98315, 0, 0, 0.98315, 0, 10.1097)",
+        "height": 302.21124267578125
+      }
+    ]
+  },
+  {
+    "at": 1369.5,
+    "masks": [
+      {
+        "node": 2,
+        "opacity": "0",
+        "class": "modal-overlay modal-enter-from modal-leave-from modal-leave-active",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  },
+  {
+    "at": 2384.7000000178814,
+    "masks": [
+      {
+        "node": 2,
+        "opacity": "0",
+        "class": "modal-overlay modal-enter-from modal-leave-from modal-leave-active",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  }
+]

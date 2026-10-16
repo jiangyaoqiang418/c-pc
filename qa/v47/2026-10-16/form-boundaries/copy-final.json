@@ -1,0 +1,49 @@
+{
+  "address": {
+    "country": "中国大陆",
+    "fields": [
+      "收件人 *",
+      "联系电话 *",
+      "国家 / 地区 *",
+      "省 / 州 *",
+      "详细地址 *",
+      "邮编",
+      "清关证件号",
+      "设为默认地址"
+    ],
+    "placeholders": [
+      {
+        "autocomplete": "name",
+        "placeholder": null
+      },
+      {
+        "autocomplete": "tel",
+        "placeholder": null
+      },
+      {
+        "autocomplete": null,
+        "placeholder": "输入名称或代码筛选国家/地区"
+      },
+      {
+        "autocomplete": "street-address",
+        "placeholder": "街道、楼栋、门牌号"
+      },
+      {
+        "autocomplete": "postal-code",
+        "placeholder": null
+      },
+      {
+        "autocomplete": null,
+        "placeholder": "选填，请输入清关证件号"
+      },
+      {
+        "autocomplete": null,
+        "placeholder": null
+      }
+    ]
+  },
+  "refund": {
+    "reasonPlaceholder": "请说明退款原因，我们会认真处理",
+    "voucherHeading": "凭证图片 · 最多 6 张"
+  }
+}

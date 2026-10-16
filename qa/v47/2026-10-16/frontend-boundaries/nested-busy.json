@@ -1,0 +1,29 @@
+{
+  "browser": "Chrome",
+  "nestedBefore": {
+    "body": "hidden",
+    "dialogs": [
+      {
+        "pointer": "none",
+        "title": "reka-dialog-title-v-6",
+        "z": "1000"
+      },
+      {
+        "pointer": "auto",
+        "title": "reka-dialog-title-v-8",
+        "z": "1000"
+      }
+    ],
+    "focus": "取消"
+  },
+  "nestedAfter": {
+    "count": 1,
+    "focus": "打开二级确认",
+    "overflow": "hidden"
+  },
+  "busyEscape": {
+    "closeDisabled": true,
+    "count": 1,
+    "overflow": "hidden"
+  }
+}

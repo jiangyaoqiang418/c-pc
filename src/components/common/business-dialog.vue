@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui';
 import { Button } from '@/components/ui/button';
@@ -32,11 +32,13 @@ const emit = defineEmits<{
   ok: [];
   cancel: [];
   close: [];
+  keydown: [event: KeyboardEvent];
 }>();
 const pending = ref(false);
 let operation = 0;
 // A late guard must not close a dialog that the parent has since reopened.
 watch(() => props.visible, () => { operation += 1; pending.value = false; }, { flush: 'sync' });
+onBeforeUnmount(() => { operation += 1; });
 const busy = computed(() => pending.value || props.okLoading);
 const buyerDialog = computed(() => props.contentClass?.split(/\s+/).includes('buyer-dialog'));
 const dialogWidth = computed(() => typeof props.width === 'number' || /^\d+$/.test(props.width)
@@ -75,35 +77,38 @@ async function confirm() {
 
 <template>
   <DialogRoot :open="visible" @update:open="value => { if (!value) void cancel(); }">
-    <DialogPortal>
-      <DialogOverlay class="um-dialog-mask modal-overlay">
-        <DialogContent class="um-dialog dialog" :class="contentClass" :style="{ width: dialogWidth }"
-          @escape-key-down="event => { if (!escToClose || busy) event.preventDefault(); }"
-          @pointer-down-outside="event => { if (!maskClosable || busy) event.preventDefault(); }">
-          <V47SheetGrip v-if="closable" :open="visible" :disabled="busy" @dismiss="cancel" />
-          <header class="um-dialog-header">
-            <DialogTitle class="um-dialog-title">{{ title }}</DialogTitle>
-            <button v-if="closable" type="button" class="um-dialog-close icon-btn dialog-close" :class="{ 'buyer-dialog-close': buyerDialog }" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
-          </header>
-          <DialogDescription class="sr-only">请核对弹窗内容后继续操作。</DialogDescription>
-          <div class="um-dialog-body"><slot /></div>
-          <footer v-if="footer" class="um-dialog-footer" :class="{ 'buyer-dialog-footer': buyerDialog }">
-            <slot name="footer">
-              <Button v-if="!hideCancel" class="outline" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
-              <Button class="primary" :class="{ 'um-dialog-danger': okButtonProps?.status === 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
-                <Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ okText }}
-              </Button>
-            </slot>
-          </footer>
-        </DialogContent>
-      </DialogOverlay>
+    <DialogPortal force-mount>
+      <Transition name="modal">
+        <DialogOverlay v-if="visible" force-mount class="um-dialog-mask modal-overlay">
+          <DialogContent force-mount class="um-dialog dialog" :class="contentClass" :style="{ width: dialogWidth }"
+            @keydown="emit('keydown', $event)"
+            @escape-key-down="event => { if (!escToClose || busy) event.preventDefault(); }"
+            @pointer-down-outside="event => { if (!maskClosable || busy) event.preventDefault(); }">
+            <V47SheetGrip v-if="closable" :open="visible" :disabled="busy" @dismiss="cancel" />
+            <header class="um-dialog-header">
+              <DialogTitle class="um-dialog-title">{{ title }}</DialogTitle>
+              <button v-if="closable" type="button" class="um-dialog-close icon-btn dialog-close" :class="{ 'buyer-dialog-close': buyerDialog }" :disabled="busy" aria-label="关闭弹窗" @click="cancel"><UmIcon name="close" /></button>
+            </header>
+            <DialogDescription class="sr-only">请核对弹窗内容后继续操作。</DialogDescription>
+            <div class="um-dialog-body"><slot /></div>
+            <footer v-if="footer" class="um-dialog-footer" :class="{ 'buyer-dialog-footer': buyerDialog }">
+              <slot name="footer">
+                <Button v-if="!hideCancel" class="outline" variant="outline" :disabled="busy" @click="cancel">{{ cancelText }}</Button>
+                <Button class="primary" :class="{ 'um-dialog-danger': okButtonProps?.status === 'danger' }" :variant="okButtonProps?.status === 'danger' ? 'destructive' : 'default'" :disabled="busy || okButtonProps?.disabled" @click="confirm">
+                  <Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ okText }}
+                </Button>
+              </slot>
+            </footer>
+          </DialogContent>
+        </DialogOverlay>
+      </Transition>
     </DialogPortal>
   </DialogRoot>
 </template>
 
 <style>
 .um-dialog-mask.modal-overlay { position:fixed; inset:0; z-index:1000; }
-.um-dialog.dialog { position:fixed; top:50%; left:50%; z-index:1000; transform:translate(-50%,-50%); display:block; max-width:calc(100vw - 32px); overflow:auto; outline:none; }
+.um-dialog.dialog { position:relative; z-index:1000; display:block; flex-shrink:0; max-width:calc(100vw - 32px); overflow:auto; outline:none; }
 .um-dialog-header { display:flex; align-items:center; gap:16px; }
 .um-dialog:not(.buyer-dialog) .um-dialog-title { font-size:23px; }
 :root .um-dialog .um-dialog-danger { background:var(--yb-danger)!important; border-color:var(--yb-danger)!important; color:#fff!important; }
@@ -112,8 +117,7 @@ async function confirm() {
 .um-dialog-body { min-height:0; overflow-wrap:anywhere; }
 .um-dialog-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:24px; padding:20px 0 0; border-top:1px solid var(--line); }
 @media (max-width:700px) {
-  .um-dialog.dialog { top:auto; bottom:0; left:50%; transform:translateX(-50%); width:100%!important; max-width:100%; }
+  .um-dialog.dialog { width:100%!important; max-width:100%; }
   .um-dialog:not(.buyer-dialog) .um-dialog-title { font-size:21px; }
-  :root[data-ui-theme="web3-meme"] .um-dialog.dialog { left:0; transform:none; }
 }
 </style>

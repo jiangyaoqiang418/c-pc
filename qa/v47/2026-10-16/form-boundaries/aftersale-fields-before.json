@@ -1,0 +1,24 @@
+{
+  "fields": [
+    {
+      "height": 211.578125,
+      "text": "退款原因 *"
+    },
+    {
+      "height": 164.796875,
+      "text": "上传凭证 可选，最多 6 张"
+    }
+  ],
+  "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+  "placeholder": "请说明退款原因，例如商品与描述不符",
+  "textarea": {
+    "bottom": 716.140625,
+    "height": 149.984375,
+    "left": 418.5,
+    "right": 1006.5,
+    "top": 566.15625,
+    "width": 588,
+    "x": 418.5,
+    "y": 566.15625
+  }
+}

@@ -1,0 +1,442 @@
+{
+  "reference": {
+    "nodes": [
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "32px",
+        "padding": "0px",
+        "rect": {
+          "bottom": 3355.703125,
+          "height": 3157.90625,
+          "left": 32,
+          "right": 1393,
+          "top": 197.796875,
+          "width": 1361,
+          "x": 32,
+          "y": 197.796875
+        },
+        "selector": ".catalog-layout"
+      },
+      {
+        "background": "rgb(21, 23, 27)",
+        "border": "1px solid rgb(45, 48, 54)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "20px",
+        "rect": {
+          "bottom": 716.53125,
+          "height": 518.734375,
+          "left": 32,
+          "right": 242,
+          "top": 197.796875,
+          "width": 210,
+          "x": 32,
+          "y": 197.796875
+        },
+        "selector": ".filters"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(163, 173, 164)",
+        "color": "rgb(163, 173, 164)",
+        "font": "12px / 19.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 232.796875,
+          "height": 35,
+          "left": 274,
+          "right": 1393,
+          "top": 197.796875,
+          "width": 1119,
+          "x": 274,
+          "y": 197.796875
+        },
+        "selector": ".catalog-toolbar"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "14px",
+        "padding": "0px",
+        "rect": {
+          "bottom": 3267.703125,
+          "height": 3012.90625,
+          "left": 274,
+          "right": 1393,
+          "top": 254.796875,
+          "width": 1119,
+          "x": 274,
+          "y": 254.796875
+        },
+        "selector": ".product-grid"
+      },
+      {
+        "background": "rgb(23, 25, 30)",
+        "border": "1px solid rgb(51, 54, 61)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 745.28125,
+          "height": 490.484375,
+          "left": 274,
+          "right": 543.25,
+          "top": 254.796875,
+          "width": 269.25,
+          "x": 274,
+          "y": 254.796875
+        },
+        "selector": ".product-card"
+      },
+      {
+        "background": "rgb(238, 239, 233)",
+        "border": "1px solid rgb(47, 55, 48)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 550.046875,
+          "height": 251.25,
+          "left": 283,
+          "right": 534.25,
+          "top": 298.796875,
+          "width": 251.25,
+          "x": 283,
+          "y": 298.796875
+        },
+        "selector": ".product-image"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "12px 13px 13px",
+        "rect": {
+          "bottom": 744.28125,
+          "height": 194.234375,
+          "left": 275,
+          "right": 542.25,
+          "top": 550.046875,
+          "width": 267.25,
+          "x": 275,
+          "y": 550.046875
+        },
+        "selector": ".product-meta"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(244, 244, 239)",
+        "color": "rgb(244, 244, 239)",
+        "font": "600 17px / 24.65px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 609.6875,
+          "height": 24.640625,
+          "left": 288,
+          "right": 529.25,
+          "top": 585.046875,
+          "width": 241.25,
+          "x": 288,
+          "y": 585.046875
+        },
+        "selector": ".product-name"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(234, 245, 220)",
+        "color": "rgb(234, 245, 220)",
+        "font": "",
+        "gap": "4px",
+        "padding": "13px 0px 0px",
+        "rect": {
+          "bottom": 691.28125,
+          "height": 46.59375,
+          "left": 288,
+          "right": 529.25,
+          "top": 644.6875,
+          "width": 241.25,
+          "x": 288,
+          "y": 644.6875
+        },
+        "selector": ".product-price"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 3355.703125,
+          "height": 3157.90625,
+          "left": 274,
+          "right": 1393,
+          "top": 197.796875,
+          "width": 1119,
+          "x": 274,
+          "y": 197.796875
+        },
+        "selector": ".catalog-content"
+      }
+    ],
+    "panels": [],
+    "scroll": 1425,
+    "scrollY": 0,
+    "viewport": [
+      1440,
+      900,
+      1
+    ]
+  },
+  "implementation": {
+    "nodes": [
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px solid rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "32px",
+        "padding": "0px",
+        "rect": {
+          "bottom": 3355.703125,
+          "height": 3157.90625,
+          "left": 32,
+          "right": 1393,
+          "top": 197.796875,
+          "width": 1361,
+          "x": 32,
+          "y": 197.796875
+        },
+        "selector": ".catalog-layout"
+      },
+      {
+        "background": "rgb(21, 23, 27)",
+        "border": "1px solid rgb(45, 48, 54)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "20px",
+        "rect": {
+          "bottom": 716.53125,
+          "height": 518.734375,
+          "left": 32,
+          "right": 242,
+          "top": 197.796875,
+          "width": 210,
+          "x": 32,
+          "y": 197.796875
+        },
+        "selector": ".filters"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px solid rgb(163, 173, 164)",
+        "color": "rgb(163, 173, 164)",
+        "font": "12px / 19.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 232.796875,
+          "height": 35,
+          "left": 274,
+          "right": 1393,
+          "top": 197.796875,
+          "width": 1119,
+          "x": 274,
+          "y": 197.796875
+        },
+        "selector": ".catalog-toolbar"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px solid rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "14px",
+        "padding": "0px",
+        "rect": {
+          "bottom": 3267.703125,
+          "height": 3012.90625,
+          "left": 274,
+          "right": 1393,
+          "top": 254.796875,
+          "width": 1119,
+          "x": 274,
+          "y": 254.796875
+        },
+        "selector": ".product-grid"
+      },
+      {
+        "background": "rgb(23, 25, 30)",
+        "border": "1px solid rgb(51, 54, 61)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 745.28125,
+          "height": 490.484375,
+          "left": 274,
+          "right": 543.25,
+          "top": 254.796875,
+          "width": 269.25,
+          "x": 274,
+          "y": 254.796875
+        },
+        "selector": ".product-card"
+      },
+      {
+        "background": "rgb(238, 239, 233)",
+        "border": "1px solid rgb(47, 55, 48)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 550.046875,
+          "height": 251.25,
+          "left": 283,
+          "right": 534.25,
+          "top": 298.796875,
+          "width": 251.25,
+          "x": 283,
+          "y": 298.796875
+        },
+        "selector": ".product-image"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px solid rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "12px 13px 13px",
+        "rect": {
+          "bottom": 744.28125,
+          "height": 194.234375,
+          "left": 275,
+          "right": 542.25,
+          "top": 550.046875,
+          "width": 267.25,
+          "x": 275,
+          "y": 550.046875
+        },
+        "selector": ".product-meta"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px none rgb(244, 244, 239)",
+        "color": "rgb(244, 244, 239)",
+        "font": "600 17px / 24.65px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 609.6875,
+          "height": 24.640625,
+          "left": 288,
+          "right": 529.25,
+          "top": 585.046875,
+          "width": 241.25,
+          "x": 288,
+          "y": 585.046875
+        },
+        "selector": ".product-name"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px solid rgb(234, 245, 220)",
+        "color": "rgb(234, 245, 220)",
+        "font": "",
+        "gap": "4px",
+        "padding": "13px 0px 0px",
+        "rect": {
+          "bottom": 691.28125,
+          "height": 46.59375,
+          "left": 288,
+          "right": 529.25,
+          "top": 644.6875,
+          "width": 241.25,
+          "x": 288,
+          "y": 644.6875
+        },
+        "selector": ".product-price"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "border": "0px solid rgb(242, 242, 237)",
+        "color": "rgb(242, 242, 237)",
+        "font": "16px / 26.4px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "gap": "normal",
+        "padding": "0px",
+        "rect": {
+          "bottom": 3355.703125,
+          "height": 3157.90625,
+          "left": 274,
+          "right": 1393,
+          "top": 197.796875,
+          "width": 1119,
+          "x": 274,
+          "y": 197.796875
+        },
+        "selector": ".catalog-content"
+      }
+    ],
+    "panels": [],
+    "scroll": 1425,
+    "scrollY": 0,
+    "viewport": [
+      1440,
+      900,
+      1
+    ]
+  },
+  "feedInitial": {
+    "count": 24,
+    "images": [
+      {
+        "loaded": true,
+        "src": "http://127.0.0.1:5175/src/visual/assets/phone.jpg",
+        "width": 1000
+      },
+      {
+        "loaded": true,
+        "src": "http://127.0.0.1:5175/src/visual/assets/laptop.jpg",
+        "width": 1000
+      },
+      {
+        "loaded": true,
+        "src": "http://127.0.0.1:5175/src/visual/assets/headphone.jpg",
+        "width": 800
+      },
+      {
+        "loaded": true,
+        "src": "http://127.0.0.1:5175/src/visual/assets/coffee.jpg",
+        "width": 900
+      }
+    ],
+    "select": {
+      "bottom": 232.796875,
+      "height": 35,
+      "left": 1297,
+      "right": 1393,
+      "top": 197.796875,
+      "width": 96,
+      "x": 1297,
+      "y": 197.796875
+    },
+    "status": "已展示 24 / 50 件继续浏览"
+  }
+}

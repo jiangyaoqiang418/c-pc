@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isDefinitiveRejection } from '@/service/request/type';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
-import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
+import AftersaleRequestFields from '@/components/aftersale/aftersale-request-fields.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import * as orderApi from '@/service/api/order';
@@ -180,9 +177,7 @@ const submitDisabledReason = computed(() => {
         <h1>申请仅退款</h1><p>待发货或待收货订单可申请，由平台审核。</p>
         <section class="checkout-item refund-order"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
         <Alert v-if="!eligible" class="notice"><AlertDescription id="refund-unavailable">仅“待发货”或“待收货”订单可申请仅退款。</AlertDescription></Alert>
-        <section class="field"><Label for="refund-reason" class="section-title">退款原因 <span aria-hidden="true">*</span></Label><Textarea id="refund-reason" v-model="form.reason" :disabled="!eligible || submitting || confirmationOpen" :aria-describedby="!eligible ? 'refund-unavailable' : undefined" maxlength="512" rows="5" placeholder="请说明退款原因，例如商品与描述不符" required /><small class="word-count">{{ form.reason.length }}/512</small></section>
-        <section class="field"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader :key="`${orderId}:${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-model="form.evidenceImages" :max="6" :disabled="!eligible || submitting || confirmationOpen" @uploading="uploading = $event" /></section>
-        <footer class="button-row actions"><button type="button" class="outline"  :disabled="submitting || confirmationOpen" @click="cancelCreate">取消</button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><button type="button" class="primary" :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
+        <AftersaleRequestFields v-model:reason="form.reason" v-model:evidence-images="form.evidenceImages" :eligible="eligible" :submitting="submitting" :confirmation-open="confirmationOpen" :submit-disabled-reason="submitDisabledReason" :evidence-context="`${orderId}:${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" @uploading="uploading = $event" @cancel="cancelCreate" @submit="submit(false)" />
       </template>
       <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-52" /><Skeleton class="h-44" /></div>
       <EmptyState v-else :title="loadError || '订单不存在'" :action-text="loadError ? '重新加载' : '返回订单'" @action="loadError ? load() : router.push('/order')" />
@@ -193,9 +188,8 @@ const submitDisabledReason = computed(() => {
 <style scoped>
 .refund-order { margin:20px 0; }.order-info { min-width:0; flex:1; }.order-info strong { overflow-wrap:anywhere; }
 .meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:12px; color:var(--muted); }
-.amount { font-size:20px; }.section-title { display:flex; gap:8px; align-items:center; font-weight:500; }
-.word-count { text-align:right; color:var(--muted); }.notice { margin:18px 0; }.notice button { margin-top:10px; }
-.actions { justify-content:flex-end; }.actions > span { flex:1; }.actions > span button { width:100%; }
+.amount { font-size:20px; }
+.notice { margin:18px 0; }.notice button { margin-top:10px; }
 .skeletons { display:grid; gap:18px; }
 @media(max-width:700px) {
   .refund-order { flex-wrap:wrap; }

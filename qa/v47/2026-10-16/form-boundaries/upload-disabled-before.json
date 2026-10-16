@@ -1,0 +1,7 @@
+{
+  "case": "凭证上传途中禁用后，迟到结果不再修改禁用中的表单",
+  "beforeFix": "failed",
+  "observedUpdateCalls": 1,
+  "expectedUpdateCalls": 0,
+  "scope": "Actual uploader setup with local deferred fixture; no real upload"
+}

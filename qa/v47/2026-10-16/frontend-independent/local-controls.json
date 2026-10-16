@@ -1,0 +1,68 @@
+{
+  "focusCycle": [
+    {
+      "key": "Tab",
+      "inside": true,
+      "label": "本地测试输入",
+      "text": ""
+    },
+    {
+      "key": "Tab",
+      "inside": true,
+      "label": null,
+      "text": "取消"
+    },
+    {
+      "key": "Tab",
+      "inside": true,
+      "label": null,
+      "text": "确定"
+    },
+    {
+      "key": "Tab",
+      "inside": true,
+      "label": "关闭弹窗",
+      "text": ""
+    },
+    {
+      "key": "shift+Tab",
+      "inside": true,
+      "label": null,
+      "text": "确定"
+    }
+  ],
+  "imagePreview": {
+    "initial": "1 / 2",
+    "right": "2 / 2",
+    "left": "1 / 2",
+    "escapeClosed": true
+  },
+  "amounts": [
+    {
+      "input": "2.22345678",
+      "observed": [
+        "  - text: 精确金额输入",
+        "  - textbox \"精确金额输入\": \"2.22345678\"",
+        "  - status \"当前原始金额\": \"2.22345678\""
+      ]
+    },
+    {
+      "input": "1.000000001",
+      "observed": [
+        "  - text: 精确金额输入",
+        "  - textbox \"精确金额输入\": \"1\"",
+        "  - status \"当前原始金额\": \"1\""
+      ]
+    },
+    {
+      "input": "9007199254740993.12345678",
+      "observed": [
+        "  - text: 精确金额输入",
+        "  - textbox \"精确金额输入 该金额无法准确提交，请调整金额后重试\": \"9007199254740993.12345678\"",
+        "  - alert: 该金额无法准确提交，请调整金额后重试",
+        "  - status \"当前原始金额\": \"9007199254740993.12345678\""
+      ]
+    }
+  ],
+  "amountLimitations": "The pre-existing AmountInput intentionally rounds representable values on blur to precision=8; this test does not claim raw transaction amounts are never rounded. Unrepresentable numeric input stays visible with an error."
+}

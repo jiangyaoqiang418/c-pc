@@ -1,0 +1,142 @@
+{
+  "source": {
+    "fields": [
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 45,
+        "padding": "10px 12px",
+        "tag": "SELECT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 85,
+        "padding": "12px 14px",
+        "tag": "TEXTAREA"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      }
+    ],
+    "transform": "none",
+    "viewport": [
+      1280,
+      720,
+      1
+    ]
+  },
+  "implementation": {
+    "fields": [
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 45,
+        "padding": "10px 12px",
+        "tag": "BUTTON"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 45,
+        "padding": "10px 12px",
+        "tag": "BUTTON"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 85,
+        "padding": "12px 14px",
+        "tag": "TEXTAREA"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      },
+      {
+        "background": "rgb(15, 18, 16)",
+        "border": "rgb(45, 48, 54)",
+        "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+        "height": 46.796875,
+        "padding": "10px 12px",
+        "tag": "INPUT"
+      }
+    ],
+    "transform": "none",
+    "viewport": [
+      1280,
+      720,
+      1
+    ]
+  }
+}

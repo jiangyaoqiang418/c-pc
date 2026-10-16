@@ -1,0 +1,185 @@
+{
+  "accepted": true,
+  "samples": [
+    {
+      "viewport": {
+        "width": 320,
+        "height": 700
+      },
+      "implementation": {
+        "borderRadius": "20px 20px 0px 0px",
+        "bottom": 700,
+        "fontSize": "15px",
+        "height": 280.1875,
+        "padding": "29px 20px 22px",
+        "transform": "none",
+        "viewport": 320,
+        "width": 320,
+        "x": 0,
+        "y": 419.8125
+      },
+      "reference": {
+        "borderRadius": "20px 20px 0px 0px",
+        "bottom": 700,
+        "fontSize": "15px",
+        "height": 300.984375,
+        "padding": "29px 20px 22px",
+        "transform": "none",
+        "viewport": 320,
+        "width": 320,
+        "x": 0,
+        "y": 399.015625
+      }
+    },
+    {
+      "viewport": {
+        "width": 375,
+        "height": 812
+      },
+      "implementation": {
+        "borderRadius": "20px 20px 0px 0px",
+        "bottom": 812,
+        "fontSize": "15px",
+        "height": 280.1875,
+        "padding": "29px 20px 22px",
+        "transform": "none",
+        "viewport": 375,
+        "width": 375,
+        "x": 0,
+        "y": 531.8125
+      },
+      "reference": {
+        "borderRadius": "20px 20px 0px 0px",
+        "bottom": 812,
+        "fontSize": "15px",
+        "height": 300.984375,
+        "padding": "29px 20px 22px",
+        "transform": "none",
+        "viewport": 375,
+        "width": 375,
+        "x": 0,
+        "y": 511.015625
+      }
+    },
+    {
+      "viewport": {
+        "width": 700,
+        "height": 900
+      },
+      "implementation": {
+        "borderRadius": "20px 20px 0px 0px",
+        "bottom": 900,
+        "fontSize": "15px",
+        "height": 280.1875,
+        "padding": "29px 20px 22px",
+        "transform": "none",
+        "viewport": 700,
+        "width": 700,
+        "x": 0,
+        "y": 619.8125
+      },
+      "reference": {
+        "borderRadius": "20px 20px 0px 0px",
+        "bottom": 900,
+        "fontSize": "15px",
+        "height": 280.1875,
+        "padding": "29px 20px 22px",
+        "transform": "none",
+        "viewport": 700,
+        "width": 700,
+        "x": 0,
+        "y": 619.8125
+      }
+    },
+    {
+      "viewport": {
+        "width": 701,
+        "height": 900
+      },
+      "implementation": {
+        "borderRadius": "14px",
+        "bottom": 603.6875,
+        "fontSize": "16px",
+        "height": 307.390625,
+        "padding": "36px",
+        "transform": "none",
+        "viewport": 701,
+        "width": 540,
+        "x": 80.5,
+        "y": 296.296875
+      },
+      "reference": {
+        "borderRadius": "14px",
+        "bottom": 603.6875,
+        "fontSize": "16px",
+        "height": 307.390625,
+        "padding": "36px",
+        "transform": "none",
+        "viewport": 701,
+        "width": 540,
+        "x": 80.5,
+        "y": 296.296875
+      }
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 900
+      },
+      "implementation": {
+        "borderRadius": "14px",
+        "bottom": 603.6875,
+        "fontSize": "16px",
+        "height": 307.390625,
+        "padding": "36px",
+        "transform": "none",
+        "viewport": 1024,
+        "width": 540,
+        "x": 242,
+        "y": 296.296875
+      },
+      "reference": {
+        "borderRadius": "14px",
+        "bottom": 603.6875,
+        "fontSize": "16px",
+        "height": 307.390625,
+        "padding": "36px",
+        "transform": "none",
+        "viewport": 1024,
+        "width": 540,
+        "x": 242,
+        "y": 296.296875
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "implementation": {
+        "borderRadius": "14px",
+        "bottom": 603.6875,
+        "fontSize": "16px",
+        "height": 307.390625,
+        "padding": "36px",
+        "transform": "none",
+        "viewport": 1440,
+        "width": 540,
+        "x": 450,
+        "y": 296.296875
+      },
+      "reference": {
+        "borderRadius": "14px",
+        "bottom": 603.6875,
+        "fontSize": "16px",
+        "height": 307.390625,
+        "padding": "36px",
+        "transform": "none",
+        "viewport": 1440,
+        "width": 540,
+        "x": 450,
+        "y": 296.296875
+      }
+    }
+  ]
+}

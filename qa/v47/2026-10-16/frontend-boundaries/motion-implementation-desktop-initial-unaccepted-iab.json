@@ -1,0 +1,50 @@
+[
+  {
+    "at": 14.099999994039536,
+    "masks": []
+  },
+  {
+    "at": 30.399999976158142,
+    "masks": []
+  },
+  {
+    "at": 46.099999994039536,
+    "masks": []
+  },
+  {
+    "at": 63.19999998807907,
+    "masks": []
+  },
+  {
+    "at": 80.5,
+    "masks": []
+  },
+  {
+    "at": 96.5,
+    "masks": []
+  },
+  {
+    "at": 1113.5999999940395,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0",
+        "class": "modal-overlay v47-reference-mask modal-enter-from modal-enter-active",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  },
+  {
+    "at": 2130.2999999821186,
+    "masks": [
+      {
+        "node": 1,
+        "opacity": "0",
+        "class": "modal-overlay v47-reference-mask modal-enter-from modal-leave-from modal-leave-active",
+        "transform": "matrix(0.97, 0, 0, 0.97, 0, 18)",
+        "height": 298.1689453125
+      }
+    ]
+  }
+]

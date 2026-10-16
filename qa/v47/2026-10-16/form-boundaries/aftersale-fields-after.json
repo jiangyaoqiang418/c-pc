@@ -1,0 +1,18 @@
+{
+  "border": "rgb(45, 48, 54)",
+  "font": "16px / 24.8px -apple-system, BlinkMacSystemFont, \"PingFang SC\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", Arial, sans-serif",
+  "maxLength": 512,
+  "padding": "12px 14px",
+  "placeholder": "请说明退款原因，我们会认真处理",
+  "rect": {
+    "bottom": 682.15625,
+    "height": 116,
+    "left": 418.5,
+    "right": 1006.5,
+    "top": 566.15625,
+    "width": 588,
+    "x": 418.5,
+    "y": 566.15625
+  },
+  "rows": []
+}

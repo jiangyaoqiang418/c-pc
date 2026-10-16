@@ -1,0 +1,26 @@
+{
+  "width": 320,
+  "filterOpenCheck": {
+    "focus": "关闭筛选",
+    "overflow": "hidden",
+    "rect": {
+      "bottom": 623.484375,
+      "height": 623.484375,
+      "left": 54.390625,
+      "right": 320,
+      "top": 0,
+      "width": 265.609375,
+      "x": 54.390625,
+      "y": 0
+    }
+  },
+  "filterTabCheck": {
+    "focus": "售后服务",
+    "inside": true
+  },
+  "filterClosedCheck": {
+    "focus": "筛选",
+    "open": false,
+    "overflow": "clip visible"
+  }
+}
