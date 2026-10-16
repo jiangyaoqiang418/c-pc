@@ -38,10 +38,12 @@ async function loadDetail() {
   detailError.value = '';
   detailLoading.value = false;
   if (!editing.value || !userStore.currentUser) return;
+  const requestedProductId = String(route.params.id);
   detailLoading.value = true;
   try {
-    const p = await productApi.fetchSellerProductDetail(String(route.params.id));
+    const p = await productApi.fetchSellerProductDetail(requestedProductId);
     if (version !== detailVersion) return;
+    if (String(p.id) !== requestedProductId) throw new Error('商品详情对象不一致');
     if (String(p.sellerId) !== String(userStore.currentUser?.id)) throw new Error('无权编辑该商品');
     if (p.rawStatus !== 'OFF_SHELF' && p.rawStatus !== 'REJECTED') throw new Error('仅已下架或已驳回商品可编辑');
     if (!p.imageFiles?.length || p.imageFiles.length !== p.images.length || p.imageFiles.some(item => !item.bucket || !item.filePath || !item.url)) {

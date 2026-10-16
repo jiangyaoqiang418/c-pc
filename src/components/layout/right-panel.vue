@@ -16,7 +16,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 const walletError = ref(false);
-const walletGuard = createLatestRequestGuard();
+const walletGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 async function loadWallet() {
   const isCurrent = walletGuard.begin();
   walletError.value = false;
@@ -25,7 +25,7 @@ async function loadWallet() {
   try { await walletStore.fetchWallet(id); } catch { if (isCurrent()) walletError.value = true; }
 }
 onMounted(loadWallet);
-watch(() => userStore.currentUser?.id, loadWallet);
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], loadWallet);
 onBeforeUnmount(walletGuard.invalidate);
 
 const isLoggedIn = computed(() => userStore.isLoggedIn);
@@ -37,7 +37,7 @@ const orderCounts = ref<Record<string, number>>({});
 const orderCountsLoaded = ref(false);
 const orderCountsError = ref('');
 const orderCountsUserId = ref('');
-const orderCountsGuard = createLatestRequestGuard();
+const orderCountsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 
 async function loadOrders() {
   const isCurrent = orderCountsGuard.begin();
@@ -72,7 +72,7 @@ async function loadOrders() {
 
 onMounted(loadOrders);
 onBeforeUnmount(orderCountsGuard.invalidate);
-watch([() => userStore.currentUser?.id, () => userStore.isBuyerActive], loadOrders);
+watch([() => userStore.currentUser?.id, () => userStore.isBuyerActive, () => userStore.sessionVersion], loadOrders);
 
 function orderCount(status: string) {
   if (!orderCountsLoaded.value) return undefined;

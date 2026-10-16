@@ -66,9 +66,9 @@ watch(imageUrls, (urls, previous) => {
   if (index < 0) imagePreviewVisible.value = false;
   else imagePreviewCurrent.value = index;
 }, { flush: 'sync' });
-const requestGuard = createLatestRequestGuard();
-const olderMessagesGuard = createLatestRequestGuard();
-const incrementalMessagesGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const olderMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const incrementalMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let messageWriteVersion = 0;
 let recallWriteVersion = 0;
 let historyScrollVersion = 0;
@@ -77,9 +77,10 @@ function isCurrentMessageContext(
   operation: number,
   requestedUserId: string | number,
   requestedOrderCode: string,
-  requestedConversationId: string | number
+  requestedConversationId: string | number,
+  requestedSession: number
 ) {
-  return operation === messageWriteVersion
+  return operation === messageWriteVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && orderCode.value === requestedOrderCode
     && !!conversation.value
@@ -90,9 +91,10 @@ function isCurrentRecallContext(
   operation: number,
   requestedUserId: string | number,
   requestedOrderCode: string,
-  requestedConversationId: string | number
+  requestedConversationId: string | number,
+  requestedSession: number
 ) {
-  return operation === recallWriteVersion
+  return operation === recallWriteVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && orderCode.value === requestedOrderCode
     && !!conversation.value
@@ -191,14 +193,15 @@ async function reportRead() {
   if (!conversation.value || !lastReadMessageId || document.visibilityState !== 'visible') return;
   const currentConversation = conversation.value;
   const userId = userStore.currentUser?.id;
+  const session = userStore.sessionVersion;
   const version = messageWriteVersion;
   if (userId === undefined || (currentConversation.lastReadMessageId !== undefined && compareBusinessId(lastReadMessageId, currentConversation.lastReadMessageId) <= 0)) return;
-  const readKey = `${userId}:${currentConversation.id}:${lastReadMessageId}`;
+  const readKey = `${userId}:${session}:${currentConversation.id}:${lastReadMessageId}`;
   if (readRequests.has(readKey)) return;
   readRequests.add(readKey);
   try {
     await notifyApi.markConversationRead({ conversationId: currentConversation.id, lastReadMessageId });
-    if (version !== messageWriteVersion || !sameBusinessId(userId, userStore.currentUser?.id) || !sameBusinessId(conversation.value?.id, currentConversation.id)) return;
+    if (version !== messageWriteVersion || userStore.sessionVersion !== session || !sameBusinessId(userId, userStore.currentUser?.id) || !sameBusinessId(conversation.value?.id, currentConversation.id)) return;
     if (currentConversation.lastReadMessageId === undefined || compareBusinessId(lastReadMessageId, currentConversation.lastReadMessageId) > 0) currentConversation.lastReadMessageId = lastReadMessageId;
     notifyStore.scheduleUnreadRefresh();
   } catch {
@@ -299,6 +302,7 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio' | 'video'; con
   if (!conversation.value || messageSending.value) return;
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const requestedConversationId = conversation.value.id;
   const operation = ++messageWriteVersion;
@@ -319,14 +323,14 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio' | 'video'; con
     role: conversation.value.myRole
   }));
   await scrollToBottom();
-  if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+  if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
   try {
     const sent = await notifyApi.sendConversationMessage(params, { showError: false });
-    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
     messages.value = mergeMessages(messages.value, sent);
     await scrollToBottom();
   } catch (error) {
-    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
     messages.value = markUnconfirmedMessageFailed(messages.value, clientMsgId);
     if (messages.value.some(message => message.clientMsgId === clientMsgId && message.failed)) {
       Message.error(error instanceof Error ? error.message : '未取得消息发送结果，请核对后使用原消息重试');
@@ -340,6 +344,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   if (!conversation.value || !message.failed || messageSending.value || mediaBusy.value) return;
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const requestedConversationId = conversation.value.id;
   const operation = ++messageWriteVersion;
@@ -358,11 +363,11 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     : item);
   try {
     const sent = await notifyApi.sendConversationMessage(params, { showError: false });
-    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
     messages.value = mergeMessages(messages.value, sent);
     await scrollToBottom();
   } catch (error) {
-    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    if (!isCurrentMessageContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
     messages.value = markUnconfirmedMessageFailed(messages.value, clientMsgId);
     if (messages.value.some(item => item.clientMsgId === clientMsgId && item.failed)) {
       Message.error(error instanceof Error ? error.message : '未取得消息发送结果，请核对后使用原消息重试');
@@ -375,6 +380,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
 async function recallMessage(message: Api.RealNotify.ImMessageVO) {
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   const requestedConversationId = conversation.value?.id;
   if (requestedUserId === undefined || requestedConversationId === undefined) return;
   const messageId = String(message.id);
@@ -383,12 +389,12 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
   recallingMessageIds.value = new Set(recallingMessageIds.value).add(messageId);
   try {
     await notifyApi.recallConversationMessage({ id: message.id });
-    if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
     messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? recalledMessage(item) : item);
   } catch {
     // 请求层展示错误。
   } finally {
-    if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId)) return;
+    if (!isCurrentRecallContext(operation, requestedUserId, requestedOrderCode, requestedConversationId, requestedSession)) return;
     const next = new Set(recallingMessageIds.value);
     next.delete(messageId);
     recallingMessageIds.value = next;
@@ -435,8 +441,8 @@ onBeforeUnmount(() => {
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
 });
-watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCode, nextUserId], [prevCode, prevUserId]) => {
-  if (String(nextCode) === String(prevCode) && String(nextUserId) === String(prevUserId)) return;
+watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextCode, nextUserId, session], [prevCode, prevUserId, previousSession]) => {
+  if (String(nextCode) === String(prevCode) && String(nextUserId) === String(prevUserId) && session === previousSession) return;
   messageWriteVersion += 1;
   recallWriteVersion += 1;
   requestGuard.invalidate();
@@ -479,7 +485,7 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id], ([nextCod
           <div v-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
         </div>
         <div v-if="newMessagesAvailable" class="new-message-bar"><button type="button" @click="scrollToBottom" class="outline"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</button></div>
-        <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(orderCode || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
+        <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(orderCode || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
         <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
       </div>
       <div v-else-if="!loading" class="placeholder"><EmptyState :title="loadError || '订单会话不存在'" :description="loadError ? '请检查网络后重试，或返回订单列表。' : undefined" :action-text="loadError ? '重新加载' : '返回订单列表'" @action="loadError ? retryLoad() : router.push('/order')" /></div>

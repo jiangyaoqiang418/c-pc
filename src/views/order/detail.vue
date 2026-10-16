@@ -36,7 +36,7 @@ const permissions = computed(() => getOrderCapabilities(order.value, userStore.c
 const logisticsSection = ref<HTMLElement>();
 const purchasePreviewOpen = ref(false);
 const purchasePreviewIndex = ref(0);
-watch([() => route.params.id, () => userStore.currentUser?.id], () => { purchasePreviewOpen.value = false; });
+watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => { purchasePreviewOpen.value = false; });
 
 function viewLogistics() {
   logisticsSection.value?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
@@ -47,13 +47,13 @@ const reviewable = ref(false);
 const reviewReason = ref('');
 const reviewableError = ref('');
 const reviewableLoading = ref(false);
-const reviewableGuard = createLatestRequestGuard();
+const reviewableGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
 const paymentOpen = ref(false);
 const confirmationOpen = ref(false);
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let actionVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
@@ -165,12 +165,13 @@ onBeforeUnmount(() => {
   requestGuard.invalidate();
   reviewableGuard.invalidate();
 });
-watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
-  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextId, nextUserId, nextSession], [prevId, prevUserId, prevSession]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession) return;
   actionVersion += 1;
   paymentOpen.value = false;
   confirmationModal?.close();
   requestGuard.invalidate();
+  acting.value = false;
   order.value = undefined;
   logistics.value = undefined;
   reviewable.value = false;

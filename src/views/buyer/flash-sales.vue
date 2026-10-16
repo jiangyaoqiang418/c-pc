@@ -70,7 +70,7 @@ async function loadProductDetail() {
   try {
     const detail = await productApi.fetchSellerProductDetail(selectedProduct.value?.id ?? form.productId, { signal:isCurrent.signal });
     if (!isCurrent() || !modalOpen.value || String(requestedUserId) !== String(userStore.currentUser?.id)) return;
-    if (detail.rawStatus !== 'ON_SALE' || String(detail.sellerId) !== String(requestedUserId)) throw new Error('商品已不可报名，请重新选择在售商品');
+    if (String(detail.id) !== form.productId || detail.rawStatus !== 'ON_SALE' || String(detail.sellerId) !== String(requestedUserId)) throw new Error('商品已不可报名，请重新选择在售商品');
     productDetail.value = detail;
   } catch (error) {
     if (isCurrent()) productDetailError.value = error instanceof Error ? error.message : '商品规格读取失败';
@@ -191,13 +191,14 @@ async function submit() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++submitWriteVersion;
+  const requestedSession = userStore.sessionVersion;
   const submittedModalVersion = modalVersion;
   const requestedSessionId = form.sessionId;
   const requestedProductId = form.productId;
   const requestedSkuId = form.skuId;
   const requestedStock = form.flashStock;
   const requestedPrice = flashPrice?.value;
-  const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId)
+  const isCurrentWrite = () => operation === submitWriteVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId)
     && userStore.isBuyerActive && submittedModalVersion === modalVersion;
   submitting.value = true;
   try {
@@ -205,7 +206,7 @@ async function submit() {
       const latest = await productApi.fetchSellerProductDetail(requestedProductId);
       if (!isCurrentWrite()) return;
       const purchase = resolveProductPurchase(latest, requestedSkuId);
-      if (latest.rawStatus !== 'ON_SALE' || String(latest.sellerId) !== String(requestedUserId) || !purchase.available
+      if (String(latest.id) !== requestedProductId || latest.rawStatus !== 'ON_SALE' || String(latest.sellerId) !== String(requestedUserId) || !purchase.available
         || !!latest.hasSku !== !!productDetail.value?.hasSku || compareDecimalAmount(purchase.unitPrice!, selection.unitPrice!) !== 0 || purchase.stock !== selection.stock
         || requestedStock !== undefined && requestedStock > purchase.stock) {
         Message.warning('商品价格、规格或库存已变化，请重新选择并核对后报名');
@@ -230,7 +231,7 @@ async function submit() {
       // 请求层已展示业务错误，保留表单供用户修正后重试。
     }
   } finally {
-    if (operation === submitWriteVersion) submitting.value = false;
+    if (operation === submitWriteVersion && userStore.sessionVersion === requestedSession) submitting.value = false;
   }
 }
 
@@ -240,7 +241,8 @@ function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++cancelWriteVersion;
-  const isCurrentWrite = () => operation === cancelWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId) && userStore.isBuyerActive;
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === cancelWriteVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId) && userStore.isBuyerActive;
   cancelingEnrollmentKey.value = key;
   confirmationModal = Modal.confirm({
     title: '取消秒杀报名？',
@@ -262,7 +264,7 @@ function cancel(item: Api.RealFlashSale.EnrollmentDTO) {
       } catch {
         // 请求层已展示业务错误，避免未处理的确认回调异常。
       } finally {
-        if (operation === cancelWriteVersion) cancelingEnrollmentKey.value = '';
+        if (operation === cancelWriteVersion && userStore.sessionVersion === requestedSession) cancelingEnrollmentKey.value = '';
       }
     }
   });
@@ -287,7 +289,7 @@ onBeforeUnmount(() => {
   cancelWriteVersion += 1;
   Object.values(sectionGuards).forEach(guard => guard.invalidate());
 });
-watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.isBuyerActive], () => {
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.isBuyerActive, () => userStore.sessionVersion], () => {
   confirmationModal?.close();
   productPageGuard.invalidate();
   productDetailGuard.invalidate();

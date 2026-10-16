@@ -23,14 +23,15 @@ const loadError = ref('');
 const formError = ref('');
 const form = reactive({ loginPassword: '', oldPayPassword: '', payPassword: '', confirmPayPassword: '' });
 let operationVersion = 0;
+let disposed = false;
 
 const valid = computed(() => /^\d{6}$/.test(form.payPassword) && form.payPassword === form.confirmPayPassword
   && (mode.value === 'update' ? /^\d{6}$/.test(form.oldPayPassword) : !!form.loginPassword));
 
 onMounted(() => void load());
-onBeforeUnmount(() => { operationVersion += 1; Object.assign(form, { loginPassword: '', oldPayPassword: '', payPassword: '', confirmPayPassword: '' }); });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+onBeforeUnmount(() => { disposed = true; operationVersion += 1; Object.assign(form, { loginPassword: '', oldPayPassword: '', payPassword: '', confirmPayPassword: '' }); });
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], (next, previous) => {
+  if (String(next[0]) === String(previous[0]) && next[1] === previous[1]) return;
   operationVersion += 1;
   submitting.value = false;
   status.value = undefined;
@@ -60,15 +61,22 @@ function loginPasswordRedirect(targetMode: 'set' | 'reset') {
 }
 
 async function ensureLoginPassword(targetMode: Mode) {
+  const version = operationVersion;
+  const userId = userStore.currentUser?.id;
+  const session = userStore.sessionVersion;
+  const isCurrent = () => !disposed && version === operationVersion && mode.value === targetMode
+    && userStore.sessionVersion === session && userId !== undefined && String(userStore.currentUser?.id) === String(userId);
+  if (!isCurrent()) return false;
   if (targetMode === 'update') return true;
   if (userStore.currentUser?.loginPasswordSet === undefined) {
     try {
       await userStore.refreshCurrentUser({ deferAccount: true });
     } catch {
-      Message.error('登录密码状态读取失败，请稍后重试');
+      if (isCurrent()) Message.error('登录密码状态读取失败，请稍后重试');
       return false;
     }
   }
+  if (!isCurrent()) return false;
   if (userStore.currentUser?.loginPasswordSet === false) {
     await loginPasswordRedirect(targetMode);
     return false;
@@ -83,11 +91,12 @@ async function ensureLoginPassword(targetMode: Mode) {
 async function load() {
   const operation = ++operationVersion;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   statusLoading.value = true;
   loadError.value = '';
   try {
     const nextStatus = await fetchPayPasswordStatus();
-    if (operation !== operationVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== operationVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     status.value = nextStatus;
     mode.value = requestedMode(nextStatus.hasSet);
     const allowed = await ensureLoginPassword(mode.value);
@@ -103,16 +112,19 @@ async function load() {
 
 async function handleModeChange(value: string | number | boolean) {
   if (value !== 'update' && value !== 'reset') return;
+  if (submitting.value) return;
+  const operation = ++operationVersion;
   mode.value = value;
   formError.value = '';
   Object.assign(form, { loginPassword: '', oldPayPassword: '', payPassword: '', confirmPayPassword: '' });
   if (value === 'reset' && !(await ensureLoginPassword('reset'))
-    && router.currentRoute.value.path === route.path) mode.value = 'update';
+    && !disposed && operation === operationVersion && router.currentRoute.value.path === route.path) mode.value = 'update';
 }
 
 async function submit() {
   if (!valid.value || submitting.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const submittedMode = mode.value;
   const operation = ++operationVersion;
@@ -120,7 +132,7 @@ async function submit() {
   formError.value = '';
   try {
     if (!(await ensureLoginPassword(submittedMode))) return;
-    if (operation !== operationVersion || String(userStore.currentUser?.id) !== String(requestedUserId)
+    if (operation !== operationVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)
       || mode.value !== submittedMode || !valid.value) return;
     if (submittedMode === 'set') {
       await setPayPassword({ loginPassword: form.loginPassword, payPassword: form.payPassword, confirmPayPassword: form.confirmPayPassword });
@@ -129,15 +141,18 @@ async function submit() {
     } else {
       await updatePayPassword({ oldPayPassword: form.oldPayPassword, payPassword: form.payPassword, confirmPayPassword: form.confirmPayPassword });
     }
-    if (operation !== operationVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== operationVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     Object.assign(form, { loginPassword: '', oldPayPassword: '', payPassword: '', confirmPayPassword: '' });
     Message.success(submittedMode === 'set' ? '支付密码设置成功' : submittedMode === 'reset' ? '支付密码重置成功' : '支付密码修改成功');
     submitting.value = false;
+    const statusVersion = operationVersion + 1;
     await load();
+    if (disposed || statusVersion !== operationVersion || userStore.sessionVersion !== requestedSession
+      || String(userStore.currentUser?.id) !== String(requestedUserId) || loadError.value) return;
     const redirect = businessRedirect();
     if (redirect) await router.replace(redirect);
   } catch (error) {
-    if (operation !== operationVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== operationVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     if (error instanceof RequestError && error.code === '-316' && submittedMode !== 'update') {
       Object.assign(form, { loginPassword: '', oldPayPassword: '', payPassword: '', confirmPayPassword: '' });
       Message.warning(error.message);

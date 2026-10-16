@@ -34,7 +34,7 @@ const confirmationOpen = ref(false);
 const pendingIntent = ref<ReturnType<typeof readRefundIntent>>();
 const recoveryError = ref('');
 const form = reactive({ reason: '', evidenceImages: [] as string[] });
-const { markInteracted, markSaved } = useUnsavedForm(() => form, () => userStore.currentUser?.id);
+const { markInteracted, markSaved } = useUnsavedForm(() => form, () => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${orderId.value}`);
 const eligible = computed(() => getOrderCapabilities(order.value, userStore.currentUser?.id).refund);
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
@@ -50,6 +50,7 @@ function cancelCreate() {
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
+  const requestedOrderId = orderId.value;
   if (!userId || !orderId.value) {
     loading.value = false;
     order.value = undefined;
@@ -64,6 +65,7 @@ async function load() {
   try {
     const nextOrder = await orderApi.fetchOrderDetail(orderId.value, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    if (!sameBusinessId(nextOrder.id, requestedOrderId)) throw new Error('订单详情对象不一致');
     order.value = nextOrder;
   } catch {
     if (!isCurrent()) return;
@@ -79,7 +81,7 @@ onBeforeUnmount(() => {
   confirmationModal?.close();
   requestGuard.invalidate();
 });
-watch([orderId, () => userStore.currentUser?.id], () => {
+watch([orderId, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   requestGuard.invalidate();
   writeVersion += 1;
   confirmationModal?.close();
@@ -102,25 +104,38 @@ function submit(restoring = false) {
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
+  const requestedSession = userStore.sessionVersion;
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
     title: '确认申请仅退款？',
     content: '申请提交后由买手确认意见，再由平台审核；平台审核通过后退款会原路退回钱包。',
     okText: '提交申请',
     onCancel() {
-      if (operation === writeVersion) confirmationOpen.value = false;
+      if (operation === writeVersion && userStore.sessionVersion === requestedSession) confirmationOpen.value = false;
     },
     async onOk() {
-      const isCurrentWrite = () => operation === writeVersion
+      const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession
         && String(userStore.currentUser?.id) === String(requestedUserId)
         && sameBusinessId(order.value?.id, requestedOrderId);
       if (!isCurrentWrite() || (!restoring && !eligible.value)) {
-        if (operation === writeVersion) confirmationOpen.value = false;
+        if (operation === writeVersion && userStore.sessionVersion === requestedSession) confirmationOpen.value = false;
         return;
       }
       submitting.value = true;
       try {
-        const refundId = await submitRefundIntent(requestedUserId, snapshot, { lookup: refundApi.fetchRefundByKey, submit: params => refundApi.createRefund(params, { showError: false }) }, restoring);
+        if (!restoring) {
+          const latest = await orderApi.fetchOrderDetail(requestedOrderId);
+          if (!isCurrentWrite()) return;
+          if (!sameBusinessId(latest.id, requestedOrderId) || !getOrderCapabilities(latest, requestedUserId).refund) {
+            if (sameBusinessId(latest.id, requestedOrderId)) order.value = latest;
+            Message.warning('当前订单状态或退款资格已变化，请重新核对');
+            return;
+          }
+        }
+        const refundId = await submitRefundIntent(requestedUserId, snapshot, { lookup: refundApi.fetchRefundByKey, submit: params => {
+          if (!isCurrentWrite()) throw new Error('原申请页面或登录会话已变化，本次未继续提交');
+          return refundApi.createRefund(params, { showError: false });
+        } }, restoring);
         if (!isCurrentWrite()) return;
         try { pendingIntent.value = readRefundIntent(requestedUserId, requestedOrderId); } catch { recoveryError.value = '原申请读取失败，请先到我的售后核实'; }
         markSaved();
@@ -135,7 +150,7 @@ function submit(restoring = false) {
           Message.warning(error instanceof Error ? error.message : '未取得确定结果，请恢复原申请核对');
         }
       } finally {
-        if (operation === writeVersion) {
+        if (operation === writeVersion && userStore.sessionVersion === requestedSession) {
           submitting.value = false;
           confirmationOpen.value = false;
         }
@@ -166,7 +181,7 @@ const submitDisabledReason = computed(() => {
         <section class="checkout-item refund-order"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
         <Alert v-if="!eligible" class="notice"><AlertDescription id="refund-unavailable">仅“待发货”或“待收货”订单可申请仅退款。</AlertDescription></Alert>
         <section class="field"><Label for="refund-reason" class="section-title">退款原因 <span aria-hidden="true">*</span></Label><Textarea id="refund-reason" v-model="form.reason" :disabled="!eligible || submitting || confirmationOpen" :aria-describedby="!eligible ? 'refund-unavailable' : undefined" maxlength="512" rows="5" placeholder="请说明退款原因，例如商品与描述不符" required /><small class="word-count">{{ form.reason.length }}/512</small></section>
-        <section class="field"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader v-model="form.evidenceImages" :max="6" :disabled="!eligible || submitting || confirmationOpen" @uploading="uploading = $event" /></section>
+        <section class="field"><h2 class="section-title">上传凭证 <small>可选，最多 6 张</small></h2><AftersaleEvidenceUploader :key="`${orderId}:${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-model="form.evidenceImages" :max="6" :disabled="!eligible || submitting || confirmationOpen" @uploading="uploading = $event" /></section>
         <footer class="button-row actions"><button type="button" class="outline"  :disabled="submitting || confirmationOpen" @click="cancelCreate">取消</button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="submitDisabledReason ? 0 : undefined"><button type="button" class="primary" :disabled="!!submitDisabledReason" @click="submit(false)">{{ submitting ? '提交中…' : '提交仅退款申请' }}</button></span></TooltipTrigger><TooltipContent v-if="submitDisabledReason">{{ submitDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></footer>
       </template>
       <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-52" /><Skeleton class="h-44" /></div>
@@ -182,4 +197,8 @@ const submitDisabledReason = computed(() => {
 .word-count { text-align:right; color:var(--muted); }.notice { margin:18px 0; }.notice button { margin-top:10px; }
 .actions { justify-content:flex-end; }.actions > span { flex:1; }.actions > span button { width:100%; }
 .skeletons { display:grid; gap:18px; }
+@media(max-width:700px) {
+  .refund-order { flex-wrap:wrap; }
+  .refund-order .amount { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+}
 </style>

@@ -38,7 +38,7 @@ async function load() {
 }
 
 watch(
-  () => [props.visible, props.kind, userStore.currentUser?.id, userStore.sessionVersion] as const,
+  [() => props.visible, () => props.kind, () => userStore.currentUser?.id, () => userStore.sessionVersion],
   ([v]) => {
     loadGuard.invalidate();
     if (v) {

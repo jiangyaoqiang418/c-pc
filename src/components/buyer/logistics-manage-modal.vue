@@ -7,6 +7,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import DateTimeInput from '@/components/common/date-time-input.vue';
 import { reactive, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
+import { useUserStore } from '@/stores';
+import { getOrderCapabilities } from '@/utils/order';
 
 interface Props {
   visible: boolean;
@@ -14,6 +16,7 @@ interface Props {
   submitting?: boolean;
 }
 const props = defineProps<Props>();
+const userStore = useUserStore();
 const emit = defineEmits<{
   (e: 'update:visible', value: boolean): void;
   (e: 'create-track', params: Api.RealOrder.LogisticsTrackParams): void;
@@ -38,7 +41,7 @@ const TRACK_STATUSES: Array<{ value: Api.RealOrder.LogisticsStatus; label: strin
   { value: 'RETURNED', label: '已退回' }
 ];
 
-watch(() => props.visible, visible => {
+watch([() => props.visible, () => props.order?.id, () => userStore.sessionVersion, () => userStore.currentAudience], ([visible]) => {
   if (!visible) return;
   activeTab.value = 'track';
   track.status = 'IN_TRANSIT';
@@ -50,7 +53,8 @@ watch(() => props.visible, visible => {
 });
 
 function submitTrack() {
-  if (!props.order || props.submitting) return;
+  if (!props.visible || !props.order || props.submitting || !userStore.isBuyerActive) return;
+  if (!getOrderCapabilities(props.order, userStore.currentUser?.id).isSeller || props.order.status !== 'IN_TRANSIT') return;
   if (!track.description.trim()) {
     Message.warning('请填写物流轨迹说明');
     return;
@@ -65,7 +69,8 @@ function submitTrack() {
 }
 
 function submitException() {
-  if (!props.order || props.submitting) return;
+  if (!props.visible || !props.order || props.submitting || !userStore.isBuyerActive) return;
+  if (!getOrderCapabilities(props.order, userStore.currentUser?.id).isSeller || props.order.status !== 'IN_TRANSIT') return;
   if (!exception.description.trim()) {
     Message.warning('请填写异常说明');
     return;

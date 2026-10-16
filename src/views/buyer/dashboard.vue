@@ -99,8 +99,7 @@ async function loadAll() {
 
 onMounted(loadAll);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], () => {
   pendingOrders.value = [];
   claimable.value = [];
   claimableTotal.value = undefined;

@@ -32,10 +32,12 @@ function onFocusOut(key: number, event: FocusEvent) {
     :closable="item.closable ?? false" :mask-closable="item.maskClosable ?? false" :ok-button-props="item.okButtonProps"
     :on-before-cancel="async () => {
       if (await item.onBeforeCancel?.() === false) return false;
+      if (!confirmations.some(current => current.key === item.key)) return false;
       await item.onCancel?.();
       return true;
     }" :on-before-ok="async () => {
       if (await item.onBeforeOk?.() === false) return false;
+      if (!confirmations.some(current => current.key === item.key)) return false;
       await item.onOk?.();
       return true;
     }" @close="closeConfirmation(item.key)">

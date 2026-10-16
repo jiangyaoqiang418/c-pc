@@ -23,7 +23,7 @@ const loading = ref(false);
 const submitting = ref(false);
 const uploadStates = reactive({ front: false, back: false, holding: false });
 const uploading = computed(() => Object.values(uploadStates).some(Boolean));
-const uploadContext = computed(() => `${String(userStore.currentUser?.id)}:${form.idType}`);
+const uploadContext = computed(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${form.idType}`);
 const kycDetail = ref<Api.RealKyc.KycVO | null>();
 const schema = ref<Api.RealKyc.Schema>();
 const loadError = ref('');
@@ -39,8 +39,8 @@ const form = reactive<Api.RealKyc.SubmitParams>({
   holdingPhotoFileId: '',
   nationality: '中国'
 });
-const requestGuard = createLatestRequestGuard();
-const { markInteracted, markSaved } = useUnsavedForm(() => form, () => userStore.currentUser?.id);
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const { markInteracted, markSaved } = useUnsavedForm(() => form, () => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 
 function toDisplayStatus(value?: string): Api.User.KycStatus {
   if (value === 'PASSED') {
@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   writeVersion += 1;
   submitting.value = false;
   requestGuard.invalidate();
@@ -210,9 +210,10 @@ async function submit() {
     return;
   }
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     const snapshot = { ...form, realName: form.realName.trim(), idNo: form.idNo.trim(), nationality: form.nationality?.trim() || undefined };
@@ -265,7 +266,7 @@ function previewPrivate(url: string) {
   previewIndex.value = Math.max(0, previewImages.value.indexOf(url));
   previewVisible.value = true;
 }
-watch(() => userStore.currentUser?.id, () => { previewVisible.value = false; });
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => { previewVisible.value = false; });
 const submitDisabledReason = computed(() => {
   if (uploading.value) return '证件图片正在上传，请稍候';
   if (submitting.value) return '认证资料正在提交，请稍候';

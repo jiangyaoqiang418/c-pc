@@ -1,0 +1,724 @@
+[
+  {
+    "label": "catalog-after-320x700",
+    "qa": true,
+    "route": "/product/list",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "filter-mask-close-no-navigation",
+    "qa": true,
+    "route": "/product/list",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "filter-cross-701-closes-unlocks",
+    "qa": true,
+    "route": "/product/list",
+    "w": 701,
+    "h": 700,
+    "scale": 1,
+    "vw": 701,
+    "vh": 700,
+    "dw": 701,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "10-im-after-320",
+    "qa": true,
+    "route": "/im?conversationId=1006cus",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "11-im-conversation-after-320",
+    "qa": true,
+    "route": "/im?conversationId=2107332841201819649",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "message-input",
+        "display": "grid",
+        "rect": {
+          "x": 13,
+          "y": 584,
+          "width": 294,
+          "height": 107,
+          "top": 584,
+          "right": 307,
+          "bottom": 691,
+          "left": 13
+        }
+      },
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "12-im-focus-short-height",
+    "qa": true,
+    "route": "/im?conversationId=2107332841201819649",
+    "w": 320,
+    "h": 568,
+    "scale": 1,
+    "vw": 320,
+    "vh": 568,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "message-input",
+        "display": "grid",
+        "rect": {
+          "x": 13,
+          "y": 452,
+          "width": 294,
+          "height": 107,
+          "top": 452,
+          "right": 307,
+          "bottom": 559,
+          "left": 13
+        }
+      },
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "13-cart-empty",
+    "qa": true,
+    "route": "/cart",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "15-wallet-ready",
+    "qa": true,
+    "route": "/wallet",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "18-buyer-create-top",
+    "qa": true,
+    "route": "/buyer/products/create",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "buyer-form-footer",
+        "display": "flex",
+        "rect": {
+          "x": 12,
+          "y": 549.6015625,
+          "width": 296,
+          "height": 74.3984375,
+          "top": 549.6015625,
+          "right": 308,
+          "bottom": 624,
+          "left": 12
+        }
+      },
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "22-checkout-real-item",
+    "qa": true,
+    "route": "/checkout?contextId=6b5b3949-0970-47b7-81d7-2dd0a0bb85fc",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "24-buyer-categories",
+    "qa": true,
+    "route": "/buyer/categories/apply",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "25-buyer-dashboard",
+    "qa": true,
+    "route": "/buyer/dashboard",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "31-buyer-deposit-ready",
+    "qa": true,
+    "route": "/buyer/deposit",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "32-wallet-after",
+    "qa": true,
+    "route": "/wallet",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "35-points",
+    "qa": true,
+    "route": "/points",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "36-profile",
+    "qa": true,
+    "route": "/profile",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "46-buyer-products-after",
+    "qa": true,
+    "route": "/buyer/products",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "64-wallet-320-final",
+    "qa": true,
+    "route": "/wallet",
+    "w": 320,
+    "h": 700,
+    "scale": 1,
+    "vw": 320,
+    "vh": 700,
+    "dw": 320,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 636,
+          "width": 320,
+          "height": 64,
+          "top": 636,
+          "right": 320,
+          "bottom": 700,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "68-im-393x852",
+    "qa": true,
+    "route": "/im?conversationId=2110751080346902530",
+    "w": 393,
+    "h": 852,
+    "scale": 1,
+    "vw": 393,
+    "vh": 852,
+    "dw": 393,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "message-input",
+        "display": "grid",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "69-im-conversation-loaded-393x852",
+    "qa": true,
+    "route": "/im?conversationId=2110751080346902530",
+    "w": 393,
+    "h": 852,
+    "scale": 1,
+    "vw": 393,
+    "vh": 852,
+    "dw": 393,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "message-input",
+        "display": "grid",
+        "rect": {
+          "x": 13,
+          "y": 736,
+          "width": 367,
+          "height": 107,
+          "top": 736,
+          "right": 380,
+          "bottom": 843,
+          "left": 13
+        }
+      },
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "70-im-desktop-1440x900",
+    "qa": true,
+    "route": "/im?conversationId=2110751080346902530",
+    "w": 1440,
+    "h": 900,
+    "scale": 1,
+    "vw": 1440,
+    "vh": 900,
+    "dw": 1440,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "message-input",
+        "display": "grid",
+        "rect": {
+          "x": 309,
+          "y": 762,
+          "width": 1114,
+          "height": 125,
+          "top": 762,
+          "right": 1423,
+          "bottom": 887,
+          "left": 309
+        }
+      },
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  },
+  {
+    "label": "71-buyer-products-desktop-1440x900",
+    "qa": true,
+    "route": "/buyer/products",
+    "w": 1440,
+    "h": 900,
+    "scale": 1,
+    "vw": 1440,
+    "vh": 900,
+    "dw": 1440,
+    "overflow": "clip visible",
+    "keyboard": false,
+    "fixed": [
+      {
+        "class": "mobile-nav",
+        "display": "none",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      }
+    ]
+  }
+]

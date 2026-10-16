@@ -20,7 +20,7 @@ const pointRules = ref<Api.RealPoint.Rule[]>([]);
 const audience = ref<Api.Vip.Audience>('customer');
 const loading = ref(true);
 const vipLoadError = ref('');
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let disposed = false;
 
 const user = computed(() => userStore.currentUser);
@@ -75,9 +75,9 @@ onBeforeUnmount(() => {
   disposed = true;
   requestGuard.invalidate();
 });
-watch([() => userStore.currentUser?.id, () => userStore.currentAudience], (next, previous) => {
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], (next, previous) => {
   if (disposed) return;
-  if (String(next[0]) === String(previous[0]) && next[1] === previous[1]) return;
+  if (String(next[0]) === String(previous[0]) && next[1] === previous[1] && next[2] === previous[2]) return;
   requestGuard.invalidate();
   vipStatus.value = undefined;
   audience.value = 'customer';

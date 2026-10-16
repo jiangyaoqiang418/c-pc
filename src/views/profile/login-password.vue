@@ -37,8 +37,8 @@ const canSubmit = computed(() => userStore.currentUser?.loginPasswordSet === fal
 
 onMounted(() => void loadState());
 onBeforeUnmount(() => { operationVersion += 1; form.password = ''; form.confirmPassword = ''; });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], (next, previous) => {
+  if (String(next[0]) === String(previous[0]) && next[1] === previous[1]) return;
   operationVersion += 1;
   submitting.value = false;
   saved.value = false;
@@ -85,6 +85,7 @@ function validate() {
 async function submit() {
   if (submitting.value || saved.value || !validate()) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined || userStore.currentUser?.loginPasswordSet !== false) return;
   const operation = ++operationVersion;
   submitting.value = true;
@@ -96,14 +97,14 @@ async function submit() {
       confirmPassword: form.confirmPassword,
       ...(needsEmail.value ? { email: form.email.trim() } : {})
     });
-    if (operation !== operationVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== operationVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     saved.value = true;
     form.password = '';
     form.confirmPassword = '';
     submitting.value = false;
     await loadState(true);
   } catch (error) {
-    if (operation !== operationVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== operationVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     const message = error instanceof Error ? error.message : '设置失败，请稍后重试';
     if (error instanceof RequestError && message.includes('已设置过登录密码')) {
       saved.value = true;

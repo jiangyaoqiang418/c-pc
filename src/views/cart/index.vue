@@ -22,7 +22,7 @@ function closeRemoval() {
   removalModal = undefined;
 }
 onBeforeUnmount(closeRemoval);
-watch(() => userStore.currentUser?.id, closeRemoval);
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], closeRemoval);
 
 const items = computed(() => cart.enrichedItems);
 const selection = computed(() => cart.allSelected ? true : items.value.some(item => item.selected) ? 'indeterminate' as const : false);
@@ -53,14 +53,17 @@ function remove(productId: string | number, skuId?: string | number) {
       if (operation !== removalVersion || String(userStore.currentUser?.id) !== String(userId)) return;
       removalModal = undefined;
       if (!cart.items.some(item => String(item.productId) === String(productId) && sameSkuId(item.skuId, skuId) && item.addedAt === addedAt)) return;
-      if (await cart.remove(productId, skuId)) Message.success('已移除');
+      const removed = await cart.remove(productId, skuId);
+      if (removed && operation === removalVersion && String(userStore.currentUser?.id) === String(userId)) Message.success('已移除');
     }
   });
 }
 
 async function clearInvalid() {
+  const operation = removalVersion;
+  const userId = userStore.currentUser?.id;
   const results = await Promise.all(items.value.filter(i => i.confirmedInvalid).map(i => cart.remove(i.productId, i.skuId)));
-  if (results.every(Boolean)) Message.success('已清理失效商品');
+  if (operation === removalVersion && String(userStore.currentUser?.id) === String(userId) && results.length && results.every(Boolean)) Message.success('已清理失效商品');
 }
 
 function goCheckout() {
@@ -157,5 +160,18 @@ onMounted(() => {
 .cart-quantity :deep(.quantity-stepper) { height:34px; border-color:var(--ui-dce1d3,#dce1d3); border-radius:4px; background:var(--paper); }
 .cart-quantity :deep(.quantity-stepper button) { width:32px; height:32px; color:var(--ui-718267,#718267); }
 .cart-quantity :deep(.quantity-input) { width:34px; height:32px; font-size:11px; padding:0; background:transparent; box-shadow:none; }
-@media (max-width:700px) { .cart-quantity :deep(.quantity-stepper) { height:29px; } .cart-quantity :deep(.quantity-stepper button),.cart-quantity :deep(.quantity-input) { width:27px; height:27px; } .cart-quantity :deep(.quantity-input) { font-size:10px; } }
+@media (max-width:700px) {
+  .cart-item { display:grid; grid-template-columns:16px auto minmax(0,1fr); row-gap:10px; }
+  .cart-item > img { grid-column:2; grid-row:1 / 3; }
+  .cart-product { grid-column:3; grid-row:1; }
+  .cart-item .item-name { display:block; padding-right:32px; }
+  .cart-item-end { position:static; grid-column:3; grid-row:2; min-width:0; align-items:flex-end; }
+  .cart-item-end b { max-width:100%; white-space:normal; overflow-wrap:anywhere; text-align:right; }
+  .cart-item-end button { top:14px; right:0; width:32px; height:32px; display:grid; place-items:center; }
+  .cart-quantity :deep(.quantity-stepper) { height:46px; }
+  .cart-quantity :deep(.quantity-stepper button),.cart-quantity :deep(.quantity-input) { width:44px; height:44px; }
+  .cart-quantity :deep(.quantity-input) { font-size:16px; }
+  .summary-card :is(.money-row,.summary-total) { flex-wrap:wrap; gap:8px 15px; }
+  .summary-card :is(.money-row,.summary-total) > b { min-width:0; max-width:100%; margin-left:auto; overflow-wrap:anywhere; text-align:right; }
+}
 </style>

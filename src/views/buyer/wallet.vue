@@ -22,7 +22,7 @@ const loading = ref(false);
 const loadError = ref('');
 const drawerOpen = ref(false);
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const buyerLedgerTypes: Api.Wallet.TxnType[] = ['DEPOSIT_PLEDGE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT', 'ORDER_SETTLE', 'INTEREST_ACCRUE'];
 
 async function loadAll() {
@@ -58,9 +58,9 @@ async function loadAll() {
 onMounted(loadAll);
 onBeforeUnmount(requestGuard.invalidate);
 watch(
-  [() => userStore.currentAudience, () => userStore.currentUser?.id],
-  ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
-    if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
+  [() => userStore.currentAudience, () => userStore.currentUser?.id, () => userStore.sessionVersion],
+  ([nextAudience, nextUserId, nextSession], [previousAudience, previousUserId, previousSession]) => {
+    if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId) && nextSession === previousSession) return;
     requestGuard.invalidate();
     txns.value = [];
     drawerTxn.value = undefined;

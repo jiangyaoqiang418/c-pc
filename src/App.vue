@@ -8,6 +8,7 @@ import { Icon } from '@iconify/vue';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import EmptyState from '@/components/common/empty-state.vue';
+import { installMobileViewport } from '@/utils/mobile-viewport';
 
 const layouts = {
   default: defineAsyncComponent(() => import('@/layouts/default.vue')),
@@ -21,6 +22,7 @@ const userStore = useUserStore();
 const cartStore = useCartStore();
 const notifyStore = useNotifyStore();
 const routeReady = ref(false);
+let disposeMobileViewport: (() => void) | undefined;
 void router.isReady().then(
   () => { routeReady.value = true; },
   () => { routeReady.value = true; }
@@ -54,6 +56,7 @@ function onSessionStorage(event: StorageEvent) {
 }
 
 onMounted(async () => {
+  disposeMobileViewport = installMobileViewport();
   window.addEventListener('storage', onSessionStorage);
   window.addEventListener('storage', cartStore.onCartStorage);
   window.addEventListener('focus', cartStore.syncExternalCart);
@@ -65,6 +68,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  disposeMobileViewport?.();
   window.removeEventListener('storage', onSessionStorage);
   window.removeEventListener('storage', cartStore.onCartStorage);
   window.removeEventListener('focus', cartStore.syncExternalCart);

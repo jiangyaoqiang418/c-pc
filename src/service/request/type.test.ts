@@ -1164,6 +1164,8 @@ describe('登录失效跳转边界', () => {
     reviews.confirmExisting({ orderId: 'qa-order', reviewId: 'qa-review', userId: 'account-b' } as Api.RealReview.ReviewDTO);
     expect(reviews.getPending(params.orderId)).toBeDefined();
     reviews.confirmExisting({ orderId: 'qa-order', reviewId: 'qa-review', userId: 'account-a' } as Api.RealReview.ReviewDTO);
+    expect(reviews.getPending(params.orderId)).toBeDefined();
+    reviews.confirmExisting({ ...params, reviewId: 'qa-review', userId: 'account-a', status: 'PUBLISHED' });
     expect(reviews.getPending(params.orderId)).toBeUndefined();
   });
 

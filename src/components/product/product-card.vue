@@ -91,7 +91,7 @@ function goDetail() {
       <span>{{ product.brandName }} <small>{{ categoryCaption }}</small></span>
       <button type="button" class="product-name" :title="product.title" @click="goDetail">{{ product.title }}</button>
       <p>{{ product.summary }}</p>
-      <div class="product-price">{{ price }} <small>USDT</small><span aria-hidden="true">↗</span>
+      <div class="product-price"><data class="product-amount" :value="String(product.price)">{{ price }}</data> <small>USDT</small><span aria-hidden="true">↗</span>
         <button type="button" class="meme-card-open" :aria-label="'选购 ' + product.title" @click="goDetail"><UmIcon name="arrow" /></button>
       </div>
       <div class="product-service">{{ aftersale.label }} <span>已售 {{ product.salesCount ?? '—' }}</span></div>
@@ -104,6 +104,10 @@ function goDetail() {
 .meme-card-top > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meme-card-top > span { min-width: 0; }
 .product-name:focus-visible, .image-button:focus-visible, .meme-card-open:focus-visible { outline: 3px solid var(--gold); outline-offset: -3px; }
+@media (max-width:700px) {
+  .product-price .product-amount { min-width:0; white-space:normal; overflow-wrap:anywhere; }
+  .product-price > small { flex-shrink:0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .product-card, .product-image img, .quick-view, .favorite { transition: none !important; }
   .product-card:hover, .product-card:hover .product-image img { transform: none !important; }

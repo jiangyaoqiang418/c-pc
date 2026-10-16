@@ -2,12 +2,60 @@
 html, body, #app { background: var(--bg); color: var(--ink); font-family: var(--font-ui); }
 html.theme-changing * { transition: none !important; }
 .empty > svg { display:inline-block; }
+/* Wallet-row chevrons stay inline with amounts despite Tailwind's SVG reset. */
+.buyer-wallet :is(.buyer-bucket,.buyer-ledger) > strong > svg { display:inline-block; }
 /* The reference .outline is a button variant, also named by Tailwind's outline
    utility. Suppress only the idle utility stroke; preserve reference keyboard focus. */
 :is(button,a).outline:not(:focus-visible) { outline-style:none; }
+/* A composite filter is one control: its wrapper owns spacing and its input fills it. */
+:root[data-ui-theme] .buyer-filter > label {
+  height:46px;
+  min-height:46px;
+  padding-block:0;
+}
+:root[data-ui-theme] .buyer-filter > label > input {
+  height:100%;
+  padding-block:0;
+  background:transparent;
+}
+:root[data-ui-theme] .buyer-filter > button,
+:root[data-ui-theme] .buyer-filter > .category-picker > .category-trigger { min-height:46px; }
+/* Composite searches own one focus ring around the icon and editable field. */
+:root[data-ui-theme] :is(.buyer-filter > label,.review-search,.search-bar.search-box):focus-within {
+  border-color:var(--focus-ring,var(--green));
+  outline:2px solid var(--focus-ring,var(--green));
+  outline-offset:2px;
+}
+:root[data-ui-theme] :is(.buyer-filter > label,.review-search,.search-bar.search-box) > input:focus {
+  outline:none;
+  box-shadow:none;
+}
 /* Match the reference's adjacent heading rule across the wallet page wrapper. */
 @media (max-width:700px) {
   .breadcrumb:has(+ .wallet-page > .page-heading) { display:none; }
+  :root[data-ui-theme] .buyer-filter.order-search > label { flex-basis:100%; }
+  :root[data-ui-theme] .buyer-filter.order-search > button { flex:1; }
+}
+
+/* Only while a phone keyboard covers the layout viewport; desktop rules stay intact. */
+@media (max-width:700px) {
+  :root[data-mobile-keyboard] .layout-default.is-messaging {
+    position:fixed;
+    inset-inline:0;
+    top:var(--mobile-viewport-top);
+    height:var(--mobile-viewport-height);
+  }
+  :root[data-mobile-keyboard] .layout-default > :is(.mobile-nav,.floating-tools) { display:none; }
+  :root[data-mobile-keyboard][data-ui-theme] .um-dialog.dialog {
+    bottom:var(--mobile-keyboard-inset);
+    max-height:calc(var(--mobile-viewport-height) - 12px)!important;
+  }
+  :root[data-mobile-keyboard] .is-messaging > .messaging-header,
+  :root[data-mobile-keyboard] .is-messaging :is(.im-page,.im-group-page) > .page-heading,
+  :root[data-mobile-keyboard] .is-messaging :is(.conversation-actions,.header-product p,.order-strip) { display:none; }
+  :root[data-mobile-keyboard] .is-messaging .main-container { padding-block:4px; }
+  :root[data-mobile-keyboard] .is-messaging .conversation-header.section-heading { padding:4px 8px; gap:4px; }
+  :root[data-mobile-keyboard] .buyer-form-footer { position:static; }
 }
 
 /* Content stays inside its fading mask, matching the reference's inherited opacity. */

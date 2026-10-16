@@ -28,7 +28,7 @@ const profileRefreshError = ref(false);
 const refreshingProfile = ref(false);
 let profileLoadVersion = 0;
 let profileWriteVersion = 0;
-const profileRequestGuard = createLatestRequestGuard();
+const profileRequestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const editForm = reactive<Api.RealAuth.ProfileUpdateParams>({
   nickname: '',
   phone: '',
@@ -85,7 +85,7 @@ onBeforeUnmount(() => {
   profileLoadVersion += 1;
   profileWriteVersion += 1;
 });
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   profileWriteVersion += 1;
   savingProfile.value = false;
   refreshingProfile.value = false;
@@ -111,6 +111,7 @@ async function saveProfile() {
     return;
   }
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const operation = ++profileWriteVersion;
   savingProfile.value = true;
@@ -120,7 +121,7 @@ async function saveProfile() {
       phone: editForm.phone?.trim() || undefined,
       avatar: editForm.avatar?.trim() || undefined
     });
-    if (operation !== profileWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== profileWriteVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     editVisible.value = false;
     Message.success('资料已更新');
     await refreshSavedProfile();

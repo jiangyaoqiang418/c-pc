@@ -76,4 +76,9 @@ const shownInterest = computed(() => props.order.status === 'HOLDING'
 <style scoped>
 .vault-position-head>div>div { min-width:0; }
 .vault-position h3,.vault-position small,.vault-position strong { overflow-wrap:anywhere; }
+@media (max-width:700px) {
+  .vault-position-metrics { grid-template-columns:minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.8fr); }
+  .vault-position-metrics > span { min-width:0; }
+  .vault-position-metrics strong { white-space:normal; }
+}
 </style>

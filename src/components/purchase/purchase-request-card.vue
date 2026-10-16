@@ -57,4 +57,8 @@ function goDetail() {
 .category,.code,.deadline { color:var(--muted); overflow-wrap:anywhere; }.title,.appeal { overflow-wrap:anywhere; }.appeal { white-space:pre-wrap; }
 .meta-tags { display:flex; flex-wrap:wrap; gap:14px; }.meta-tags span { display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); }
 .claimed { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }.actions { margin-top:16px; flex-wrap:wrap; }.actions > button:first-child { width:100%; }.danger { color:var(--yb-danger); }
+@media(max-width:700px) {
+  .money-row { flex-wrap:wrap; }
+  .money-row > strong { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+}
 </style>

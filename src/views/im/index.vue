@@ -79,10 +79,24 @@ const imagePreviewVisible = ref(false);
 const imagePreviewCurrent = ref(0);
 const deletingConversationId = ref<string | number>();
 const recallingMessageIds = ref(new Set<string>());
-const conversationListGuard = createLatestRequestGuard();
-const messageListGuard = createLatestRequestGuard();
-const olderMessagesGuard = createLatestRequestGuard();
-const incrementalMessagesGuard = createLatestRequestGuard();
+const conversationListGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const messageListGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const olderMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const incrementalMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const conversationOrdersGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const supportGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const interventionGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+
+function invalidateConversationActions() {
+  conversationOrdersGuard.invalidate();
+  supportGuard.invalidate();
+  interventionGuard.invalidate();
+  ordersLoading.value = false;
+  supportLoading.value = false;
+  interventionLoading.value = false;
+  conversationOrders.value = [];
+}
+
 let messageWriteVersion = 0;
 let readWriteVersion = 0;
 let recallWriteVersion = 0;
@@ -106,13 +120,13 @@ function cancelConversationRefresh() {
   conversationRefresh.cancel();
 }
 
-function isCurrentUser(userId: string | number | undefined) {
-  return userId !== undefined && String(userStore.currentUser?.id) === String(userId);
+function isCurrentUser(userId: string | number | undefined, session: number) {
+  return !disposed && userStore.sessionVersion === session && userId !== undefined && String(userStore.currentUser?.id) === String(userId);
 }
 
-function isCurrentMessageWrite(operation: number, userId: string | number, conversationId: string | number) {
+function isCurrentMessageWrite(operation: number, userId: string | number, conversationId: string | number, session: number) {
   return operation === messageWriteVersion
-    && isCurrentUser(userId)
+    && isCurrentUser(userId, session)
     && sameBusinessId(selectedConversationId.value, conversationId);
 }
 
@@ -233,6 +247,7 @@ async function selectFirstConversation() {
 
 async function selectConversation(conversation: Api.RealNotify.ImConversationVO, showOnMobile = false) {
   if (disposed) return;
+  invalidateConversationActions();
   if (showOnMobile) mobileConversationOpen.value = true;
   pendingConversationTarget.value = undefined;
   targetMessage.value = '';
@@ -293,12 +308,14 @@ async function loadConversationOrders() {
   const conversation = selectedConversation.value;
   if (!conversation || conversation.type !== 'ORDER_GROUP') return;
   const id = conversation.id;
+  const isCurrent = conversationOrdersGuard.begin();
   ordersLoading.value = true;
   try {
     const rows = await notifyApi.fetchConversationOrders(id, includeHistoryOrders.value);
-    if (sameBusinessId(selectedConversationId.value, id)) conversationOrders.value = rows;
-  } finally {
-    if (sameBusinessId(selectedConversationId.value, id)) ordersLoading.value = false;
+    if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) conversationOrders.value = rows;
+  } catch { /* 请求层已提示读取失败，保留当前列表供显式重试。 */ }
+  finally {
+    if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) ordersLoading.value = false;
   }
 }
 async function toggleHistoryOrders() {
@@ -306,24 +323,31 @@ async function toggleHistoryOrders() {
   await loadConversationOrders();
 }
 async function openSupportConversation() {
-  if (supportLoading.value) return;
+  if (disposed || supportLoading.value) return;
+  const isCurrent = supportGuard.begin();
   supportLoading.value = true;
   try {
     const conversation = await notifyApi.fetchSupportConversation();
+    if (!isCurrent() || disposed) return;
     const index = conversations.value.findIndex(item => sameBusinessId(item.id, conversation.id));
     if (index >= 0) conversations.value.splice(index, 1, conversation); else conversations.value.unshift(conversation);
     activeTab.value = 'cs';
     await selectConversation(conversation, true);
-  } finally { supportLoading.value = false; }
+  } catch { /* 请求层已提示失败，旧会话和发送内容保持不变。 */ }
+  finally { if (isCurrent()) supportLoading.value = false; }
 }
 async function requestIntervention() {
   const conversation = selectedConversation.value;
   if (!conversation || conversation.type !== 'ORDER_GROUP' || conversation.interveneStatus !== 'NONE' || interventionLoading.value) return;
+  const isCurrent = interventionGuard.begin();
   interventionLoading.value = true;
   try {
-    Object.assign(conversation, await notifyApi.requestConversationIntervention({ conversationId: conversation.id }));
+    const next = await notifyApi.requestConversationIntervention({ conversationId: conversation.id });
+    if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversation.id)) return;
+    Object.assign(conversation, next);
     Message.success('已申请平台介入');
-  } finally { interventionLoading.value = false; }
+  } catch { /* 请求层已提示失败；离开会话后的响应不再写回。 */ }
+  finally { if (isCurrent()) interventionLoading.value = false; }
 }
 
 async function loadOlderMessages() {
@@ -373,9 +397,10 @@ async function reportRead(expectedConversationId?: string | number) {
   if (!conversation || !lastReadMessageId || document.visibilityState !== 'visible') return;
   if (expectedConversationId !== undefined && !sameBusinessId(conversation.id, expectedConversationId)) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   if (conversation.lastReadMessageId !== undefined && compareBusinessId(lastReadMessageId, conversation.lastReadMessageId) <= 0) return;
-  const readKey = `${requestedUserId}:${conversation.id}:${lastReadMessageId}`;
+  const readKey = `${requestedUserId}:${requestedSession}:${conversation.id}:${lastReadMessageId}`;
   if (readRequests.has(readKey)) return;
   readRequests.add(readKey);
   const operation = ++readWriteVersion;
@@ -383,7 +408,7 @@ async function reportRead(expectedConversationId?: string | number) {
     await notifyApi.markConversationRead({ conversationId: conversation.id, lastReadMessageId });
     if (
       operation !== readWriteVersion
-      || !isCurrentUser(requestedUserId)
+      || !isCurrentUser(requestedUserId, requestedSession)
       || !sameBusinessId(selectedConversationId.value, conversation.id)
     ) return;
     conversation.lastReadMessageId = lastReadMessageId;
@@ -485,6 +510,7 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio' | 'video'; con
   const conversation = selectedConversation.value;
   if (!conversation || messageSending.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const conversationId = conversation.id;
   const operation = ++messageWriteVersion;
@@ -505,15 +531,15 @@ async function onSend(payload: { type: 'text' | 'image' | 'audio' | 'video'; con
     role: conversation.myRole
   }));
   await scrollToBottom();
-  if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+  if (!isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) return;
   try {
     const sent = await notifyApi.sendConversationMessage(params, { showError: false });
-    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) return;
     messages.value = mergeMessages(messages.value, sent);
     void loadConversations(false).catch(() => { /* 摘要刷新不阻塞已成功消息的输入框。 */ });
-    if (isCurrentMessageWrite(operation, requestedUserId, conversationId)) await scrollToBottom();
+    if (isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) await scrollToBottom();
   } catch (error) {
-    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) return;
     messages.value = markUnconfirmedMessageFailed(messages.value, clientMsgId);
     if (messages.value.some(message => message.clientMsgId === clientMsgId && message.failed)) {
       Message.error(error instanceof Error ? error.message : '未取得消息发送结果，请核对后使用原消息重试');
@@ -527,6 +553,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
   const conversation = selectedConversation.value;
   if (!conversation || !message.failed || messageSending.value || mediaBusy.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const conversationId = conversation.id;
   const operation = ++messageWriteVersion;
@@ -545,12 +572,12 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
     : item);
   try {
     const sent = await notifyApi.sendConversationMessage(params, { showError: false });
-    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) return;
     messages.value = mergeMessages(messages.value, sent);
     void loadConversations(false).catch(() => { /* 摘要刷新不阻塞已成功消息的输入框。 */ });
-    if (isCurrentMessageWrite(operation, requestedUserId, conversationId)) await scrollToBottom();
+    if (isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) await scrollToBottom();
   } catch (error) {
-    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId)) return;
+    if (!isCurrentMessageWrite(operation, requestedUserId, conversationId, requestedSession)) return;
     messages.value = markUnconfirmedMessageFailed(messages.value, clientMsgId);
     if (messages.value.some(item => item.clientMsgId === clientMsgId && item.failed)) {
       Message.error(error instanceof Error ? error.message : '未取得消息发送结果，请核对后使用原消息重试');
@@ -562,6 +589,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
 
 async function recallMessage(message: Api.RealNotify.ImMessageVO) {
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   const conversationId = selectedConversationId.value;
   if (requestedUserId === undefined || conversationId === undefined) return;
   const messageId = String(message.id);
@@ -572,7 +600,7 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
     await notifyApi.recallConversationMessage({ id: message.id });
     if (
       operation !== recallWriteVersion
-      || !isCurrentUser(requestedUserId)
+      || !isCurrentUser(requestedUserId, requestedSession)
       || !sameBusinessId(selectedConversationId.value, conversationId)
     ) return;
     messages.value = messages.value.map(item => sameBusinessId(item.id, message.id) ? recalledMessage(item) : item);
@@ -582,7 +610,7 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
   } finally {
     if (
       operation !== recallWriteVersion
-      || !isCurrentUser(requestedUserId)
+      || !isCurrentUser(requestedUserId, requestedSession)
       || !sameBusinessId(selectedConversationId.value, conversationId)
     ) return;
     const next = new Set(recallingMessageIds.value);
@@ -595,6 +623,7 @@ function deleteSelectedConversation() {
   const conversation = selectedConversation.value;
   if (!conversation || deletingConversationId.value !== undefined) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const conversationId = conversation.id;
   const operation = ++conversationDeleteVersion;
@@ -604,17 +633,17 @@ function deleteSelectedConversation() {
     content: '会话仅从你的列表移除；对方再次发消息后会自动恢复，历史消息不会删除。',
     hideCancel: false,
     onCancel() {
-      if (operation !== conversationDeleteVersion || !isCurrentUser(requestedUserId)) return;
+      if (operation !== conversationDeleteVersion || !isCurrentUser(requestedUserId, requestedSession)) return;
       conversationDeleteVersion += 1;
       deletingConversationId.value = undefined;
     },
     onOk: async () => {
       if (
         operation !== conversationDeleteVersion
-        || !isCurrentUser(requestedUserId)
+        || !isCurrentUser(requestedUserId, requestedSession)
         || !sameBusinessId(selectedConversationId.value, conversationId)
       ) {
-        if (operation === conversationDeleteVersion && isCurrentUser(requestedUserId)) {
+        if (operation === conversationDeleteVersion && isCurrentUser(requestedUserId, requestedSession)) {
           deletingConversationId.value = undefined;
         }
         return;
@@ -623,7 +652,7 @@ function deleteSelectedConversation() {
         await notifyApi.deleteConversation(conversationId);
         if (
           operation !== conversationDeleteVersion
-          || !isCurrentUser(requestedUserId)
+          || !isCurrentUser(requestedUserId, requestedSession)
           || !sameBusinessId(selectedConversationId.value, conversationId)
         ) return;
         conversationListGuard.invalidate();
@@ -646,7 +675,7 @@ function deleteSelectedConversation() {
       } catch {
         // 请求层已展示错误，保留当前会话，避免把删除失败误显示为已移除。
       } finally {
-        if (operation === conversationDeleteVersion && isCurrentUser(requestedUserId)) {
+        if (operation === conversationDeleteVersion && isCurrentUser(requestedUserId, requestedSession)) {
           deletingConversationId.value = undefined;
         }
       }
@@ -765,6 +794,7 @@ watch(() => route.query.conversationId, async () => {
   readConversationTarget();
   if (disposed) return;
   if (pendingConversationTarget.value && !sameBusinessId(selectedConversationId.value, pendingConversationTarget.value)) {
+    invalidateConversationActions();
     mobileConversationOpen.value = true;
     messageListGuard.invalidate();
     olderMessagesGuard.invalidate();
@@ -776,6 +806,7 @@ watch(() => route.query.conversationId, async () => {
 });
 onBeforeUnmount(() => {
   disposed = true;
+  invalidateConversationActions();
   cancelConversationRefresh();
   deletionModal?.close();
   conversationLifecycleVersion += 1;
@@ -790,6 +821,7 @@ onBeforeUnmount(() => {
 });
 watch(activeTab, async () => {
   if (disposed || selectingTargetTab) return;
+  invalidateConversationActions();
   pendingConversationTarget.value = undefined;
   targetMessage.value = '';
   deletionModal?.close();
@@ -814,9 +846,10 @@ watch(activeTab, async () => {
   }
   await selectFirstConversation();
 }, { flush: 'sync' });
-watch(() => userStore.currentUser?.id, (next, previous) => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next, session], [previous, previousSession]) => {
   if (disposed) return;
-  if (String(next) === String(previous)) return;
+  if (String(next) === String(previous) && session === previousSession) return;
+  invalidateConversationActions();
   cancelConversationRefresh();
   deletionModal?.close();
   conversationLifecycleVersion += 1;
@@ -903,7 +936,7 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
             <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" /><div v-else-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
           </div>
           <div v-if="newMessagesAvailable" class="new-message-bar"><button type="button" @click="scrollToBottom" class="outline"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</button></div>
-          <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
+          <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
           <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
         </div>
         <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '请稍后重试。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>

@@ -86,7 +86,7 @@ function search() {
 
 function changePage(page: number) { void router.push({ query: { ...route.query, page: page > 1 ? String(page) : undefined } }); }
 
-watch(() => [route.query.keyword, route.query.page, userStore.currentUser?.id, userStore.sessionVersion], () => {
+watch([() => route.query.keyword, () => route.query.page, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   detailGuard.invalidate();
   detailOpen.value = false;
   detail.value = undefined;

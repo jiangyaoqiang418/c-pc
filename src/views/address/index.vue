@@ -20,7 +20,7 @@ const submitting = ref(false);
 const defaultingId = ref<string | number>();
 const deletingId = ref<string | number>();
 const deletionPending = ref(false);
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let defaultWriteVersion = 0;
 let deleteWriteVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
@@ -61,8 +61,8 @@ onBeforeUnmount(() => {
   submitWriteVersion += 1;
   requestGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], (next, previous) => {
+  if (String(next[0]) === String(previous[0]) && next[1] === previous[1]) return;
   confirmationModal?.close();
   defaultWriteVersion += 1;
   deleteWriteVersion += 1;
@@ -92,10 +92,11 @@ function openEdit(a: Api.RealAddress.AddressRecord) {
 async function setDefault(a: Api.RealAddress.AddressRecord) {
   if (defaultingId.value !== undefined) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const addressId = a.id;
   const operation = ++defaultWriteVersion;
-  const isCurrentWrite = () => operation === defaultWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === defaultWriteVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   defaultingId.value = a.id;
   try {
     await realAddressApi.setDefaultAddress(addressId);
@@ -112,10 +113,11 @@ async function setDefault(a: Api.RealAddress.AddressRecord) {
 function onDelete(a: Api.RealAddress.AddressRecord) {
   if (deletingId.value !== undefined || deletionPending.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const addressId = a.id;
   const operation = ++deleteWriteVersion;
-  const isCurrentWrite = () => operation === deleteWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === deleteWriteVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   deletionPending.value = true;
   confirmationModal = Modal.confirm({
     title: '删除地址？',
@@ -152,8 +154,9 @@ function onDelete(a: Api.RealAddress.AddressRecord) {
 async function onSubmit(form: Api.RealAddress.AddressSaveParams) {
   if (!userStore.currentUser || submitting.value) return;
   const requestedUserId = userStore.currentUser.id;
+  const requestedSession = userStore.sessionVersion;
   const operation = ++submitWriteVersion;
-  const isCurrentWrite = () => operation === submitWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === submitWriteVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   const editingId = editing.value?.id;
   const submittedModalVersion = modalVersion;
   submitting.value = true;

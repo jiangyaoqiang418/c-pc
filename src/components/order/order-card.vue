@@ -220,7 +220,7 @@ onBeforeUnmount(() => {
   paymentOpen.value = false;
   confirmationModal?.close();
 });
-watch([() => props.order.id, () => userStore.currentUser?.id], () => {
+watch([() => props.order.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   actionVersion += 1;
   paymentOpen.value = false;
   confirmationModal?.close();

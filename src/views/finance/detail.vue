@@ -26,7 +26,7 @@ const walletLoadError = ref('');
 const subscribing = ref(false);
 const submissionIssue = ref('');
 const pendingSnapshot = ref<FinancialSnapshot>();
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let writeVersion = 0;
 
 const id = computed(() => String(route.params.id));
@@ -94,8 +94,8 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
-  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextId, nextUserId, nextSession], [prevId, prevUserId, prevSession]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession) return;
   refreshSubmissionIssue();
   writeVersion += 1;
   subscribing.value = false;

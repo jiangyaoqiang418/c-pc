@@ -18,7 +18,7 @@ export const useProductFavoritesStore = defineStore('product-favorites', () => {
     return entries[String(id)] ??= { loading: false, writing: false, error: '' };
   }
 
-  watch(() => [user.currentUser?.id, user.sessionVersion], () => {
+  watch([() => user.currentUser?.id, () => user.sessionVersion], () => {
     generation += 1;
     queued.clear();
     readVersions.clear();

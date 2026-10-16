@@ -14,6 +14,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { resolvePageSize } from '@/service/api/page';
+import { sumPaymentAmounts } from '@/utils/checkout';
 import { financialSubmissionIssue } from '@/utils/financial-submission';
 
 const userStore = useUserStore();
@@ -37,8 +38,8 @@ const unlockTarget = ref<Api.RealFinance.FinanceOrderVO>();
 const unlocking = ref(false);
 const redemptionPending = ref(false);
 const redeemedOrderIds = new Set<string>();
-const requestGuard = createLatestRequestGuard();
-const countsGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const countsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let writeVersion = 0;
 let disposed = false;
 
@@ -146,9 +147,9 @@ onBeforeUnmount(() => {
   requestGuard.invalidate();
   countsGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next, nextSession], [previous, previousSession]) => {
   if (disposed) return;
-  if (String(next) === String(previous)) return;
+  if (String(next) === String(previous) && nextSession === previousSession) return;
   writeVersion += 1;
   requestGuard.invalidate();
   countsGuard.invalidate();
@@ -194,6 +195,18 @@ async function confirmUnlock(order: Api.RealFinance.FinanceOrderVO) {
     try {
       const payPassword = await requestPayPassword();
       if (!payPassword || !isCurrentWrite()) return;
+      if (!financialSubmissionIssue(requestedUserId, `finance-redeem:${order.id}`)) {
+        const latest = await financeApi.fetchFinanceOrderDetail(order.id, { showError:false });
+        if (!isCurrentWrite()) return;
+        const fields = ['principal', 'redeemFee', 'redeemableInterest'] as const;
+        if (String(latest.id) !== String(order.id) || financeApi.financeRedemptionIssue(latest)
+          || fields.some(field => sumPaymentAmounts([latest[field] ?? '']) !== sumPaymentAmounts([order[field] ?? '']))) {
+          unlockModalOpen.value = false;
+          Message.warning('赎回报价或状态已变化，请重新核对后确认');
+          await load();
+          return;
+        }
+      }
       await financeApi.redeemFinanceWithReadback(requestedUserId, order.id, payPassword);
     } catch (error) {
       if (isCurrentWrite()) {

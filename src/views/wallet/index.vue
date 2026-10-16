@@ -22,7 +22,7 @@ const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
 const loading = ref(false);
 const loadError = ref('');
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 
 async function loadAll() {
   if (props.visualFixture) return;

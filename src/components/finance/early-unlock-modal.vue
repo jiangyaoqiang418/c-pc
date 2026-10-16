@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { formatFinanceAmount as formatAmount } from './v47-interest-math';
 import { fetchFinanceOrderDetail, financeRedemptionIssue } from '@/service/api/finance';
+import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
 interface Props {
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   (e: 'confirm', order: Api.RealFinance.FinanceOrderVO): void;
 }>();
 
+const userStore = useUserStore();
 const latestOrder = ref<Api.RealFinance.FinanceOrderVO>();
 const reading = ref(false);
 const acknowledged = ref(false);
@@ -28,7 +30,7 @@ const expectedTotal = computed(() => {
   try { return sumPaymentAmounts([displayedOrder.value.principal, displayedOrder.value.redeemableInterest]); } catch { return undefined; }
 });
 const readError = ref('');
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const displayedOrder = computed(() => props.pending ? props.order : latestOrder.value);
 const issue = computed(() => props.pending ? '' : readError.value || (!latestOrder.value
   ? '正在核对原锁仓费用' : financeRedemptionIssue(latestOrder.value)));

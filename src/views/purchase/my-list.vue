@@ -127,9 +127,8 @@ onBeforeUnmount(() => {
   listGuard.invalidate();
   countsGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, async (next, previous) => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], () => {
   if (disposed) return;
-  if (String(next) === String(previous)) return;
   writeVersion += 1;
   confirmationModal?.close();
   current.value = 1;
@@ -145,6 +144,9 @@ watch(() => userStore.currentUser?.id, async (next, previous) => {
 });
 watch(() => route.fullPath, () => {
   if (disposed) return;
+  writeVersion += 1;
+  confirmationModal?.close();
+  cancelingId.value = undefined;
   if (readQuery()) {
     void router.replace({ query: { ...route.query, tab: activeKey.value === 'all' ? undefined : activeKey.value, page: current.value > 1 ? String(current.value) : undefined } });
     return;
@@ -170,7 +172,8 @@ function onCancel(req: Api.RealPurchase.Record) {
   if (requestedUserId === undefined) return;
   const requestId = req.id;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   cancelingId.value = requestId;
   confirmationModal = Modal.confirm({
     title: '撤销求购？',
@@ -198,7 +201,7 @@ function onCancel(req: Api.RealPurchase.Record) {
       } catch {
         // 请求层已展示错误，保留当前求购，避免撤销失败却从列表消失。
       } finally {
-        if (operation === writeVersion) cancelingId.value = undefined;
+        if (operation === writeVersion && userStore.sessionVersion === requestedSession) cancelingId.value = undefined;
       }
     }
   });

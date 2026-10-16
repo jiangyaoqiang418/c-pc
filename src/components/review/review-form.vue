@@ -20,6 +20,7 @@ interface FormState {
 interface Props {
   initial?: Partial<FormState>;
   submitting?: boolean;
+  blockedReason?: string;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'submit', f: FormState): void }>();
@@ -32,10 +33,9 @@ const form = reactive<FormState>({
   content: props.initial?.content ?? '',
   photoUrls: [...(props.initial?.photoUrls ?? [])]
 });
-const { markInteracted, markSaved } = useUnsavedForm(() => form, () => undefined);
-defineExpose({ markSaved });
-
 const uploading = ref(false);
+const { markInteracted, markSaved } = useUnsavedForm(() => ({ ...form, uploading:uploading.value }), () => undefined);
+defineExpose({ markSaved });
 const fileInputRef = ref<HTMLInputElement>();
 let uploadVersion = 0;
 
@@ -80,7 +80,7 @@ const canSubmit = computed(() => form.productScore > 0 && form.sellerScore > 0 &
 
 
 function submit() {
-  if (uploading.value || props.submitting) return;
+  if (uploading.value || props.submitting || props.blockedReason) return;
   if (!canSubmit.value) {
       Message.warning('请完善商品和买手服务评分，评价内容不能超过 1000 字');
     return;
@@ -91,7 +91,7 @@ function submit() {
 
 const previewOpen = ref(false);
 const previewIndex = ref(0);
-const submitDisabledReason = computed(() => props.submitting ? '正在核对或提交原评价，请稍候' : uploading.value ? '请等待图片上传完成' : !canSubmit.value ? '请完善评分，评价内容不能超过 1000 字' : '');
+const submitDisabledReason = computed(() => props.blockedReason || (props.submitting ? '正在核对或提交原评价，请稍候' : uploading.value ? '请等待图片上传完成' : !canSubmit.value ? '请完善评分，评价内容不能超过 1000 字' : ''));
 </script>
 
 <template>

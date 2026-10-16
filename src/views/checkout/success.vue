@@ -24,7 +24,7 @@ const detailsExpanded = ref(false);
 const orderGroupNo = computed(() => typeof route.query.orderGroupNo === 'string' ? route.query.orderGroupNo : '');
 
 const orderId = computed(() => String(route.params.orderId || ''));
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const paymentConfirmed = computed(() => !!order.value
   && (!orderGroupNo.value || (!!groupResult.value && isGroupPaymentComplete(groupResult.value, groupResult.value.items.map(item => item.orderId))))
   && ['PROCURING', 'IN_TRANSIT', 'COMPLETED', 'IN_AFTERSALE'].includes(order.value.status));
@@ -97,7 +97,7 @@ async function load() {
 
 onMounted(load);
 onBeforeUnmount(requestGuard.invalidate);
-watch([orderId, orderGroupNo, () => userStore.currentUser?.id], () => {
+watch([orderId, orderGroupNo, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   requestGuard.invalidate();
   void load();
 });

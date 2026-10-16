@@ -1,9 +1,12 @@
 import { realOrderRequest } from '@/service/request';
 import { RequestError } from '@/service/request/type';
-import { requireArray, toPageTotal } from './page';
+import { requireArray } from './page';
 
 function normalizePage<T>(page: Api.RealReview.PageResult<T>) {
-  return { ...page, records: requireArray<T>(page.records, '评价分页记录'), total: toPageTotal(page.total) };
+  const total = Number(page.total);
+  if (!['string', 'number'].includes(typeof page.total) || String(page.total).trim() === ''
+    || !Number.isSafeInteger(total) || total < 0) throw new Error('评价分页总数异常，请重新核对');
+  return { ...page, records: requireArray<T>(page.records, '评价分页记录'), total };
 }
 
 export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}, options: { signal?: AbortSignal } = {}) {
@@ -43,7 +46,7 @@ export async function submitReview(params: Api.RealReview.ReviewSubmitParams) {
   return id;
 }
 
-export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal } = {}) {
+export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal; showError?: boolean } = {}) {
   const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/mine/page', params, options);
   return normalizePage(page);
 }

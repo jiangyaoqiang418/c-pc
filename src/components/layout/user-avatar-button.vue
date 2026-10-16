@@ -46,7 +46,7 @@ async function loadWallet() {
   try { await walletStore.fetchWallet(id); }
   catch { if (version === requestVersion && open.value && String(userStore.currentUser?.id) === String(id)) walletError.value = true; }
 }
-watch([open, () => userStore.currentUser?.id], ([, id], previous) => {
+watch([open, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([, id], previous) => {
   if (previous?.[1] !== undefined && id === undefined) open.value = false;
   void loadWallet();
 });

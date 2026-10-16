@@ -129,7 +129,7 @@ function selectTopic(value: string) {
 function changePage(page: number) { void router.push({ query: { ...route.query, page: page > 1 ? String(page) : undefined } }); }
 
 watch(() => route.query.agreement, openAgreementFromQuery, { immediate: true });
-watch(() => [route.query.keyword, route.query.topic, route.query.page, userStore.currentUser?.id, userStore.sessionVersion], () => {
+watch([() => route.query.keyword, () => route.query.topic, () => route.query.page, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   keyword.value = scalar(route.query.keyword);
   topic.value = scalar(route.query.topic);
   const page = Number(scalar(route.query.page));

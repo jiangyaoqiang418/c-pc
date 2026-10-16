@@ -158,14 +158,17 @@ watch(activeKey, () => {
   syncQuery();
 }, { flush: 'sync' });
 watch(() => route.query, () => {
+  confirmVersion += 1;
+  confirmOpen.value = false;
+  confirmSubmitting.value = false;
+  confirmRow.value = undefined;
   if (readQuery()) {
     void router.replace({ query: { ...route.query, status: undefined } });
     return;
   }
   void load();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience, () => userStore.isBuyerActive], () => {
   requestGuard.invalidate();
   confirmVersion += 1;
   confirmOpen.value = false;
@@ -201,7 +204,8 @@ async function confirmAftersale() {
   const version = ++confirmVersion;
   const session = getAccessToken();
   const expectedRoute = route.fullPath;
-  const currentWrite = () => version === confirmVersion && sameBusinessId(userStore.currentUser?.id, userId)
+  const requestedSession = userStore.sessionVersion;
+  const currentWrite = () => version === confirmVersion && userStore.sessionVersion === requestedSession && userStore.isBuyerActive && sameBusinessId(userStore.currentUser?.id, userId)
     && getAccessToken() === session && route.fullPath === expectedRoute;
   const params = { refundId: row.refundId, agree: confirmAgree.value, remark: confirmRemark.value.trim() };
   confirmSubmitting.value = true;
@@ -234,7 +238,7 @@ function openEvidence(images: string[], index: number) {
   previewIndex.value = index;
   previewOpen.value = true;
 }
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   previewOpen.value = false;
   previewImages.value = [];
 });

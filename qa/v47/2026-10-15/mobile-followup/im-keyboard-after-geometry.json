@@ -1,0 +1,26 @@
+{
+  "active": "TEXTAREA",
+  "back": "grid",
+  "h": 400,
+  "input": {
+    "bottom": 395,
+    "height": 107,
+    "left": 13,
+    "right": 307,
+    "top": 288,
+    "width": 294,
+    "x": 13,
+    "y": 288
+  },
+  "keyboard": "true",
+  "messages": {
+    "bottom": 288,
+    "height": 240,
+    "left": 13,
+    "right": 307,
+    "top": 48,
+    "width": 294,
+    "x": 13,
+    "y": 48
+  }
+}

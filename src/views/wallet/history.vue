@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import UmIcon from '@/components/common/um-icon.vue';
+import DateRangePicker from '@/components/common/date-range-picker.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -30,7 +31,7 @@ const loading = ref(false);
 const loadError = ref('');
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 
 const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
   { label: '链上', types: ['DEPOSIT_IN', 'WITHDRAW_OUT'] },
@@ -164,9 +165,9 @@ watch(() => route.query, () => {
 });
 
 watch(
-  [() => userStore.currentAudience, () => userStore.currentUser?.id],
-  ([nextAudience, nextUserId], [previousAudience, previousUserId]) => {
-    if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId)) return;
+  [() => userStore.currentAudience, () => userStore.currentUser?.id, () => userStore.sessionVersion],
+  ([nextAudience, nextUserId, nextSession], [previousAudience, previousUserId, previousSession]) => {
+    if (nextAudience === previousAudience && String(nextUserId) === String(previousUserId) && nextSession === previousSession) return;
     requestGuard.invalidate();
     // URL 是分页来源；身份切换不再偷偷显示第一页，也不在其他页面导航守卫中另发导航。
     applyQueryParams();
@@ -261,10 +262,10 @@ const toDate = computed({
     <div class="page-heading compact"><h1>资金流水</h1><span v-if="!loading && !loadError" class="heading-meta">共 {{ total }} 条 · 导出范围为当前页</span><button class="outline" @click="router.push(userStore.isBuyerActive ? '/buyer/wallet' : '/wallet')">返回钱包</button></div>
     <form class="paper ledger-filter" novalidate @submit.prevent="queryRecords" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
       <div class="ledger-filter-fields">
-        <div class="field"><span class="ledger-field-label">类型</span><DropdownMenu><DropdownMenuTrigger as-child><button type="button" class="outline ledger-type-trigger" aria-label="选择资金流水类型"><span>{{ filter.types.length ? `已选 ${filter.types.length} 种类型` : '全部类型' }}</span><UmIcon name="chevron" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" :collision-padding="8" class="ledger-type-menu"><DropdownMenuItem @select="filter.types = []">不限 · 清除全部类型</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuGroup v-for="g in TYPE_GROUPS" :key="g.label"><DropdownMenuLabel>{{ g.label }}</DropdownMenuLabel><DropdownMenuCheckboxItem v-for="t in g.types" :key="t" :model-value="filter.types.includes(t)" @update:model-value="setType(t, $event)" @select.prevent>{{ enums.TXN_TYPE_META[t]?.label || t }}</DropdownMenuCheckboxItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
-        <div class="field"><label for="ledger-bucket">资产桶</label><Select v-model="bucketFilter"><SelectTrigger id="ledger-bucket" class="app-select-trigger h-[46px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem v-for="b in BUCKET_OPTIONS" :key="b.value || 'all'" :value="b.value || 'all'">{{ b.label }}</SelectItem></SelectContent></Select></div>
-        <div class="field ledger-date-field"><span class="ledger-field-label">日期</span><div class="ledger-date-range"><input v-model="fromDate" type="date" aria-label="开始日期" :max="toDate || undefined" /><span>—</span><input v-model="toDate" type="date" aria-label="结束日期" :min="fromDate || undefined" /></div></div>
-        <div class="field"><label for="ledger-keyword">关键字</label><input id="ledger-keyword" v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" /></div>
+        <div class="field"><label for="ledger-type" class="ledger-field-label">类型</label><DropdownMenu><DropdownMenuTrigger as-child><button id="ledger-type" type="button" class="ledger-type-trigger" aria-label="选择资金流水类型"><span>{{ filter.types.length ? `已选 ${filter.types.length} 种类型` : '全部类型' }}</span><UmIcon name="chevron" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" :collision-padding="8" class="ledger-type-menu"><DropdownMenuItem @select="filter.types = []">不限 · 清除全部类型</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuGroup v-for="g in TYPE_GROUPS" :key="g.label"><DropdownMenuLabel>{{ g.label }}</DropdownMenuLabel><DropdownMenuCheckboxItem v-for="t in g.types" :key="t" :model-value="filter.types.includes(t)" @update:model-value="setType(t, $event)" @select.prevent>{{ enums.TXN_TYPE_META[t]?.label || t }}</DropdownMenuCheckboxItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
+        <div class="field"><label for="ledger-bucket" class="ledger-field-label">资产桶</label><Select v-model="bucketFilter"><SelectTrigger id="ledger-bucket" class="app-select-trigger"><SelectValue /></SelectTrigger><SelectContent><SelectItem v-for="b in BUCKET_OPTIONS" :key="b.value || 'all'" :value="b.value || 'all'">{{ b.label }}</SelectItem></SelectContent></Select></div>
+        <div class="field ledger-date-field"><label for="ledger-date" class="ledger-field-label">日期</label><DateRangePicker id="ledger-date" v-model:from="fromDate" v-model:to="toDate" /></div>
+        <div class="field"><label for="ledger-keyword" class="ledger-field-label">关键字</label><input id="ledger-keyword" v-model="filter.keyword" placeholder="哈希 / 引用 / 备注" /></div>
       </div>
       <div v-if="filter.types.length" class="ledger-type-chips"><button v-for="t in filter.types" :key="t" type="button" :aria-label="`取消筛选：${enums.TXN_TYPE_META[t]?.label || t}`" @click="setType(t, false)">{{ enums.TXN_TYPE_META[t]?.label || t }}<UmIcon name="close" /></button></div>
       <footer class="button-row ledger-filter-actions"><button type="submit" class="primary" :disabled="loading">查询</button><button type="button" class="outline" :disabled="loading" @click="reset">重置</button><button type="button" class="outline ledger-export" :disabled="loading || !!loadError || !list.length" @click="exportCsv">导出当前页（{{ list.length }} 条）</button></footer>
@@ -279,14 +280,13 @@ const toDate = computed({
 <style scoped>
 .history-page { padding-bottom:48px; }
 .ledger-filter-fields { display:grid; grid-template-columns:1fr 1fr 1.8fr 1.2fr; gap:18px; }
-.ledger-filter .field { min-width:0; margin:0; }
-.ledger-field-label { font-size:12px; font-weight:500; }
-.ledger-type-trigger { justify-content:space-between; font-size:14px; padding:12px 14px; }
+.ledger-filter .field { display:flex; flex-direction:column; gap:8px; min-width:0; margin:0; }
+.ledger-filter .ledger-field-label { display:block; margin:0; font-size:12px; font-weight:500; line-height:20px; color:var(--ink); }
+.ledger-filter .field > input, .ledger-filter .ledger-type-trigger, .ledger-filter .app-select-trigger, .ledger-filter :deep(.date-range-trigger) { height:46px; min-height:46px; padding:0 14px; border-radius:8px; font-size:16px; font-weight:400; line-height:1.55; }
+.ledger-type-trigger { display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--line); background:var(--paper); color:var(--ink); text-align:left; }
+.ledger-type-trigger:focus-visible { outline:2px solid var(--focus-ring,var(--green)); outline-offset:2px; }
 .ledger-type-trigger svg { width:15px; height:15px; transform:rotate(90deg); }
 :global(.ledger-type-menu) { max-height:min(400px,70dvh,var(--reka-dropdown-menu-content-available-height,70dvh)); overflow:auto; min-width:min(230px,calc(100vw - 32px)); }
-.ledger-date-range { display:flex; align-items:center; gap:8px; }
-.ledger-date-range input { min-width:0; width:100%; }
-.ledger-date-range>span { color:var(--muted); }
 .ledger-filter-actions { margin-top:20px; }
 .ledger-export { margin-left:auto; }
 .ledger-type-chips { display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }

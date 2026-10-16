@@ -4,6 +4,7 @@ import V47VaultDialog from './v47-vault-dialog.vue';
 import { computed, ref, watch } from 'vue';
 import { formatFinanceAmount as formatAmount, formatFinanceRate as formatRate, knownFinanceDecimal, simpleFinanceInterest } from './v47-interest-math';
 import { sumPaymentAmounts } from '@/utils/checkout';
+import { useUserStore } from '@/stores';
 import { financeSubscriptionIssue } from '@/service/api/finance';
 
 interface Props {
@@ -14,6 +15,7 @@ interface Props {
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'subscribe', amount: string): void }>();
+const userStore = useUserStore();
 const amount = ref(String(props.product.minAmount));
 const confirmVisible = ref(false);
 const acknowledged = ref(false);
@@ -78,7 +80,8 @@ function useMaximum() {
   const [integer, fraction = ''] = normalized.split('.');
   amount.value = `${integer}.${fraction.padEnd(2, '0').slice(0, 2)}`;
 }
-watch(() => props.product.id, () => { amount.value = String(props.product.minAmount); confirmVisible.value = false; acknowledged.value = false; });
+watch([() => props.product.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => { amount.value = String(props.product.minAmount); confirmVisible.value = false; acknowledged.value = false; });
+watch([annualRate, lockDays, min, max], () => { confirmVisible.value = false; acknowledged.value = false; });
 </script>
 
 <template>

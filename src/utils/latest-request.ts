@@ -1,5 +1,5 @@
-/** 仅允许最新一次读取请求写回页面，避免慢响应覆盖用户刚切换的筛选结果。 */
-export function createLatestRequestGuard() {
+/** 仅允许最新读取写回；context应返回稳定的账号/会话标识，变化时立即拒绝旧结果。 */
+export function createLatestRequestGuard(context?: () => unknown) {
   let version = 0;
   let controller: AbortController | undefined;
 
@@ -7,7 +7,8 @@ export function createLatestRequestGuard() {
     controller?.abort();
     controller = new AbortController();
     const current = ++version;
-    const isCurrent = (() => current === version) as (() => boolean) & { signal: AbortSignal };
+    const requestedContext = context?.();
+    const isCurrent = (() => current === version && (!context || Object.is(requestedContext, context()))) as (() => boolean) & { signal: AbortSignal };
     isCurrent.signal = controller.signal;
     return isCurrent;
   }

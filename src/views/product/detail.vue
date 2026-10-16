@@ -92,8 +92,13 @@ function selectSpec(groupIndex: number, option: string) {
 }
 const mobileSpecs = ref(false);
 const mobileSpecTrigger = ref<HTMLButtonElement>();
+const mobileSpecClose = ref<HTMLButtonElement>();
 let specViewport: MediaQueryList | undefined;
-function openMobileSpecs() { if (specViewport?.matches) mobileSpecs.value = true; }
+function openMobileSpecs() {
+  if (!specViewport?.matches) return;
+  mobileSpecs.value = true;
+  void nextTick(() => { if (mobileSpecs.value) mobileSpecClose.value?.focus({ preventScroll:true }); });
+}
 function closeMobileSpecs(restoreFocus = true) {
   mobileSpecs.value = false;
   if (restoreFocus) void nextTick(() => {
@@ -487,9 +492,10 @@ function share() {
             <div>运费 {{ money(product.shippingFee) }} USDT <span>税费 {{ money(product.tax) }} USDT <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="14" /></span></div>
           </div>
           <button ref="mobileSpecTrigger" type="button" class="mobile-spec-trigger" :aria-expanded="mobileSpecs" aria-controls="product-spec-options" @click="openMobileSpecs"><span>已选 <b>{{ selectedSpecText }} / {{ qty }} 件</b></span><UmIcon name="chevron" /></button>
+          <div v-if="mobileSpecs" class="spec-touch-mask" aria-hidden="true" @pointerdown.prevent @touchmove.prevent @click.stop="closeMobileSpecs()" />
           <FocusScope as-child :trapped="mobileSpecs" :loop="mobileSpecs" :present="mobileSpecs" @unmount-auto-focus="$event.preventDefault()">
           <div id="product-spec-options" class="spec-options" :class="{ sheet:mobileSpecs }" :role="mobileSpecs ? 'dialog' : undefined" :aria-modal="mobileSpecs || undefined" :aria-labelledby="mobileSpecs ? 'product-spec-title' : undefined" @keydown.esc.stop.prevent="closeMobileSpecs()">
-            <div class="mobile-only sheet-heading"><h3 id="product-spec-title">确认商品与数量</h3><button type="button" class="icon-btn" aria-label="关闭选购" @click="closeMobileSpecs()"><UmIcon name="close" /></button></div>
+            <div class="mobile-only sheet-heading"><h3 id="product-spec-title">确认商品与数量</h3><button ref="mobileSpecClose" type="button" class="icon-btn" aria-label="关闭选购" @click="closeMobileSpecs()"><UmIcon name="close" /></button></div>
             <template v-if="product.hasSku">
               <template v-for="(group, groupIndex) in product.specGroups" :key="group.name">
                 <label>{{ group.name }} <small>{{ selectedSpecs[group.name] || '请选择' }}</small></label>
@@ -546,5 +552,9 @@ function share() {
 .seller-score-retry { margin-top:10px; }
 .seller-verified { display:inline-flex; align-items:center; gap:4px; margin-left:8px; color:var(--primary); font-size:11px; font-weight:500; }
 .seller-verified :deep(svg) { width:13px; height:13px; }
-@media (max-width:700px) { .detail-skeleton { grid-template-columns:1fr; } }
+@media (max-width:700px) {
+  .detail-skeleton { grid-template-columns:1fr; }
+  .spec-touch-mask { position:fixed; inset:0; z-index:79; background:transparent; }
+  .spec-options.sheet { overscroll-behavior:contain; }
+}
 </style>

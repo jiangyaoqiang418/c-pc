@@ -43,6 +43,9 @@ function clearBelow(level: 'country' | 'province' | 'city') {
 }
 const loadChildren = (parentCode?: string) => fetchRegionChildren(form.countryCode, parentCode);
 async function onCountryChange(code: string) {
+  if (props.submitting) return;
+  loading.value = false;
+  loadError.value = '';
   const version = ++loadVersion; clearBelow('country'); form.countryCode = code;
   if (!countries.value.find(item => item.code === code)?.hasRegion) return;
   loading.value = true;
@@ -51,6 +54,9 @@ async function onCountryChange(code: string) {
   finally { if (version === loadVersion) loading.value = false; }
 }
 async function onProvinceChange(code: string) {
+  if (props.submitting) return;
+  loading.value = false;
+  loadError.value = '';
   const version = ++loadVersion; clearBelow('province'); form.provinceCode = code;
   const node = provinces.value.find(item => item.code === code); if (!node || node.leaf) return;
   loading.value = true;
@@ -59,6 +65,9 @@ async function onProvinceChange(code: string) {
   finally { if (version === loadVersion) loading.value = false; }
 }
 async function onCityChange(code: string) {
+  if (props.submitting) return;
+  loading.value = false;
+  loadError.value = '';
   const version = ++loadVersion; clearBelow('city'); form.cityCode = code;
   const node = cities.value.find(item => item.code === code); if (!node || node.leaf) return;
   loading.value = true;
@@ -66,28 +75,39 @@ async function onCityChange(code: string) {
   catch { if (version === loadVersion) loadError.value = '区县加载失败，请重试'; }
   finally { if (version === loadVersion) loading.value = false; }
 }
-async function sync() {
+async function reloadRegions() {
   const version = ++loadVersion; loadError.value = ''; loading.value = true;
-  const value = props.modelValue || {};
-  Object.assign(form, { id: value.id, receiverName: value.receiverName || '', receiverPhone: value.receiverPhone || '', countryCode: value.countryCode || '', provinceCode: value.provinceCode || '', cityCode: value.cityCode || '', districtCode: value.districtCode || '', province: value.province || '', city: value.city || '', district: value.district || '', detailAddress: value.detail || '', postalCode: value.postalCode || '', idCardNo: value.idCardNo || '', defaultFlag: !!value.isDefault, tag: value.tag || '' });
+  provinces.value = []; cities.value = []; districts.value = [];
   try {
     const next = await fetchCountries(); if (version !== loadVersion) return; countries.value = next;
     if (!form.countryCode) form.countryCode = next.find(item => item.code === 'CN')?.code || next[0]?.code || '';
     if (!country.value?.hasRegion) return;
-    provinces.value = await loadChildren(); if (version !== loadVersion || !form.provinceCode) return;
-    const province = provinces.value.find(item => item.code === form.provinceCode); if (!province || province.leaf) return;
-    cities.value = await loadChildren(form.provinceCode); if (version !== loadVersion || !form.cityCode) return;
-    const city = cities.value.find(item => item.code === form.cityCode); if (!city || city.leaf) return;
-    districts.value = await loadChildren(form.cityCode);
+    const nextProvinces = await loadChildren(); if (version !== loadVersion) return;
+    provinces.value = nextProvinces;
+    if (!form.provinceCode) return;
+    const province = nextProvinces.find(item => item.code === form.provinceCode); if (!province || province.leaf) return;
+    const nextCities = await loadChildren(form.provinceCode); if (version !== loadVersion) return;
+    cities.value = nextCities;
+    if (!form.cityCode) return;
+    const city = nextCities.find(item => item.code === form.cityCode); if (!city || city.leaf) return;
+    const nextDistricts = await loadChildren(form.cityCode); if (version !== loadVersion) return;
+    districts.value = nextDistricts;
   } catch { if (version === loadVersion) loadError.value = '国家/地区字典加载失败，请重试'; }
   finally { if (version === loadVersion) loading.value = false; }
+}
+function sync() {
+  const value = props.modelValue || {};
+  Object.assign(form, { id: value.id, receiverName: value.receiverName || '', receiverPhone: value.receiverPhone || '', countryCode: value.countryCode || '', provinceCode: value.provinceCode || '', cityCode: value.cityCode || '', districtCode: value.districtCode || '', province: value.province || '', city: value.city || '', district: value.district || '', detailAddress: value.detail || '', postalCode: value.postalCode || '', idCardNo: value.idCardNo || '', defaultFlag: !!value.isDefault, tag: value.tag || '' });
+  return reloadRegions();
 }
 watch(() => props.modelValue, sync, { immediate: true });
 onBeforeUnmount(() => { loadVersion += 1; });
 const prepared = computed(() => prepareAddress({ ...form }));
-const regionComplete = computed(() => !hasRegion.value || (!!form.provinceCode && (!needCity.value || !!form.cityCode) && (!needDistrict.value || !!form.districtCode)));
+const regionComplete = computed(() => !hasRegion.value || (!!selectedProvince.value
+  && (!needCity.value || !!selectedCity.value)
+  && (!needDistrict.value || districts.value.some(item => item.code === form.districtCode))));
 const overseasComplete = computed(() => hasRegion.value || (!!form.province?.trim() && !!form.city?.trim()));
-const canSubmit = computed(() => !loading.value && !loadError.value && !prepared.value.error && regionComplete.value && overseasComplete.value);
+const canSubmit = computed(() => !loading.value && !loadError.value && !!country.value && !prepared.value.error && regionComplete.value && overseasComplete.value);
 function submit() {
   if (props.submitting || !canSubmit.value) { Message.warning(loadError.value || prepared.value.error || '请完整选择地址地区'); return; }
   const params = { ...prepared.value.params };
@@ -99,7 +119,7 @@ function submit() {
 
 <template>
   <form class="address-form" :class="{ v47 }" novalidate :aria-busy="loading || submitting" @submit.prevent="submit" @keydown.enter="event => event.isComposing && event.preventDefault()">
-    <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="loading || submitting" @click="sync">重新加载</Button></Alert>
+    <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="loading || submitting" @click="reloadRegions">重新加载</Button></Alert>
     <Alert v-if="legacyAddress" class="notice"><AlertDescription>历史地址缺少区划编码，请重新选择省市区后保存。</AlertDescription></Alert>
     <div v-if="loading" class="loading-note" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="16" />正在读取国家与地区信息</div>
     <fieldset :disabled="submitting" class="form-fields">

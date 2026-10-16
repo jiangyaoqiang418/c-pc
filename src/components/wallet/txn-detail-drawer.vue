@@ -213,4 +213,10 @@ function copy(text?: string) {
   outline: 2px solid var(--bw-brand-primary);
   outline-offset: 2px;
 }
+@media (max-width:700px) {
+  .amount { max-width:100%; }
+  .amount .sign,.amount .num-unit { flex-shrink:0; }
+  .amount .num { min-width:0; overflow-wrap:anywhere; }
+  .balance,.type-badge { max-width:100%; overflow-wrap:anywhere; }
+}
 </style>

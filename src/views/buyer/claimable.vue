@@ -112,7 +112,7 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch([() => user.value?.id, () => userStore.currentAudience], () => {
+watch([() => user.value?.id, () => userStore.currentAudience, () => userStore.sessionVersion, () => userStore.isBuyerActive], () => {
   claimOpen.value = false;
   claimCandidate.value = undefined;
   requestGuard.invalidate();
@@ -126,11 +126,12 @@ watch([() => user.value?.id, () => userStore.currentAudience], () => {
 });
 
 async function onClaim(req: Api.RealPurchase.Record) {
-  if (!user.value || claimingId.value !== undefined) return;
+  if (!user.value || !userStore.isBuyerActive || claimingId.value !== undefined) return;
   const requestedUserId = user.value.id;
   const requestedRequestId = req.id;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && userStore.isBuyerActive
     && String(req.id) === String(requestedRequestId);
@@ -150,7 +151,7 @@ async function onClaim(req: Api.RealPurchase.Record) {
   } catch {
     // 请求层已展示错误，保留当前求购供用户重试。
   } finally {
-    if (operation === writeVersion) claimingId.value = undefined;
+    if (operation === writeVersion && userStore.sessionVersion === requestedSession) claimingId.value = undefined;
   }
 }
 
@@ -177,4 +178,9 @@ async function onClaim(req: Api.RealPurchase.Record) {
 .request-skeleton { height:210px; }
 .buyer-demand h2,.buyer-demand p { overflow-wrap:anywhere; }
 .buyer-demand p { white-space:pre-wrap; }
+@media(max-width:700px) {
+  .buyer-page-top { flex-direction:column; align-items:stretch; }
+  .buyer-page-top > div { width:100%; min-width:0; }
+  .heading-actions { flex-wrap:wrap; justify-content:flex-start; }
+}
 </style>

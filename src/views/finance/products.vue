@@ -20,7 +20,7 @@ const overview = ref<Api.RealFinance.FinanceOverviewVO>();
 const loading = ref(false);
 const loadError = ref('');
 const productLoadError = ref(false);
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 
 async function loadAll() {
   const currentUser = userStore.currentUser;
@@ -62,8 +62,8 @@ async function loadAll() {
 }
 onMounted(loadAll);
 onBeforeUnmount(requestGuard.invalidate);
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next, nextSession], [previous, previousSession]) => {
+  if (String(next) === String(previous) && nextSession === previousSession) return;
   products.value = [];
   overview.value = undefined;
   void loadAll();

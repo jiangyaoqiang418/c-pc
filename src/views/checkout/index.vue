@@ -37,9 +37,9 @@ const contextId = computed(() => typeof route.query.contextId === 'string' ? rou
 const contextItems = ref<Array<{ productId: string | number; quantity: number; skuId?: string | number; confirmedUnitPrice?: string }>>([]);
 const userStore = useUserStore();
 const cart = useCartStore();
-const requestGuard = createLatestRequestGuard();
-const walletGuard = createLatestRequestGuard();
-const chainsGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const walletGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const chainsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const walletLoading = ref(false);
 const walletError = ref('');
 const walletChains = ref<WalletPayChain[]>([]);
@@ -709,7 +709,7 @@ onBeforeUnmount(() => {
   if (insufficientBalanceTimer) clearTimeout(insufficientBalanceTimer);
   insufficientBalanceTimer = undefined;
 });
-watch([() => userStore.currentUser?.id, () => route.query.contextId], () => {
+watch([() => userStore.currentUser?.id, () => route.query.contextId, () => userStore.sessionVersion], () => {
   cancelConfirmation?.();
   confirmationModal?.close();
   requestGuard.invalidate();
@@ -1041,4 +1041,13 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string, expectedSig
 .balance-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; }.insufficient { color:var(--yb-danger); }.agree-row { display:flex; align-items:flex-start; gap:10px; margin:20px 0; }.agree-row > button { flex-shrink:0; margin-top:3px; }.agree-row a { color:var(--green); }.submit-trigger { display:block; width:100%; }.return-cart { margin-top:20px; }
 .pending-order { border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:12px; }.order-heading { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }.order-heading a { color:var(--green); font-size:14px; }.pending-order p { margin-top:8px; overflow-wrap:anywhere; }.pending-total { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:16px 0; }.pending-total strong { font-size:20px; }.notice { margin:16px 0; }.notice-action { margin-top:10px; }.receipt-item { margin-top:8px; overflow-wrap:anywhere; }.pending-methods { margin:20px 0; }.pending-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:12px; margin-top:20px; }.recovery-items { padding-left:20px; font-size:13px; color:var(--muted); }.load-alert { margin-bottom:20px; }.load-alert button { margin-top:12px; }
 .section-skeleton { height:280px; margin-bottom:22px; }.summary-skeleton { height:440px; }.orders-skeleton { height:200px; margin-bottom:20px; }.reading { opacity:.55; }
+@media (max-width:700px) {
+  .checkout-item { flex-wrap:wrap; }
+  .checkout-item > img { flex-shrink:0; }
+  .checkout-item > div { min-width:0; }
+  .checkout-item > b { min-width:0; max-width:100%; margin-left:auto; white-space:normal; overflow-wrap:anywhere; text-align:right; }
+  .payment-summary :is(.money-row,.summary-total) { flex-wrap:wrap; gap:8px 15px; }
+  .payment-summary :is(.money-row,.summary-total) > b { min-width:0; max-width:100%; margin-left:auto; overflow-wrap:anywhere; text-align:right; }
+  .balance-row > span,.pending-total strong { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+}
 </style>

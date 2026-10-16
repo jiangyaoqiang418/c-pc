@@ -143,8 +143,8 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
-  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], ([nextUserId, nextAudience, nextSession], [previousUserId, previousAudience, previousSession]) => {
+  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience && nextSession === previousSession) return;
   writeVersion += 1;
   transferring.value = false;
   transferOpen.value = false;
@@ -203,7 +203,8 @@ async function submitDepositTransfer() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && userStore.isBuyerActive;
   transferring.value = true;
@@ -227,7 +228,7 @@ async function submitDepositTransfer() {
       }
     }
   } finally {
-    if (operation === writeVersion) transferring.value = false;
+    if (operation === writeVersion && userStore.sessionVersion === requestedSession) transferring.value = false;
   }
 }
 
@@ -264,4 +265,9 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 .transfer-form { display:grid; gap:16px; }
 .required { color:var(--yb-danger); }
 .buyer-ledger small { overflow-wrap:anywhere; }
+@media(max-width:700px) {
+  .buyer-ledger { flex-wrap:wrap; }
+  .buyer-ledger > strong { min-width:0; max-width:100%; margin-left:auto; white-space:normal; overflow-wrap:anywhere; }
+  .available-hint { overflow-wrap:anywhere; }
+}
 </style>

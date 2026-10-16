@@ -22,7 +22,7 @@ const props = defineProps<{ visible: boolean; order: Api.RealOrder.DisplayRecord
 const emit = defineEmits<{ (e: 'update:visible', visible: boolean): void; (e: 'balance'): void }>();
 const router = useRouter();
 const userStore = useUserStore();
-const guard = createLatestRequestGuard();
+const guard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const detail = ref<Api.RealOrder.Record>();
 const chains = ref<WalletPayChain[]>([]);
 const latestPay = ref<WalletPayOrder>();
@@ -34,6 +34,18 @@ const method = ref<'balance' | 'chain'>();
 const selectedChain = ref('');
 const paymentMethodId = useId();
 let writeVersion = 0;
+let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
+let cancelConfirmation: (() => void) | undefined;
+function closeConfirmation() { cancelConfirmation?.(); cancelConfirmation = undefined; confirmationModal?.close(); confirmationModal = undefined; }
+function askConfirmation(title: string, content: string) {
+  return new Promise<boolean>(resolve => {
+    cancelConfirmation = () => resolve(false);
+    confirmationModal = Modal.confirm({ title, content,
+      onOk: () => { confirmationModal = undefined; cancelConfirmation = undefined; resolve(true); },
+      onCancel: () => { confirmationModal = undefined; cancelConfirmation = undefined; resolve(false); }
+    });
+  });
+}
 
 const groupNo = computed(() => detail.value?.orderGroupNo?.trim() || '');
 const activePay = computed(() => latestPay.value && ['PENDING', 'SUBMITTED', 'SUCCESS'].includes(latestPay.value.status));
@@ -99,13 +111,14 @@ async function load() {
   }
 }
 
-watch([() => props.visible, () => props.order.id, () => userStore.currentUser?.id], () => {
+watch([() => props.visible, () => props.order.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   writeVersion += 1;
+  closeConfirmation();
   guard.invalidate();
   submitting.value = false;
   if (props.visible) void load();
 }, { immediate: true });
-onBeforeUnmount(() => { writeVersion += 1; guard.invalidate(); });
+onBeforeUnmount(() => { writeVersion += 1; closeConfirmation(); guard.invalidate(); });
 
 function amountAtLeast(amount: string, minimum: string | number | null) {
   if (minimum === null || minimum === undefined || minimum === '') return true;
@@ -174,11 +187,8 @@ async function continuePayment() {
         return;
       }
       if (latestPay.value && ['CLOSED', 'FAILED'].includes(latestPay.value.status)) {
-        const confirmed = await new Promise<boolean>(resolve => Modal.confirm({
-          title: '先核对原链上支付',
-          content: `原支付单 ${latestPay.value?.payNo} 已${latestPay.value?.statusText || latestPay.value?.status}。旧交易仍可能延迟到账；请先在钱包和平台核对原交易，确认后再选择新的付款。`,
-          onOk: () => resolve(true), onCancel: () => resolve(false)
-        }));
+        const confirmed = await askConfirmation('先核对原链上支付',
+          `原支付单 ${latestPay.value?.payNo} 已${latestPay.value?.statusText || latestPay.value?.status}。旧交易仍可能延迟到账；请先在钱包和平台核对原交易，确认后再选择新的付款。`);
         if (!confirmed || !isCurrent()) return;
       }
     }
@@ -193,11 +203,8 @@ async function continuePayment() {
     const preview = await readPayableGroup(group, orderId, userId);
     if (!isCurrent()) return;
     if (!amountAtLeast(preview.amount, selected.minAmount)) throw new Error('订单组金额低于该链最小支付额，请选择余额支付或其他链');
-    const accepted = await new Promise<boolean>(resolve => Modal.confirm({
-      title: '核对链上支付',
-      content: `本次将为该订单组的 ${preview.count} 笔待付订单创建 ${selected.label}（${selected.network}）支付单，合计 U ${preview.amount}。不会立即转账，下一页还需连接钱包并签名。`,
-      onOk: () => resolve(true), onCancel: () => resolve(false)
-    }));
+    const accepted = await askConfirmation('核对链上支付',
+      `本次将为该订单组的 ${preview.count} 笔待付订单创建 ${selected.label}（${selected.network}）支付单，合计 U ${preview.amount}。不会立即转账，下一页还需连接钱包并签名。`);
     if (!accepted || !isCurrent()) return;
     let pending = readPendingCheckout(userId);
     const matchingPending = pending?.orderGroupNo === group;

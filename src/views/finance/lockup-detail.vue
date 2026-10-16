@@ -15,6 +15,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore, useWalletStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue, parseDateValue } from '@/utils/date-range';
+import { sumPaymentAmounts } from '@/utils/checkout';
 import { financialSubmissionIssue } from '@/utils/financial-submission';
 
 const route = useRoute();
@@ -30,7 +31,7 @@ const unlocking = ref(false);
 const redemptionPending = ref(false);
 const redeemedOrderIds = new Set<string>();
 const id = computed(() => String(route.params.id));
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let writeVersion = 0;
 
 const meta = computed(() => (order.value ? ({
@@ -133,8 +134,8 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
-  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextId, nextUserId, nextSession], [prevId, prevUserId, prevSession]) => {
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession) return;
   writeVersion += 1;
   order.value = undefined;
   expandLedger.value = false;
@@ -164,6 +165,18 @@ async function confirmUnlock(o: Api.RealFinance.FinanceOrderVO) {
     try {
       const payPassword = await requestPayPassword();
       if (!payPassword || !isCurrentWrite()) return;
+      if (!financialSubmissionIssue(requestedUserId, `finance-redeem:${o.id}`)) {
+        const latest = await financeApi.fetchFinanceOrderDetail(o.id, { showError:false });
+        if (!isCurrentWrite()) return;
+        const fields = ['principal', 'redeemFee', 'redeemableInterest'] as const;
+        if (String(latest.id) !== String(o.id) || financeApi.financeRedemptionIssue(latest)
+          || fields.some(field => sumPaymentAmounts([latest[field] ?? '']) !== sumPaymentAmounts([o[field] ?? '']))) {
+          unlockModalOpen.value = false;
+          Message.warning('赎回报价或状态已变化，请重新核对后确认');
+          await load();
+          return;
+        }
+      }
       await financeApi.redeemFinanceWithReadback(requestedUserId, o.id, payPassword);
     } catch (error) {
       if (isCurrentWrite()) {

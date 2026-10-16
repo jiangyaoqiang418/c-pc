@@ -70,12 +70,13 @@ const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<Api.RealWallet.WithdrawVO>();
 const detailTargetId = ref<string | number>();
+const detailExpectedSnapshot = ref<FinancialSnapshot>();
 const loadError = ref('');
 const recordError = ref('');
 const detailError = ref('');
-const requestGuard = createLatestRequestGuard();
-const recordsGuard = createLatestRequestGuard();
-const detailGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const recordsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const detailGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let writeVersion = 0;
 
 const chainOptions = [
@@ -119,6 +120,8 @@ function createWithdrawalIntentApi(payPassword: string, isCurrentWrite: () => bo
 async function restoreWithdrawal() {
   const userId = userStore.currentUser?.id;
   if (userId === undefined || submitting.value) return;
+  const snapshot = financialSubmissionSnapshot(userId, 'withdraw');
+  if (!snapshot?.chain || !snapshot.toAddress) { Message.warning('原申请快照无法核对，请联系平台核实'); return; }
   const operation = ++writeVersion;
   const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId);
   submitting.value = true;
@@ -128,7 +131,7 @@ async function restoreWithdrawal() {
     const id = await submitKeyedFinancialOperation(userId, 'withdraw', undefined, createWithdrawalIntentApi(payPassword, isCurrentWrite), true);
     if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
-    await openDetail(id);
+    await openDetail(id, snapshot);
     if (operation === writeVersion) await loadAll();
   } catch (error) {
     if (isCurrentWrite()) Message.warning(error instanceof Error ? error.message : '原申请核对失败');
@@ -234,7 +237,9 @@ async function confirm() {
     let detailReadFailed = false;
     if (!nextWithdrawal) {
       try {
-        nextWithdrawal = await realWalletApi.fetchWithdrawDetail(id);
+        const next = await realWalletApi.fetchWithdrawDetail(id);
+        validateWithdrawalDetail(next, id, prepared.params);
+        nextWithdrawal = next;
       } catch {
         // 申请已经创建成功，详情回读失败不能把成功写入误报为提交失败。
         detailReadFailed = true;
@@ -266,11 +271,19 @@ async function confirm() {
 }
 
 async function showDetail(record: Api.RealWallet.WithdrawVO) {
-  await openDetail(record.id);
+  await openDetail(record.id, { chain:record.chain, toAddress:record.toAddress, amount:record.amount });
 }
 
-async function openDetail(id: string | number) {
+function validateWithdrawalDetail(next: Api.RealWallet.WithdrawVO, id: string | number, expected?: FinancialSnapshot) {
+  if (String(next.id) !== String(id) || (expected && (!expected.chain || !expected.toAddress
+    || next.chain !== expected.chain || next.toAddress !== expected.toAddress || compareDecimalAmount(next.amount, expected.amount) !== 0))) {
+    throw new Error('转出详情与原网络、金额或收款地址不一致，请核对原申请');
+  }
+}
+
+async function openDetail(id: string | number, expected?: FinancialSnapshot) {
   detailTargetId.value = id;
+  detailExpectedSnapshot.value = expected && { ...expected };
   const isCurrent = detailGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
   detailOpen.value = true;
@@ -280,7 +293,7 @@ async function openDetail(id: string | number) {
   try {
     const next = await realWalletApi.fetchWithdrawDetail(id, { signal: isCurrent.signal });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-    if (String(next.id) !== String(id)) throw new Error('转出详情对象不一致');
+    validateWithdrawalDetail(next, id, expected);
     detail.value = next;
   } catch {
     if (isCurrent()) detailError.value = '转出申请详情加载失败，请稍后重试';
@@ -294,6 +307,7 @@ watch(detailOpen, visible => {
     detailGuard.invalidate();
     detailLoading.value = false;
     detailTargetId.value = undefined;
+    detailExpectedSnapshot.value = undefined;
   }
 });
 
@@ -324,8 +338,8 @@ onBeforeUnmount(() => {
   recordsGuard.invalidate();
   detailGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next, nextSession], [previous, previousSession]) => {
+  if (String(next) === String(previous) && nextSession === previousSession) return;
   refreshSubmissionIssue();
   writeVersion += 1;
   requestGuard.invalidate();
@@ -341,11 +355,13 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   createdWithdrawal.value = undefined;
   detail.value = undefined;
   detailTargetId.value = undefined;
+  detailExpectedSnapshot.value = undefined;
   detailOpen.value = false;
   void loadAll();
 });
 watch(() => route.query.id, id => {
-  if (id) void openDetail(String(id));
+  if (typeof id === 'string' && id.trim()) void openDetail(id);
+  else detailOpen.value = false;
 }, { immediate: true });
 watch(modalOpen, visible => { if (!visible) confirmedParams.value = undefined; });
 
@@ -388,7 +404,7 @@ const statusFilter = computed({
     </section>
   </WalletOperationDialog>
   <V47VaultDialog v-model:visible="modalOpen" title="确认提交转出申请" description="请确认收款地址与所选链一致，提交后将进入平台审核。" icon="shield" :busy="submitting"><DescriptionList :items="[{ label: '网络 / 币种', value: confirmedParams?.chain || '—' }, { label: '转出金额', value: formatAmount(confirmedParams?.amount) + ' USDT' }, { label: '收款地址', value: confirmedParams?.toAddress || '—' }]" /><button class="primary full wallet-note-action" :disabled="submitting" @click="confirm">{{ submitting ? '正在提交…' : '确认提交' }}</button></V47VaultDialog>
-  <V47VaultDialog v-model:visible="detailOpen" title="转出申请详情" description="平台审核及链上打款记录" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 6" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ label: '申请编号', value: String(detail.id) }, { label: '网络', value: detail.chain }, { label: '收款地址', value: detail.toAddress }, { label: '转出金额', value: formatMoney(detail.amount) }, { label: '手续费', value: formatMoney(detail.fee) }, { label: '扣费后金额', value: formatMoney(detail.actualAmount) }, { label: '状态', value: detail.statusText || detail.status || '待确认' }, { label: '审核意见', value: detail.reviewComment || '—' }, { label: '失败原因', value: detail.failReason || '—' }, { label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '打款时间', value: formatTime(detail.paidAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新读取" @action="detailTargetId !== undefined && openDetail(detailTargetId)" /></V47VaultDialog>
+  <V47VaultDialog v-model:visible="detailOpen" title="转出申请详情" description="平台审核及链上打款记录" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 6" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ label: '申请编号', value: String(detail.id) }, { label: '网络', value: detail.chain }, { label: '收款地址', value: detail.toAddress }, { label: '转出金额', value: formatMoney(detail.amount) }, { label: '手续费', value: formatMoney(detail.fee) }, { label: '扣费后金额', value: formatMoney(detail.actualAmount) }, { label: '状态', value: detail.statusText || detail.status || '待确认' }, { label: '审核意见', value: detail.reviewComment || '—' }, { label: '失败原因', value: detail.failReason || '—' }, { label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '打款时间', value: formatTime(detail.paidAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新读取" @action="detailTargetId !== undefined && openDetail(detailTargetId, detailExpectedSnapshot)" /></V47VaultDialog>
   </div>
 </template>
 

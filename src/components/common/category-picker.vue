@@ -163,7 +163,7 @@ async function focusFirstResult() {
 .category-panel.searching { width:min(560px,calc(100vw - 32px)); }
 .category-search { display:flex; align-items:center; gap:8px; padding:12px 12px 4px; color:var(--yb-muted); }
 .category-search>svg { flex-shrink:0; }
-.category-search input { height:34px; min-width:0; }
+.category-search input { height:34px; min-width:0; padding:0 10px; }
 .category-hint,.search-count { margin:0; padding:8px 12px; color:var(--yb-muted); font-size:12px; line-height:1.5; }
 .category-hint { display:flex; align-items:center; height:54px; border-bottom:1px solid var(--yb-hairline); }
 .category-columns { display:flex; max-width:min(660px,calc(100vw - 34px)); overflow-x:auto; overscroll-behavior:contain; }

@@ -57,10 +57,10 @@ const filter = reactive<{
   behaviors: Api.Point.BehaviorCode[];
   dateRange?: string[];
 }>({ behaviors: [] });
-const logsGuard = createLatestRequestGuard();
-const appealsGuard = createLatestRequestGuard();
-const rulesGuard = createLatestRequestGuard();
-const vipGuard = createLatestRequestGuard();
+const logsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const appealsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const rulesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const vipGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let appealWriteVersion = 0;
 let appealModalVersion = 0;
 watch(appealModalOpen, () => { appealModalVersion += 1; }, { flush: 'sync' });
@@ -265,7 +265,7 @@ onBeforeUnmount(() => {
   vipGuard.invalidate();
 });
 
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   if (disposed) return;
   appealWriteVersion += 1;
   logsGuard.invalidate();
@@ -328,6 +328,7 @@ async function submitAppeal() {
     return;
   }
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const appealLogId = appealTarget.value.id;
   const operation = ++appealWriteVersion;
@@ -335,7 +336,7 @@ async function submitAppeal() {
   appealSubmitting.value = true;
   try {
     const r = await pointApi.appealPointLog({ logId: appealLogId, reason });
-    if (operation !== appealWriteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== appealWriteVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     if (!r.ok) {
       Message.error(r.message || '提交失败');
       return;
@@ -459,5 +460,10 @@ td { padding:18px 16px; border-bottom:1px solid var(--line); font-size:14px; ver
 .rule-card footer>span,.counter { color:var(--muted); font-size:12px; }.counter { text-align:right; }.required { color:var(--yb-danger); }
 .field :deep(input),.field :deep(button[role='combobox']),.field :deep(textarea) { height:auto; min-height:44px; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--paper); box-shadow:none; }
 @media(max-width:1100px) { .filter-panel { grid-template-columns:1fr 1.5fr; }.filter-actions { grid-column:1/-1; }.appeals-filter { grid-template-columns:1fr 1fr; }.rules-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(max-width:700px) { .filter-panel,.rules-grid { grid-template-columns:1fr; }.membership-account-unavailable { flex-wrap:wrap; } }
+@media(max-width:700px) {
+  .filter-panel,.rules-grid { grid-template-columns:1fr; }
+  .membership-account-unavailable { flex-wrap:wrap; }
+  .membership-current-head > div { min-width:0; max-width:100%; }
+  .membership-current-head h3 { overflow-wrap:anywhere; }
+}
 </style>

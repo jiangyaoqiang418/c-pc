@@ -109,7 +109,7 @@ onBeforeUnmount(() => {
   confirmationModal?.close();
   requestGuard.invalidate();
 });
-watch(() => [userStore.currentUser?.id, userStore.sessionVersion], () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   writeVersion += 1;
   confirmationModal?.close();
   requestGuard.invalidate();

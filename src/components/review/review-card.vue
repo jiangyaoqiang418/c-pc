@@ -10,6 +10,8 @@ interface Props {
   review: Api.RealReview.ReviewDTO;
   audience: 'sent' | 'received';
   actionLoading?: string;
+  readonly?: boolean;
+  deleteMode?: 'unknown' | 'ready';
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -21,8 +23,8 @@ const emit = defineEmits<{
 const router = useRouter();
 
 const isHidden = computed(() => ['HIDDEN', 'REJECTED'].includes(props.review.status));
-const canReply = computed(() => props.audience === 'received' && props.review.status === 'PUBLISHED' && !props.review.replyContent);
-const canAppeal = computed(() => props.audience === 'received' && ['PUBLISHED', 'HIDDEN'].includes(props.review.status) && !props.review.appealId);
+const canReply = computed(() => !props.readonly && props.audience === 'received' && props.review.status === 'PUBLISHED' && !props.review.replyContent);
+const canAppeal = computed(() => !props.readonly && props.audience === 'received' && ['PUBLISHED', 'HIDDEN'].includes(props.review.status) && !props.review.appealId);
 const statusMeta = computed(() => ({
   PENDING: { label: '待审核', color: 'orange' }, PUBLISHED: { label: '已发布', color: 'green' },
   REJECTED: { label: '已驳回', color: 'red' }, HIDDEN: { label: '已隐藏', color: 'gray' }
@@ -55,12 +57,16 @@ watch(() => props.review.reviewId, () => { deleteVisible.value = false; previewO
     </template>
     <div class="review-card-bottom"><button type="button" class="text-link" @click="goOrder">查看订单</button><button v-if="review.replyContent && !isHidden" type="button" class="review-reply-toggle" :aria-expanded="replyOpen" @click="replyOpen = !replyOpen">买手回复 <UmIcon name="chevron" /></button></div>
     <div v-if="review.replyContent && replyOpen && !isHidden" class="review-reply"><b>买手回复</b><p>{{ review.replyContent }}</p></div>
-    <footer v-if="audience === 'sent' || canReply || canAppeal" class="button-row review-actions"><button v-if="audience === 'sent'" type="button" class="text-link danger" :disabled="!!actionLoading" @click="deleteVisible = true">删除评价</button><button v-if="canReply" type="button" class="outline" :disabled="!!actionLoading" @click="emit('reply',review)">回复评价</button><button v-if="canAppeal" type="button" class="outline" :disabled="!!actionLoading" @click="emit('appeal',review)">发起申诉</button></footer>
-    <AModal v-model:visible="deleteVisible" title="删除评价？" :width="420" ok-text="确认删除" :ok-button-props="{ status:'danger',disabled:!!actionLoading }" @ok="emit('delete',review)"><p>删除后无法恢复，确认删除这条评价吗？</p></AModal>
+    <footer v-if="!readonly && (audience === 'sent' || canReply || canAppeal)" class="button-row review-actions"><button v-if="audience === 'sent'" type="button" class="text-link danger" :disabled="!!actionLoading" @click="deleteVisible = true">删除评价</button><button v-if="canReply" type="button" class="outline" :disabled="!!actionLoading" @click="emit('reply',review)">回复评价</button><button v-if="canAppeal" type="button" class="outline" :disabled="!!actionLoading" @click="emit('appeal',review)">发起申诉</button></footer>
+    <AModal v-model:visible="deleteVisible" title="删除评价？" :width="420" :ok-text="deleteMode === 'unknown' ? '核对删除结果' : deleteMode === 'ready' ? '确认重试删除' : '确认删除'" :ok-button-props="{ status:'danger',disabled:!!actionLoading }" @ok="emit('delete',review)"><p>{{ deleteMode === 'unknown' ? '原删除结果待核实，本次仅读取本人评价，不会直接重发删除。' : deleteMode === 'ready' ? '已核对原评价仍可见，确认重试删除这条评价吗？删除后无法恢复。' : '删除后无法恢复，确认删除这条评价吗？' }}</p></AModal>
     <ImagePreview v-model="previewOpen" :images="review.images || []" :start-index="previewIndex" title="评价图片" />
   </article>
 </template>
 
 <style scoped>
 .review-actions { justify-content:flex-end; flex-wrap:wrap; margin-top:16px; }.danger { color:var(--yb-danger); }.status-banner { flex-wrap:wrap; }.review-reply p { white-space:pre-wrap; overflow-wrap:anywhere; }
+@media (max-width:700px) {
+  .review-photos { flex-wrap:wrap; }
+  .review-photos > button { flex-shrink:0; max-width:100%; }
+}
 </style>

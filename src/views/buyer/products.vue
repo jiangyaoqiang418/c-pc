@@ -199,14 +199,19 @@ watch(activeKey, () => {
   syncQuery();
 }, { flush: 'sync' });
 watch(() => route.fullPath, () => {
+  writeVersion += 1;
+  shelvingId.value = undefined;
+  deletingId.value = undefined;
+  priceVisible.value = false;
+  priceProduct.value = undefined;
+  priceSaving.value = false;
   if (syncFromQuery()) {
     syncQuery(true);
     return;
   }
   void load();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], () => {
   writeVersion += 1;
   requestGuard.invalidate();
   shelvingId.value = undefined;
@@ -224,10 +229,11 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
 async function toggleShelf(p: Api.RealProduct.Record) {
   if (priceSaving.value || shelvingId.value !== undefined || deletingId.value !== undefined) return;
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined || !userStore.isBuyerActive || String(p.sellerId) !== String(requestedUserId)) return;
   const productId = p.id;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   const nextOnShelf = p.shelfStatus !== 'on-shelf';
   shelvingId.value = productId;
   try {
@@ -247,7 +253,7 @@ async function toggleShelf(p: Api.RealProduct.Record) {
   } catch (error) {
     if (isCurrentWrite()) Message.error(error instanceof Error ? error.message : nextOnShelf ? '上架失败，请稍后重试' : '下架失败，请稍后重试');
   } finally {
-    if (operation === writeVersion) shelvingId.value = undefined;
+    if (operation === writeVersion && userStore.sessionVersion === requestedSession) shelvingId.value = undefined;
   }
 }
 
@@ -258,10 +264,11 @@ async function deleteProduct(p: Api.RealProduct.Record) {
     return;
   }
   const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
+  if (requestedUserId === undefined || !userStore.isBuyerActive || String(p.sellerId) !== String(requestedUserId)) return;
   const productId = p.id;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   deletingId.value = productId;
   try {
     await productApi.deleteProduct(productId);
@@ -271,7 +278,7 @@ async function deleteProduct(p: Api.RealProduct.Record) {
   } catch {
     // 请求层已展示后端业务提示。
   } finally {
-    if (operation === writeVersion) deletingId.value = undefined;
+    if (operation === writeVersion && userStore.sessionVersion === requestedSession) deletingId.value = undefined;
   }
 }
 
@@ -295,12 +302,13 @@ async function savePrice() {
   }
   const value = amount.value;
   const operation = ++writeVersion;
-  const isCurrent = () => operation === writeVersion && String(userStore.currentUser?.id) === String(userId) && userStore.isBuyerActive;
+  const requestedSession = userStore.sessionVersion;
+  const isCurrent = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(userId) && userStore.isBuyerActive;
   priceSaving.value = true;
   try {
     const latest = await productApi.fetchSellerProductDetail(p.id);
     if (!isCurrent()) return;
-    if (String(latest.sellerId) !== String(userId) || !['ON_SALE', 'OFF_SHELF'].includes(latest.rawStatus || '') || productRequiresSku(latest)) {
+    if (String(latest.id) !== String(p.id) || String(latest.sellerId) !== String(userId) || !['ON_SALE', 'OFF_SHELF'].includes(latest.rawStatus || '') || productRequiresSku(latest)) {
       Message.warning('商品归属、状态或规格已变化，不能快捷改价，请重新读取商品');
       priceVisible.value = false;
       await load();
@@ -350,4 +358,9 @@ async function savePrice() {
 .price-form label > span { color:var(--yb-danger); }
 .buyer-price-product-name { overflow-wrap:anywhere; }
 .modal-actions { display:flex; justify-content:flex-end; gap:16px; margin-top:12px; }
+@media(max-width:700px) {
+  .buyer-page-top { flex-direction:column; align-items:stretch; }
+  .buyer-page-top > div { width:100%; min-width:0; }
+  .head-actions > button { max-width:100%; }
+}
 </style>

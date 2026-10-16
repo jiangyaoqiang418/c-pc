@@ -194,6 +194,20 @@ describe('异步页面后退位置', () => {
 });
 
 describe('最新请求保护', () => {
+  it('上下文改变时同步拒绝旧结果，同身份资料刷新不误失效', () => {
+    const user = reactive({ id: '9007199254740993', session: 1, name: '旧昵称' });
+    const guard = createLatestRequestGuard(() => `${user.id}:${user.session}`);
+    const first = guard.begin();
+    user.name = '新昵称';
+    expect(first()).toBe(true);
+    user.session += 1;
+    expect(first()).toBe(false);
+    const second = guard.begin();
+    expect(second()).toBe(true);
+    user.id = '9007199254740995';
+    expect(second()).toBe(false);
+  });
+
   it('只允许最后一次请求写回结果', () => {
     const guard = createLatestRequestGuard();
     const first = guard.begin();

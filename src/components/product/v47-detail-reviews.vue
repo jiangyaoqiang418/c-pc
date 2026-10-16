@@ -123,5 +123,9 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
 .review-pagination { margin-top:28px; }
 .review-summary-error { flex-wrap:wrap; }
 .review-summary-error > span { flex:1; }
-@media (max-width:700px) { .review-loading { grid-template-columns:1fr; } }
+@media (max-width:700px) {
+  .review-loading { grid-template-columns:1fr; }
+  .review-photos { flex-wrap:wrap; }
+  .review-photos > button { flex-shrink:0; max-width:100%; }
+}
 </style>

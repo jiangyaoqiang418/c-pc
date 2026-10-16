@@ -29,10 +29,18 @@
 @media (max-width: 700px) {
   .wallet-page > .page-heading.compact { margin: 16px 0 12px; }
   .wallet-assets .section-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .wallet-transaction > b, .asset-bucket > b { font-size: 12px; overflow-wrap: anywhere; }
+  .wallet-transaction > b, .asset-bucket > b { font-size: 12px; min-width: 0; max-width: 100%; flex-shrink: 1; white-space: normal; overflow-wrap: anywhere; text-align: right; }
   .asset-bucket { gap: 10px; }
   .asset-bucket > svg:first-child { width: 32px; height: 32px; padding: 7px; }
   .asset-bucket > svg:last-child { display: none; }
   .wallet-total, .wallet-cashflow { font-size: 12px; }
+  .wallet-hero h1,.stats-grid h2,.wallet-total,.wallet-cashflow b { overflow-wrap: anywhere; }
+  .stats-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .stats-grid > .paper,.wallet-hero > div { min-width: 0; }
+  .stats-grid h2,.wallet-hero h1 { min-width: 0; max-width: 100%; white-space: normal; }
+  .wallet-hero p { overflow-wrap: anywhere; }
+}
+@media (max-width: 400px) {
+  .wallet-page .wallet-hero + .stats-grid > .paper h2 { font-size: 16px; }
 }
 .wallet-hero > svg { pointer-events:none; }

@@ -17,4 +17,8 @@ const html = computed(() => sanitizeRichText(props.content) || `<p>${props.empty
 .rich-text-content :deep(blockquote) { padding-left: 12px; border-left: 3px solid var(--yb-hairline-2); color: var(--yb-ink-2); }
 .rich-text-content :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; }
 .rich-text-content :deep(th), .rich-text-content :deep(td) { padding: 7px; border: 1px solid var(--yb-hairline-2); text-align: left; }
+@media (max-width:700px) {
+  .rich-text-content { min-width:0; max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
+  .rich-text-content :deep(pre) { max-width:100%; overflow-x:auto; }
+}
 </style>

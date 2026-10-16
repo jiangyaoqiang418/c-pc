@@ -52,9 +52,9 @@ const countsSearchKey = ref('');
 const reviewableOrderIds = ref(new Set<string>());
 const reviewableError = ref('');
 const reviewableLoading = ref(false);
-const ordersGuard = createLatestRequestGuard();
-const countsGuard = createLatestRequestGuard();
-const reviewableGuard = createLatestRequestGuard();
+const ordersGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const countsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const reviewableGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 
 const orderView = ref<'buy' | 'sell'>('buy');
 const role = computed(() => (orderView.value === 'sell' ? 'shopper' : 'customer'));
@@ -253,9 +253,9 @@ function changePage(page: number) {
 }
 
 watch(
-  [() => userStore.canSwitchToBuyer, () => userStore.currentUser?.id],
-  ([nextPermission, nextUserId], [previousPermission, previousUserId]) => {
-    if (nextPermission === previousPermission && String(nextUserId) === String(previousUserId)) return;
+  [() => userStore.canSwitchToBuyer, () => userStore.currentUser?.id, () => userStore.sessionVersion],
+  ([nextPermission, nextUserId, nextSession], [previousPermission, previousUserId, previousSession]) => {
+    if (nextPermission === previousPermission && String(nextUserId) === String(previousUserId) && nextSession === previousSession) return;
     ordersGuard.invalidate();
     countsGuard.invalidate();
     reviewableGuard.invalidate();
@@ -313,7 +313,7 @@ function changeTab(value: string | number) {
 </template>
 
 <style scoped>
-.order-search { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }.order-search label { display:flex; align-items:center; gap:8px; flex:1 1 220px; padding:10px 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); }.order-search input { width:100%; min-width:0; background:transparent; }.order-search button { padding:10px 18px; border:1px solid var(--line); border-radius:8px; }
+.order-search { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }.order-search label { display:flex; align-items:center; gap:8px; flex:1 1 220px; padding:0 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); }.order-search input { width:100%; min-width:0; background:transparent; }.order-search button { padding:10px 18px; border:1px solid var(--line); border-radius:8px; }
 .view-switch { display:flex; gap:8px; margin-left:auto; }
 .tab-count { margin-left:6px; font-size:12px; }
 .order-skeletons { display:grid; gap:16px; }.order-skeleton { height:210px; }

@@ -115,6 +115,7 @@ async function loadCategories() {
 }
 
 function openSubmit() {
+  if (submitting.value || !userStore.isBuyerActive) return;
   modalVersion += 1;
   form.parentId = undefined;
   form.newName = '';
@@ -123,7 +124,7 @@ function openSubmit() {
 }
 
 async function submit() {
-  if (submitting.value) return;
+  if (submitting.value || !modalOpen.value || !userStore.isBuyerActive) return;
   if (!form.newName.trim()) {
     Message.warning('请输入新分类名称');
     return;
@@ -135,8 +136,9 @@ async function submit() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
+  const requestedSession = userStore.sessionVersion;
   const submittedModalVersion = modalVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     try {
@@ -154,7 +156,7 @@ async function submit() {
       // 请求层已展示错误，保留表单内容供用户修正后重试。
     }
   } finally {
-    if (operation === writeVersion) submitting.value = false;
+    if (operation === writeVersion && userStore.sessionVersion === requestedSession) submitting.value = false;
   }
 }
 
@@ -185,7 +187,7 @@ onBeforeUnmount(() => {
   requestGuard.invalidate();
   categoriesGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], () => {
   writeVersion += 1;
   requestGuard.invalidate();
   categoriesGuard.invalidate();

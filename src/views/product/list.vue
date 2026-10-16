@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { resolvePageSize } from '@/service/api/page';
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { FocusScope } from 'reka-ui';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import * as productApi from '@/service/api/product';
@@ -13,6 +14,7 @@ import UmIcon from '@/components/common/um-icon.vue';
 import V47CatalogCategories from '@/components/product/v47-catalog-categories.vue';
 import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { exactDecimalNumber } from '@/components/wallet/decimal-amount';
 
 const router = useRouter();
 const route = useRoute();
@@ -29,13 +31,35 @@ const filter = reactive({
 });
 
 const expandedFilters = reactive({ aftersale: true, overseas: true, price: true });
+const priceTexts = reactive({ minPrice:'', maxPrice:'' });
+function readPrice(value: string) { return value.trim() ? exactDecimalNumber(value, true) : { value:undefined, error:'' }; }
+const priceError = computed(() => {
+  const min = readPrice(priceTexts.minPrice);
+  const max = readPrice(priceTexts.maxPrice);
+  return min.error ? `最低价格：${min.error}` : max.error ? `最高价格：${max.error}` : '';
+});
 const filterOpen = ref(false);
+const filterTrigger = ref<HTMLButtonElement>();
+const filterClose = ref<HTMLButtonElement>();
+let filterViewport: MediaQueryList | undefined;
 let previousOverflow = '';
 watch(filterOpen, value => {
   if (value) { previousOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; }
   else document.body.style.overflow = previousOverflow;
-});
-function closeFilters(event: KeyboardEvent) { if (event.key === 'Escape') filterOpen.value = false; }
+}, { flush:'sync' });
+function openFilters() {
+  if (!filterViewport?.matches) return;
+  filterOpen.value = true;
+  void nextTick(() => { if (filterOpen.value) filterClose.value?.focus({ preventScroll:true }); });
+}
+function closeFilterPanel(restoreFocus = true) {
+  filterOpen.value = false;
+  if (restoreFocus) void nextTick(() => {
+    if (filterTrigger.value?.isConnected && filterTrigger.value.getClientRects().length) filterTrigger.value.focus({ preventScroll:true });
+  });
+}
+function syncFilterViewport() { if (!filterViewport?.matches) closeFilterPanel(false); }
+function closeFilters(event: KeyboardEvent) { if (event.key === 'Escape' && filterOpen.value) closeFilterPanel(); }
 const list = ref<Api.RealProduct.Record[]>([]);
 const total = ref(0);
 const current = ref(1);
@@ -138,12 +162,6 @@ const overseasSelection = computed({
   set: (value: string) => { filter.overseasCustoms = value === 'overseas' ? true : undefined; }
 });
 
-function optionalQueryNumber(value: unknown) {
-  if (typeof value !== 'string' || !value.trim()) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
-}
-
 function syncFromQuery() {
   const queryKeyword = route.query.keyword;
   const queryCategoryId = route.query.categoryId;
@@ -160,8 +178,10 @@ function syncFromQuery() {
   filter.overseasCustoms = rawOverseas === '1' ? true : undefined;
   const rawMinPrice = Array.isArray(route.query.minPrice) ? route.query.minPrice[0] : route.query.minPrice;
   const rawMaxPrice = Array.isArray(route.query.maxPrice) ? route.query.maxPrice[0] : route.query.maxPrice;
-  const minPrice = typeof rawMinPrice === 'string' ? optionalQueryNumber(rawMinPrice) : undefined;
-  const maxPrice = typeof rawMaxPrice === 'string' ? optionalQueryNumber(rawMaxPrice) : undefined;
+  priceTexts.minPrice = typeof rawMinPrice === 'string' ? rawMinPrice : '';
+  priceTexts.maxPrice = typeof rawMaxPrice === 'string' ? rawMaxPrice : '';
+  const minPrice = readPrice(priceTexts.minPrice).value;
+  const maxPrice = readPrice(priceTexts.maxPrice).value;
   filter.minPrice = minPrice;
   filter.maxPrice = maxPrice;
   const querySort = Array.isArray(route.query.sort) ? route.query.sort[0] : route.query.sort;
@@ -177,18 +197,18 @@ function syncFromQuery() {
     || (querySort !== undefined && querySort !== filter.sort)
     || (route.query.aftersaleType !== undefined && (Array.isArray(route.query.aftersaleType) || !validAftersaleType))
     || (Array.isArray(rawOverseas) || !validOverseas)
-    || (route.query.minPrice !== undefined && (Array.isArray(route.query.minPrice) || minPrice === undefined))
-    || (route.query.maxPrice !== undefined && (Array.isArray(route.query.maxPrice) || maxPrice === undefined))
+    || Array.isArray(route.query.minPrice)
+    || Array.isArray(route.query.maxPrice)
     || (route.query.page !== undefined && (Array.isArray(route.query.page) || !validPage));
 }
 
 async function load() {
-  if (filter.minPrice !== undefined && filter.maxPrice !== undefined && filter.minPrice > filter.maxPrice) {
+  if (priceError.value || filter.minPrice !== undefined && filter.maxPrice !== undefined && filter.minPrice > filter.maxPrice) {
     requestGuard.invalidate();
     loading.value = false;
     list.value = [];
     total.value = 0;
-    loadError.value = '最低价格不能高于最高价格，请调整筛选条件。';
+    loadError.value = priceError.value || '最低价格不能高于最高价格，请调整筛选条件。';
     return;
   }
   const isCurrent = requestGuard.begin();
@@ -238,8 +258,8 @@ function updateUrl(replace: boolean) {
       brandId: filter.brandId,
       aftersaleType: filter.aftersaleType,
       overseas: filter.overseasCustoms ? '1' : undefined,
-      minPrice: filter.minPrice !== undefined ? String(filter.minPrice) : undefined,
-      maxPrice: filter.maxPrice !== undefined ? String(filter.maxPrice) : undefined,
+      minPrice: priceTexts.minPrice.trim() || undefined,
+      maxPrice: priceTexts.maxPrice.trim() || undefined,
       sort: filter.sort,
       page: current.value === 1 ? undefined : String(current.value)
     }
@@ -249,7 +269,12 @@ function updateUrl(replace: boolean) {
   });
 }
 
-function applyToUrl() {
+function applyToUrl(closePanel = false) {
+  if (priceError.value) {
+    Message.warning(priceError.value);
+    void load();
+    return;
+  }
   if ([filter.minPrice, filter.maxPrice].some(price => price != null && (!Number.isFinite(price) || price < 0))) {
     Message.warning('请输入有效的非负价格');
     return;
@@ -258,6 +283,7 @@ function applyToUrl() {
     Message.warning('最低价格不能高于最高价格');
     return;
   }
+  if (closePanel) closeFilterPanel();
   current.value = 1;
   updateUrl(false);
 }
@@ -267,16 +293,21 @@ function resetFilters() {
   filter.overseasCustoms = undefined;
   filter.minPrice = undefined;
   filter.maxPrice = undefined;
+  priceTexts.minPrice = '';
+  priceTexts.maxPrice = '';
   current.value = 1;
   applyToUrl();
 }
 
 onMounted(() => {
+  filterViewport = matchMedia('(max-width:700px)');
+  filterViewport.addEventListener('change', syncFilterViewport);
   window.addEventListener('keydown', closeFilters);
   if (syncFromQuery()) updateUrl(true);
   else load();
 });
 onBeforeUnmount(() => {
+  filterViewport?.removeEventListener('change', syncFilterViewport);
   window.removeEventListener('keydown', closeFilters);
   if (filterOpen.value) document.body.style.overflow = previousOverflow;
   requestGuard.invalidate();
@@ -303,7 +334,8 @@ function onPageChange(p: number) {
 }
 
 function updatePrice(bound: 'minPrice' | 'maxPrice', value: string | number) {
-  filter[bound] = String(value).trim() === '' ? undefined : Number(value);
+  priceTexts[bound] = String(value);
+  filter[bound] = readPrice(priceTexts[bound]).value;
 }
 
 function selectAftersale(value: string) {
@@ -328,16 +360,19 @@ function selectSort(value: unknown) {
     <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><template v-if="filter.categoryId"><RouterLink :to="categoryLocation()">精选商品</RouterLink><template v-for="(node, index) in categoryPath" :key="node.id"><UmIcon name="chevron" /><RouterLink v-if="index < categoryPath.length - 1" :to="categoryLocation(node.id)">{{ node.name }}</RouterLink><span v-else aria-current="page">{{ node.name }}</span></template><template v-if="!categoryPath.length"><UmIcon name="chevron" /><span aria-current="page">{{ categoryLabel }}</span></template></template><span v-else aria-current="page">精选商品</span></nav>
     <h1 class="catalog-sr-only">{{ title }}</h1><p v-if="filter.keyword" class="catalog-search-caption">“{{ filter.keyword }}” 的搜索结果</p>
     <div class="catalog-layout">
-      <aside class="filters" :class="{ open: filterOpen }" aria-label="商品筛选">
-        <div class="section-heading"><h3>筛选商品</h3><button type="button" @click="resetFilters">重置</button><button type="button" class="mobile-only icon-btn" aria-label="关闭筛选" @click="filterOpen = false"><UmIcon name="close" /></button></div>
+      <div v-if="filterOpen" class="catalog-filter-touch-mask" aria-hidden="true" @pointerdown.prevent @touchmove.prevent @click.stop="closeFilterPanel()" />
+      <FocusScope as-child :trapped="filterOpen" :loop="filterOpen" :present="filterOpen" @mount-auto-focus="$event.preventDefault()" @unmount-auto-focus="$event.preventDefault()">
+      <aside class="filters" :class="{ open: filterOpen }" :role="filterOpen ? 'dialog' : undefined" :aria-modal="filterOpen || undefined" aria-labelledby="catalog-filter-title">
+        <div class="section-heading"><h3 id="catalog-filter-title">筛选商品</h3><button type="button" @click="resetFilters">重置</button><button ref="filterClose" type="button" class="mobile-only icon-btn" aria-label="关闭筛选" @click="closeFilterPanel()"><UmIcon name="close" /></button></div>
         <details :open="expandedFilters.aftersale" @toggle="expandedFilters.aftersale = ($event.target as HTMLDetailsElement).open"><summary>售后服务</summary><label v-for="option in aftersaleOptions" :key="option.value"><input type="radio" name="service" :value="option.value" :checked="aftersaleSelection === option.value" @change="selectAftersale(option.value)" />{{ option.label }}</label></details>
         <details :open="expandedFilters.overseas" @toggle="expandedFilters.overseas = ($event.target as HTMLDetailsElement).open"><summary>配送方式</summary><label><input type="checkbox" :checked="overseasSelection === 'overseas'" @change="selectOverseas(($event.target as HTMLInputElement).checked ? 'overseas' : 'all')" />仅海外直邮</label></details>
-        <details :open="expandedFilters.price" @toggle="expandedFilters.price = ($event.target as HTMLDetailsElement).open"><summary>价格范围 · USDT</summary><form class="price-inputs" @submit.prevent="applyToUrl"><input :value="filter.minPrice" type="number" min="0" step="any" placeholder="最低" aria-label="最低价格" @input="updatePrice('minPrice', ($event.target as HTMLInputElement).value)" /><span>–</span><input :value="filter.maxPrice" type="number" min="0" step="any" placeholder="最高" aria-label="最高价格" @input="updatePrice('maxPrice', ($event.target as HTMLInputElement).value)" /><button type="submit" class="catalog-sr-only" tabindex="-1">应用筛选</button></form></details>
-        <button type="button" class="primary full" @click="applyToUrl">应用筛选<UmIcon name="arrow" /></button>
+        <details :open="expandedFilters.price" @toggle="expandedFilters.price = ($event.target as HTMLDetailsElement).open"><summary>价格范围 · USDT</summary><form class="price-inputs" @submit.prevent="applyToUrl(true)"><input :value="priceTexts.minPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="最低" aria-label="最低价格" @input="updatePrice('minPrice', ($event.target as HTMLInputElement).value)" /><span>–</span><input :value="priceTexts.maxPrice" type="text" inputmode="decimal" autocomplete="off" placeholder="最高" aria-label="最高价格" @input="updatePrice('maxPrice', ($event.target as HTMLInputElement).value)" /><button type="submit" class="catalog-sr-only" tabindex="-1">应用筛选</button></form></details>
+        <button type="button" class="primary full" @click="applyToUrl(true)">应用筛选<UmIcon name="arrow" /></button>
       </aside>
+      </FocusScope>
       <div class="catalog-content">
         <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />
-        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button type="button" class="filter-button outline" @click="filterOpen = true"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="catalog-sort-trigger" aria-label="商品排序"><SelectValue placeholder="综合排序" /></SelectTrigger><SelectContent align="end" :side-offset="6" class="min-w-40 border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]"><SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value" class="data-[highlighted]:bg-[var(--soft)] data-[highlighted]:text-[var(--ink)] data-[state=checked]:text-[var(--green)]">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
+        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button ref="filterTrigger" type="button" class="filter-button outline" :aria-expanded="filterOpen" @click="openFilters"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="catalog-sort-trigger" aria-label="商品排序"><SelectValue placeholder="综合排序" /></SelectTrigger><SelectContent align="end" :side-offset="6" class="min-w-40 border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]"><SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value" class="data-[highlighted]:bg-[var(--soft)] data-[highlighted]:text-[var(--ink)] data-[state=checked]:text-[var(--green)]">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
         <div v-if="filter.categoryId || filter.aftersaleType || filter.overseasCustoms" class="active-filters" role="group" aria-label="已选筛选条件"><button v-if="filter.categoryId" type="button" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">{{ categoryLabel }} ×</button><button v-if="filter.aftersaleType" type="button" aria-label="清除售后服务筛选" @click="selectAftersale('all')">{{ aftersaleOptions.find(option => option.value === filter.aftersaleType)?.label }} ×</button><button v-if="filter.overseasCustoms" type="button" aria-label="清除海外直邮筛选" @click="selectOverseas('all')">海外直邮 ×</button><button v-if="categoryError && !categoryLoading" type="button" @click="loadCategoryPath(true)">重试分类名称</button></div>
         <section class="catalog-results product-feed" :aria-busy="loading" aria-label="商品列表">
           <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
@@ -361,5 +396,14 @@ function selectSort(value: unknown) {
 .skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
 .active-filters button { max-width:100%; white-space:normal; text-align:left; }
 .catalog-sort-trigger { width:auto; min-width:144px; height:38px; padding:0 10px 0 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); font-size:12px; }
+@media (max-width:700px) {
+  .catalog-filter-touch-mask { position:fixed; inset:0; z-index:69; background:transparent; }
+  .filters.open { overscroll-behavior:contain; }
+  .catalog-toolbar { flex-wrap:wrap; gap:10px; }
+  .catalog-toolbar > span { flex:0 0 auto; max-width:100%; }
+  .catalog-toolbar > div { min-width:0; max-width:100%; gap:8px; }
+  .catalog-toolbar .filter-button { flex:0 0 auto; white-space:nowrap; }
+  .catalog-sort-trigger { width:128px; min-width:112px; flex:0 1 128px; }
+}
 @media (prefers-reduced-motion:reduce) { .feed-grid { transition:none; } }
 </style>

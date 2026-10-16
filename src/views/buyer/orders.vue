@@ -64,8 +64,8 @@ const shippingMode = ref<'shipping' | 'procure'>('shipping');
 const logisticsModalOpen = ref(false);
 const logisticsSubmitting = ref(false);
 const logisticsOrder = ref<Api.RealOrder.Record>();
-const requestGuard = createLatestRequestGuard();
-const actionGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const actionGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let logisticsWriteVersion = 0;
 let shippingWriteVersion = 0;
 let priceWriteVersion = 0;
@@ -165,8 +165,8 @@ watch(() => route.fullPath, () => {
   }
   void load();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next, nextSession], [previous, previousSession]) => {
+  if (String(next) === String(previous) && nextSession === previousSession) return;
   logisticsWriteVersion += 1;
   shippingWriteVersion += 1;
   priceWriteVersion += 1;

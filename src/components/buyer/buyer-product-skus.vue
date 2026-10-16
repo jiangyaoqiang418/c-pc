@@ -122,4 +122,8 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
 .helper { color:var(--muted); font-size:12px; line-height:1.7; }
 .sku-row :deep(.cell),.sku-row :deep(.add) { width:72px; height:72px; }
 @media(max-width:700px) { .sku-options { grid-template-columns:minmax(0,1fr); } .sku-group,.sku-row { padding:14px; } }
+@media(max-width:700px) {
+  .text-button { position:relative; }
+  .text-button::after { content:''; position:absolute; top:50%; left:50%; width:max(100%,44px); height:max(100%,44px); transform:translate(-50%,-50%); }
+}
 </style>

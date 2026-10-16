@@ -47,6 +47,7 @@ async function load() {
   try {
     const nextRequest = await purchaseApi.fetchPurchaseDetail(requestedId, { signal: isCurrent.signal });
     if (!isCurrent() || id.value !== requestedId || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (!sameBusinessId(nextRequest.id, requestedId)) throw new Error('求购详情对象不一致');
     request.value = nextRequest;
     if (sameBusinessId(nextRequest.customerId, requestedUserId)) {
       try {
@@ -76,9 +77,9 @@ onBeforeUnmount(() => {
   cancelWriteVersion += 1;
   requestGuard.invalidate();
 });
-watch([() => route.params.id, () => userStore.currentUser?.id], ([nextId, nextUserId], [prevId, prevUserId]) => {
+watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], ([nextId, nextUserId, nextSession, nextAudience], [prevId, prevUserId, prevSession, prevAudience]) => {
   if (disposed) return;
-  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId)) return;
+  if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession && nextAudience === prevAudience) return;
   confirmationModal?.close();
   claimWriteVersion += 1;
   cancelWriteVersion += 1;
@@ -107,7 +108,8 @@ async function claim() {
   const requestedUserId = userStore.currentUser.id;
   const requestedRequestId = request.value.id;
   const operation = ++claimWriteVersion;
-  const isCurrentWrite = () => operation === claimWriteVersion
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === claimWriteVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && sameBusinessId(request.value?.id, requestedRequestId);
   claiming.value = true;
@@ -123,7 +125,7 @@ async function claim() {
   } catch {
     // 请求层已展示错误，保留当前求购供用户重试。
   } finally {
-    if (operation === claimWriteVersion) claiming.value = false;
+    if (operation === claimWriteVersion && userStore.sessionVersion === requestedSession) claiming.value = false;
   }
 }
 
@@ -133,7 +135,8 @@ function cancel() {
   const requestedRequestId = request.value.id;
   if (requestedUserId === undefined) return;
   const operation = ++cancelWriteVersion;
-  const isCurrentWrite = () => operation === cancelWriteVersion
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === cancelWriteVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId)
     && sameBusinessId(request.value?.id, requestedRequestId);
   cancellationPending.value = true;
@@ -148,7 +151,7 @@ function cancel() {
     },
     async onOk() {
       if (!isCurrentWrite() || !canCancel.value || loading.value) {
-        if (operation === cancelWriteVersion) cancellationPending.value = false;
+        if (operation === cancelWriteVersion && userStore.sessionVersion === requestedSession) cancellationPending.value = false;
         return;
       }
       canceling.value = true;
@@ -164,7 +167,7 @@ function cancel() {
       } catch {
         // 请求层已展示错误，保留当前求购供用户重试。
       } finally {
-        if (operation === cancelWriteVersion) {
+        if (operation === cancelWriteVersion && userStore.sessionVersion === requestedSession) {
           canceling.value = false;
           cancellationPending.value = false;
         }
@@ -180,7 +183,7 @@ function previewEvidence(index: number) {
   previewIndex.value = index;
   previewOpen.value = true;
 }
-watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; });
+watch([id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => { previewOpen.value = false; });
 
 </script>
 
@@ -217,4 +220,8 @@ watch([id, () => userStore.currentUser?.id], () => { previewOpen.value = false; 
 .hero-row { display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; }.hero-row > div { min-width:0; }h1 { margin:12px 0; overflow-wrap:anywhere; }.category,.code,.muted { color:var(--muted); font-size:13px; overflow-wrap:anywhere; }.budget-block { display:grid; align-content:start; gap:5px; }.budget-block strong { font-size:24px; }.budget-block span { font-size:13px; }
 .request-section { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }.request-section h2 { margin-bottom:20px; }.request-section h3 { margin:20px 0 10px; }.description { white-space:pre-wrap; overflow-wrap:anywhere; }.section-divider { height:1px; background:var(--line); margin:20px 0; }.button-row { margin-top:20px; flex-wrap:wrap; }.danger { color:var(--yb-danger); }
 .evidence { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }.evidence button { width:104px; height:104px; overflow:hidden; border-radius:8px; border:1px solid var(--line); }.evidence img { width:100%; height:100%; object-fit:cover; }.status-banner { flex-wrap:wrap; }.progress-summary { margin-top:18px; border-top:1px solid var(--line); padding-top:16px; }.progress-summary p { font-size:13px; }.claimed { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }.loading { display:grid; gap:20px; }.hero-skeleton { height:190px; }.detail-skeleton { height:400px; }
+@media(max-width:700px) {
+  .budget-block { max-width:100%; }
+  .budget-block strong { min-width:0; overflow-wrap:anywhere; }
+}
 </style>

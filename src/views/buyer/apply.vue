@@ -95,7 +95,8 @@ async function submit() {
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   submitting.value = true;
   try {
     try {
@@ -119,7 +120,7 @@ async function submit() {
       }
     }
   } finally {
-    if (operation === writeVersion) submitting.value = false;
+    if (operation === writeVersion && userStore.sessionVersion === requestedSession) submitting.value = false;
   }
 }
 
@@ -128,7 +129,7 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   requestGuard.invalidate();
 });
-watch(() => userStore.currentUser?.id, () => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], () => {
   writeVersion += 1;
   submitting.value = false;
   submissionUnknown.value = false;

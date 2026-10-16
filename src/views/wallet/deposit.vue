@@ -118,11 +118,11 @@ const loadError = ref('');
 const addressError = ref('');
 const recordError = ref('');
 const detailError = ref('');
-const requestGuard = createLatestRequestGuard();
-const recordsGuard = createLatestRequestGuard();
-const chainsGuard = createLatestRequestGuard();
-const addressGuard = createLatestRequestGuard();
-const detailGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const recordsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const chainsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const addressGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const detailGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let createWriteVersion = 0;
 let cancelWriteVersion = 0;
 
@@ -145,6 +145,9 @@ interface DirectTransferProgress {
 const directProgress = ref<DirectTransferProgress>();
 const directProgressError = ref('');
 let directWriteVersion = 0;
+let directConfirmationModal: ReturnType<typeof Modal.confirm> | undefined;
+let cancelDirectConfirmation: (() => void) | undefined;
+function closeDirectConfirmation() { cancelDirectConfirmation?.(); cancelDirectConfirmation = undefined; directConfirmationModal?.close(); directConfirmationModal = undefined; }
 const selectedWalletChain = computed(() => {
   const config = selectedChain.value;
   return config?.methods.includes('WALLET') && config.walletNetwork && config.tokenContract
@@ -408,11 +411,16 @@ async function directTransfer() {
         const wallet = await connectPaymentWallet({ chain: chainCode, network: payment.network,
           toAddress: address.address, tokenContract: payment.tokenContract, rawAmount }, selectedWallet);
         if (!isCurrent()) throw new Error('账号、链或金额已变化，请重新核对');
-        const confirmed = await new Promise<boolean>(resolve => Modal.confirm({
-          title: '确认钱包直充',
-          content: `${chainCode} · ${payment.network}，转账 ${amountText} USDT。付款账户：${wallet.account}。收款地址：${address.address}。USDT 合约：${payment.tokenContract}。请仔细核对，确认后打开钱包签名。`,
-          onOk: () => resolve(true), onCancel: () => resolve(false)
-        }));
+        const confirmed = await new Promise<boolean>(resolve => {
+          cancelDirectConfirmation = () => resolve(false);
+          directConfirmationModal = Modal.confirm({
+            title: '确认钱包直充',
+            content: `${chainCode} · ${payment.network}，转账 ${amountText} USDT。付款账户：${wallet.account}。收款地址：${address.address}。USDT 合约：${payment.tokenContract}。请仔细核对，确认后打开钱包签名。`,
+            onOk: () => resolve(true), onCancel: () => resolve(false)
+          });
+        });
+        directConfirmationModal = undefined;
+        cancelDirectConfirmation = undefined;
         if (!confirmed) return;
         const beforeSignature = await freshDirectConfig(chainCode, expected);
         directRawAmount(amountText, payment.decimals,
@@ -461,7 +469,7 @@ function clearDirectProgress() {
   let saved: string | null;
   try { saved = localStorage.getItem(directStorageKey(userId)); }
   catch { Message.error('本机记录无法读取，请稍后重试'); return; }
-  Modal.confirm({
+  directConfirmationModal = Modal.confirm({
     title: '核对上一笔钱包直充',
     content: directProgress.value?.txHash
       ? '请确认已在钱包及平台核对上一笔交易。清除本机提示不会取消或改变链上交易。'
@@ -658,6 +666,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', refreshSubmissionIssue);
   createWriteVersion += 1;
   directWriteVersion += 1;
+  closeDirectConfirmation();
   cancelWriteVersion += 1;
   requestGuard.invalidate();
   recordsGuard.invalidate();
@@ -669,6 +678,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
   if (String(next) === String(previous) && session === previousSession) return;
   createWriteVersion += 1;
   directWriteVersion += 1;
+  closeDirectConfirmation();
   cancelWriteVersion += 1;
   requestGuard.invalidate();
   recordsGuard.invalidate();
@@ -705,7 +715,8 @@ watch([chain, selectedChain], () => {
   void loadRechargeAddress();
 });
 watch(() => route.query.id, id => {
-  if (id) void openDetail(String(id));
+  if (typeof id === 'string' && id.trim()) void openDetail(id);
+  else detailOpen.value = false;
 }, { immediate: true });
 
 const statusFilter = computed({

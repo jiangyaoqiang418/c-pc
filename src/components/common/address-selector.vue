@@ -8,12 +8,14 @@ import * as realAddressApi from '@/service/api/address';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { RequestError } from '@/service/request';
 import AddressForm from '@/components/profile/address-form.vue';
+import { useUserStore } from '@/stores/user';
 
 interface Props {
   modelValue?: string | number;
   userId: string | number;
 }
 const props = defineProps<Props>();
+const userStore = useUserStore();
 const groupId = useId();
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string | number | undefined): void;
@@ -28,18 +30,21 @@ const loadError = ref('');
 const modalOpen = ref(false);
 const submitting = ref(false);
 const loadedUserId = ref('');
+const loadedSession = ref(-1);
 const pendingCreatedId = ref<string | number>();
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let writeVersion = 0;
 const selectionValid = computed(() => !loading.value && !loadError.value
+  && loadedSession.value === userStore.sessionVersion
   && loadedUserId.value === String(props.userId)
+  && String(userStore.currentUser?.id) === String(props.userId)
   && list.value.some(address => isSelected(address)));
 watch(selectionValid, valid => emit('validity', valid), { immediate: true, flush: 'sync' });
 
 async function load() {
   const isCurrent = requestGuard.begin();
   const userId = props.userId ? String(props.userId) : '';
-  if (!userId) {
+  if (!userId || String(userStore.currentUser?.id) !== userId) {
     list.value = [];
     loadedUserId.value = '';
     loading.value = false;
@@ -54,6 +59,7 @@ async function load() {
     if (!isCurrent() || String(props.userId) !== userId) return;
     list.value = next;
     loadedUserId.value = userId;
+    loadedSession.value = userStore.sessionVersion;
     const selected = pendingCreatedId.value !== undefined
       ? next.find(address => String(address.id) === String(pendingCreatedId.value))
       : next.find(address => isSelected(address)) || next.find(a => a.isDefault) || next[0];
@@ -75,12 +81,13 @@ async function load() {
 }
 
 onMounted(load);
-watch(() => props.userId, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => props.userId, () => userStore.sessionVersion], (next, previous) => {
+  if (String(next[0]) === String(previous[0]) && next[1] === previous[1]) return;
   writeVersion += 1;
   submitting.value = false;
   modalOpen.value = false;
   loadedUserId.value = '';
+  loadedSession.value = -1;
   pendingCreatedId.value = undefined;
   list.value = [];
   emit('update:modelValue', undefined);
@@ -93,7 +100,8 @@ onBeforeUnmount(() => {
 });
 
 function onSelect(addr: Api.RealAddress.AddressRecord) {
-  if (loading.value || loadError.value || loadedUserId.value !== String(props.userId)) return;
+  if (loading.value || loadError.value || loadedUserId.value !== String(props.userId)
+    || loadedSession.value !== userStore.sessionVersion || String(userStore.currentUser?.id) !== String(props.userId)) return;
   if (!list.value.some(item => String(item.id) === String(addr.id))) return;
   emit('update:modelValue', addr.id);
   emit('changed', addr);
@@ -109,10 +117,12 @@ function openAdd() {
 }
 
 async function submit(params: Api.RealAddress.AddressSaveParams) {
-  if (submitting.value) return false;
+  if (submitting.value || String(userStore.currentUser?.id) !== String(props.userId)) return false;
   const userId = String(props.userId);
+  const session = userStore.sessionVersion;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(props.userId) === userId;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === session
+    && String(userStore.currentUser?.id) === userId && String(props.userId) === userId;
   submitting.value = true;
   try {
     try {
@@ -148,7 +158,7 @@ async function submit(params: Api.RealAddress.AddressSaveParams) {
       <label v-for="a in list" :key="a.id" class="address-option" :class="{ active:isSelected(a) }"><input type="radio" :name="groupId" :checked="isSelected(a)" :aria-label="`${a.receiverName}，${a.receiverPhone}，${a.detail}`" @change="onSelect(a)" /><div><b>{{ a.receiverName }}</b> <span>{{ a.receiverPhone }}</span><small>{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}<template v-if="a.postalCode"> · {{ a.postalCode }}</template></small></div><span v-if="a.isDefault" class="pill">默认</span></label>
     </fieldset>
     <div v-else-if="!loadError" class="address-empty"><UmIcon name="pin" /><p>添加一个地址，让好物找到你。</p><button type="button" class="outline" :disabled="submitting || loading" @click="openAdd">添加收货地址</button></div>
-    <a-modal v-model:visible="modalOpen" title="添加收货地址" :width="540" :footer="false" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting"><AddressForm v47 :submitting="submitting" @submit="submit" /></a-modal>
+    <a-modal v-model:visible="modalOpen" title="添加收货地址" :width="540" :footer="false" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting"><AddressForm :key="String(userId) + ':' + userStore.sessionVersion + ':' + modalOpen" v47 :submitting="submitting" @submit="submit" /></a-modal>
   </div>
 </template>
 

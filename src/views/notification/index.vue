@@ -29,10 +29,11 @@ const readingAll = ref(false);
 const clearing = ref(false);
 const clearConfirmationOpen = ref(false);
 const deletingId = ref<string | number>();
-const requestGuard = createLatestRequestGuard();
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let readAllVersion = 0;
 let deleteVersion = 0;
 let clearVersion = 0;
+let navigationVersion = 0;
 let disposed = false;
 
 function syncFromQuery() {
@@ -69,6 +70,7 @@ async function load() {
   if (disposed) return;
   const isCurrent = requestGuard.begin();
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) {
     loading.value = false;
     records.value = [];
@@ -80,7 +82,7 @@ async function load() {
   loadError.value = '';
   try {
     const response = await notifyApi.fetchNotifications({ pageNo: pageNo.value, pageSize: pageSize.value, unreadOnly: unreadOnly.value }, { signal: isCurrent.signal });
-    if (!isCurrent() || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (!isCurrent() || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     pageSize.value = resolvePageSize(response, pageSize.value);
     const maxPage = Math.max(1, Math.ceil((response.total || 0) / pageSize.value));
     if (pageNo.value > maxPage) {
@@ -129,26 +131,30 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
   return { label: '平台通知', color: 'gray' as const };
 }
 
-async function markNotificationRead(notification: Api.RealNotify.NotificationVO) {
+async function markNotificationRead(notification: Api.RealNotify.NotificationVO, refreshList = true) {
   if (disposed || notification.readFlag) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   const read = await notifyStore.readNotification(notification.id);
-  if (!read || disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+  if (!read || disposed || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
   notification.readFlag = true;
   const current = records.value.find(item => sameBusinessId(item.id, notification.id));
   if (current) current.readFlag = true;
-  if (unreadOnly.value) void load();
+  if (refreshList && unreadOnly.value) void load();
 }
 
 async function openNotification(notification: Api.RealNotify.NotificationVO) {
   if (disposed) return;
+  const navigation = ++navigationVersion;
   const requestedUserId = userStore.currentUser?.id;
-  if (!notification.readFlag) void markNotificationRead(notification);
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentNavigation = () => !disposed && navigation === navigationVersion
+    && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   let target = notificationRoute(notification);
   if (notification.templateCode === 'demand_taken' && notification.bizId != null) {
     try {
       const demand = await fetchPurchaseProgress(notification.bizId);
-      if (disposed || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+      if (disposed || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       target = demand.orderId
         ? { name: 'order-detail' as const, params: { id: String(demand.orderId) } }
         : target;
@@ -156,6 +162,9 @@ async function openNotification(notification: Api.RealNotify.NotificationVO) {
       // 成交结果暂时无法读取时仍进入求购详情，绝不把求购 ID 当订单 ID。
     }
   }
+  if (!isCurrentNavigation()) return;
+  // 先确定本次跳转；标读触发的未读末页校正不能取消用户刚点击的详情。
+  if (!notification.readFlag) void markNotificationRead(notification, !target);
   if (target) void router.push(target);
   else Message.info('该通知暂无详情');
 }
@@ -163,12 +172,13 @@ async function openNotification(notification: Api.RealNotify.NotificationVO) {
 async function readAll() {
   if (readingAll.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const operation = ++readAllVersion;
   readingAll.value = true;
   try {
     await notifyApi.markAllNotificationsRead();
-    if (operation !== readAllVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== readAllVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     records.value.forEach(item => { item.readFlag = true; });
     notifyStore.setNotificationUnreadCount(0);
     Message.success('已全部标记为已读');
@@ -183,12 +193,13 @@ async function readAll() {
 async function remove(notification: Api.RealNotify.NotificationVO) {
   if (deletingId.value !== undefined) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const operation = ++deleteVersion;
   deletingId.value = notification.id;
   try {
     await notifyApi.deleteNotification(notification.id);
-    if (operation !== deleteVersion || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    if (operation !== deleteVersion || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
     records.value = records.value.filter(item => !sameBusinessId(item.id, notification.id));
     total.value = Math.max(0, total.value - 1);
     if (!notification.readFlag) decreaseUnreadCount();
@@ -203,9 +214,10 @@ async function remove(notification: Api.RealNotify.NotificationVO) {
 function clearAll() {
   if (disposed || clearing.value || clearConfirmationOpen.value) return;
   const requestedUserId = userStore.currentUser?.id;
+  const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
   const operation = ++clearVersion;
-  const isCurrent = () => !disposed && operation === clearVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const isCurrent = () => !disposed && operation === clearVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
   clearConfirmationOpen.value = true;
   clearModal = Modal.warning({
     title: '清空通知',
@@ -254,6 +266,7 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   disposed = true;
+  navigationVersion += 1;
   clearVersion += 1;
   readAllVersion += 1;
   deleteVersion += 1;
@@ -262,15 +275,17 @@ onBeforeUnmount(() => {
 });
 watch(() => route.fullPath, () => {
   if (disposed) return;
+  navigationVersion += 1;
   if (syncFromQuery()) {
     void router.replace({ query: { ...route.query, unread: undefined } });
     return;
   }
   void load();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], (next, previous) => {
   if (disposed) return;
-  if (String(next) === String(previous)) return;
+  if (String(next[0]) === String(previous[0]) && next[1] === previous[1]) return;
+  navigationVersion += 1;
   clearModal?.close();
   readAllVersion += 1;
   deleteVersion += 1;

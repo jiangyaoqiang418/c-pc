@@ -7,6 +7,7 @@ import { Message, Modal } from '@/lib/feedback';
 import EmptyState from '@/components/common/empty-state.vue';
 import * as refundApi from '@/service/api/refund';
 import { useUserStore } from '@/stores';
+import { isDefinitiveRejection } from '@/service/request/type';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { resolvePageSize } from '@/service/api/page';
 
@@ -29,7 +30,8 @@ const statusDefs = [
   { key: 'AGREED', label: '已同意' }, { key: 'REJECTED', label: '已驳回' }, { key: 'CANCELED', label: '已撤销' }
 ];
 const statusColor: Record<string, string> = { CONFIRMING: 'orange', APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
-const requestGuard = createLatestRequestGuard();
+const unknownCancellations = ref(new Set<string>());
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ CONFIRMING: '待买手确认', APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
 const canCancel = (row: Api.RealRefund.RefundDTO) => userStore.currentUser?.id !== undefined
   && String(row.buyerId) === String(userStore.currentUser.id) && ['CONFIRMING', 'APPLYING'].includes(String(row.status));
@@ -107,8 +109,7 @@ watch(() => route.query, () => {
   }
   void load();
 });
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
+watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], () => {
   writeVersion += 1;
   confirmationModal?.close();
   requestGuard.invalidate();
@@ -121,20 +122,66 @@ watch(() => userStore.currentUser?.id, (next, previous) => {
   syncQuery(true);
 });
 
+function cancellationKey(refundId: string | number) { return `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${String(refundId)}`; }
+
 function cancel(row: Api.RealRefund.RefundDTO) {
-  if (cancellingId.value || cancellationPending.value) return;
+  if (cancellingId.value || cancellationPending.value || loading.value) return;
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;
   const refundId = row.refundId;
+  const orderId = row.orderId;
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion && String(userStore.currentUser?.id) === String(requestedUserId);
+  const requestedSession = userStore.sessionVersion;
+  const pendingKey = cancellationKey(refundId);
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
+  const validDetail = (next: Api.RealRefund.RefundDTO) => String(next.refundId) === String(refundId)
+    && String(next.buyerId) === String(requestedUserId) && String(next.orderId) === String(orderId);
+  async function recoverCancellation() {
+    unknownCancellations.value.add(pendingKey);
+    try {
+      const latest = await refundApi.fetchRefundDetail(refundId);
+      if (!isCurrentWrite()) return;
+      if (!validDetail(latest) || !['CONFIRMING', 'APPLYING', 'CANCELED', 'AGREED', 'REJECTED'].includes(String(latest.status))) throw new Error('原退款申请状态未确认');
+      refunds.value = refunds.value.map(item => String(item.refundId) === String(refundId) ? latest : item);
+      unknownCancellations.value.delete(pendingKey);
+      if (latest.status === 'CANCELED') Message.success('已核对到撤销结果');
+      else if (canCancel(latest)) Message.warning('尚未核对到撤销结果；原申请仍可撤销，请重新核对后确认');
+      else Message.warning('原申请状态已更新，当前不可撤销，请查看处理进度');
+      await load();
+    } catch {
+      if (isCurrentWrite()) Message.warning('撤销结果待核实，请先核对原申请，暂不重复提交');
+    }
+  }
+  if (unknownCancellations.value.has(pendingKey)) {
+    cancellingId.value = refundId;
+    void recoverCancellation().finally(() => { if (isCurrentWrite()) cancellingId.value = undefined; });
+    return;
+  }
   cancellationPending.value = true;
   confirmationModal = Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; }, async onOk() {
     if (!isCurrentWrite()) return;
     cancellingId.value = refundId;
-    try { await refundApi.cancelRefund(refundId); if (!isCurrentWrite()) return; Message.success('已撤销退款申请'); await load(); }
-    catch { if (isCurrentWrite()) Message.error('撤销退款申请失败，请稍后重试'); }
-    finally { if (operation === writeVersion) { cancellingId.value = undefined; cancellationPending.value = false; } }
+    let submitted = false;
+    try {
+      const latest = await refundApi.fetchRefundDetail(refundId);
+      if (!isCurrentWrite()) return;
+      if (!validDetail(latest) || !canCancel(latest)) {
+        Message.warning('退款申请状态或归属已变化，请重新核对');
+        await load();
+        return;
+      }
+      submitted = true;
+      const canceledId = await refundApi.cancelRefund(refundId);
+      if (!isCurrentWrite()) return;
+      if (String(canceledId) !== String(refundId)) throw new Error('撤销回执尚未核对');
+      Message.success('已撤销退款申请');
+      await load();
+    } catch (error) {
+      if (!isCurrentWrite()) return;
+      if (!submitted) Message.warning('原申请读取失败，本次尚未提交撤销，请重新核对');
+      else if (isDefinitiveRejection(error)) Message.error(error instanceof Error ? error.message : '撤销申请未被接受');
+      else await recoverCancellation();
+    } finally { if (operation === writeVersion && userStore.sessionVersion === requestedSession) { cancellingId.value = undefined; cancellationPending.value = false; } }
   }});
 }
 
@@ -154,7 +201,7 @@ function changeTab(value: string | number) {
         <article v-for="row in refunds" :key="row.refundId" class="paper case-card" :class="{ refreshing: loading }" role="link" tabindex="0" :aria-label="`打开仅退款申请 ${row.orderNo || row.refundId}`" @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.enter.self="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.space.self.prevent="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">
           <header class="section-heading case-head"><h2>{{ row.productTitle || '仅退款申请' }}</h2><span class="pill status" :class="statusColor[String(row.status)]">{{ statusLabel(row) }}</span></header>
           <div class="case-body"><div><small>订单号：{{ row.orderNo || '—' }}</small><p>{{ row.reason || '—' }}</p></div><div class="amount"><small>申请退款金额</small><strong>U {{ row.amount ?? '—' }}</strong></div></div>
-          <footer class="button-row actions" @click.stop><button type="button" class="outline"  @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">查看详情</button><button type="button" v-if="canCancel(row)"  class="danger outline" :disabled="!!cancellingId || cancellationPending || loading" @click="cancel(row)">{{ cancellingId === row.refundId ? '撤销中…' : '撤销申请' }}</button></footer>
+          <footer class="button-row actions" @click.stop><button type="button" class="outline"  @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">查看详情</button><button type="button" v-if="canCancel(row)"  class="danger outline" :disabled="!!cancellingId || cancellationPending || loading" @click="cancel(row)">{{ cancellingId === row.refundId ? unknownCancellations.has(cancellationKey(row.refundId)) ? '正在核对…' : '撤销中…' : unknownCancellations.has(cancellationKey(row.refundId)) ? '核对撤销结果' : '撤销申请' }}</button></footer>
         </article>
       </template>
       <EmptyState v-else :title="loadError || '暂无仅退款申请'" :description="loadError ? '不会展示不完整的售后数据。' : '可在待发货或待收货订单中申请仅退款'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && load()" />

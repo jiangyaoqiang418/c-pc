@@ -23,10 +23,11 @@ import { createCategoryOptions, fetchCategoryTree, fetchCreateCategoryOptions, i
 import { createPinia, setActivePinia } from 'pinia';
 import { useUserStore } from '@/stores/user';
 import { useProductFavoritesStore } from '@/stores/product-favorites';
+import { useReviewStore } from '@/stores/review';
 import * as productApi from './product';
 import { fetchBrandsPage, fetchBrandDetail } from './brand';
 import { fetchHelpPage, fetchHelpDetail, fetchAgreementCurrent, fetchAnnouncementsPage, contentReadMessage } from './content';
-import { fetchStorefrontReviews, setReviewHelpful, validateHelpfulState } from './review';
+import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpfulState } from './review';
 import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
@@ -112,6 +113,98 @@ describe('v47 新接入契约与恢复边界', () => {
     expect(store.entries[nextId]).toMatchObject({ value:true, loading:false, writing:false });
     expect(query).toHaveBeenCalledTimes(4);
     expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('资料刷新保留收藏未知目标，同账号新会话才清除原状态', async () => {
+    const { user, store } = favoriteStore();
+    vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValueOnce([{ productId, favorited:false }])
+      .mockRejectedValueOnce(new Error('read unavailable'));
+    vi.spyOn(realOrderRequest, 'post').mockRejectedValue(new Error('lost response'));
+    await expect(store.toggle(productId)).rejects.toThrow('read unavailable');
+    user.currentUser = { ...user.currentUser!, nickname:'资料刷新' };
+    expect(store.entries[productId]).toMatchObject({ target:true, writing:false });
+    user.sessionVersion += 1;
+    expect(store.entries).toEqual({});
+  });
+
+  it('评价原提交仅属于当前会话，旧异常不能覆盖新会话的在途操作', async () => {
+    const { user } = favoriteStore();
+    const store = useReviewStore();
+    let rejectOld!: (error:Error) => void;
+    let resolveNew!: (value:unknown) => void;
+    vi.spyOn(realOrderRequest, 'post')
+      .mockImplementationOnce(() => new Promise((_resolve,reject) => { rejectOld = reject; }) as never)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveNew = resolve; }) as never);
+    const params = { orderId:productId, productScore:5, sellerScore:5, content:'真实请求前的内存测试' };
+    const old = store.submit(params).catch(error => error);
+    store.pendingActions.set('original-reply', {
+      kind:'reply', phase:'unknown', note:'核对原回复', content:'原回复',
+      review:{ reviewId:skuId, orderId:productId, productScore:5, sellerScore:5, status:'PUBLISHED' }
+    });
+    user.currentUser = { ...user.currentUser!, nickname:'资料刷新' };
+    expect(store.getPending(productId)?.state).toBe('submitting');
+    expect(store.pendingActions.get('original-reply')?.content).toBe('原回复');
+    user.sessionVersion += 1;
+    expect(store.getPending(productId)).toBeUndefined();
+    expect(store.pendingActions.size).toBe(0);
+    const current = store.submit(params);
+    rejectOld(new Error('旧会话超时'));
+    await old;
+    expect(store.getPending(productId)?.state).toBe('submitting');
+    resolveNew(skuId);
+    expect(await current).toBe(skuId);
+    expect(store.getPending(productId)).toBeUndefined();
+  });
+
+  it('评价编号返回后详情验证失败保留原操作，按原内容恢复完成才清理', async () => {
+    favoriteStore();
+    const store = useReviewStore();
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(skuId);
+    const params = { orderId:productId, productScore:5, sellerScore:5, content:'原始评价', images:['https://example.com/original.png'] };
+    await expect(store.submit(params, false, async () => {
+      throw new RequestError('详情读取失败', { status:404, code:'-322' });
+    })).rejects.toThrow('详情读取失败');
+    expect(store.getPending(productId)).toMatchObject({ state:'unknown', params });
+    const verify = vi.fn().mockResolvedValue(undefined);
+    await store.submit({ ...params, content:'不应替换原评价' }, true, verify);
+    expect(post.mock.calls[1][1]).toMatchObject({ content:'原始评价', images:params.images });
+    expect(verify).toHaveBeenCalledWith(skuId);
+    expect(store.getPending(productId)).toBeUndefined();
+  });
+
+  it('已确认订单存在不同评价时清理原待核实操作，但不报告本次提交成功', async () => {
+    favoriteStore();
+    const store = useReviewStore();
+    vi.spyOn(realOrderRequest, 'post').mockResolvedValue(skuId);
+    const params = { orderId:productId, productScore:5, sellerScore:5, content:'本次内容' };
+    await expect(store.submit(params, false, async () => {
+      throw new RequestError('该订单已有不同内容的评价', { code:'REVIEW_CONTENT_MISMATCH' });
+    })).rejects.toMatchObject({ code:'REVIEW_CONTENT_MISMATCH' });
+    expect(store.getPending(productId)).toBeUndefined();
+  });
+
+  it('评价列表回读只确认同作者且同内容的原评价，不清除不同内容的待核实快照', async () => {
+    favoriteStore();
+    const store = useReviewStore();
+    vi.spyOn(realOrderRequest, 'post').mockRejectedValue(new Error('lost response'));
+    const params = { orderId:productId, productScore:5, sellerScore:4, content:'原评价', images:['https://example.com/original.png'] };
+    await expect(store.submit(params)).rejects.toThrow('lost response');
+    const detail: Api.RealReview.ReviewDTO = { ...params, reviewId:skuId, userId:'test-owner', status:'PUBLISHED' };
+    store.confirmExisting({ ...detail, content:'其他评价' });
+    store.confirmExisting({ ...detail, userId:undefined });
+    expect(store.getPending(productId)?.params).toEqual(params);
+    store.confirmExisting(detail);
+    expect(store.getPending(productId)).toBeUndefined();
+  });
+
+  it('评价分页损坏的total不伪装成合法空页供删除恢复确认', async () => {
+    const query = vi.spyOn(realOrderRequest, 'postQuery');
+    for (const total of [undefined, null, '', false, 'not-a-total', -1, 0.5, '9007199254740993']) {
+      query.mockResolvedValueOnce({ records:[], total });
+      await expect(fetchMyReviews({}, { showError:false })).rejects.toThrow('分页总数异常');
+    }
+    query.mockResolvedValueOnce({ records:[], total:'0' });
+    expect(await fetchMyReviews()).toMatchObject({ records:[], total:0 });
   });
 
   it('卖家资格仅使用匹配卖家的权威布尔值，失败不降为未认证', async () => {

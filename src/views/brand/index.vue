@@ -100,12 +100,12 @@ function changeBrandPage(page: number) { void router.push({ query: { ...route.qu
 function changePage(page: number) { void router.push({ query: { ...route.query, page: page > 1 ? String(page) : undefined } }); }
 function exploreBrand() { void router.push({ path: '/product/list', query: { brandId: selected.value ? String(selected.value.id) : undefined } }); }
 
-watch(() => [route.query.keyword, route.query.brandPage], () => {
+watch([() => route.query.keyword, () => route.query.brandPage], () => {
   keyword.value = scalar(route.query.keyword);
   brandPage.value = pageNumber(route.query.brandPage);
   void loadBrands();
 }, { immediate: true });
-watch(() => [route.query.brandId, route.query.page], () => {
+watch([() => route.query.brandId, () => route.query.page], () => {
   current.value = pageNumber(route.query.page);
   void loadProducts();
 }, { immediate: true });
@@ -140,6 +140,8 @@ onBeforeUnmount(() => { brandGuard.invalidate(); productGuard.invalidate(); });
 .brand-tabs > button { flex-shrink: 0; }
 :root[data-ui-theme="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,#181421 40%,transparent 70%); }
 @media (max-width:700px) {
+  .brand-hero { height:auto; min-height:295px; }
+  .brand-hero h1 { overflow-wrap:anywhere; }
   .brand-tabs { margin-right:-14px; padding-right:14px; }
   :root[data-ui-theme="web3-meme"] .brand-tabs { margin-right:-12px; padding-right:12px; }
   :root[data-ui-theme="web3-meme"] .brand-hero:after { background:linear-gradient(90deg,color-mix(in srgb,#181421 90.196%,transparent),color-mix(in srgb,#181421 25.098%,transparent)); }

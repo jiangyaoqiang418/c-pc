@@ -47,7 +47,7 @@ const form = reactive<{
 
 const submitting = ref(false);
 const { markInteracted, markSaved, acceptAutomaticField } = useUnsavedForm(() => form,
-  () => `${String(userStore.currentUser?.id)}:${userStore.currentAudience}`);
+  () => `${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${userStore.sessionVersion}`);
 
 function cancelCreate() {
   const back = router.options.history.state.back;
@@ -88,13 +88,13 @@ onBeforeUnmount(() => {
   categoryGuard.invalidate();
 });
 
-watch([() => userStore.currentUser?.id, () => userStore.currentAudience], ([nextUserId, nextAudience], [previousUserId, previousAudience]) => {
-  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience) return;
+watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], ([nextUserId, nextAudience, nextSession], [previousUserId, previousAudience, previousSession]) => {
+  if (String(nextUserId) === String(previousUserId) && nextAudience === previousAudience && nextSession === previousSession) return;
   writeVersion += 1;
   confirmationModal?.close();
   submitting.value = false;
   confirmationOpen.value = false;
-  if (String(nextUserId) !== String(previousUserId)) {
+  if (String(nextUserId) !== String(previousUserId) || nextSession !== previousSession) {
     form.addressId = undefined;
     addressValid.value = false;
     form.productTitle = '';
@@ -167,7 +167,8 @@ async function submit() {
     evidenceUrls: [...form.evidenceUrls]
   };
   const operation = ++writeVersion;
-  const isCurrentWrite = () => operation === writeVersion
+  const requestedSession = userStore.sessionVersion;
+  const isCurrentWrite = () => operation === writeVersion && userStore.sessionVersion === requestedSession
     && String(userStore.currentUser?.id) === String(requestedUserId);
 
   confirmationOpen.value = true;
@@ -210,7 +211,7 @@ async function submit() {
           // 请求层已展示错误，保留表单内容供用户修正后重试。
         }
       } finally {
-        if (operation === writeVersion) {
+        if (operation === writeVersion && userStore.sessionVersion === requestedSession) {
           submitting.value = false;
           confirmationOpen.value = false;
         }
@@ -235,7 +236,7 @@ function selectAftersale(value: unknown) {
         <section class="request-fields">
           <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen" /></div>
           <div class="field"><label for="request-category">商品分类 <em>*</em></label><CategoryPicker id="request-category" v-model="form.categoryId" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting || confirmationOpen" placeholder="选择分类（支持一至五级）" /><p v-if="categoryLoadError" class="error" role="alert">{{ categoryLoadError }}<button class="text-link" type="button" :disabled="categoryLoading" @click="reloadCategories">重新加载</button></p></div>
-          <div class="field"><span class="field-label">收货地址 <em>*</em></span><AddressSelector v-if="userStore.currentUser" v-model="form.addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @initialized="acceptAutomaticField('addressId', $event)" /></div>
+          <div class="field"><span class="field-label">收货地址 <em>*</em></span><AddressSelector :key="`${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-if="userStore.currentUser" v-model="form.addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @initialized="acceptAutomaticField('addressId', $event)" /></div>
           <div class="field"><label for="request-description">商品描述 <small>可选</small></label><Textarea id="request-description" v-model="form.productDescription" :rows="3" placeholder="详细描述商品规格、版本、颜色等" /></div>
         </section>
         <section class="request-fields"><div class="form-grid">
@@ -246,7 +247,7 @@ function selectAftersale(value: unknown) {
           <div class="field"><label for="request-aftersale">售后类型 <em>*</em></label><Select :model-value="form.aftersaleType" :disabled="submitting || confirmationOpen" @update:model-value="selectAftersale"><SelectTrigger id="request-aftersale"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">无售后</SelectItem><SelectItem value="7day-no-reason">7 天无理由</SelectItem><SelectItem value="shop-warranty">店铺保修</SelectItem><SelectItem value="national-warranty">全国联保</SelectItem></SelectContent></Select></div>
           <div class="checkbox-field"><input id="request-overseas" type="checkbox" :checked="form.overseasCustoms" :disabled="submitting || confirmationOpen" @change="form.overseasCustoms = ($event.target as HTMLInputElement).checked" /><label for="request-overseas">海外过关<small>海外直邮过关后不可退</small></label></div>
           <div class="field"><label for="request-appeal">求购说明 <em>*</em></label><Textarea id="request-appeal" v-model="form.appeal" :rows="5" :maxlength="500" placeholder="至少 10 字，说明版本、颜色、采购地区等特殊要求" /><p class="counter">{{ form.appeal.length }}/500 · 至少 10 字</p></div>
-          <div class="field"><span class="field-label">参考图片 <small>可选，最多 4 张</small></span><AftersaleEvidenceUploader v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></div>
+          <div class="field"><span class="field-label">参考图片 <small>可选，最多 4 张</small></span><AftersaleEvidenceUploader :key="`${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></div>
         </section>
       </fieldset>
       <div class="button-row actions"><button class="outline" type="button"  :disabled="submitting || confirmationOpen || uploading" @click="cancelCreate">取消</button><button class="gold full" type="button" :disabled="submitting || confirmationOpen || uploading || !addressValid" @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting || confirmationOpen ? '提交中…' : '提交求购' }}<Icon v-if="!submitting && !confirmationOpen" icon="lucide:arrow-right" width="16" /></button></div>
