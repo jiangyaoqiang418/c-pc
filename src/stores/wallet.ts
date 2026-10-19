@@ -13,91 +13,108 @@ export interface BucketView {
   hint: string;
   icon: string;
   value?: string;
+  ratio?: string | number | null;
 }
 
 export const useWalletStore = defineStore('bw-wallet', () => {
   const summary = ref<Partial<Api.User.WalletSummary> | undefined>();
   const buyerWallet = ref<Api.Buyer.Wallet | undefined>();
-  const totalAssets = ref<string | undefined>('0');
+  const totalAssets = ref<string | undefined>();
   const today = ref<{ depositIn?: string; withdrawOut?: string; internalVolume?: string }>();
   const account = ref<Api.RealWallet.Account | undefined>();
   const loading = ref(false);
   const lastFetchedAt = ref<number>(0);
-  let requestVersion = 0;
+  const overviews = ref<Partial<Record<Api.RealWallet.Asset, realWalletApi.WalletOverview>>>({});
+  const loadingByAsset = ref<Record<Api.RealWallet.Asset, boolean>>({ USDT: false, USDC: false });
   let contextVersion = 0;
   let requestedUserId: Api.RealSession.Id | undefined;
-  const requestGuard = createLatestRequestGuard();
-  let inFlight: { userId: Api.RealSession.Id; version: number; promise: Promise<void> } | undefined;
+  const requestGuards = { USDT: createLatestRequestGuard(), USDC: createLatestRequestGuard() };
+  const inFlight = new Map<Api.RealWallet.Asset, { userId: Api.RealSession.Id; promise: Promise<void> }>();
 
-  function fetchWallet(userId: Api.RealSession.Id): Promise<void> {
+  function clearLegacy() {
+    summary.value = undefined;
+    buyerWallet.value = undefined;
+    totalAssets.value = undefined;
+    today.value = undefined;
+    account.value = undefined;
+    lastFetchedAt.value = 0;
+  }
+
+  function fetchWallet(userId: Api.RealSession.Id, asset: Api.RealWallet.Asset = 'USDT'): Promise<void> {
     if (!userId) return Promise.resolve();
     if (String(requestedUserId) !== String(userId)) {
+      clear();
       requestedUserId = userId;
-      contextVersion += 1;
     }
-    if (inFlight && String(inFlight.userId) === String(userId) && inFlight.version === requestVersion) return inFlight.promise;
-    const isCurrent = requestGuard.begin();
-    const version = ++requestVersion;
+    const pending = inFlight.get(asset);
+    if (pending && String(pending.userId) === String(userId)) return pending.promise;
+    const isCurrent = requestGuards[asset].begin();
+    const context = contextVersion;
     const promise = Promise.resolve().then(async () => {
       try {
-        const overview = await realWalletApi.fetchWalletOverview(userId, { signal: isCurrent.signal });
+        const overview = await realWalletApi.fetchWalletOverview(userId, { asset, signal: isCurrent.signal });
         const userStore = useUserStore();
-        if (!isCurrent() || version !== requestVersion || String(userStore.currentUser?.id) !== String(userId)) return;
-        summary.value = overview.summary;
-        buyerWallet.value = undefined;
-        totalAssets.value = overview.total;
-        today.value = overview.today;
-        account.value = overview.account;
-        lastFetchedAt.value = Date.now();
+        if (!isCurrent() || context !== contextVersion || String(userStore.currentUser?.id) !== String(userId)) return;
+        overviews.value[asset] = overview;
+        // 商城结算、小金库与买手的既有全局余额始终只代表 USDT。
+        if (asset === 'USDT') {
+          summary.value = overview.summary;
+          buyerWallet.value = undefined;
+          totalAssets.value = overview.total ?? undefined;
+          today.value = { depositIn: overview.today.depositIn ?? undefined, withdrawOut: overview.today.withdrawOut ?? undefined };
+          account.value = overview.account;
+          lastFetchedAt.value = Date.now();
+        }
       } catch (error) {
         const userStore = useUserStore();
         // 仅清理当前账号、当前请求仍有效时的旧快照；被切换/失效的请求不能影响新账号。
-        if (isCurrent() && version === requestVersion && String(userStore.currentUser?.id) === String(userId)) {
-          summary.value = undefined;
-          buyerWallet.value = undefined;
-          totalAssets.value = '0';
-          today.value = undefined;
-          account.value = undefined;
-          lastFetchedAt.value = 0;
+        if (isCurrent() && context === contextVersion && String(userStore.currentUser?.id) === String(userId)) {
+          delete overviews.value[asset];
+          if (asset === 'USDT') clearLegacy();
         }
         throw error;
       } finally {
-        if (inFlight?.version === version) inFlight = undefined;
-        if (isCurrent() && version === requestVersion) loading.value = false;
+        if (inFlight.get(asset)?.promise === promise) inFlight.delete(asset);
+        if (isCurrent() && context === contextVersion) {
+          loadingByAsset.value[asset] = false;
+          loading.value = loadingByAsset.value.USDT;
+        }
       }
     });
-    inFlight = { userId, version, promise };
-    loading.value = true;
+    inFlight.set(asset, { userId, promise });
+    loadingByAsset.value[asset] = true;
+    if (asset === 'USDT') loading.value = true;
     return promise;
   }
 
-  async function refetch() {
+  async function refetch(asset: Api.RealWallet.Asset = 'USDT') {
     const userStore = useUserStore();
     if (!userStore.currentUser) return;
     const userId = userStore.currentUser.id;
     const context = contextVersion;
-    const pending = inFlight;
+    const pending = inFlight.get(asset);
     // 操作后的刷新不能复用操作前已在途的快照，也不主动取消其余读取者。
     if (pending && String(pending.userId) === String(userId)) {
       try { await pending.promise; } catch { /* 原读取者仍取得失败，操作后的新读取继续执行。 */ }
       if (context !== contextVersion || String(userStore.currentUser?.id) !== String(userId)) return;
     }
-    await fetchWallet(userId);
+    await fetchWallet(userId, asset);
   }
 
   function clear() {
-    requestVersion += 1;
     contextVersion += 1;
     requestedUserId = undefined;
-    requestGuard.invalidate();
-    inFlight = undefined;
-    summary.value = undefined;
-    buyerWallet.value = undefined;
-    totalAssets.value = '0';
-    today.value = undefined;
-    account.value = undefined;
-    lastFetchedAt.value = 0;
+    requestGuards.USDT.invalidate();
+    requestGuards.USDC.invalidate();
+    inFlight.clear();
+    overviews.value = {};
+    clearLegacy();
+    loadingByAsset.value = { USDT: false, USDC: false };
     loading.value = false;
+  }
+
+  function getOverview(asset: Api.RealWallet.Asset = 'USDT') {
+    return overviews.value[asset];
   }
 
   const bucketsArray = computed<BucketView[]>(() => {
@@ -108,7 +125,8 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     const baseKeys: BucketKey[] = ['available', 'nonWithdrawable', 'lockedFinance', 'frozenOrder', 'frozenRisk'];
     baseKeys.forEach(k => {
       const meta = enums.BUCKET_META[k];
-      list.push({ key: k, label: meta.label, color: meta.color, hint: meta.hint, icon: meta.icon, value: acc[k] });
+      const bucket = overviews.value.USDT?.distribution.find(item => item.key === k);
+      list.push({ key: k, label: bucket?.name || meta.label, color: meta.color, hint: bucket?.description || meta.hint, icon: meta.icon, value: acc[k], ratio: bucket?.ratio });
     });
     if (userStore.currentUser?.isBuyer) {
       const buyerKeys: BucketKey[] = ['depositAvailable', 'depositGuaranteed'];
@@ -120,7 +138,8 @@ export const useWalletStore = defineStore('bw-wallet', () => {
           color: meta.color,
           hint: meta.hint,
           icon: meta.icon,
-          value: acc[k]
+          value: acc[k],
+          ratio: overviews.value.USDT?.distribution.find(item => item.key === k)?.ratio
         });
       });
     }
@@ -132,23 +151,19 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     || today.value?.depositIn === undefined || today.value?.withdrawOut === undefined));
   const bucketsWithPct = computed(() => bucketsArray.value.map(bucket => ({
     ...bucket,
-    pct: bucket.value === undefined || totalAssets.value === undefined ? undefined
-      : Number(totalAssets.value) > 0 ? Number(bucket.value) / Number(totalAssets.value) * 100
-        : Number(bucket.value) === 0 ? 0 : undefined
+    pct: bucket.ratio == null ? undefined : Number(bucket.ratio) * 100
   })));
 
   const compositionBreakdown = computed(() => {
     if (!compositionReady.value) return [];
-    const total = Number(totalAssets.value) || 0;
     return bucketsArray.value
-      .filter((b): b is BucketView & { value: string } => b.value !== undefined && Number(b.value) > 0)
+      .filter((b): b is BucketView & { value: string } => b.value !== undefined && b.ratio != null && Number(b.ratio) > 0)
       .map(b => {
-        const value = Number(b.value);
         return {
           label: b.label,
           color: b.color,
           value: b.value,
-          pct: total > 0 ? value / total : 0
+          pct: Number(b.ratio)
         };
       });
   });
@@ -161,6 +176,9 @@ export const useWalletStore = defineStore('bw-wallet', () => {
     account,
     loading,
     lastFetchedAt,
+    overviews,
+    loadingByAsset,
+    getOverview,
     bucketsArray,
     bucketsWithPct,
     compositionReady,

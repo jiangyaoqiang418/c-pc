@@ -71,7 +71,7 @@ async function loadProfile() {
   ]);
   if (!isCurrent() || version !== profileLoadVersion) return;
   if (vip.status === 'fulfilled') vipStatus.value = vip.value;
-  if (assets.status === 'fulfilled') totalAssets.value = { total: assets.value.total, account: assets.value.account };
+  if (assets.status === 'fulfilled') totalAssets.value = { total: assets.value.total ?? undefined, account: assets.value.account };
   if (counts.status === 'fulfilled') orderCounts.value = counts.value;
   if ([vip, assets, counts].some(result => result.status === 'rejected')) {
     loadError.value = '部分账户数据加载失败，请稍后重试。';

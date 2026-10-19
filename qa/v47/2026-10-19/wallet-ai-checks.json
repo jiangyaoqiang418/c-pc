@@ -1,0 +1,413 @@
+{
+  "date": "2026-10-19",
+  "browser": "Google Chrome",
+  "scope": "c-pc desktop and mobile H5",
+  "dataBoundary": "Isolated browser Fetch responses; no real model or money calls; interception cleared and synthetic login signed out",
+  "responsiveAI": [
+    {
+      "client": 1425,
+      "content": 900,
+      "input": 720,
+      "scriptNodes": 0,
+      "scroll": 1425,
+      "width": 1440
+    },
+    {
+      "client": 686,
+      "content": 646,
+      "input": 478,
+      "scriptNodes": 0,
+      "scroll": 686,
+      "width": 701
+    },
+    {
+      "client": 685,
+      "content": 661,
+      "input": 536,
+      "scriptNodes": 0,
+      "scroll": 685,
+      "width": 700
+    },
+    {
+      "client": 360,
+      "content": 336,
+      "input": 219,
+      "scriptNodes": 0,
+      "scroll": 360,
+      "width": 375
+    },
+    {
+      "client": 305,
+      "content": 281,
+      "input": 164,
+      "scriptNodes": 0,
+      "scroll": 305,
+      "width": 320
+    }
+  ],
+  "responsiveWallet": [
+    {
+      "amount": "0.000001",
+      "asset": "可用余额 · USDC",
+      "buckets": 6,
+      "client": 305,
+      "scroll": 305,
+      "width": 320
+    },
+    {
+      "amount": "0.000001",
+      "asset": "可用余额 · USDC",
+      "buckets": 6,
+      "client": 360,
+      "scroll": 360,
+      "width": 375
+    },
+    {
+      "amount": "0.000001",
+      "asset": "可用余额 · USDC",
+      "buckets": 6,
+      "client": 685,
+      "scroll": 685,
+      "width": 700
+    },
+    {
+      "amount": "0.000001",
+      "asset": "可用余额 · USDC",
+      "buckets": 6,
+      "client": 686,
+      "scroll": 686,
+      "width": 701
+    },
+    {
+      "amount": "0.000001",
+      "asset": "可用余额 · USDC",
+      "buckets": 6,
+      "client": 1425,
+      "scroll": 1425,
+      "width": 1440
+    }
+  ],
+  "checks": {
+    "aiPlainTextNoInjectedNodes": true,
+    "aiSkuPricePreserved": "0.000001",
+    "aiStop": true,
+    "ai404NewConversationId": null,
+    "walletAssetsSeparate": true,
+    "walletSixBuckets": true,
+    "walletNullUnavailable": true,
+    "closedRechargeNoQR": true,
+    "withdrawSixDecimals": true,
+    "withdrawSeventhNonzeroDecimalRejected": true,
+    "feeNativeSymbol": "BNB",
+    "confirmationAmount": "0.000001 USDC",
+    "qrAssetLabelFixed": true
+  },
+  "screenshots": {
+    "ai-mobile.jpg": {
+      "requestedViewport": [
+        375,
+        900
+      ],
+      "visibleImage": [
+        360,
+        864
+      ]
+    },
+    "ai-desktop.jpg": {
+      "requestedViewport": [
+        1440,
+        900
+      ],
+      "visibleImage": [
+        1425,
+        891
+      ]
+    }
+  },
+  "requests": [
+    {
+      "path": "/api/order/categories/tree",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/auth/oauth/config",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/auth/login",
+      "method": "POST",
+      "asset": null
+    },
+    {
+      "path": "/api/user/auth/me",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/points/account",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/order/categories/tree",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/withdraw/chains",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/withdraw/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/withdraw/fee-preview",
+      "method": "POST",
+      "asset": null
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/assets",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/recharge/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/address",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/assets",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/recharge/page",
+      "method": "POST",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/recharge/address",
+      "method": "GET",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/recharge/address",
+      "method": "GET",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/user/recharge/assets",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/recharge/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/address",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/address",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/auth/me",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/points/account",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/order/categories/tree",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/auth/me",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/points/account",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/order/categories/tree",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/wallet/ledger/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/page",
+      "method": "POST",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/recharge/assets",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDC"
+    },
+    {
+      "path": "/api/user/auth/me",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/points/account",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/order/categories/tree",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/wallet/overview",
+      "method": "GET",
+      "asset": "USDT"
+    },
+    {
+      "path": "/api/order/categories/tree",
+      "method": "GET",
+      "asset": null
+    },
+    {
+      "path": "/api/user/auth/oauth/config",
+      "method": "GET",
+      "asset": null
+    }
+  ],
+  "moneyWriteRequests": [],
+  "limitations": [
+    "No real chain transaction, deposit/withdraw finality, model response, native phone keyboard or full-page pixel comparison"
+  ]
+}

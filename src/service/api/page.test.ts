@@ -794,7 +794,7 @@ describe('本轮交互边界', () => {
     expect(tree[0].creatorType).toBe('buyer');
   });
   it('钱包桶和日期关键词透传服务端，返回总数和记录不再二次筛选', async () => {
-    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1, toBalanceAfter: 0 }] });
+    const post = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 21, pageSize: 10, records: [{ currency: 'USDT', id: '9007199254740993', bizType: 'ORDER_REFUND', amount: 1, toBalanceAfter: 0 }] });
     const result = await fetchWalletLedger({ current: 2, size: 10, bucket: 'lockedFinance', keyword: ' QA ', fromAt: '2026-09-05', toAt: '2026-09-05' });
     expect(post.mock.calls[0][1]).toMatchObject({ pageNo: 2, balanceType: 'FINANCE_LOCKED', keyword: 'QA', startAt: new Date('2026-09-05T00:00:00').getTime(), endAt: new Date('2026-09-05T23:59:59.999').getTime() });
     expect(result.total).toBe(21);
@@ -804,14 +804,14 @@ describe('本轮交互边界', () => {
     const request = vi.spyOn(realUserRequest, 'postQuery');
     for (const read of [() => fetchWalletLedger({}), () => fetchBuyerDepositLedger()]) {
       for (const row of [{ amount: 1 }, { balanceAfter: 0, toBalanceAfter: 0 }, { amount: '', balanceAfter: 0, toBalanceAfter: 0 }]) {
-        request.mockResolvedValue({ total: 1, records: [{ id: '9007199254740993', bizType: 'PAY', ...row }] });
+        request.mockResolvedValue({ total: 1, records: [{ currency: 'USDT', id: '9007199254740993', bizType: 'PAY', ...row }] });
         await expect(read()).rejects.toThrow(/流水.*(?:尚未确认|格式异常)/);
       }
     }
   });
   it('钱包及押金流水保留零值、Long ID与小数原值，并启用原 token 解析', async () => {
     const request = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ total: 1, pageNo: 1, pageSize: 20, records: [{
-      id: '9007199254740993', userId: '9007199254740995', bizType: 'PAY',
+      currency: 'USDT', id: '9007199254740993', userId: '9007199254740995', bizType: 'PAY',
       amount: '9007199254740993.12345678', balanceAfter: 0, toBalanceAfter: 0
     }] });
     for (const read of [() => fetchWalletLedger({}), () => fetchBuyerDepositLedger()]) {
@@ -936,7 +936,7 @@ describe('本轮交互边界', () => {
     const buyer = { realName: 'QA', contact: 'QA', reason: 'QA' };
     await expect(createRecharge(recharge, { showError: false })).rejects.toBe(error);
     await expect(submitBuyerApplication(buyer, { showError: false })).rejects.toBe(error);
-    expect(post).toHaveBeenNthCalledWith(1, '/recharge/create', { ...recharge, asset: 'USDT' }, { showError: false });
+    expect(post).toHaveBeenNthCalledWith(1, '/recharge/create', { ...recharge, asset: 'USDT', amount: '1' }, { showError: false });
     expect(post).toHaveBeenNthCalledWith(2, '/buyer/apply', buyer, { showError: false });
     expect(post).toHaveBeenCalledTimes(2);
   });
@@ -1004,7 +1004,7 @@ describe('仅退款提交错误分类', () => {
 
 describe('钱包部分金额未知', () => {
   it('缺失分布与收支不伪造零，已返回总额仍保留', async () => {
-    vi.spyOn(realUserRequest, 'get').mockResolvedValue({ total: '12.34000000', todayIn: 0 });
+    vi.spyOn(realUserRequest, 'get').mockResolvedValue({ currency: 'USDT', total: '12.34000000', todayIn: 0 });
     const result = await fetchWalletOverview('qa');
     expect(result.total).toBe('12.34000000');
     expect(result.account.available).toBeUndefined();
@@ -1013,7 +1013,7 @@ describe('钱包部分金额未知', () => {
   });
 
   it('逐桶保留有效零与原精度，无效金额不覆盖其他有效桶', async () => {
-    vi.spyOn(realUserRequest, 'get').mockResolvedValue({ distribution: [
+    vi.spyOn(realUserRequest, 'get').mockResolvedValue({ currency: 'USDT', distribution: [
       { type: 'AVAILABLE', amount: '30.12345678' }, { type: 'FROZEN_ORDER', amount: 0 },
       { type: 'DEPOSIT_AVAILABLE', amount: null }, { type: 'FROZEN_RISK', amount: 'invalid' }
     ] });
@@ -1251,6 +1251,7 @@ describe('多条件分页实际页大小', () => {
       const offset = ((q.pageNo || 1) - 1) * 2;
       return { total: 8, size: 2, records: Array.from({ length: 2 }, (_, i) => ({
         id: `${q.bizType}-900719925474099${offset + i}`,
+        currency: 'USDT',
         bizType: q.bizType,
         amount: 1, toBalanceAfter: 0,
         createdAt: new Date(Date.UTC(2026, 0, q.bizType === 'CHAIN_DEPOSIT' ? 30 : 15) - (offset + i) * 1000).toISOString()

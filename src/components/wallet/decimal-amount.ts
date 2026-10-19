@@ -28,6 +28,18 @@ export function exactTransactionAmount(raw: string | number, allowZero = false):
   } catch { return { error: '请输入有效金额' }; }
 }
 
+/** 资金接口按十进制字符串提交；链精度外的非零尾数必须拒绝，不能静默截断。 */
+export function exactAssetAmount(raw: string | number, decimals = 8, allowZero = false): { value?: string; error: string } {
+  if (!Number.isSafeInteger(decimals) || decimals < 0 || decimals > 18) return { error: '资产精度尚未确认，请重新读取' };
+  const text = String(raw).trim();
+  if (!/^\d+(?:\.\d+)?$/.test(text)) return { error: '请输入有效金额' };
+  if ((text.split('.')[1] || '').length > 8) return { error: '金额最多支持 8 位小数' };
+  const value = canonicalDecimal(text)!;
+  if (value === '0' && !allowZero) return { error: '金额必须大于 0' };
+  if ((value.split('.')[1] || '').length > decimals) return { error: `所选资产网络最多支持 ${decimals} 位小数` };
+  return { value, error: '' };
+}
+
 /** Validate the actual JSON number token against the original decimal, without an invented amount ceiling. */
 export function exactDecimalNumber(raw: string | number, allowZero = false) {
   const text = String(raw).trim().replace(/^\./, '0.').replace(/\.$/, '.0');

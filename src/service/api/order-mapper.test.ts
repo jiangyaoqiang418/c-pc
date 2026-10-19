@@ -10,9 +10,9 @@ import { RequestError } from '@/service/request/type';
 import * as productApi from './product';
 import { createPurchase, fetchPurchaseDetail } from './purchase';
 import { realOrderRequest, realUserRequest } from '@/service/request';
-import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
+import { exactAssetAmount, exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { resolveProductPurchase } from '@/utils/product-sku';
-import { createRecharge, fetchRechargeAssets, fetchRechargeByKey, fetchRechargePage, rechargeMethodEnabled, sameRechargeContract, validateRechargeDeclaration } from './wallet';
+import { createRecharge, createWithdraw, fetchRechargeAssets, fetchRechargeAddress, fetchRechargeByKey, fetchRechargePage, fetchWalletOverview, fetchWalletLedger, fetchWithdrawChains, fetchWithdrawFeePreview, fetchWithdrawPage, prepareWithdrawal, rechargeMethodEnabled, sameRechargeContract, validateRechargeDeclaration } from './wallet';
 import { fetchFinanceOverview } from './finance';
 import { formatFinanceAmount } from '@/components/finance/v47-interest-math';
 import { submitKeyedFinancialOperation, withSubmissionLock } from '@/utils/financial-submission';
@@ -334,12 +334,15 @@ describe('v47 交易契约边界', () => {
     for (const invalid of [
       [{ ...matrix[1], enabled: true, methods: ['ADDRESS'] }],
       [{ ...matrix[0], tokenContract: '' }],
-      [{ ...matrix[0], methods: ['WALLET'], walletNetwork: null }],
       [matrix[0], matrix[0]]
     ]) {
       get.mockResolvedValue(invalid);
       await expect(fetchRechargeAssets()).rejects.toThrow();
     }
+    get.mockResolvedValue([{ ...matrix[0], asset: 'USDC', methods: ['ADDRESS'] }]);
+    expect(rechargeMethodEnabled((await fetchRechargeAssets())[0], 'ADDRESS')).toBe(true);
+    get.mockResolvedValue([{ ...matrix[0], methods: ['WALLET'], walletNetwork: null }]);
+    expect((await fetchRechargeAssets())[0].methods).toEqual(['WALLET']);
   });
 
   it('充值申报保留精准字符串及原键，原单资产不符拒绝恢复', async () => {
@@ -361,6 +364,67 @@ describe('v47 交易契约边界', () => {
     }
     expect(() => validateRechargeDeclaration(record, { ...expected, chain: undefined })).toThrow();
     expect(() => validateRechargeDeclaration({ ...record, amount: '0' }, { ...expected, amount: '0' })).toThrow();
+  });
+
+  it('多资产接口按契约分别传 asset 与 currency，错币种回包拒绝展示', async () => {
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({ currency: 'USDC', total: null, todayIn: null,
+      distribution: [{ type: 'AVAILABLE', name: '可用', amount: null, ratio: null }] });
+    const overview = await fetchWalletOverview('9007199254740993', { asset: 'USDC' });
+    expect(get.mock.calls[0][1]?.params).toEqual({ asset: 'USDC' });
+    expect(overview.total).toBeNull();
+    expect(overview.today.depositIn).toBeNull();
+    expect(overview.distribution[0]).toMatchObject({ key: 'available', amount: null, ratio: null });
+    await expect(fetchWalletOverview('u')).rejects.toThrow('资产');
+    get.mockResolvedValue({ asset: 'USDT', chain: 'BSC', address: '0xother' });
+    await expect(fetchRechargeAddress('BSC', { asset: 'USDC' })).rejects.toThrow('资产');
+    const postQuery = vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ pageNo: '1', pageSize: '10', total: '0', records: [] });
+    await fetchWalletLedger({ currency: 'USDC', current: 1, size: 10 });
+    expect(postQuery.mock.calls[0][1]).toMatchObject({ currency: 'USDC' });
+    expect(postQuery.mock.calls[0][1]).not.toHaveProperty('asset');
+    await fetchRechargePage({ asset: 'USDC' });
+    await fetchWithdrawPage({ asset: 'USDC' });
+    expect(postQuery.mock.calls.slice(1).every(call => (call[1] as { asset: string }).asset === 'USDC')).toBe(true);
+    postQuery.mockResolvedValue({ total: '1', records: [{ asset: 'USDT', currency: 'USDT', id: '1', amount: '1' }] });
+    await expect(fetchWalletLedger({ currency: 'USDC' })).rejects.toThrow('资产');
+    await expect(fetchRechargePage({ asset: 'USDC' })).rejects.toThrow('资产');
+    await expect(fetchWithdrawPage({ asset: 'USDC' })).rejects.toThrow('资产');
+  });
+
+  it('USDC 原申报按原资产恢复，提交金额和动态精度不经过浮点转换', async () => {
+    const original = { id: '9007199254740993', asset: 'USDC', chain: 'BSC', amount: '9007199254740993.123456', source: 'DECLARATION' } as Api.RealWallet.RechargeVO;
+    vi.spyOn(realUserRequest, 'get').mockResolvedValue(original);
+    expect(await fetchRechargeByKey('usdc-original', 'USDC')).toBe(original);
+    expect(validateRechargeDeclaration(original, { ...original, asset: 'USDC' })).toBe(original);
+    const post = vi.spyOn(realUserRequest, 'post').mockResolvedValue('9007199254740993');
+    await createRecharge({ asset: 'USDC', chain: 'BSC', amount: original.amount, idempotencyKey: 'usdc-original' });
+    expect(post.mock.calls[0][1]).toMatchObject({ asset: 'USDC', amount: original.amount, idempotencyKey: 'usdc-original' });
+    const config: Api.RealWallet.WithdrawChainVO = { asset: 'USDC', chain: 'BSC', label: 'BSC', enabled: true, decimals: 6, minAmount: '0.1', maxAmount: null };
+    const params = { asset: 'USDC' as const, chain: 'BSC' as const, toAddress: '0x' + '2'.repeat(40), amount: '0.12345600', idempotencyKey: 'wd-original' };
+    const prepared = prepareWithdrawal(params, '9007199254740993.123456', config);
+    expect(prepared.error).toBe('');
+    expect(prepared.params.amount).toBe('0.123456');
+    await createWithdraw({ ...prepared.params, payPassword: '123456' });
+    expect(post.mock.calls[1][1]).toMatchObject({ asset: 'USDC', amount: '0.123456', idempotencyKey: 'wd-original' });
+    expect(prepareWithdrawal({ ...params, amount: '0.12345601' }, '1', config).error).toContain('6 位');
+    expect(prepareWithdrawal({ ...params, amount: '0.09' }, '1', config).error).toContain('0.1 USDC');
+    expect(prepareWithdrawal(params, '1', { ...config, enabled: false }).error).toContain('暂不可提现');
+    expect(exactAssetAmount('1.000000001', 6).error).toContain('8 位');
+    expect(exactAssetAmount('1e-6', 6).error).not.toBe('');
+  });
+
+  it('提现网络配置和报价保留空值，报价原生币与资产必须匹配', async () => {
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue([{ asset: 'USDC', chain: 'BSC', label: 'BSC', enabled: true,
+      decimals: 6, minAmount: null, maxAmount: null, estimatedNetworkFee: null }]);
+    expect((await fetchWithdrawChains('USDC'))[0].estimatedNetworkFee).toBeNull();
+    expect(get.mock.calls[0][1]?.params).toEqual({ asset: 'USDC' });
+    const quote = { chain: 'BSC', tokenSymbol: 'USDC', platformId: 'BSC-01', fromAddress: '0xsource', estimatedNetworkFee: '0.000000000000000001',
+      networkFeeSymbol: 'BNB', feeLimitAtomic: null, expiresAt: '1792300030000', isEstimate: true };
+    const post = vi.spyOn(realUserRequest, 'post').mockResolvedValue(quote);
+    const params = { chain: 'BSC' as const, tokenSymbol: 'USDC' as const, toAddress: '0x' + '2'.repeat(40), amount: '9007199254740993.123456' };
+    expect(await fetchWithdrawFeePreview(params)).toBe(quote);
+    expect(post.mock.calls[0][1]).toEqual(params);
+    post.mockResolvedValue({ ...quote, networkFeeSymbol: 'USDC' });
+    await expect(fetchWithdrawFeePreview(params)).rejects.toThrow('预览不完整');
   });
 
   it('跨标签充值锁阻止第二笔签名，原钱包结果未知时不移除标记', async () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import qrcode from './vendor/qrcode.js';
-const props = defineProps<{ address: string; network: string; memo?: string }>();
+const props = defineProps<{ address: string; network: string; memo?: string; asset?: Api.RealWallet.Asset }>();
 const svg = computed(() => {
   if (!props.address.trim()) return '';
   try {
@@ -14,7 +14,7 @@ const svg = computed(() => {
 </script>
 
 <template>
-  <div v-if="svg" class="deposit-qr" role="img" :aria-label="network + ' USDT 充值地址二维码' + (memo ? '，转账时还必须填写 Memo / Tag' : '')" v-html="svg" />
+  <div v-if="svg" class="deposit-qr" role="img" :aria-label="network + ' ' + (asset || 'USDT') + ' 充值地址二维码' + (memo ? '，转账时还必须填写 Memo / Tag' : '')" v-html="svg" />
   <p v-else class="deposit-error">二维码生成失败，请复制下方地址并核对网络。</p>
 </template>
 

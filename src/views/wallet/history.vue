@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { formatDateValue, parseDateValue } from '@/utils/date-range';
 import { resolvePageSize } from '@/service/api/page';
-import { enums, formatAmount } from '@shared';
+import { enums } from '@shared';
+import { displayWalletAmount as formatAmount } from '@/components/wallet/wallet-amount';
+import WalletAssetTabs from '@/components/wallet/wallet-asset-tabs.vue';
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -21,6 +23,16 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
+const asset = computed<Api.RealWallet.Asset>(() => route.query.asset === 'USDC' ? 'USDC' : 'USDT');
+function selectAsset(value: Api.RealWallet.Asset) {
+  requestGuard.invalidate();
+  list.value = [];
+  total.value = 0;
+  drawerOpen.value = false;
+  drawerTxn.value = undefined;
+  void router.replace({ query: { ...currentQuery(), asset: value, page: undefined } });
+}
+function returnWallet() { void router.push({ path: userStore.isBuyerActive ? '/buyer/wallet' : '/wallet', query: { asset: asset.value } }); }
 const userStore = useUserStore();
 
 const list = ref<Api.RealWallet.Ledger[]>([]);
@@ -31,7 +43,7 @@ const loading = ref(false);
 const loadError = ref('');
 const drawerTxn = ref<Api.RealWallet.DisplayLedger>();
 const drawerOpen = ref(false);
-const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${asset.value}`);
 
 const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
   { label: '链上', types: ['DEPOSIT_IN', 'WITHDRAW_OUT'] },
@@ -89,6 +101,7 @@ function applyQueryParams() {
 
 function currentQuery() {
   return {
+    asset: asset.value,
     ...(filter.types.length ? { types: filter.types.join(',') } : {}),
     ...(filter.bucket ? { bucket: filter.bucket } : {}),
     ...(filter.dateRange?.[0] ? { from: filter.dateRange[0] } : {}),
@@ -107,6 +120,9 @@ function syncQuery() {
 
 async function load() {
   const isCurrent = requestGuard.begin();
+  list.value = [];
+  drawerTxn.value = undefined;
+  drawerOpen.value = false;
   if (!userStore.currentUser) {
     loading.value = false;
     list.value = [];
@@ -118,6 +134,7 @@ async function load() {
   loadError.value = '';
   try {
     const r = await walletApi.fetchWalletLedger({
+      currency: asset.value,
       current: current.value,
       size: size.value,
       types: filter.types.length ? filter.types : undefined,
@@ -218,14 +235,14 @@ function exportCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `Umaomao资金流水-第${current.value}页-${list.value.length}条-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `Umaomao-${asset.value}资金流水-第${current.value}页-${list.value.length}条-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
 
 function handleEmptyAction() {
   if (loadError.value) { void load(); return; }
-  router.push('/wallet');
+  returnWallet();
 }
 
 
@@ -259,7 +276,7 @@ const toDate = computed({
 
 <template>
   <div class="history-page">
-    <div class="page-heading compact"><h1>资金流水</h1><span v-if="!loading && !loadError" class="heading-meta">共 {{ total }} 条 · 导出范围为当前页</span><button class="outline" @click="router.push(userStore.isBuyerActive ? '/buyer/wallet' : '/wallet')">返回钱包</button></div>
+    <div class="page-heading compact"><h1>资金流水</h1><WalletAssetTabs :model-value="asset" @update:model-value="selectAsset" /><span v-if="!loading && !loadError" class="heading-meta">共 {{ total }} 条 · 导出范围为当前页</span><button class="outline" @click="returnWallet()">返回钱包</button></div>
     <form class="paper ledger-filter" novalidate @submit.prevent="queryRecords" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
       <div class="ledger-filter-fields">
         <div class="field"><label for="ledger-type" class="ledger-field-label">类型</label><DropdownMenu><DropdownMenuTrigger as-child><button id="ledger-type" type="button" class="ledger-type-trigger" aria-label="选择资金流水类型"><span>{{ filter.types.length ? `已选 ${filter.types.length} 种类型` : '全部类型' }}</span><UmIcon name="chevron" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" :collision-padding="8" class="ledger-type-menu"><DropdownMenuItem @select="filter.types = []">不限 · 清除全部类型</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuGroup v-for="g in TYPE_GROUPS" :key="g.label"><DropdownMenuLabel>{{ g.label }}</DropdownMenuLabel><DropdownMenuCheckboxItem v-for="t in g.types" :key="t" :model-value="filter.types.includes(t)" @update:model-value="setType(t, $event)" @select.prevent>{{ enums.TXN_TYPE_META[t]?.label || t }}</DropdownMenuCheckboxItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu></div>
@@ -270,7 +287,7 @@ const toDate = computed({
       <div v-if="filter.types.length" class="ledger-type-chips"><button v-for="t in filter.types" :key="t" type="button" :aria-label="`取消筛选：${enums.TXN_TYPE_META[t]?.label || t}`" @click="setType(t, false)">{{ enums.TXN_TYPE_META[t]?.label || t }}<UmIcon name="close" /></button></div>
       <footer class="button-row ledger-filter-actions"><button type="submit" class="primary" :disabled="loading">查询</button><button type="button" class="outline" :disabled="loading" @click="reset">重置</button><button type="button" class="outline ledger-export" :disabled="loading || !!loadError || !list.length" @click="exportCsv">导出当前页（{{ list.length }} 条）</button></footer>
     </form>
-    <section class="paper" :aria-busy="loading" aria-label="资金流水列表"><div v-if="loading && !list.length" class="ledger-skeletons"><Skeleton v-for="n in 5" :key="n" class="h-20" /></div><div v-else-if="list.length" :class="{ 'ledger-refreshing': loading }"><button v-for="t in list" :key="t.id" class="transaction wallet-transaction" :aria-label="'查看流水 ' + t.id" @click="openDetail(t)"><UmIcon :name="t.type === 'DEPOSIT_IN' || t.type === 'WITHDRAW_OUT' ? 'wallet' : t.type.startsWith('FINANCE') || t.type === 'INTEREST_ACCRUE' ? 'clock' : 'bag'" /><span class="transaction-copy"><b>{{ t.testData ? '测试模拟到账' : t.bizTypeText || enums.TXN_TYPE_META[t.type]?.label || t.type }} · {{ t.refId || t.id }}</b><small>{{ formatDateValue(t.createdAt) }}</small><small v-if="t.remark" class="ledger-caption">{{ t.remark }}</small><small v-if="t.bucketFrom || t.bucketTo" class="ledger-caption">{{ t.bucketFrom ? enums.BUCKET_META[t.bucketFrom]?.label || t.bucketFrom : '' }}{{ t.bucketFrom && t.bucketTo ? ' → ' : '' }}{{ t.bucketTo ? enums.BUCKET_META[t.bucketTo]?.label || t.bucketTo : '' }}</small></span><b>{{ t.direction === 'in' ? '+' : '−' }} {{ formatAmount(t.amount) }} USDT</b></button></div><EmptyState v-else :title="loadError || '暂无资金流水'" :description="loadError ? '请检查网络后重新读取。' : '充值、转出、订单支付或退款后会生成资金流水。'" :action-text="loadError ? '重新读取' : '返回钱包'" @action="handleEmptyAction" /></section>
+    <section class="paper" :aria-busy="loading" aria-label="资金流水列表"><div v-if="loading && !list.length" class="ledger-skeletons"><Skeleton v-for="n in 5" :key="n" class="h-20" /></div><div v-else-if="list.length" :class="{ 'ledger-refreshing': loading }"><button v-for="t in list" :key="t.id" class="transaction wallet-transaction" :aria-label="'查看流水 ' + t.id" @click="openDetail(t)"><UmIcon :name="t.type === 'DEPOSIT_IN' || t.type === 'WITHDRAW_OUT' ? 'wallet' : t.type.startsWith('FINANCE') || t.type === 'INTEREST_ACCRUE' ? 'clock' : 'bag'" /><span class="transaction-copy"><b>{{ t.testData ? '测试模拟到账' : t.bizTypeText || enums.TXN_TYPE_META[t.type]?.label || t.type }} · {{ t.refId || t.id }}</b><small>{{ formatDateValue(t.createdAt) }}</small><small v-if="t.remark" class="ledger-caption">{{ t.remark }}</small><small v-if="t.bucketFrom || t.bucketTo" class="ledger-caption">{{ t.bucketFrom ? enums.BUCKET_META[t.bucketFrom]?.label || t.bucketFrom : '' }}{{ t.bucketFrom && t.bucketTo ? ' → ' : '' }}{{ t.bucketTo ? enums.BUCKET_META[t.bucketTo]?.label || t.bucketTo : '' }}</small></span><b>{{ t.direction === 'in' ? '+' : '−' }} {{ formatAmount(t.amount) }} {{ t.currency || 'USDT' }}</b></button></div><EmptyState v-else :title="loadError || '暂无资金流水'" :description="loadError ? '请检查网络后重新读取。' : '充值、转出、订单支付或退款后会生成资金流水。'" :action-text="loadError ? '重新读取' : '返回钱包'" @action="handleEmptyAction" /></section>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
   </div>

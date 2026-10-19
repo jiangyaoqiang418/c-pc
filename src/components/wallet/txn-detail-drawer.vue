@@ -3,7 +3,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { computed } from 'vue';
 import { Message } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
-import { enums, formatAmount, shortAddress } from '@shared';
+import { enums, shortAddress } from '@shared';
+import { displayWalletAmount as formatAmount } from '@/components/wallet/wallet-amount';
 import { formatDateValue } from '@/utils/date-range';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 const props = defineProps<Props>();
 defineEmits<{ (e: 'update:visible', v: boolean): void }>();
 
+const currency = computed(() => props.txn && 'currency' in props.txn ? props.txn.currency || 'USDT' : 'USDT');
 const isIn = computed(() => props.txn?.direction === 'in');
 const referenceLabels = { order: '订单', finance: '理财', kyc: '实名认证', manual: '人工调整', risk: '风险管理', blacklist: '黑名单管理' };
 const typeLabel = computed(() => {
@@ -37,17 +39,18 @@ function copy(text?: string) {
         <div class="type-badge">{{ typeLabel }}</div>
         <div class="amount" :class="{ inbound: isIn, outbound: !isIn }">
           <span class="sign">{{ isIn ? '+' : '−' }}</span>
-          <span class="num-unit">U</span>
+          <span class="num-unit">{{ currency }}</span>
           <span class="num">{{ formatAmount(txn.amount) }}</span>
         </div>
         <div class="balance">
-          余额变化后 <span class="yb-mono">U {{ formatAmount(txn.balanceAfter) }}</span>
+          余额变化后 <span class="yb-mono">{{ currency }} {{ formatAmount(txn.balanceAfter) }}</span>
         </div>
       </div>
 
       <div class="detail-list">
         <div class="dl-row"><span class="k">流水编号</span><span class="v yb-mono">#{{ txn.id }}</span></div>
         <div class="dl-row"><span class="k">类型</span><span class="v">{{ typeLabel }}</span></div>
+        <div class="dl-row"><span class="k">资产</span><span class="v">{{ currency }}</span></div>
         <div class="dl-row"><span class="k">方向</span><span class="v">{{ isIn ? '收入' : '支出' }}</span></div>
         <div class="dl-row"><span class="k">出账账户</span><span class="v">{{ txn.bucketFrom ? enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' : '—' }}</span></div>
         <div class="dl-row"><span class="k">入账账户</span><span class="v">{{ txn.bucketTo ? enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' : '—' }}</span></div>

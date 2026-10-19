@@ -38,7 +38,7 @@ function redirectToLogin(expectedToken: string) {
 let logoutModal: ReturnType<typeof Modal.error> | undefined;
 let logoutModalToken: string | undefined;
 
-function handleLogoutMessage(message: string, modal: boolean, token: string) {
+export function handleLogoutMessage(message: string, modal: boolean, token: string) {
   if (getAccessToken() !== token) return;
   if (modal) {
     if (logoutModal && logoutModalToken === token) return;

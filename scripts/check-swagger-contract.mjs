@@ -109,8 +109,8 @@ for (const path of ['/recharge/create', '/recharge/page']) {
   const schema = requestSchema(user, operation(user, path, 'post'));
   const asset = schema.properties?.asset;
   if (schema.required?.includes('asset') || asset?.type !== 'string' || asset.default !== 'USDT'
-    || asset.enum?.length !== 1 || asset.enum[0] !== 'USDT') {
-    throw new Error(`${path} asset 应为可选字符串，默认且仅支持 USDT`);
+    || asset.enum?.length !== 2 || !['USDT', 'USDC'].every(value => asset.enum.includes(value))) {
+    throw new Error(`${path} asset 应为可选字符串，默认 USDT，支持 USDT/USDC`);
   }
 }
 const rechargeAssets = responseDataSchema(user, operation(user, '/recharge/assets', 'get'));
@@ -123,7 +123,25 @@ const pointRuleSchema = user.components?.schemas?.PointRuleItemVO;
 expectProperties(pointRuleSchema, ['defaultScore', 'defaultDailyCap', 'defaultCumulativeCap', 'defaultEnabled'], '积分规则默认值');
 operation(user, '/points/vip-configs', 'get');
 const withdrawDetail = responseDataSchema(user, operation(user, '/withdraw/detail', 'get'));
-expectProperties(withdrawDetail, ['id', 'amount', 'fee', 'actualAmount', 'status', 'paidAt', 'confirmedAt'], '提现详情响应');
+expectProperties(withdrawDetail, ['id', 'asset', 'amount', 'fee', 'actualAmount', 'status', 'paidAt', 'confirmedAt'], '提现详情响应');
+for (const path of ['/wallet/overview', '/withdraw/chains']) {
+  const op = operation(user, path, 'get');
+  expectParameters(op, ['asset'], path);
+  const parameter = op.parameters.find(item => item.name === 'asset');
+  if (parameter.schema?.type !== 'string' || parameter.schema.default !== 'USDT') throw new Error(`${path} 资产契约变化`);
+}
+const withdrawChains = responseDataSchema(user, operation(user, '/withdraw/chains', 'get'));
+expectProperties(resolveSchema(user, withdrawChains.items), ['asset', 'chain', 'label', 'decimals', 'enabled', 'minAmount', 'maxAmount', 'estimatedNetworkFee'], '提现网络配置');
+const withdrawFee = operation(user, '/withdraw/fee-preview', 'post');
+expectRequired(requestSchema(user, withdrawFee), ['chain', 'tokenSymbol', 'toAddress', 'amount'], '提现网络费预览');
+expectEnum(requestSchema(user, withdrawFee), 'tokenSymbol', ['USDT', 'USDC'], '提现网络费资产');
+expectProperties(responseDataSchema(user, withdrawFee), ['chain', 'tokenSymbol', 'estimatedNetworkFee', 'networkFeeSymbol', 'expiresAt', 'isEstimate'], '提现网络费结果');
+for (const path of ['/withdraw/create', '/withdraw/page']) expectProperties(requestSchema(user, operation(user, path, 'post')), ['asset'], path);
+const aiStream = operation(user, '/ai/customer-service/chat/stream', 'post');
+const aiInput = requestSchema(user, aiStream);
+expectRequired(aiInput, ['message'], 'AI 客服');
+expectProperties(aiInput, ['message', 'conversationId'], 'AI 客服会话');
+if (aiInput.properties.message.maxLength !== 2000 || !aiStream.responses?.['200']?.content?.['text/event-stream']) throw new Error('AI 客服流式契约变化');
 operation(user, '/kyc/files/upload', 'post');
 operation(user, '/kyc/files/access', 'get');
 const kycSubmit = requestSchema(user, operation(user, '/kyc/submit', 'post'));
@@ -154,7 +172,7 @@ for (const field of ['nationalityRequired', 'idCardBackRequired', 'holdingPhotoR
 expectFieldType(kycConfig, 'allowedIdTypes', 'array', 'KYC 配置');
 if (kycConfig.properties.allowedIdTypes.items?.type !== 'string') throw new Error('KYC 证件类型必须为字符串数组');
 expectEnum(kycSubmit, 'idType', ['ID_CARD', 'PASSPORT'], 'KYC 提交');
-expectProperties(requestSchema(user, operation(user, '/wallet/ledger/page', 'post')), ['balanceType', 'keyword', 'startAt', 'endAt'], '钱包全量筛选');
+expectProperties(requestSchema(user, operation(user, '/wallet/ledger/page', 'post')), ['currency', 'balanceType', 'keyword', 'startAt', 'endAt'], '钱包全量筛选');
 expectProperties(requestSchema(user, operation(user, '/points/ledger/page', 'post')), ['behaviorCodes', 'earned', 'startAt', 'endAt'], '积分全量筛选');
 for (const path of ['/wallet/ledger/page', '/points/ledger/page']) {
   const query = requestSchema(user, operation(user, path, 'post'));

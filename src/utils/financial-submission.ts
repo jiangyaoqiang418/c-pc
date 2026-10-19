@@ -71,6 +71,8 @@ export async function submitDepositOperation(
 }
 export interface FinancialSnapshot {
   amount: string | number;
+  /** 旧记录未携带资产时仅按 USDT 恢复，不能套用当前页面资产。 */
+  asset?: 'USDT' | 'USDC';
   chain?: string;
   toAddress?: string;
   productId?: string | number;
@@ -191,8 +193,11 @@ interface KeyedFinancialIntent {
 
 function validateKeyedFinancialIntent(intent: KeyedFinancialIntent, userId: string | number, action: FinancialAction) {
   if (!intent.idempotencyKey) throw new Error('旧操作没有幂等键，请仅查看记录或联系平台核实，不会重发');
+  let validAmount = false;
+  try { validAmount = sumPaymentAmounts([intent.snapshot?.amount]) !== '0'; } catch { /* 损坏快照保留待核对。 */ }
   if (String(intent.userId) !== String(userId) || intent.action !== action || !/^[0-9a-f-]{36}$/i.test(intent.idempotencyKey)
-    || !intent.snapshot || !Number.isFinite(Number(intent.snapshot.amount)) || Number(intent.snapshot.amount) <= 0
+    || !intent.snapshot || !validAmount
+    || (intent.snapshot.asset !== undefined && !['USDT', 'USDC'].includes(intent.snapshot.asset))
     || (action === 'withdraw' && (!['ETH', 'TRON', 'BSC'].includes(intent.snapshot.chain || '') || !intent.snapshot.toAddress))
     || (action === 'recharge' && !intent.snapshot.chain)
     || (action.startsWith('finance-subscribe:') && `finance-subscribe:${intent.snapshot.productId}` !== action)) {
@@ -206,7 +211,7 @@ export async function submitKeyedFinancialOperation(
   action: 'withdraw' | 'recharge' | `finance-subscribe:${string}`,
   snapshot: FinancialSnapshot | undefined,
   api: {
-    lookup: (key: string) => Promise<{ id: string | number; amount?: string | number; principal?: string | number; chain?: string; toAddress?: string; productId?: string | number } | null>;
+    lookup: (key: string, snapshot: FinancialSnapshot) => Promise<{ id: string | number; asset?: string; amount?: string | number; principal?: string | number; chain?: string; toAddress?: string; productId?: string | number } | null>;
     submit: (snapshot: FinancialSnapshot, key: string) => Promise<unknown>;
   },
   restoring = false
@@ -232,12 +237,13 @@ export async function submitKeyedFinancialOperation(
       return id;
     };
     if (restoring) {
-      const result = await api.lookup(intent.idempotencyKey);
+      const result = await api.lookup(intent.idempotencyKey, { ...intent.snapshot });
       if (getAccessToken() !== session) throw new Error('账号已切换，原操作保留待核对');
       if (result !== null) {
         const expected = intent.snapshot;
         if (!result || !validReceipt(result.id)
           || sumPaymentAmounts([result.amount ?? result.principal ?? '']) !== sumPaymentAmounts([expected.amount])
+          || ((action === 'withdraw' || action === 'recharge') && (result.asset ?? 'USDT') !== (expected.asset ?? 'USDT'))
           || (expected.chain !== undefined && result.chain !== expected.chain)
           || (expected.toAddress !== undefined && result.toAddress !== expected.toAddress)
           || (expected.productId !== undefined && String(result.productId) !== String(expected.productId))) {
@@ -281,7 +287,7 @@ export async function submitFinancialOperation<T>(
   snapshot?: FinancialSnapshot
 ): Promise<T> {
   // 同步复制白名单字段，锁申请期间表单变化不能改变已确认快照。
-  const confirmed = snapshot && { amount: snapshot.amount, chain: snapshot.chain, toAddress: snapshot.toAddress, productId: snapshot.productId };
+  const confirmed = snapshot && { amount: snapshot.amount, asset: snapshot.asset, chain: snapshot.chain, toAddress: snapshot.toAddress, productId: snapshot.productId };
   return withSubmissionLock(storageKey(userId, action), () => submitFinancialUnderLock(userId, action, submit, resultId, confirmed));
 }
 
@@ -296,7 +302,7 @@ async function submitFinancialUnderLock<T>(
   if (issue) throw new RequestError(issue, { code: 'FINANCIAL_PENDING' });
   const key = storageKey(userId, action);
   const marker = JSON.stringify({ attemptId: crypto.randomUUID(), startedAt: Date.now(),
-    snapshot: snapshot && { amount: snapshot.amount, chain: snapshot.chain, toAddress: snapshot.toAddress, productId: snapshot.productId } });
+    snapshot: snapshot && { amount: snapshot.amount, asset: snapshot.asset, chain: snapshot.chain, toAddress: snapshot.toAddress, productId: snapshot.productId } });
   try {
     localStorage.setItem(key, marker);
   } catch {

@@ -16,6 +16,8 @@ import { redeemFinanceWithReadback } from '@/service/api/finance';
 import { useReviewStore } from '@/stores/review';
 import * as reviewApi from '@/service/api/review';
 import { confirmReceipt as confirmReceiptApi, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
+import { streamCustomerChat } from '@/service/api/ai';
+import { readEventStream } from './stream';
 
 function confirmOrderReceipt(id: string | number, userId: string | number) {
   return confirmReceiptApi(id, userId, '123456');
@@ -56,7 +58,7 @@ describe('三类资金幂等恢复', () => {
     await expect(submitKeyedFinancialOperation('u', action, { ...snapshot, amount: 999 }, { submit, lookup })).rejects.toThrow('尚未取得');
     expect(await submitKeyedFinancialOperation('u', action, undefined, { submit, lookup }, true)).toBe('9007199254740999');
     expect(submit.mock.calls[1]).toEqual([snapshot, key]);
-    expect(lookup).toHaveBeenCalledExactlyOnceWith(key);
+    expect(lookup).toHaveBeenCalledExactlyOnceWith(key, snapshot);
     expect(financialSubmissionIssue('u', action)).toBe('');
     expect(financialSubmissionIssue('other', action)).toBe('');
     expect(await submitKeyedFinancialOperation('u', action, undefined, { submit, lookup }, true)).toBe('9007199254740999');
@@ -78,6 +80,38 @@ describe('三类资金幂等恢复', () => {
     lookup.mockRejectedValueOnce(new Error('offline'));
     await expect(submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow('offline');
     lookup.mockResolvedValueOnce({ id: 'r', amount: '0.100', chain: 'TRON' });
+    expect(await submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).toBe('r');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+  it('跨资产回查不能解除原 USDC 申请，原金额和原键完整保留', async () => {
+    storage();
+    const snapshot = { asset: 'USDC' as const, amount: '99999999999999999999999999.123456', chain: 'BSC', toAddress: '0x1111111111111111111111111111111111111111' };
+    const submit = vi.fn().mockRejectedValue(new RequestError('链节点不可用', { code: '-309' }));
+    const lookup = vi.fn();
+    await expect(submitKeyedFinancialOperation('u', 'withdraw', snapshot, { submit, lookup })).rejects.toThrow('链节点不可用');
+    const key = submit.mock.calls[0][1];
+    expect(financialSubmissionSnapshot('u', 'withdraw')).toEqual(snapshot);
+    await expect(submitKeyedFinancialOperation('u', 'withdraw', { ...snapshot, asset: 'USDT' }, { submit, lookup })).rejects.toThrow('尚未取得');
+    for (const asset of ['USDT', undefined]) {
+      lookup.mockResolvedValueOnce({ ...snapshot, asset, id: '90071992547409931' });
+      await expect(submitKeyedFinancialOperation('u', 'withdraw', undefined, { submit, lookup }, true)).rejects.toThrow('原单回查参数不一致');
+    }
+    lookup.mockImplementationOnce(async (_key, copy) => {
+      copy.asset = 'USDT';
+      return { ...snapshot, id: '90071992547409931' };
+    });
+    expect(await submitKeyedFinancialOperation('u', 'withdraw', undefined, { submit, lookup }, true)).toBe('90071992547409931');
+    expect(lookup.mock.calls[0]).toEqual([key, snapshot]);
+    expect(financialSubmissionSnapshot('u', 'withdraw')).toEqual(snapshot);
+    expect(submit).toHaveBeenCalledExactlyOnceWith(snapshot, key);
+  });
+  it('旧无资产快照仅按 USDT 恢复，不随当前新资产变化', async () => {
+    storage();
+    const snapshot = { amount: '12.34', chain: 'BSC' };
+    const submit = vi.fn().mockRejectedValue(new Error('timeout'));
+    const lookup = vi.fn().mockResolvedValueOnce({ ...snapshot, id: 'r', asset: 'USDC' }).mockResolvedValueOnce({ ...snapshot, id: 'r', asset: 'USDT' });
+    await expect(submitKeyedFinancialOperation('u', 'recharge', snapshot, { submit, lookup })).rejects.toThrow();
+    await expect(submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).rejects.toThrow('原单回查参数不一致');
     expect(await submitKeyedFinancialOperation('u', 'recharge', undefined, { submit, lookup }, true)).toBe('r');
     expect(submit).toHaveBeenCalledTimes(1);
   });
@@ -906,8 +940,8 @@ describe('登录失效跳转边界', () => {
 
   it('资产分布保留缺失余额和百分比未知，真实零仍显示零', async () => {
     const { user, wallet } = setupUser();
-    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({ total: '100', todayIn: 0, todayOut: 0,
-      distribution: [{ type: 'AVAILABLE', amount: '100' }, { type: 'NON_WITHDRAWABLE', amount: 0 }] });
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({ currency: 'USDT', total: '100', todayIn: 0, todayOut: 0,
+      distribution: [{ type: 'AVAILABLE', amount: '100', ratio: '1' }, { type: 'NON_WITHDRAWABLE', amount: 0, ratio: '0' }] });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(wallet.totalAssets).toBe('100');
     expect(wallet.account?.frozenOrder).toBeUndefined();
@@ -917,12 +951,12 @@ describe('登录失效跳转边界', () => {
     expect(wallet.bucketsWithPct.find(b => b.key === 'frozenOrder')).toMatchObject({ value: undefined, pct: undefined });
     expect(wallet.bucketsWithPct.find(b => b.key === 'nonWithdrawable')).toMatchObject({ value: '0', pct: 0 });
     expect(wallet.compositionBreakdown).toMatchObject([{ value: '100', pct: 1 }]);
-    get.mockResolvedValue({ todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '100' }] });
+    get.mockResolvedValue({ currency: 'USDT', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '100' }] });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(wallet.bucketsWithPct.find(b => b.key === 'available')).toMatchObject({ value: '100', pct: undefined });
     expect(wallet.compositionReady).toBe(false);
-    get.mockResolvedValue({ total: 0, todayIn: 0, todayOut: 0, distribution:
-      ['AVAILABLE', 'NON_WITHDRAWABLE', 'FINANCE_LOCKED', 'ORDER_FROZEN', 'RISK_FROZEN'].map(type => ({ type, amount: 0 })) });
+    get.mockResolvedValue({ currency: 'USDT', total: 0, todayIn: 0, todayOut: 0, distribution:
+      ['AVAILABLE', 'NON_WITHDRAWABLE', 'FINANCE_LOCKED', 'ORDER_FROZEN', 'RISK_FROZEN'].map(type => ({ type, amount: 0, ratio: '0' })) });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(wallet.partialData).toBe(false);
     expect(wallet.compositionReady).toBe(true);
@@ -939,12 +973,45 @@ describe('登录失效跳转边界', () => {
     expect(get).toHaveBeenCalledTimes(1);
     expect(get.mock.calls[0][1]?.signal?.aborted).toBe(false);
     expect(wallet.loading).toBe(true);
-    response.resolve({ total: '42.01', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '42.01' }] });
+    response.resolve({ currency: 'USDT', total: '42.01', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '42.01' }] });
     await expect(Promise.all([background, operation])).resolves.toEqual([undefined, undefined]);
     expect(wallet.account).toMatchObject({ userId: 'account-a', available: '42.01' });
     expect(wallet.totalAssets).toBe('42.01');
     expect(wallet.loading).toBe(false);
     expect(wallet.lastFetchedAt).toBeGreaterThan(0);
+  });
+
+  it('USDT 与 USDC 独立并发读取，USDC 成功或失败都不能覆盖商城 USDT 余额', async () => {
+    const { user, wallet } = setupUser();
+    const usdt = deferred<Api.RealWallet.WalletVO>();
+    const usdc = deferred<Api.RealWallet.WalletVO>();
+    const get = vi.spyOn(realUserRequest, 'get').mockReturnValueOnce(usdt.promise).mockReturnValueOnce(usdc.promise);
+    const first = wallet.fetchWallet(user.currentUser!.id, 'USDT');
+    const second = wallet.fetchWallet(user.currentUser!.id, 'USDC');
+    const shared = wallet.fetchWallet(user.currentUser!.id, 'USDC');
+    await Promise.resolve();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(get.mock.calls.map(call => call[1]?.params)).toEqual([{ asset: 'USDT' }, { asset: 'USDC' }]);
+    expect(get.mock.calls.every(call => call[1]?.signal?.aborted === false)).toBe(true);
+    usdt.resolve({ currency: 'USDT', total: '20', distribution: [{ type: 'AVAILABLE', amount: '20', ratio: '1' }] });
+    await first;
+    expect(wallet.loadingByAsset.USDT).toBe(false);
+    expect(wallet.loadingByAsset.USDC).toBe(true);
+    expect(wallet.loading).toBe(false);
+    usdc.resolve({ currency: 'USDC', total: '9007199254740993.123456', distribution: [{ type: 'AVAILABLE', amount: '9007199254740993.123456', ratio: '1' }] });
+    await Promise.all([second, shared]);
+    expect(wallet.getOverview('USDC')?.total).toBe('9007199254740993.123456');
+    expect(wallet.getOverview('USDT')?.total).toBe('20');
+    expect(wallet.totalAssets).toBe('20');
+    expect(wallet.account?.available).toBe('20');
+    get.mockRejectedValueOnce(new Error('USDC unavailable'));
+    await expect(wallet.refetch('USDC')).rejects.toThrow('USDC unavailable');
+    expect(wallet.getOverview('USDC')).toBeUndefined();
+    expect(wallet.totalAssets).toBe('20');
+    expect(wallet.account?.available).toBe('20');
+    wallet.clear();
+    expect(wallet.overviews).toEqual({});
+    expect(wallet.totalAssets).toBeUndefined();
   });
 
   it('共享钱包读取的真实失败同时拒绝两个消费者，失败后允许重新读取', async () => {
@@ -960,7 +1027,7 @@ describe('登录失效跳转边界', () => {
     expect(wallet.account).toBeUndefined();
     expect(wallet.lastFetchedAt).toBe(0);
     expect(wallet.loading).toBe(false);
-    get.mockResolvedValueOnce({ total: '8', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '8' }] });
+    get.mockResolvedValueOnce({ currency: 'USDT', total: '8', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '8' }] });
     await wallet.fetchWallet(user.currentUser!.id);
     expect(get).toHaveBeenCalledTimes(2);
     expect(wallet.account?.available).toBe('8');
@@ -979,11 +1046,11 @@ describe('登录失效跳转边界', () => {
     expect(get).toHaveBeenCalledTimes(2);
     expect(get.mock.calls[0][1]?.signal?.aborted).toBe(true);
     expect(get.mock.calls[1][1]?.signal?.aborted).toBe(false);
-    oldResponse.resolve({ total: '100', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '100' }] });
+    oldResponse.resolve({ currency: 'USDT', total: '100', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '100' }] });
     await oldRequest;
     expect(wallet.account).toBeUndefined();
     expect(wallet.loading).toBe(true);
-    newResponse.resolve({ total: '7', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '7' }] });
+    newResponse.resolve({ currency: 'USDT', total: '7', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '7' }] });
     await newRequest;
     expect(wallet.account).toMatchObject({ userId: 'account-b', available: '7' });
     expect(wallet.totalAssets).toBe('7');
@@ -1004,7 +1071,7 @@ describe('登录失效跳转边界', () => {
     const newRequest = wallet.fetchWallet(user.currentUser!.id);
     await Promise.resolve();
     expect(get).toHaveBeenCalledTimes(2);
-    newResponse.resolve({ total: '9', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '9' }] });
+    newResponse.resolve({ currency: 'USDT', total: '9', todayIn: 0, todayOut: 0, distribution: [{ type: 'AVAILABLE', amount: '9' }] });
     await newRequest;
     const fetchedAt = wallet.lastFetchedAt;
     const failure = new Error('old wallet aborted');
@@ -1027,10 +1094,10 @@ describe('登录失效跳转边界', () => {
     const refreshes = Promise.all([wallet.refetch(), wallet.refetch()]);
     expect(get).toHaveBeenCalledTimes(1);
     expect(get.mock.calls[0][1]?.signal?.aborted).toBe(false);
-    oldResponse.resolve({ total: '10', distribution: [{ type: 'AVAILABLE', amount: '10' }] });
+    oldResponse.resolve({ currency: 'USDT', total: '10', distribution: [{ type: 'AVAILABLE', amount: '10' }] });
     await expect(Promise.all([background, operation])).resolves.toEqual([undefined, undefined]);
     await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-    freshResponse.resolve({ total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
+    freshResponse.resolve({ currency: 'USDT', total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
     await refreshes;
     expect(wallet.totalAssets).toBe('20');
     expect(wallet.account?.available).toBe('20');
@@ -1067,11 +1134,11 @@ describe('登录失效跳转边界', () => {
     user.currentUser = { id: 'account-b', isBuyer: false } as Api.RealSession.UserRecord;
     const newRequest = wallet.fetchWallet(user.currentUser.id);
     await Promise.resolve();
-    oldResponse.resolve({ total: '10' });
+    oldResponse.resolve({ currency: 'USDT', total: '10' });
     await Promise.all([oldRequest, refresh]);
     expect(get).toHaveBeenCalledTimes(2);
     expect(wallet.loading).toBe(true);
-    newResponse.resolve({ total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
+    newResponse.resolve({ currency: 'USDT', total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
     await newRequest;
     expect(wallet.account).toMatchObject({ userId: 'account-b', available: '20' });
   });
@@ -1087,9 +1154,9 @@ describe('登录失效跳转边界', () => {
     wallet.clear();
     const newRequest = wallet.fetchWallet(user.currentUser!.id);
     await Promise.resolve();
-    newResponse.resolve({ total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
+    newResponse.resolve({ currency: 'USDT', total: '20', distribution: [{ type: 'AVAILABLE', amount: '20' }] });
     await newRequest;
-    oldResponse.resolve({ total: '10' });
+    oldResponse.resolve({ currency: 'USDT', total: '10' });
     await Promise.all([oldRequest, refresh]);
     expect(get).toHaveBeenCalledTimes(2);
     expect(wallet.totalAssets).toBe('20');
@@ -1106,14 +1173,14 @@ describe('登录失效跳转边界', () => {
     const firstRequest = wallet.fetchWallet(user.currentUser!.id);
     await Promise.resolve();
     const firstRefresh = wallet.refetch();
-    firstResponse.resolve({ total: '10' });
+    firstResponse.resolve({ currency: 'USDT', total: '10' });
     await firstRequest;
     await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     const secondRefresh = wallet.refetch();
-    secondResponse.resolve({ total: '20' });
+    secondResponse.resolve({ currency: 'USDT', total: '20' });
     await firstRefresh;
     await vi.waitFor(() => expect(get).toHaveBeenCalledTimes(3));
-    thirdResponse.resolve({ total: '30' });
+    thirdResponse.resolve({ currency: 'USDT', total: '30' });
     await secondRefresh;
     expect(wallet.totalAssets).toBe('30');
     expect(wallet.loading).toBe(false);
@@ -1246,7 +1313,7 @@ describe('登录失效跳转边界', () => {
     localStorage.setItem(ACCESS_TOKEN_KEY, 'qa-session-b');
     const pending = user.syncExternalSession();
     expect(user.currentUser).toBeUndefined();
-    expect(wallet.totalAssets).toBe('0');
+    expect(wallet.totalAssets).toBeUndefined();
     expect(cart.items).toHaveLength(0);
     expect(getAccessToken()).toBe('qa-session-b');
     profile.resolve({ id: 'account-b', isBuyer: false } as Api.RealSession.UserRecord);
@@ -1441,7 +1508,7 @@ describe('登录失效跳转边界', () => {
     await staleResult;
     expect(getAccessToken()).toBe('qa-session-c');
     expect(user.currentUser?.id).toBe('account-c');
-    expect(wallet.totalAssets).toBe('0');
+    expect(wallet.totalAssets).toBeUndefined();
     expect(cart.items).toHaveLength(0);
   });
 
@@ -1492,5 +1559,136 @@ describe('登录失效跳转边界', () => {
     confirm!();
     expect(getAccessToken()).toBe('qa-session-b');
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe('AI 客服 POST 流与身份隔离', () => {
+  const conversation = 'b5db4ca4d2874cd3bba7d024a31fcd45';
+  const start = `event: start\r\ndata: {"request_id":"r1","seq":1,"conversation_id":"${conversation}"}\r\n\r\n`;
+  const done = 'event: done\ndata: {"request_id":"r1","seq":4,"status":"completed"}\n\n';
+  function setup(token = '') {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
+    const assign = vi.fn(), listeners = new Map<string, (event: { key: string | null }) => void>();
+    vi.stubGlobal('window', { location: { origin: 'http://localhost', pathname: '/ai-guide', search: '', hash: '', assign },
+      addEventListener: vi.fn((name: string, listener: (event: { key: string | null }) => void) => listeners.set(name, listener)),
+      removeEventListener: vi.fn((name: string) => listeners.delete(name)) });
+    setAccessToken(token);
+    return { values, assign, listeners };
+  }
+  function body(text: string, chunkSize = 1) {
+    const bytes = new TextEncoder().encode(text);
+    return new ReadableStream<Uint8Array>({ start(controller) {
+      for (let index = 0; index < bytes.length; index += chunkSize) controller.enqueue(bytes.slice(index, index + chunkSize));
+      controller.close();
+    } });
+  }
+  function response(text: string) {
+    return new Response(body(text), { headers: { 'Content-Type': 'text/event-stream; charset=utf-8' } });
+  }
+
+  it('逐字节 UTF8 / CRLF、多行 data、多个事件及心跳仍按序接收，不执行模型文本', async () => {
+    setup();
+    const events: Api.Ai.ChatEvent[] = [];
+    const text = start + ': heartbeat\r\n\r\nevent: status\r\ndata: {"request_id":"r1","seq":2,\r\ndata: "text":"正在查询。"}\r\n\r\n'
+      + 'event: delta\ndata: {"request_id":"r1","seq":3,"text":"中文🙂 <script>alert(1)</script> [链接](https://example.com)"}\n\n' + done;
+    const fetch = vi.fn().mockResolvedValue(response(text));
+    vi.stubGlobal('fetch', fetch);
+    await streamCustomerChat({ message: '查询商品', conversationId: null }, new AbortController().signal, event => events.push(event));
+    expect(events.map(item => item.event)).toEqual(['start', 'status', 'delta', 'done']);
+    expect(events[2].data).toMatchObject({ text: '中文🙂 <script>alert(1)</script> [链接](https://example.com)' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, options] = fetch.mock.calls[0];
+    expect(url).toBe('/api/user/ai/customer-service/chat/stream');
+    expect(options.method).toBe('POST');
+    expect(options.headers).toEqual({ 'Content-Type': 'application/json', Accept: 'text/event-stream' });
+    expect(JSON.parse(options.body)).toEqual({ message: '查询商品', conversationId: null });
+  });
+
+  it('卡片金额和 Long ID 保持字符串，SSE 时间保持数值，终态 error 无需 done', async () => {
+    setup('qa-ai-session');
+    const events: Api.Ai.ChatEvent[] = [];
+    const text = start + 'event: card\ndata: {"request_id":"r1","seq":2,"tool":"wallet","data":{"code":"OK","kind":"balance","rows":[{"id":"9007199254740993123","currency":"USDC","total":"9999999999999999.123456"}],"queried_at":1792300030000}}\n\n'
+      + 'event: error\ndata: {"request_id":"r1","seq":3,"code":"QUERY_UNAVAILABLE","message":"查询暂不可用","retryable":true}\n\n';
+    const fetch = vi.fn().mockResolvedValue(response(text));
+    vi.stubGlobal('fetch', fetch);
+    await streamCustomerChat({ message: '查询余额', conversationId: conversation }, new AbortController().signal, event => events.push(event));
+    expect(events[1].data).toMatchObject({ data: { rows: [{ id: '9007199254740993123', total: '9999999999999999.123456' }], queried_at: 1792300030000 } });
+    expect(events.at(-1)?.event).toBe('error');
+    expect(fetch.mock.calls[0][1].headers['X-Access-Token']).toBe('qa-ai-session');
+  });
+
+  it.each([
+    ['缺少终态', start + 'event: delta\ndata: {"request_id":"r1","seq":2,"text":"仅有部分内容"}\n\n', 'STREAM_INTERRUPTED'],
+    ['跨请求串流', start + 'event: delta\ndata: {"request_id":"other","seq":2,"text":"不能展示"}\n\n', 'INVALID_STREAM'],
+    ['seq 重复', start + 'event: delta\ndata: {"request_id":"r1","seq":1,"text":"不能展示"}\n\n', 'INVALID_STREAM'],
+    ['未 start 就输出', 'event: delta\ndata: {"request_id":"r1","seq":2,"text":"不能展示"}\n\n', 'INVALID_STREAM'],
+    ['无效 JSON', start + 'event: delta\ndata: {broken}\n\n', 'INVALID_STREAM'],
+    ['非完成 done', start + 'event: done\ndata: {"request_id":"r1","seq":2,"status":"pending"}\n\n', 'INVALID_STREAM']
+  ])('%s 必须中断且不会重放问题', async (_label, text, code) => {
+    setup();
+    const fetch = vi.fn().mockResolvedValue(response(text));
+    vi.stubGlobal('fetch', fetch);
+    await expect(streamCustomerChat({ message: '查询商品', conversationId: null }, new AbortController().signal, vi.fn())).rejects.toMatchObject({ code });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('HTTP 200 的 ApiResult 也检查业务码，登录失效复用全局清理而非回退游客请求', async () => {
+    const { assign } = setup('qa-ai-session');
+    vi.spyOn(Message, 'error').mockImplementation(() => undefined as never);
+    const fetch = vi.fn().mockResolvedValue(new Response('{"code":-200,"message":"登录已失效"}', { headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(streamCustomerChat({ message: '余额', conversationId: null }, new AbortController().signal, vi.fn())).rejects.toMatchObject({ code: '-200' });
+    expect(getAccessToken()).toBe('');
+    expect(assign).toHaveBeenCalledWith('/auth/login?redirect=%2Fai-guide');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([404, 408, 413, 422, 429, 503])('流前 HTTP %s 传递原状态且不自动重试', async status => {
+    setup();
+    const fetch = vi.fn().mockResolvedValue(new Response('{"code":-1,"message":"服务暂不可用"}', { status, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(streamCustomerChat({ message: '商品', conversationId: conversation }, new AbortController().signal, vi.fn())).rejects.toMatchObject({ status, message: '服务暂不可用' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('停止立即取消未完流并释放 reader，不等待下一个分块', async () => {
+    const aborter = new AbortController(), cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({ cancel });
+    const reading = readEventStream(stream, vi.fn(), aborter.signal);
+    aborter.abort();
+    await expect(reading).rejects.toMatchObject({ name: 'AbortError' });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(stream.locked).toBe(false);
+  });
+
+  it('外部 token 切换中止流，拒绝发送新 token 配旧会话，不清理新 token', async () => {
+    const { values, listeners } = setup('qa-ai-old');
+    const stream = new ReadableStream<Uint8Array>();
+    const fetch = vi.fn().mockResolvedValue(new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } }));
+    vi.stubGlobal('fetch', fetch);
+    const reading = streamCustomerChat({ message: '余额', conversationId: conversation }, new AbortController().signal, vi.fn());
+    await Promise.resolve();
+    values.set(ACCESS_TOKEN_KEY, 'qa-ai-new');
+    listeners.get('storage')!({ key: ACCESS_TOKEN_KEY });
+    await expect(reading).rejects.toMatchObject({ code: 'SESSION_CHANGED' });
+    expect(getAccessToken()).toBe('qa-ai-new');
+    await expect(streamCustomerChat({ message: '余额', conversationId: conversation }, new AbortController().signal, vi.fn())).rejects.toMatchObject({ code: 'SESSION_CHANGED' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('客户端不在 Java 100 秒前截断，120 秒期限保留中断语义', async () => {
+    setup();
+    vi.useFakeTimers();
+    const fetch = vi.fn().mockResolvedValue(new Response(new ReadableStream<Uint8Array>(), { headers: { 'Content-Type': 'text/event-stream' } }));
+    vi.stubGlobal('fetch', fetch);
+    const reading = streamCustomerChat({ message: '商品', conversationId: null }, new AbortController().signal, vi.fn());
+    const rejected = expect(reading).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' });
+    await vi.advanceTimersByTimeAsync(100_001);
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(19_999);
+    await rejected;
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

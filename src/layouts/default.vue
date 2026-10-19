@@ -65,7 +65,7 @@ watch([() => route.fullPath, () => categories.value], () => { void nextTick(() =
   if (child.left < box.left || child.right > box.right) row.scrollTo({ left:row.scrollLeft + child.left - box.left - (box.width - child.width) / 2, behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
 }); });
 const footerGroups = [
-  { title: '购物指南', links: [{ label: '注册与登录', to: '/auth/login' }, { label: '全部商品', to: '/product/list' }, { label: '发起求购', to: '/purchase/create' }] },
+  { title: '购物指南', links: [{ label: '注册与登录', to: '/auth/login' }, { label: '全部商品', to: '/product/list' }, { label: '发起求购', to: '/purchase/create' }, { label: 'AI 选购助手', to: '/ai-guide' }] },
   { title: '支付与配送', links: [{ label: '支付说明', to: '/help' }, { label: '我的钱包', to: '/wallet' }, { label: '订单追踪', to: '/order' }] },
   { title: '售后服务', links: [{ label: '退换政策', to: '/help' }, { label: '我的售后', to: '/aftersale' }, { label: '联系买手', to: '/im' }] },
   { title: '关于 Umaomao', links: [{ label: '帮助中心', to: '/help' }, { label: '平台公告', to: '/announcement' }, { label: '买手入驻', to: '/buyer/apply' }] }

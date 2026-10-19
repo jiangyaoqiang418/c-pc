@@ -10,12 +10,13 @@ function transactionLabel(txn: Api.RealWallet.DisplayLedger) {
 }
 
 export function walletLedgerCsv(records: Api.RealWallet.DisplayLedger[]) {
-  const header = ['流水编号', '类型', '测试数据', '方向', '金额(USDT)', '出账桶', '入账桶', '余额变化后', '交易哈希', '备注', '时间'];
+  const header = ['流水编号', '类型', '测试数据', '方向', '币种', '金额', '出账桶', '入账桶', '余额变化后', '交易哈希', '备注', '时间'];
   const rows = records.map(txn => [
     txn.id,
     transactionLabel(txn),
     txn.testData ? '是' : '否',
     txn.direction === 'in' ? '收入' : '支出',
+    'currency' in txn ? txn.currency ?? 'USDT' : 'USDT',
     txn.amount,
     txn.bucketFrom || '',
     txn.bucketTo || '',

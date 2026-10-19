@@ -9,13 +9,13 @@ describe('提现提交校验', () => {
     const prepared = prepareWithdrawal(draft, '100');
     draft.amount = 50;
     expect(prepared.error).toBe('');
-    expect(prepared.params.amount).toBe(20);
+    expect(prepared.params.amount).toBe('20');
     expect(prepared.params.toAddress).toBe(params.toAddress.trim());
   });
   it('空白地址、空金额和不足最低金额不能提交', () => {
     expect(prepareWithdrawal({ ...params, toAddress: ' '.repeat(30) }, 100).error).toBe('请输入目标地址');
-    expect(prepareWithdrawal({ ...params, amount: undefined as unknown as number }, 100).error).toBe('请输入转出金额');
-    expect(prepareWithdrawal({ ...params, amount: 0 }, 100).error).toBe('请输入转出金额');
+    expect(prepareWithdrawal({ ...params, amount: undefined as unknown as number }, 100).error).not.toBe('');
+    expect(prepareWithdrawal({ ...params, amount: 0 }, 100).error).not.toBe('');
     expect(prepareWithdrawal({ ...params, amount: 19 }, 100).error).toBe('单笔最小转出 20 U');
   });
   it('钱包未就绪或确认期间余额减少时阻止提交', () => {
@@ -24,9 +24,33 @@ describe('提现提交校验', () => {
     const prepared = prepareWithdrawal(params, 100);
     expect(prepareWithdrawal(prepared.params, 10).error).toBe('可用余额不足');
   });
+  it('以资产链配置校验精度和限额，完整保留大额及小额字符串', () => {
+    const config: Api.RealWallet.WithdrawChainVO = { asset: 'USDC', chain: 'BSC', label: '币安智能链', decimals: 6, enabled: true, minAmount: '0.000001', maxAmount: null };
+    const params = { asset: 'USDC' as const, chain: 'BSC' as const, amount: '99999999999999999999999999.123456', toAddress: '0x1111111111111111111111111111111111111111' };
+    const prepared = prepareWithdrawal(params, params.amount, config);
+    expect(prepared.error).toBe('');
+    expect(prepared.params.amount).toBe(params.amount);
+    expect(prepared.params.asset).toBe('USDC');
+    expect(prepareWithdrawal({ ...params, amount: '0.000001' }, '1', config).error).toBe('');
+    expect(prepareWithdrawal({ ...params, amount: '0.0000001' }, '1', config).error).not.toBe('');
+    expect(prepareWithdrawal({ ...params, amount: '1.12345600' }, '2', config).params.amount).toBe('1.123456');
+    expect(prepareWithdrawal(params, params.amount, { ...config, enabled: false }).error).toContain('暂不可提现');
+    expect(prepareWithdrawal(params, params.amount, { ...config, asset: 'USDT' }).error).toContain('暂不可提现');
+    expect(prepareWithdrawal(params, params.amount, { ...config, maxAmount: '10' }).error).toContain('最大转出');
+  });
 });
 
 describe('walletLedgerCsv', () => {
+  it('导出币种与完整金额，旧开发夹具仍标为 USDT', () => {
+    const base: Api.RealWallet.Ledger = {
+      id: '90071992547409931', userId: '90071992547409932', userName: '', type: 'DEPOSIT_IN',
+      direction: 'in', amount: '99999999999999999999999999.123456', balanceAfter: '99999999999999999999999999.123456', createdAt: ''
+    };
+    const csv = walletLedgerCsv([base, { ...base, currency: 'USDC' }]);
+    expect(csv).toContain('"币种","金额"');
+    expect(csv).toContain('"USDC","99999999999999999999999999.123456"');
+    expect(csv).toContain('"USDT","99999999999999999999999999.123456"');
+  });
   it('exports backend business labels without collapsing different refund types', () => {
     const base: Api.RealWallet.Ledger = {
       id: '90071992547409931', userId: '90071992547409932', userName: '', type: 'DEPOSIT_IN',
