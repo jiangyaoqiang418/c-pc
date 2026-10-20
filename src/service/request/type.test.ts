@@ -1602,6 +1602,7 @@ describe('AI 客服 POST 流与身份隔离', () => {
     const [url, options] = fetch.mock.calls[0];
     expect(url).toBe('/api/user/ai/customer-service/chat/stream');
     expect(options.method).toBe('POST');
+    expect(options.credentials).toBe('omit');
     expect(options.headers).toEqual({ 'Content-Type': 'application/json', Accept: 'text/event-stream' });
     expect(JSON.parse(options.body)).toEqual({ message: '查询商品', conversationId: null });
   });
@@ -1617,6 +1618,48 @@ describe('AI 客服 POST 流与身份隔离', () => {
     expect(events[1].data).toMatchObject({ data: { rows: [{ id: '9007199254740993123', total: '9999999999999999.123456' }], queried_at: 1792300030000 } });
     expect(events.at(-1)?.event).toBe('error');
     expect(fetch.mock.calls[0][1].headers['X-Access-Token']).toBe('qa-ai-session');
+  });
+
+  it.each(['LOGIN_REQUIRED', 'NO_VISIBLE_RECORD'])('%s 缺少 kind 和 rows 时仍正常交付卡片和 done', async code => {
+    setup();
+    const events: Api.Ai.ChatEvent[] = [];
+    const card = `event: card\ndata: ${JSON.stringify({ request_id: 'r1', seq: 2, tool: 'wallet', data: { code } })}\n\n`;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(start + card + done)));
+    await streamCustomerChat({ message: '我的余额', conversationId: null }, new AbortController().signal, event => events.push(event));
+    expect(events.map(event => event.event)).toEqual(['start', 'card', 'done']);
+    expect(events[1].data).toMatchObject({ data: { code } });
+  });
+
+  it('products 与多张卡片及 delta 按实际事件顺序交付', async () => {
+    setup();
+    const events: Api.Ai.ChatEvent[] = [];
+    const frames = [
+      ['delta', { text: '先看商品' }],
+      ['card', { tool: 'products', data: { code: 'OK', kind: 'products', rows: [{ id: '9007199254740993123', title: '商品中文🙂', price: '0.000001' }] } }],
+      ['delta', { text: '再看记录' }],
+      ['card', { tool: 'orders', data: { code: 'NO_VISIBLE_RECORD' } }],
+      ['delta', { text: '查询结束' }],
+      ['done', { status: 'completed' }]
+    ] as const;
+    const text = start + frames.map(([event, data], index) => `event: ${event}\ndata: ${JSON.stringify({ request_id: 'r1', seq: index + 2, ...data })}\n\n`).join('');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(text)));
+    await streamCustomerChat({ message: '商品与记录', conversationId: null }, new AbortController().signal, event => events.push(event));
+    expect(events.map(event => event.event)).toEqual(['start', 'delta', 'card', 'delta', 'card', 'delta', 'done']);
+    expect(events[2].data).toMatchObject({ data: { kind: 'products', rows: [{ id: '9007199254740993123', price: '0.000001' }] } });
+  });
+
+  it.each([
+    { code: 'OK' },
+    { code: 'OK', kind: 'products', rows: null },
+    { code: 'OK', kind: 'products', rows: [null] },
+    { code: 'LOGIN_REQUIRED', rows: {} }
+  ])('不将畸形卡片作为有效结果交付：%j', async data => {
+    setup();
+    const onEvent = vi.fn();
+    const card = `event: card\ndata: ${JSON.stringify({ request_id: 'r1', seq: 2, tool: 'wallet', data })}\n\n`;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(start + card + done)));
+    await expect(streamCustomerChat({ message: '查询', conversationId: null }, new AbortController().signal, onEvent)).rejects.toMatchObject({ code: 'INVALID_STREAM' });
+    expect(onEvent.mock.calls.map(([event]) => event.event)).toEqual(['start']);
   });
 
   it.each([
@@ -1645,7 +1688,7 @@ describe('AI 客服 POST 流与身份隔离', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it.each([404, 408, 413, 422, 429, 503])('流前 HTTP %s 传递原状态且不自动重试', async status => {
+  it.each([404, 408, 413, 422, 429, 503, 504])('流前 HTTP %s 传递原状态且不自动重试', async status => {
     setup();
     const fetch = vi.fn().mockResolvedValue(new Response('{"code":-1,"message":"服务暂不可用"}', { status, headers: { 'Content-Type': 'application/json' } }));
     vi.stubGlobal('fetch', fetch);

@@ -57,7 +57,7 @@
 | 8 求购处理进度 | my/progress.timeline 节点及推送汇总已核对 | 已封装，ID 校验、时间正序 | 本人详情已接入，非本人不查询 | 9月6日Chrome从本人列表进入2094032551400792066，显示提交→取消、0批/触达0；原生返回/purchase全部6条。另顾客REJECTED样本API有提交/审核节点，非浏览器验收；接单/非零推送及非本人边界未验，无现成非零样本 |
 | 8 我的经营统计 | stats/mine，时间为含边界毫秒；比率已为百分数 | BusinessStatsDTO 已适配 | 工作台已接入，保留 >100% 的合法口径与独立错误区域 | Chrome 实际评价率 12.50%、客诉率 33.33%、平均发货 0.87 小时，完成 8/评价 1/售后 4；范围边界、>100% 及错误分支尚未真实验收 |
 | AML/CMS 历史不可用页 | 本行保留旧内容页验收范围，AI 本次独立接入见下一行 | 不为 AI 改造扩展其他模块 | 公告/帮助/协议沿用现状 | 旧页面返回与隐私 query 结果仅适用于原验收范围 |
-| AI 选购客服 | POST /ai/customer-service/chat/stream，message/conversationId、SSE start/status/delta/card/done/error | 分块解析、请求/序号校验、120 秒客户端期限、会话/Token 隔离及共享失效处理，无自动重放 | /ai-guide 渐进回答及 product/order/balance/recharge/withdraw/order_pay 纯文本卡片；停止/切页/新身份取消，404 清会话 | 自动回归覆盖解析、鉴权、错误、取消、断流及超时；Chrome 五断点无横向溢出、纯文本/规格原价、停止、404 后新会话已验；真实模型响应待验，不称完整验收 |
+| AI 选购客服 | POST /ai/customer-service/chat/stream，message/conversationId、SSE start/status/delta/card/done/error；以 10-20 文档为准 | 分块解析、请求/序号校验、120 秒期限、会话/Token 隔离；身份只用当前 token，显式 omit Cookie；非成功卡片允许缺 kind/rows，畸形成功卡片拒绝，无自动重放 | /ai-guide 按事件顺序交错展示文本及多卡片；支持 products/旧 product、order/balance/recharge/withdraw/order_pay；done/error/断流/停止独立处理；404 清会话并保留原问题或新草稿 | 类型、生产构建、实时 Swagger、358 项现有测试通过；Chrome 两名真实用户 USDT AI 六桶及 total 各自与钱包一致，退出/在途退出清私人内容，换号无旧卡片；Cookie 修正后二人复验及游客登录引导通过。受控响应已验增量、顺序、纯文本/规格、error/EOF/停止/404/429，桌面及手机可见宽360无溢出；真实 USDC 非空卡片及实机系统行为待验 |
 | 多资产提现 | /withdraw/chains、/withdraw/fee-preview 及 create/detail/page/by-key 资产字段已确认 | 动态精度/限额、字符串金额、只读网络费、原键原资产恢复、提交前复核网络 | 桌面/同仓手机选择币种及网络、报价失效/过期、原单独立资产详情 | 自动回归覆盖精度/限额/报价资产/原单保护；Chrome 已验 6 位精度/拒绝第 7 位非零小数、BNB 网络费预览及原精度确认；真实创建、审核退回和链上到账尚未验 |
 
 ## 既有模块四层索引

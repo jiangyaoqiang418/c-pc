@@ -3,10 +3,12 @@ import { computed } from 'vue';
 
 const props = defineProps<{ card: Api.Ai.CardData }>();
 defineEmits<{ login: [] }>();
-const titles: Record<string, string> = { product: '商品查询', order: '订单查询', balance: '钱包余额', recharge: '充值记录', withdraw: '提现记录', order_pay: '订单钱包直付' };
-const supported = computed(() => Object.hasOwn(titles, props.card.kind));
-const title = computed(() => supported.value ? titles[props.card.kind] : '查询结果');
-const rows = computed(() => props.card.rows.slice(0, 100));
+const titles: Record<string, string> = { products: '商品查询', product: '商品查询', order: '订单查询', balance: '钱包余额', recharge: '充值记录', withdraw: '提现记录', order_pay: '订单钱包直付' };
+const kind = computed(() => props.card.kind ?? '');
+const isProduct = computed(() => kind.value === 'products' || kind.value === 'product');
+const supported = computed(() => Object.hasOwn(titles, kind.value));
+const title = computed(() => supported.value ? titles[kind.value] : '查询结果');
+const rows = computed(() => (props.card.rows ?? []).slice(0, 100));
 const text = (value: unknown) => typeof value === 'string' ? value : '暂不可用';
 const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : text(value);
 function timestamp(value: unknown) {
@@ -37,12 +39,12 @@ function balanceFields(row: Record<string, unknown>) {
 }
 function fields(row: Record<string, unknown>) {
   const id = ['记录 ID', text(row.id)];
-  if (props.card.kind === 'product') return [id, ['运费', text(row.shipping_fee)], ['税费', text(row.tax_fee)], ['售后类型', text(row.after_sale_type)], ['更新时间', timestamp(row.updated_at)]];
+  if (isProduct.value) return [id, ['运费', text(row.shipping_fee)], ['税费', text(row.tax_fee)], ['售后类型', text(row.after_sale_type)], ['更新时间', timestamp(row.updated_at)]];
   if (props.card.kind === 'order') return [id, ['订单号', text(row.order_no)], ['数量', count(row.quantity)], ['成交单价', text(row.unit_price)], ['成交总额', text(row.total_amount)], ['订单状态', text(row.status)], ['物流状态', text(row.logistics_status)], ['更新时间', timestamp(row.updated_at)]];
   return [id, ['资产', text(row.asset ?? row.currency)], ['网络', text(row.chain)], ['金额', text(row.amount)], ['状态', text(row.status)], ['交易哈希', text(row.tx_hash)], ['更新时间', timestamp(row.updated_at)]];
 }
 function recordTitle(row: Record<string, unknown>, index: number) {
-  if (props.card.kind === 'product') return text(row.title);
+  if (isProduct.value) return text(row.title);
   if (props.card.kind === 'order') return text(row.product_title);
   if (props.card.kind === 'balance') return `${text(row.currency)} 余额`;
   return `${title.value} ${index + 1}`;
@@ -65,7 +67,7 @@ function recordTitle(row: Record<string, unknown>, index: number) {
         </template>
         <template v-else>
           <dl><template v-for="[label, value] in fields(row)" :key="label"><dt>{{ label }}</dt><dd>{{ value }}</dd></template></dl>
-          <template v-if="card.kind === 'product'">
+          <template v-if="isProduct">
             <dl v-if="row.has_sku === false"><dt>价格</dt><dd>{{ text(row.price) }}</dd><dt>库存</dt><dd>{{ count(row.stock) }}</dd></dl>
             <template v-else-if="row.has_sku === true">
               <p v-if="!skus(row).length" class="card-note">规格信息暂不可用。</p>
@@ -80,7 +82,7 @@ function recordTitle(row: Record<string, unknown>, index: number) {
           <p v-else-if="card.kind === 'order_pay'" class="card-note">支付结果请以原订单状态为准。</p>
         </template>
       </article>
-      <p v-if="card.has_more === true || card.rows.length > 100" class="card-note">还有更多记录，可继续提问缩小查询范围。</p>
+      <p v-if="card.has_more === true || (card.rows?.length ?? 0) > 100" class="card-note">还有更多记录，可继续提问缩小查询范围。</p>
     </template>
   </section>
 </template>

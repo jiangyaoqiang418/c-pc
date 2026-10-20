@@ -9,12 +9,14 @@ import { RequestError } from '@/service/request';
 import { ACCESS_TOKEN_KEY, getAccessToken } from '@/service/request/token';
 import { useUserStore } from '@/stores/user';
 
+type ChatPart = { type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData };
+
 interface ChatMessage {
   id: number;
   role: 'user' | 'assistant';
   text: string;
-  cards: Api.Ai.CardData[];
-  state: 'streaming' | 'completed' | 'stopped' | 'error';
+  parts: ChatPart[];
+  state: 'streaming' | 'completed' | 'stopped' | 'interrupted' | 'error';
   progress: string;
   error: string;
 }
@@ -64,8 +66,8 @@ async function send() {
   running.value = true;
   notice.value = '';
   input.value = '';
-  messages.value.push({ id: ++messageId, role: 'user', text: question, cards: [], state: 'completed', progress: '', error: '' });
-  messages.value.push({ id: ++messageId, role: 'assistant', text: '', cards: [], state: 'streaming', progress: '正在连接客服…', error: '' });
+  messages.value.push({ id: ++messageId, role: 'user', text: question, parts: [], state: 'completed', progress: '', error: '' });
+  messages.value.push({ id: ++messageId, role: 'assistant', text: '', parts: [], state: 'streaming', progress: '正在连接客服…', error: '' });
   const answer = messages.value[messages.value.length - 1];
   scrollToLatest();
   try {
@@ -73,10 +75,15 @@ async function send() {
       if (!mounted || requestTurn !== turn || token !== getAccessToken()) return;
       if (event.event === 'start') conversationId.value = event.data.conversation_id;
       else if (event.event === 'status') answer.progress = event.data.text;
-      else if (event.event === 'delta') { answer.text += event.data.text; answer.progress = '正在回答…'; }
-      else if (event.event === 'card') answer.cards.push(event.data.data);
+      else if (event.event === 'delta') {
+        const last = answer.parts[answer.parts.length - 1];
+        if (last?.type === 'text') last.text += event.data.text;
+        else answer.parts.push({ type: 'text', text: event.data.text });
+        answer.progress = '正在回答…';
+      }
+      else if (event.event === 'card') answer.parts.push({ type: 'card', card: event.data.data });
       else if (event.event === 'done') { answer.state = 'completed'; answer.progress = ''; }
-      else if (event.event === 'error') { answer.state = 'error'; answer.error = event.data.message; answer.progress = ''; }
+      else if (event.event === 'error') { answer.state = 'error'; answer.error = `回答失败，已有内容未完成：${event.data.message}`; answer.progress = ''; }
       scrollToLatest();
     });
   } catch (error) {
@@ -90,10 +97,12 @@ async function send() {
       answer.state = 'stopped';
       answer.error = '已停止生成，当前回答可能不完整。';
     } else {
-      answer.state = 'error';
+      answer.state = error instanceof RequestError && ['STREAM_INTERRUPTED', 'INVALID_STREAM', 'REQUEST_TIMEOUT', 'STREAM_TOO_LARGE'].includes(error.code ?? '') ? 'interrupted' : 'error';
       answer.error = error instanceof Error ? error.message : '回答中断，请重新提问';
       if (error instanceof RequestError && error.status === 404) {
         conversationId.value = null;
+        // 保留用户在等待期间新写的草稿；没有新草稿时恢复本次问题供手动发送。
+        if (!input.value) input.value = question;
         answer.error = `${answer.error}，请重新提问开始新会话。`;
       }
     }
@@ -140,10 +149,13 @@ onBeforeUnmount(() => {
         <div class="ai-message-avatar" aria-hidden="true"><UmIcon :name="message.role === 'user' ? 'user' : 'headset'" /></div>
         <div class="ai-message-content">
           <p v-if="message.text" class="ai-message-text">{{ message.text }}</p>
-          <ResultCard v-for="(card, cardIndex) in message.cards" :key="cardIndex" :card="card" @login="login" />
+          <template v-for="(part, partIndex) in message.parts" :key="partIndex">
+            <p v-if="part.type === 'text'" class="ai-message-text">{{ part.text }}</p>
+            <ResultCard v-else :card="part.card" @login="login" />
+          </template>
           <p v-if="message.state === 'streaming'" class="message-progress">{{ message.progress || '正在回答…' }}</p>
           <p v-else-if="message.error" class="message-error" :class="{ stopped: message.state === 'stopped' }">{{ message.error }}</p>
-          <p v-else-if="message.role === 'assistant' && !message.text && !message.cards.length" class="message-progress">本轮查询已结束。</p>
+          <p v-else-if="message.role === 'assistant' && !message.parts.length" class="message-progress">本轮查询已结束。</p>
         </div>
       </article>
     </div>

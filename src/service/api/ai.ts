@@ -26,8 +26,11 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
     } else if (frame.event === 'status' || frame.event === 'delta') {
       if (typeof data.text !== 'string') throw invalidEvent();
     } else if (frame.event === 'card') {
-      if (typeof data.tool !== 'string' || !isObject(data.data) || typeof data.data.code !== 'string'
-        || typeof data.data.kind !== 'string' || !Array.isArray(data.data.rows) || !data.data.rows.every(isObject)) throw invalidEvent();
+      if (typeof data.tool !== 'string' || !isObject(data.data) || typeof data.data.code !== 'string') throw invalidEvent();
+      const card = data.data;
+      if ((card.code === 'OK' && (typeof card.kind !== 'string' || !Array.isArray(card.rows)))
+        || (card.kind !== undefined && typeof card.kind !== 'string')
+        || (card.rows !== undefined && (!Array.isArray(card.rows) || !card.rows.every(isObject)))) throw invalidEvent();
     } else if (frame.event === 'done') {
       if (data.status !== 'completed') throw invalidEvent();
     } else if (frame.event === 'error') {
@@ -64,6 +67,8 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
     const baseURL = import.meta.env.VITE_REAL_USER_BASE_URL || '/api/user';
     const response = await fetch(`${baseURL.replace(/\/$/, '')}/ai/customer-service/chat/stream`, {
       method: 'POST',
+      // 身份只由当前 X-Access-Token 决定，游客请求不沿用浏览器遗留 Cookie。
+      credentials: 'omit',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(token ? { 'X-Access-Token': token } : {}) },
       body: JSON.stringify({ message: input.message, conversationId: input.conversationId }),
       signal: combinedSignal

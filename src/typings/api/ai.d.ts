@@ -4,12 +4,13 @@ declare namespace Api.Ai {
     conversationId: string | null;
   }
 
-  type CardKind = 'product' | 'order' | 'balance' | 'recharge' | 'withdraw' | 'order_pay';
+  type CardKind = 'products' | 'product' | 'order' | 'balance' | 'recharge' | 'withdraw' | 'order_pay';
 
   interface CardData {
     code: string;
-    kind: string;
-    rows: Record<string, unknown>[];
+    /** 非成功卡片可只提供 code，不包含结果类型或记录。 */
+    kind?: string;
+    rows?: Record<string, unknown>[];
     has_more?: boolean;
     next_before_id?: string | null;
     /** SSE 时间保持 JSON 数值，与 REST 毫秒字符串不同。 */
