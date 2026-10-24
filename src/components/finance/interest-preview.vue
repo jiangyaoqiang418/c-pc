@@ -16,7 +16,8 @@ interface Props {
 const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'subscribe', amount: string): void }>();
 const userStore = useUserStore();
-const amount = ref(String(props.product.minAmount));
+const initialAmount = () => knownFinanceDecimal(props.product.minAmount) ?? String(props.product.minAmount);
+const amount = ref(initialAmount());
 const confirmVisible = ref(false);
 const acknowledged = ref(false);
 const normalizedAmount = computed(() => {
@@ -80,7 +81,7 @@ function useMaximum() {
   const [integer, fraction = ''] = normalized.split('.');
   amount.value = `${integer}.${fraction.padEnd(2, '0').slice(0, 2)}`;
 }
-watch([() => props.product.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => { amount.value = String(props.product.minAmount); confirmVisible.value = false; acknowledged.value = false; });
+watch([() => props.product.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => { amount.value = initialAmount(); confirmVisible.value = false; acknowledged.value = false; });
 // 确认期间金额变化必须重新勾选，不能沿用上一笔本金的确认。
 watch(normalizedAmount, () => { confirmVisible.value = false; acknowledged.value = false; }, { flush: 'sync' });
 watch([annualRate, lockDays, min, max], () => { confirmVisible.value = false; acknowledged.value = false; });

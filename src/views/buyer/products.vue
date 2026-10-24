@@ -242,7 +242,7 @@ async function toggleShelf(p: Api.RealProduct.Record) {
       if (!isCurrentWrite()) return;
       if (!depositSummary.listable) {
         Message.warning('当前保证金不足，暂不能上架，请先处理保证金');
-        void router.push('/buyer/deposit');
+        void router.push({ path: '/buyer/deposit', query: { redirect: route.fullPath } });
         return;
       }
     }

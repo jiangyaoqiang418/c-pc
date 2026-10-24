@@ -182,11 +182,12 @@ const directConfigError = computed(() => {
   if (!recharge || !address?.address) return addressError.value || '当前链的专属充值地址不可用';
   if (address.asset !== asset.value || address.chain !== recharge.chain) return '充值地址与所选链不一致，请停止转账';
   if (address.memo) return '该链要求 Memo / Tag，暂不支持钱包直充，请使用地址转账';
-  if (!payment) return '该链尚未开放浏览器钱包转账';
+  if (!recharge.walletNetwork?.trim()) return '当前网络尚未配置钱包网络标识，请联系平台补齐配置后再使用钱包转账';
+  if (!payment) return '当前网络的钱包转账合约配置不完整，请联系平台核对';
   if (!['ETH', 'BSC', 'TRON'].includes(recharge.chain)
     || (recharge.chain === 'TRON' && !['mainnet', 'shasta', 'nile'].includes(payment.network.toLowerCase()))
     || (recharge.chain !== 'TRON' && !/^\d+$/.test(payment.network))) {
-    return '该链的浏览器钱包网络配置暂不支持直充';
+    return recharge.chain === 'TRON' ? 'TRON 钱包网络应为 mainnet、shasta 或 nile，请联系平台核对配置' : '钱包网络标识暂不支持直充，请联系平台核对配置';
   }
   if (!payment.network || !address.tokenContract || !Number.isSafeInteger(address.decimals)
     || address.decimals !== payment.decimals || recharge.decimals !== payment.decimals

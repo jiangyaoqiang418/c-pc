@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { saveWithdrawDraft, takeWithdrawDraft } from '@/utils/prerequisite-navigation';
 import UmIcon from '@/components/common/um-icon.vue';
 import WalletOperationDialog from '@/components/wallet/wallet-operation-dialog.vue';
 import WalletAssetTabs from '@/components/wallet/wallet-asset-tabs.vue';
@@ -31,15 +32,22 @@ async function selectAsset(next: Api.RealWallet.Asset) {
   await router.replace({ query: { ...route.query, asset: next, page: undefined, id: undefined } });
 }
 type WithdrawForm = Omit<Api.RealWallet.WithdrawCreateParams, 'payPassword'>;
-const form = reactive<WithdrawForm>({ asset: asset.value, chain: 'TRON', toAddress: '', amount: '' });
-const amountDraft = ref('');
+const restoredDraft = takeWithdrawDraft(userStore.currentUser?.id, userStore.sessionVersion, asset.value);
+const form = reactive<WithdrawForm>({ asset: asset.value, chain: restoredDraft?.chain || 'TRON', toAddress: restoredDraft?.toAddress || '', amount: restoredDraft?.amount || '' });
+const amountDraft = ref(restoredDraft?.amount || '');
 const amountValidation = computed(() => exactAssetAmount(amountDraft.value));
 watch(amountDraft, () => { form.amount = amountValidation.value.value ?? ''; });
 const submitting = ref(false);
 const operationView = ref<'form' | 'records'>('form');
 const walletReturn = computed(() => userStore.isBuyerActive ? '/buyer/wallet' : `/wallet?asset=${asset.value}`);
 function closeOperation() { if (!submitting.value) void router.replace(walletReturn.value); }
-onBeforeRouteLeave(to => { if (submitting.value && to.path !== '/profile/pay-password') { Message.warning('正在处理本次申请，请稍候'); return false; } });
+onBeforeRouteLeave(to => {
+  if (submitting.value && to.path !== '/profile/pay-password') { Message.warning('正在处理本次申请，请稍候'); return false; }
+  const owner = userStore.currentUser?.id;
+  if (owner !== undefined && ['/kyc', '/profile/pay-password'].includes(to.path) && to.query.redirect === route.fullPath) {
+    saveWithdrawDraft(owner, userStore.sessionVersion, { asset: asset.value, chain: form.chain, toAddress: form.toAddress, amount: amountDraft.value });
+  }
+});
 onBeforeRouteUpdate(to => {
   if (submitting.value && to.query.asset !== route.query.asset) {
     Message.warning('正在处理本次申请，请稍候再切换资产');
@@ -491,7 +499,7 @@ const statusFilter = computed({
         <p v-if="errMsg" class="deposit-error" role="status">{{ errMsg }}</p>
         <button type="submit" class="gold full" :disabled="!canSubmit">{{ submitting ? '正在提交…' : '核对转出信息' }}</button><button type="button" class="text-link full wallet-dismiss" :disabled="submitting" @click="closeOperation">返回钱包</button>
       </form>
-      <div v-if="kycTipNeeded" class="deposit-hint"><UmIcon name="shield" /><span>您尚未完成实名认证，实际审核结果以平台规则为准。<button class="text-link wallet-note-action" @click="router.push('/kyc')">前往实名认证</button></span></div>
+      <div v-if="kycTipNeeded" class="deposit-hint"><UmIcon name="shield" /><span>您尚未完成实名认证，实际审核结果以平台规则为准。<button class="text-link wallet-note-action" @click="router.push({ name: 'kyc', query: { redirect: route.fullPath } })">前往实名认证</button></span></div>
       <p class="wallet-operation-note">确认申请后需输入支付密码。申请提交后进入平台审核，到账状态以平台和链上确认结果为准；手续费、限额及可用网络以平台接口为准。</p>
       <section v-if="createdWithdrawal" class="deposit-record"><div><strong>{{ formatMoney(createdWithdrawal.amount, createdWithdrawal.asset) }}</strong><span>{{ createdWithdrawal.statusText || createdWithdrawal.status || '待确认' }}</span></div><p>最新转出申请 · {{ createdWithdrawal.chain }}</p><small>{{ createdWithdrawal.id }}<br />{{ formatTime(createdWithdrawal.createdAt) }}</small><button @click="showDetail(createdWithdrawal)">查看申请详情</button></section>
     </template>

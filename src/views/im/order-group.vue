@@ -12,6 +12,10 @@ import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import {
   applyReadEvent,
+  messageReadCount,
+  refreshMessageReadCounts,
+  orderConversationMetadata,
+  isOrderConversationEvent,
   captureMessageAnchor,
   restoreMessageAnchor,
   compareBusinessId,
@@ -29,7 +33,7 @@ import {
   sameBusinessId
 } from '@/utils/im';
 import { conversationListQuery } from '@/utils/notification';
-import { createLatestRequestGuard } from '@/utils/latest-request';
+import { createCoalescedRefresh, createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
 const router = useRouter();
@@ -69,9 +73,42 @@ watch(imageUrls, (urls, previous) => {
 const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const olderMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const incrementalMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const readCountsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${orderCode.value}`);
+const conversationMetadataGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${orderCode.value}`);
+const readCountsRefresh = createCoalescedRefresh(refreshReadCounts, () => { messageSyncError.value = '已读状态尚未同步，请重试'; });
+const metadataRefresh = createCoalescedRefresh(refreshConversationMetadata, () => { /* 请求层提示失败；下次同步继续读取。 */ });
 let messageWriteVersion = 0;
 let recallWriteVersion = 0;
 let historyScrollVersion = 0;
+
+async function refreshReadCounts() {
+  const id = conversation.value?.id;
+  if (id === undefined) return;
+  const isCurrent = readCountsGuard.begin();
+  try {
+    await refreshMessageReadCounts({ messages: messages.value, conversationId: id, signal: isCurrent.signal,
+      request: (pageNo, pageSize) => notifyApi.fetchConversationMessages({ conversationId: id, pageNo, pageSize }, { signal: isCurrent.signal }),
+      accept: incoming => { if (isCurrent() && sameBusinessId(conversation.value?.id, id)) messages.value = mergeMessages(messages.value, incoming); }
+    });
+    if (isCurrent() && messageSyncError.value === '已读状态尚未同步，请重试') messageSyncError.value = '';
+  } catch (error) { if (isCurrent()) throw error; }
+}
+
+async function refreshConversationMetadata() {
+  const currentId = conversation.value?.id;
+  if (currentId === undefined) return;
+  const requestedOrder = orderCode.value;
+  const isCurrent = conversationMetadataGuard.begin();
+  const next = await notifyApi.fetchOrderConversation(requestedOrder, { signal: isCurrent.signal });
+  if (!isCurrent() || !sameBusinessId(next.id, currentId) || !sameBusinessId(conversation.value?.id, currentId)) return;
+  const orders = await notifyApi.fetchConversationOrders(currentId, true, { signal: isCurrent.signal });
+  if (!isCurrent() || !sameBusinessId(conversation.value?.id, currentId)) return;
+  const readId = conversation.value?.lastReadMessageId;
+  const updated = orderConversationMetadata(next, requestedOrder, orders);
+  // 页面上报已读期间的旧摘要响应不能回退本人水位。
+  if (readId !== undefined && (updated.lastReadMessageId === undefined || compareBusinessId(readId, updated.lastReadMessageId) > 0)) updated.lastReadMessageId = readId;
+  conversation.value = updated;
+}
 
 function isCurrentMessageContext(
   operation: number,
@@ -104,6 +141,10 @@ function isCurrentRecallContext(
 async function load() {
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
+  readCountsGuard.invalidate();
+  conversationMetadataGuard.invalidate();
+  readCountsRefresh.cancel();
+  metadataRefresh.cancel();
   const isCurrent = requestGuard.begin();
   const requestedOrderCode = orderCode.value;
   const requestedUserId = userStore.currentUser?.id;
@@ -121,8 +162,9 @@ async function load() {
   try {
     const nextConversation = await notifyApi.fetchOrderConversation(requestedOrderCode, { signal: isCurrent.signal });
     if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-    conversation.value = nextConversation;
+    conversation.value = orderConversationMetadata(nextConversation, requestedOrderCode, []);
     if (conversation.value) {
+      metadataRefresh.schedule();
       const response = await notifyApi.fetchConversationMessages({ conversationId: conversation.value.id, pageNo: 1, pageSize: 50 }, { signal: isCurrent.signal });
       if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
       messages.value = mergeMessages(messages.value, response.records || []);
@@ -131,6 +173,7 @@ async function load() {
       messageSyncError.value = '';
       newMessagesAvailable.value = false;
       hasOlder.value = messages.value.length < (response.total || 0);
+      readCountsRefresh.schedule();
       await scrollToBottom();
     }
   } catch {
@@ -169,6 +212,7 @@ async function loadOlderMessages() {
     messages.value = mergeMessages(response.records || [], messages.value);
     pageNo.value = nextPage;
     hasOlder.value = messages.value.length < (response.total || 0);
+    readCountsRefresh.schedule();
     await nextTick();
     if (!isCurrent() || orderCode.value !== requestedOrderCode || String(userStore.currentUser?.id) !== String(requestedUserId)
       || !conversation.value || !sameBusinessId(conversation.value.id, requestedConversationId)) return;
@@ -202,7 +246,8 @@ async function reportRead() {
   try {
     await notifyApi.markConversationRead({ conversationId: currentConversation.id, lastReadMessageId });
     if (version !== messageWriteVersion || userStore.sessionVersion !== session || !sameBusinessId(userId, userStore.currentUser?.id) || !sameBusinessId(conversation.value?.id, currentConversation.id)) return;
-    if (currentConversation.lastReadMessageId === undefined || compareBusinessId(lastReadMessageId, currentConversation.lastReadMessageId) > 0) currentConversation.lastReadMessageId = lastReadMessageId;
+    const current = conversation.value!;
+    if (current.lastReadMessageId === undefined || compareBusinessId(lastReadMessageId, current.lastReadMessageId) > 0) current.lastReadMessageId = lastReadMessageId;
     notifyStore.scheduleUnreadRefresh();
   } catch {
     // 分页只读；上报失败保留原水位，下次可见/滚动时重试。
@@ -238,6 +283,7 @@ async function syncIncremental() {
     });
     if (!current()) return;
     syncIncomplete.value = !complete;
+    await refreshReadCounts();
     if (!current()) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else if (receivedNewMessages) newMessagesAvailable.value = true;
@@ -294,7 +340,7 @@ function senderName(message: Api.RealNotify.ImMessageVO) {
 
 function readText(message: Api.RealNotify.ImMessageVO) {
   if (sideOf(message) !== 'right' || message.pending || message.failed) return '';
-  const count = Object.values(readerWatermarks.value).filter(id => compareBusinessId(id, message.id) >= 0).length;
+  const count = messageReadCount(message, readerWatermarks.value);
   return count ? `已读 ${count}` : '未读';
 }
 
@@ -411,16 +457,13 @@ function closeToConversationList() {
 
 notifyStore.subscribe(async event => {
   if (event.type === 'SYNC') {
-    try {
-      await syncIncremental();
-    } catch {
-      // 实时补偿读取失败时保留当前消息，等待下一次同步或用户刷新。
-    }
+    await Promise.allSettled([syncIncremental(), refreshConversationMetadata()]);
   } else if (event.type === 'IM_MESSAGE' && conversation.value && sameBusinessId(event.payload.conversationId, conversation.value.id)) {
     const followBottom = isNearMessageBottom(scrollRef.value);
     const scrollVersion = historyScrollVersion;
     const operation = messageWriteVersion;
     messages.value = mergeMessages(messages.value, event.payload);
+    if (isOrderConversationEvent(event.payload)) metadataRefresh.schedule();
     if (operation !== messageWriteVersion || !sameBusinessId(conversation.value?.id, event.payload.conversationId)) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else newMessagesAvailable.value = true;
@@ -429,7 +472,14 @@ notifyStore.subscribe(async event => {
     const messageId = recalled?.id ?? event.payload.messageId ?? event.payload.id;
     if (messageId !== undefined) messages.value = messages.value.map(message => sameBusinessId(message.id, messageId) ? recalledMessage({ ...message, ...recalled }) : message);
   } else if (event.type === 'IM_READ') {
-    readerWatermarks.value = applyReadEvent(readerWatermarks.value, conversation.value?.id, event.payload);
+    const reader = event.payload.readerUserId ?? event.payload.userId;
+    if (sameBusinessId(reader, userStore.currentUser?.id)) return;
+    const next = applyReadEvent(readerWatermarks.value, conversation.value?.id, event.payload);
+    if (next !== readerWatermarks.value) { readerWatermarks.value = next; readCountsRefresh.schedule(); }
+  } else if (event.type === 'IM_INTERVENE' && sameBusinessId(conversation.value?.id, event.payload.conversationId)) {
+    metadataRefresh.schedule();
+  } else if (event.type === 'NOTIFICATION' && String(event.payload.bizType || '').toUpperCase().includes('ORDER')) {
+    metadataRefresh.schedule();
   }
 });
 
@@ -440,6 +490,10 @@ onBeforeUnmount(() => {
   requestGuard.invalidate();
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
+  readCountsGuard.invalidate();
+  conversationMetadataGuard.invalidate();
+  readCountsRefresh.cancel();
+  metadataRefresh.cancel();
 });
 watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextCode, nextUserId, session], [prevCode, prevUserId, previousSession]) => {
   if (String(nextCode) === String(prevCode) && String(nextUserId) === String(prevUserId) && session === previousSession) return;
@@ -448,6 +502,10 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => user
   requestGuard.invalidate();
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
+  readCountsGuard.invalidate();
+  conversationMetadataGuard.invalidate();
+  readCountsRefresh.cancel();
+  metadataRefresh.cancel();
   conversation.value = undefined;
   messages.value = [];
   loadError.value = '';
@@ -476,7 +534,7 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => user
     <section class="paper chat-panel chat-pane" :aria-busy="loading">
       <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载订单会话</span></div>
       <div v-if="conversation" class="conversation">
-        <header class="conversation-header section-heading"><div class="conversation-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || conversation.myRole || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><button type="button" aria-label="关闭独立会话并返回消息中心" @click="closeToConversationList" class="icon-btn"><Icon icon="lucide:x" width="18" /></button></div></header>
+        <header class="conversation-header section-heading"><div class="conversation-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><button type="button" aria-label="关闭独立会话并返回消息中心" @click="closeToConversationList" class="icon-btn"><Icon icon="lucide:x" width="18" /></button></div></header>
         <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button></div>
         <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="syncingMessages" @click="syncIncremental" class="text-link">继续同步</button></div>
         <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">

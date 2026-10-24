@@ -5,6 +5,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRoute, useRouter } from 'vue-router';
+import { fetchMyKycDetail } from '@/service/api/kyc';
+import { parseDateValue } from '@/utils/date-range';
+import { saveBuyerApplicationDraft, takeBuyerApplicationDraft, clearBuyerApplicationDraft } from '@/utils/prerequisite-navigation';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import * as buyerApi from '@/service/api/buyer';
@@ -13,6 +17,10 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { isDefinitiveRejection, RequestError } from '@/service/request/type';
 
 const userStore = useUserStore();
+const router = useRouter();
+const route = useRoute();
+const kycStatus = ref<Api.User.KycStatus>();
+const restoredDraft = takeBuyerApplicationDraft(userStore.currentUser?.id, userStore.sessionVersion);
 const loading = ref(false);
 const submitting = ref(false);
 const submissionUnknown = ref(false);
@@ -20,9 +28,9 @@ const loadError = ref('');
 const applicationLoaded = ref(false);
 const application = ref<Api.RealBuyer.BuyerApplicationVO | null>();
 const form = reactive<Api.RealBuyer.BuyerApplyParams>({
-  realName: '',
-  contact: '',
-  reason: ''
+  realName: restoredDraft?.realName || '',
+  contact: restoredDraft?.contact || '',
+  reason: restoredDraft?.reason || ''
 });
 const requestGuard = createLatestRequestGuard();
 let writeVersion = 0;
@@ -34,7 +42,23 @@ const statusMeta = computed(() => {
   return { color: 'orange', label: '审核中', text: '平台正在审核您的买手申请。' };
 });
 
-const canApply = computed(() => !submissionUnknown.value && applicationLoaded.value && !loading.value && !loadError.value
+const kycAction = computed(() => {
+  switch (kycStatus.value) {
+    case 'approved': return undefined;
+    case 'pending': return { text: '实名认证正在审核中，通过后可提交买手申请。', label: '查看认证进度' };
+    case 'rejected': return { text: '实名认证未通过，请按审核意见完善资料。', label: '完善实名认证' };
+    case 'expired': return { text: '实名认证已过期，请重新认证后继续申请。', label: '重新实名认证' };
+    default: return { text: '申请成为买手前，请先完成实名认证。', label: '去实名认证' };
+  }
+});
+async function openKyc() {
+  const owner = userStore.currentUser?.id;
+  if (owner === undefined || submitting.value) return;
+  saveBuyerApplicationDraft(owner, userStore.sessionVersion, form);
+  await router.push({ name: 'kyc', query: { redirect: route.fullPath } });
+}
+
+const canApply = computed(() => kycStatus.value === 'approved' && !submissionUnknown.value && applicationLoaded.value && !loading.value && !loadError.value
   && (!application.value || application.value.status === 'REJECTED'));
 
 function formatTime(value?: string | number) {
@@ -45,6 +69,7 @@ function formatTime(value?: string | number) {
 
 async function loadApplication() {
   applicationLoaded.value = false;
+  kycStatus.value = undefined;
   const isCurrent = requestGuard.begin();
   const userId = String(userStore.currentUser?.id || '');
   if (!userId) {
@@ -56,8 +81,17 @@ async function loadApplication() {
   loading.value = true;
   loadError.value = '';
   try {
-    const nextApplication = await buyerApi.fetchBuyerApplication({ signal: isCurrent.signal });
+    const [nextApplication, kyc] = await Promise.all([
+      buyerApi.fetchBuyerApplication({ signal: isCurrent.signal }),
+      fetchMyKycDetail({ signal: isCurrent.signal, showError: false })
+    ]);
     if (!isCurrent() || String(userStore.currentUser?.id || '') !== userId) return;
+    const expiry = parseDateValue(kyc?.expireAt);
+    if (kyc?.status === 'PASSED' && kyc.expireAt != null && String(kyc.expireAt).trim() !== '' && expiry === undefined) {
+      throw new Error('实名认证有效期无法确认');
+    }
+    kycStatus.value = kyc?.status === 'PASSED' ? (expiry !== undefined && expiry <= Date.now() ? 'expired' : 'approved')
+      : kyc?.status === 'PENDING' ? 'pending' : kyc?.status === 'REJECTED' ? 'rejected' : 'none';
     application.value = nextApplication;
     applicationLoaded.value = true;
     if (nextApplication?.status === 'APPROVED' && !userStore.currentUser?.isBuyer) {
@@ -71,12 +105,12 @@ async function loadApplication() {
       }
     }
     if (!application.value && userStore.currentUser) {
-      form.contact = userStore.currentUser.phone || '';
+      if (!form.contact) form.contact = userStore.currentUser.phone || '';
     }
   } catch {
     if (!isCurrent()) return;
     application.value = undefined;
-    loadError.value = '买手申请状态加载失败，请检查网络后重试。';
+    loadError.value = '买手申请或实名认证状态加载失败，请重新加载核对。';
   } finally {
     if (isCurrent()) loading.value = false;
   }
@@ -106,6 +140,7 @@ async function submit() {
         reason: form.reason.trim()
       }, { showError: false });
       if (!isCurrentWrite()) return;
+      clearBuyerApplicationDraft();
       Message.success('买手申请已提交');
       await loadApplication();
     } catch (error) {
@@ -136,6 +171,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => us
   requestGuard.invalidate();
   application.value = undefined;
   loadError.value = '';
+  clearBuyerApplicationDraft();
   form.realName = '';
   form.contact = '';
   form.reason = '';
@@ -150,8 +186,9 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => us
     <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>申请成为买手</h1><p>买手身份、KYC 状态及发布资格以平台审核结果为准。</p></div></header>
     <Alert v-if="submissionUnknown" class="notice"><AlertDescription><p>上次申请结果待核实，本页已暂停重复提交。请读取申请状态；仍无法核实时联系平台，刷新页面不代表原申请失败。</p><Button class="outline" variant="outline" size="sm" :disabled="loading" @click="loadApplication">{{ loading ? '正在核对…' : '核对申请状态' }}</Button></AlertDescription></Alert>
     <Alert v-if="loadError" variant="destructive"><AlertDescription class="error-row"><span>{{ loadError }}</span><Button class="outline" variant="outline" size="sm" :disabled="loading" @click="loadApplication">重新加载</Button></AlertDescription></Alert>
+    <Alert v-if="!loading && !loadError && kycAction && (!application || application.status === 'REJECTED')" class="notice"><AlertDescription><p>{{ kycAction.text }} 填写的申请资料会在本次页面跳转中保留。</p><Button type="button" class="outline" variant="outline" size="sm" :disabled="submitting" @click="openKyc">{{ kycAction.label }}</Button></AlertDescription></Alert>
     <div v-if="loading" class="paper loading" aria-busy="true" aria-label="正在读取申请状态"><Skeleton v-for="n in 4" :key="n" class="field-skeleton" /></div>
-    <section v-else-if="application && !canApply" class="paper buyer-application">
+    <section v-else-if="application && application.status !== 'REJECTED'" class="paper buyer-application">
       <div class="status-head"><span class="buyer-status" :class="application.status">{{ statusMeta.label }}</span><small>申请时间：{{ formatTime(application.appliedAt) }}</small></div><p class="status-text">{{ statusMeta.text }}</p>
       <dl class="buyer-dl"><dt>姓名</dt><dd>{{ application.realName }}</dd><dt>联系方式</dt><dd>{{ application.contact }}</dd><dt>申请说明</dt><dd>{{ application.reason }}</dd><dt>审核时间</dt><dd>{{ formatTime(application.reviewedAt) }}</dd></dl>
       <RouterLink v-if="application.status === 'APPROVED' && userStore.currentUser?.isBuyer" to="/buyer/dashboard" class="primary">进入买手工作台 →</RouterLink>

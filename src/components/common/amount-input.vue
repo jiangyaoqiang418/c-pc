@@ -10,11 +10,12 @@ const props = withDefaults(defineProps<{
   min?: number;
   max?: number;
   exactDecimal?: boolean;
+  preserveInput?: boolean;
   rawValue?: string;
 }>(), { precision: 2 });
 const emit = defineEmits<{ (event: 'update:modelValue', value: number): void; (event: 'update:rawValue', value: string): void }>();
 const displayValue = (value?: number) => value !== undefined && Number.isFinite(value) ? String(value) : '';
-const draft = ref(props.exactDecimal && props.rawValue !== undefined ? props.rawValue : displayValue(props.modelValue));
+const draft = ref((props.exactDecimal || props.preserveInput) && props.rawValue !== undefined ? props.rawValue : displayValue(props.modelValue));
 const amountError = ref('');
 const focused = ref(false);
 let lastEmitted = props.modelValue;
@@ -33,13 +34,14 @@ function emitExact(text: string) {
   emit('update:modelValue', lastEmitted);
 }
 watch(() => props.rawValue, value => {
-  if (!props.exactDecimal || value === undefined) return;
+  if ((!props.exactDecimal && !props.preserveInput) || value === undefined) return;
   draft.value = value;
-  emitExact(value);
+  if (props.exactDecimal) emitExact(value);
 }, { immediate: true });
 function input(value: string | number) {
   draft.value = String(value);
   const text = draft.value.trim();
+  if (props.preserveInput && !props.exactDecimal) emit('update:rawValue', draft.value);
   if (props.exactDecimal) {
     emit('update:rawValue', draft.value);
     emitExact(text);
@@ -49,6 +51,8 @@ function input(value: string | number) {
   emit('update:modelValue', lastEmitted);
 }
 function commit() {
+  // 表单自行校验时保留输入原文，不在失焦或回车时改写金额。
+  if (props.preserveInput) return;
   if (!Number.isFinite(lastEmitted)) return;
   const precision = Number.isFinite(props.precision) ? Math.min(18, Math.max(0, Math.trunc(props.precision))) : 2;
   if (props.exactDecimal) {

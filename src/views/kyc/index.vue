@@ -16,9 +16,14 @@ import { getAccessToken } from '@/service/request';
 import IdCardUploader from '@/components/kyc/id-card-uploader.vue';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { useRoute, useRouter } from 'vue-router';
+import { prerequisiteReturnPath } from '@/utils/prerequisite-navigation';
 import { parseDateValue } from '@/utils/date-range';
 
 const userStore = useUserStore();
+const route = useRoute();
+const router = useRouter();
+const returnPath = computed(() => prerequisiteReturnPath(route.query.redirect, route.path));
 const loading = ref(false);
 const submitting = ref(false);
 const uploadStates = reactive({ front: false, back: false, holding: false });
@@ -283,7 +288,7 @@ const submitDisabledReason = computed(() => {
   <div class="kyc-page v47-kyc">
 
     <div v-if="loading" class="skeletons"><Skeleton class="h-40" /><Skeleton class="h-56" /></div>
-    <section v-else class="paper narrow"><h1>实名认证</h1><p class="kyc-intro">认证资料、必填项和重新提交条件以平台当前配置为准。</p>
+    <section v-else class="paper narrow"><h1>实名认证</h1><button v-if="returnPath" type="button" class="text-link" :disabled="submitting || uploading" @click="router.push(returnPath)">返回{{ returnPath.split('?')[0] === '/buyer/apply' ? '买手申请' : '原操作' }} →</button><p class="kyc-intro">认证资料、必填项和重新提交条件以平台当前配置为准。</p>
       <header class="status-head"><div class="status-icon" :data-status="status"><Icon :icon="statusView.icon" width="32" /></div><div><span class="status-tag" :class="meta.color">{{ meta.label }}</span><h2>{{ statusView.title }}</h2><p>{{ statusView.description }}</p></div></header>
       <div v-if="loadError" class="status-banner notice warning" role="alert"><Icon icon="lucide:triangle-alert" /><span>{{ loadError }}<div class="notice-actions"><button :disabled="submitting" @click="load" class="outline">重新加载</button></div></span></div>
       <DescriptionList :columns="2" :items="[{ label: '当前账号', value: userStore.currentUser?.nickname || userStore.currentUser?.email || '—' }, { label: '手机号', value: userStore.currentUser?.phone || '—' }, { label: '账号身份', value: userStore.currentUser?.isBuyer ? '买手' : '顾客' }, { label: '认证姓名', value: kycDetail?.realName || '—' }, { label: '认证证件', value: kycDetail?.idNo || '—' }, { label: '提交时间', value: formatTime(kycDetail?.submittedAt) }, { label: '审核时间', value: formatTime(kycDetail?.reviewedAt) }, { label: '证件预览有效期', value: formatTime(kycDetail?.photoUrlExpireAt) }]" />

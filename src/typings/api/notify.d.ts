@@ -89,6 +89,8 @@ declare namespace Api.RealNotify {
     clientMsgId?: string;
     recalled?: boolean;
     createdAt?: string | number;
+    /** 历史/增量接口返回的已读成员数，不含发送者；发送响应可缺省。 */
+    readCount?: number;
     pending?: boolean;
     failed?: boolean;
   }

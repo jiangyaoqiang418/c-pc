@@ -503,7 +503,7 @@ function share() {
           <div class="rating"><span>★</span>{{ reviewSummaryLoading ? '评分读取中' : reviewSummaryError ? '评分待确认' : reviewSummary?.totalCount ? ratingText(reviewSummary.averageScore) : '暂无评分' }}<button type="button" @click="content?.showReviews()">查看评价（{{ reviewSummary?.totalCount ?? allReviewCount ?? '—' }}）</button><small>已售 {{ product.salesCount ?? '—' }}</small></div>
           <div class="detail-price">
             <span>{{ money(selectedPrice) }} <small>USDT</small></span>
-            <p>≈ {{ priceSet(selectedPrice ?? product.price).cny }} <small :title="priceSet(selectedPrice ?? product.price).rateLabel">本地参考折算 · 非实时</small></p>
+            <p>≈ {{ priceSet(selectedPrice ?? product.price).cny }} <small :title="priceSet(selectedPrice ?? product.price).rateLabel">参考估算 · 获取时间见页顶</small></p>
             <div>运费 {{ money(product.shippingFee) }} USDT <span>税费 {{ money(product.tax) }} USDT <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="14" /></span></div>
           </div>
           <button ref="mobileSpecTrigger" type="button" class="mobile-spec-trigger" :aria-expanded="mobileSpecs" aria-controls="product-spec-options" @click="openMobileSpecs"><span>已选 <b>{{ selectedSpecText }} / {{ qty }} 件</b></span><UmIcon name="chevron" /></button>

@@ -1,71 +1,25 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, useId } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue';
 import UmIcon from '@/components/common/um-icon.vue';
-import { fetchReferenceRate, REFERENCE_RATE_ASSETS, REFERENCE_RATE_SOURCE, type ReferenceRateAsset } from '@/service/api/reference-rates';
+import { REFERENCE_RATE_ASSETS, REFERENCE_RATE_SOURCE } from '@/service/api/reference-rates';
 
+import { referenceRates, referenceRateLoading, referenceRateCanRefresh, referenceRateStale, referenceRateStamp, refreshReferenceRates, retainReferenceRates } from '@/composables/use-reference-rates';
 
 const assets = REFERENCE_RATE_ASSETS;
 const expanded = ref(false);
-const loading = ref(false);
-const canRefresh = ref(true);
-const now = ref(Date.now());
 const panelId = useId();
-const rates = reactive<Record<ReferenceRateAsset, { value?: number; fetchedAt?: number; failed: boolean }>>({
-  USDT: { failed: false }, USDC: { failed: false }
-});
-let disposed = false;
-let controller: AbortController | undefined;
-let interval: ReturnType<typeof setInterval> | undefined;
-let timeout: ReturnType<typeof setTimeout> | undefined;
-let cooldown: ReturnType<typeof setTimeout> | undefined;
-const stale = (asset: ReferenceRateAsset) => rates[asset].value !== undefined && (rates[asset].failed || now.value - (rates[asset].fetchedAt ?? 0) > 120_000);
+const rates = referenceRates;
+const loading = referenceRateLoading;
+const canRefresh = referenceRateCanRefresh;
+const stale = referenceRateStale;
+const stamp = referenceRateStamp;
+const refresh = refreshReferenceRates;
 const status = computed(() => loading.value ? '正在更新' : assets.some(asset => rates[asset].value === undefined)
   ? '行情暂不可用' : assets.some(stale) ? '历史参考 · 待更新' : '人民币参考价');
-const stamp = (asset: ReferenceRateAsset) => rates[asset].fetchedAt ? new Intl.DateTimeFormat('zh-CN', {
-  timeZone: 'Asia/Shanghai', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
-}).format(rates[asset].fetchedAt) : '尚未获取';
-
-async function refresh() {
-  if (disposed || loading.value || !canRefresh.value) return;
-  loading.value = true;
-  canRefresh.value = false;
-  cooldown = setTimeout(() => { canRefresh.value = true; }, 10_000);
-  controller = new AbortController();
-  const signal = controller.signal;
-  timeout = setTimeout(() => controller?.abort(), 8_000);
-  await Promise.allSettled(assets.map(async asset => {
-    try {
-      const value = await fetchReferenceRate(asset, signal);
-      if (!disposed) rates[asset] = { value, fetchedAt: Date.now(), failed: false };
-    } catch {
-      if (!disposed) rates[asset].failed = true;
-    }
-  }));
-  clearTimeout(timeout);
-  if (disposed) return;
-  now.value = Date.now();
-  loading.value = false;
-}
-function wake() {
-  now.value = Date.now();
-  if (!document.hidden) void refresh();
-}
+let release: (() => void) | undefined;
 function onKeydown(event: KeyboardEvent) { if (event.key === 'Escape') expanded.value = false; }
-onMounted(() => {
-  wake();
-  interval = setInterval(wake, 60_000);
-  document.addEventListener('visibilitychange', wake);
-  document.addEventListener('keydown', onKeydown);
-});
-onBeforeUnmount(() => {
-  disposed = true;
-  controller?.abort();
-  clearInterval(interval);
-  clearTimeout(timeout);
-  clearTimeout(cooldown);
-  document.removeEventListener('visibilitychange', wake);
-  document.removeEventListener('keydown', onKeydown);
-});
+onMounted(() => { release = retainReferenceRates(); document.addEventListener('keydown', onKeydown); });
+onBeforeUnmount(() => { release?.(); document.removeEventListener('keydown', onKeydown); });
 </script>
 
 <template>

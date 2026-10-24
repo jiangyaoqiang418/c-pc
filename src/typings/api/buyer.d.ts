@@ -59,7 +59,7 @@ declare namespace Api.RealBuyer {
     depositBalance?: string;
     depositFrozen?: string;
     depositAvailable?: string;
-    usageRate?: string;
+    usageRate?: string | null;
     depositExempt: boolean;
     listable: boolean;
   }

@@ -83,7 +83,7 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     aftersaleType: toAfterSaleType(dto.afterSaleType),
     rawAfterSaleType: dto.afterSaleType,
     evidenceUrls: dto.images || [],
-    appeal: dto.demandNote || dto.description || '',
+    appeal: dto.demandNote || '',
     status,
     reviewComment: dto.reviewComment,
     reviewedAt: toIsoDate(dto.reviewedAt),

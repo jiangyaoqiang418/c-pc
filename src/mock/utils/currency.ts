@@ -8,23 +8,18 @@
  *   formatUsdt(3199) → 'U 3,199.00'
  *   priceSet(3199) → { cny, cnyRaw, usdt, usdtRaw, rate, rateLabel }
  */
-import { EXCHANGE_RATES } from '../mock/data/fund-exchange-rates';
+import { referenceRates, referenceRateStale, referenceRateStamp } from '@/composables/use-reference-rates';
 import { formatAmount } from './format';
 
-/**
- * 从 mock 汇率池取 USDT/CNY 有效汇率
- * 优先级：OKX (enabled) → Binance (enabled) → 回退 7.18
- */
-export function getUsdtCnyRate(): number {
-  const okx = EXCHANGE_RATES.find(
-    r => r.base === 'USDT' && r.quote === 'CNY' && r.source === 'OKX' && r.enabled
-  );
-  if (okx) return Number(okx.rate);
-  const bin = EXCHANGE_RATES.find(
-    r => r.base === 'USDT' && r.quote === 'CNY' && r.source === 'Binance' && r.enabled
-  );
-  if (bin) return Number(bin.rate);
-  return 7.18;
+/** All estimates share the public quote and timestamp shown in the page ticker. */
+export function getUsdtCnyRate(): number | undefined {
+  const value = referenceRates.USDT.value;
+  return value === undefined ? undefined : Number(value.toFixed(4));
+}
+export function usdtCnyRateLabel() {
+  const value = getUsdtCnyRate();
+  if (value === undefined) return '人民币参考价暂不可用，以 USDT 结算';
+  return `${referenceRateStale('USDT') ? '历史参考' : '参考估算'} · 1 USDT = ¥${value.toFixed(4)} · ${referenceRateStamp('USDT')} 获取（北京时间，非实时成交价，以 USDT 结算）`;
 }
 
 /** ¥ 前缀 + 千位分隔 + 2 位小数 */
@@ -32,7 +27,9 @@ export function formatCny(usdt: string | number | null | undefined): string {
   if (usdt == null || usdt === '') return '—';
   const n = Number(usdt);
   if (!Number.isFinite(n)) return '—';
-  const cny = n * getUsdtCnyRate();
+  const rate = getUsdtCnyRate();
+  if (rate === undefined) return '—';
+  const cny = n * rate;
   return '¥' + formatAmount(cny.toFixed(2));
 }
 
@@ -64,14 +61,14 @@ export function formatCnyRaw(cny: string | number | null | undefined): string {
 export function priceSet(usdt: string | number | null | undefined) {
   const rate = getUsdtCnyRate();
   const n = usdt == null || usdt === '' ? 0 : Number(usdt);
-  const cnyRaw = Number.isFinite(n) ? (n * rate).toFixed(2) : '0';
+  const cnyRaw = Number.isFinite(n) && rate !== undefined ? (n * rate).toFixed(2) : undefined;
   return {
     cny: formatCny(usdt),
     cnyRaw,
     usdt: formatUsdt(usdt),
     usdtRaw: String(usdt ?? ''),
     rate,
-    rateLabel: `本地参考折算 · 1 USDT = ¥${rate.toFixed(2)}（非实时，以 USDT 结算）`
+    rateLabel: usdtCnyRateLabel()
   };
 }
 
@@ -80,4 +77,4 @@ export const TAX_TOOLTIP_TEXT =
   '税费按发货地 → 收货地距离计算。中国大陆收货：多数商品无额外税费；非中国大陆收货（港澳台/海外）：可能产生清关税费，请以实际清关为准。';
 
 /** 汇率来源提示（可选显示） */
-export const RATE_SOURCE_TEXT = '本地参考折算，非实时汇率，以 USDT 结算';
+export const RATE_SOURCE_TEXT = 'Coinbase 参考估算，获取时间见页顶，非实时成交价，以 USDT 结算';

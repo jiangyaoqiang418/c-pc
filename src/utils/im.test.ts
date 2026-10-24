@@ -6,6 +6,9 @@ import * as notifyApi from '@/service/api/notify';
 import { closeConfirmation, confirmations, Message } from '@/lib/feedback';
 import {
   applyReadEvent,
+  messageReadCount,
+  refreshMessageReadCounts,
+  orderConversationMetadata,
   captureMessageAnchor,
   restoreMessageAnchor,
   compareBusinessId,
@@ -236,6 +239,57 @@ describe('IM 媒体操作生命周期', () => {
 });
 
 describe('IM Long ID 与乐观消息', () => {
+  it('历史人数与实时成员水位不直接相加，重复回执和自己的回执不多计', () => {
+    const message = { id:'2093370220769533954', conversationId:'c', senderId:'self', readCount:2 };
+    let watermarks = applyReadEvent({}, 'c', { conversationId:'c', readerUserId:'peer', lastReadMessageId:message.id });
+    watermarks = applyReadEvent(watermarks, 'c', { conversationId:'c', readerUserId:'peer', lastReadMessageId:message.id });
+    watermarks = applyReadEvent(watermarks, 'c', { conversationId:'c', readerUserId:'self', lastReadMessageId:message.id });
+    expect(messageReadCount(message, watermarks)).toBe(2);
+    expect(messageReadCount({ ...message, readCount:0 }, watermarks)).toBe(1);
+    expect(messageReadCount({ ...message, readCount:undefined }, { early:'2093370220769533953' })).toBe(0);
+  });
+
+  it('迟到历史、重复发送回执及缺省人数不能回退已确认人数', () => {
+    const message = { id:'100', conversationId:'c', readCount:2 };
+    expect(mergeMessages([message], { ...message, readCount:0 })[0].readCount).toBe(2);
+    expect(mergeMessages([message], { ...message, readCount:undefined })[0].readCount).toBe(2);
+    expect(mergeMessages([{ ...message, readCount:0 }], message)[0].readCount).toBe(2);
+    expect(mergeMessages([message], { ...message, readCount:3 })[0].readCount).toBe(3);
+  });
+
+  it('重连回读已加载旧消息的人数，不把分页中的新消息跳过增量游标直接加入', async () => {
+    const oldMessage = { id:'100', conversationId:'c', readCount:0 };
+    const requests: number[] = [];
+    let messages = [oldMessage];
+    await refreshMessageReadCounts({ messages, conversationId:'c', signal:new AbortController().signal,
+      request:async page => { requests.push(page); return { total:2, records:[{ id:'101', conversationId:'c', readCount:1 }, { ...oldMessage, readCount:2 }] }; },
+      accept:incoming => { messages = mergeMessages(messages, incoming) as typeof messages; }
+    });
+    expect(requests).toEqual([1]);
+    expect(messages).toEqual([{ ...oldMessage, readCount:2, pending:false, failed:false }]);
+  });
+
+  it('已读分页读取取消后不接受迟到结果，其他会话人数不能写回', async () => {
+    const accept = vi.fn();
+    const controller = new AbortController();
+    await expect(refreshMessageReadCounts({ messages:[{ id:'100', conversationId:'c' }], conversationId:'c', signal:controller.signal,
+      request:async () => { controller.abort(); return { total:1, records:[{ id:'100', conversationId:'c', readCount:2 }] }; }, accept
+    })).rejects.toThrow();
+    expect(accept).not.toHaveBeenCalled();
+    await expect(refreshMessageReadCounts({ messages:[{ id:'100', conversationId:'c' }], conversationId:'c', signal:new AbortController().signal,
+      request:async () => ({ total:1, records:[{ id:'100', conversationId:'other', readCount:2 }] }), accept
+    })).rejects.toThrow('其他会话');
+    expect(accept).not.toHaveBeenCalled();
+  });
+
+  it('同一群多订单的独立页按路由目标取状态，不能使用群最近一单冒充', () => {
+    const conversation = { id:'c', orderId:'2093370220769533955', orderNo:'new-order', orderStatusText:'待付款', productTitle:'new' };
+    const order = { orderId:'2093370220769533954', orderNo:'old-order', orderStatusText:'已完成', productTitle:'old' };
+    expect(orderConversationMetadata(conversation, order.orderId, [order])).toMatchObject({ id:'c', orderId:order.orderId, orderNo:'old-order', orderStatusText:'已完成', productTitle:'old' });
+    expect(orderConversationMetadata(conversation, order.orderId, [])).toMatchObject({ orderId:order.orderId, orderNo:undefined, orderStatusText:undefined, productTitle:undefined });
+    expect(orderConversationMetadata(conversation, conversation.orderId, [])).toBe(conversation);
+  });
+
   it('撤回清理内容和媒体，迟到原消息不能复活', () => {
     const original = { id: '1', conversationId: 'c', content: 'qa', mediaUrl: 'qa.png', mediaFileId: 'f', duration: 3, params: { content: 'qa', mediaUrl: 'qa.png' } };
     const recalled = mergeMessages([original], { id: '1', conversationId: 'c', recalled: true });

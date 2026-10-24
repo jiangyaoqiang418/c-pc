@@ -113,7 +113,7 @@ async function onSubmit(form: {
           if (!isCurrentWrite()) return;
           if (!depositSummary.listable) {
             Message.warning('当前保证金不足，暂不能提交商品，请先处理保证金');
-            void router.push('/buyer/deposit');
+            void router.push({ path: '/buyer/deposit', query: { redirect: route.fullPath } });
             return;
           }
           if (editProduct) {

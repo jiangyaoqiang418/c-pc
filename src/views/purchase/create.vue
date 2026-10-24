@@ -9,13 +9,15 @@ import { useUnsavedForm } from '@/composables/use-unsaved-form';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
 import { Icon } from '@iconify/vue';
-import { formatAmount } from '@shared';
+import { formatCny, getUsdtCnyRate, usdtCnyRateLabel } from '@shared/utils/currency';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import AddressSelector from '@/components/common/address-selector.vue';
 import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { compareDecimalAmount } from '@/components/wallet/decimal-amount';
+import { sumPaymentAmounts } from '@/utils/checkout';
 
 const route = useRoute();
 const router = useRouter();
@@ -26,7 +28,7 @@ const form = reactive<{
   productDescription: string;
   categoryId?: string | number;
   addressId?: string | number;
-  budgetAmount: number;
+  budgetAmount: string;
   expectedDays: number;
   overseasCustoms: boolean;
   aftersaleType: Api.Product.AftersaleType;
@@ -37,7 +39,7 @@ const form = reactive<{
   productDescription: '',
   categoryId: typeof route.query.categoryId === 'string' ? route.query.categoryId : undefined,
   addressId: undefined,
-  budgetAmount: 500,
+  budgetAmount: '500',
   expectedDays: 14,
   overseasCustoms: false,
   aftersaleType: '7day-no-reason',
@@ -100,7 +102,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => u
     form.productTitle = '';
     form.productDescription = '';
     form.categoryId = undefined;
-    form.budgetAmount = 500;
+    form.budgetAmount = '500';
     form.expectedDays = 14;
     form.overseasCustoms = false;
     form.aftersaleType = '7day-no-reason';
@@ -109,10 +111,14 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => u
   }
 });
 
-const CNY_RATE = 7.18;
-const budgetCny = computed(() => Number.isFinite(form.budgetAmount)
-  ? formatAmount((form.budgetAmount * CNY_RATE).toFixed(2))
-  : '—');
+const budgetCny = computed(() => formatCny(form.budgetAmount).replace(/^¥/, ''));
+const referenceRate = computed(getUsdtCnyRate);
+const budgetError = computed(() => {
+  const text = form.budgetAmount.trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return '请输入有效预算，最多支持 2 位小数';
+  if (compareDecimalAmount(text, '10') === -1) return '求购预算不得低于 10 USDT';
+  return '';
+});
 
 function preventImplicitSubmit(event: KeyboardEvent) {
   if (event.isComposing || event.keyCode === 229) return;
@@ -138,8 +144,8 @@ async function submit() {
     Message.warning('请等待地址读取成功后选择收货地址');
     return;
   }
-  if (!Number.isFinite(form.budgetAmount) || form.budgetAmount < 10) {
-    Message.warning('求购预算不得低于 10 U');
+  if (budgetError.value) {
+    Message.warning(budgetError.value);
     return;
   }
   if (!Number.isFinite(form.expectedDays) || form.expectedDays < 1 || form.expectedDays > 60) {
@@ -156,10 +162,10 @@ async function submit() {
   const requestedUserId = userStore.currentUser.id;
   const params = {
     productTitle: form.productTitle.trim(),
-    productDescription: form.productDescription.trim() || form.appeal.trim(),
+    productDescription: form.productDescription.trim(),
     categoryId,
     addressId,
-    budgetAmount: String(form.budgetAmount),
+    budgetAmount: sumPaymentAmounts([form.budgetAmount.trim()]),
     expectedDays: form.expectedDays,
     overseasCustoms: form.overseasCustoms,
     aftersaleType: form.aftersaleType,
@@ -240,7 +246,7 @@ function selectAftersale(value: unknown) {
           <div class="field"><label for="request-description">商品描述 <small>可选</small></label><Textarea id="request-description" v-model="form.productDescription" :rows="3" placeholder="详细描述商品规格、版本、颜色等" /></div>
         </section>
         <section class="request-fields"><div class="form-grid">
-          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" :model-value="form.budgetAmount" :min="10" :precision="2" placeholder="请输入预算金额" @update:model-value="form.budgetAmount = $event ?? NaN" /><p class="hint">≈ ¥{{ budgetCny }} · 1 USDT = ¥{{ CNY_RATE.toFixed(2) }}<br>非实时参考折算，以 USDT 结算</p></div>
+          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" v-model:raw-value="form.budgetAmount" preserve-input :precision="2" :aria-invalid="!!budgetError" aria-describedby="request-budget-error" placeholder="请输入预算金额" /><p v-if="budgetError" id="request-budget-error" class="error" role="alert">{{ budgetError }}</p><p class="hint" :title="usdtCnyRateLabel()">≈ ¥{{ budgetCny }} · {{ referenceRate === undefined ? '参考汇率暂不可用' : '1 USDT = ¥' + referenceRate.toFixed(4) }}<br>参考估算 · 获取时间见页顶，以 USDT 结算</p></div>
           <div class="field"><label for="request-expected-days">期望发货天数 <em>*</em></label><AmountInput id="request-expected-days" :model-value="form.expectedDays" :min="1" :max="60" :precision="0" placeholder="期望发货天数" @update:model-value="form.expectedDays = $event ?? NaN" /><p class="hint">可填写 1–60 天。</p></div>
         </div></section>
         <section class="request-fields">

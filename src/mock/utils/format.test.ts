@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { formatAmount } from './format';
-import { priceSet, RATE_SOURCE_TEXT } from './currency';
+import { priceSet, formatCny, RATE_SOURCE_TEXT } from './currency';
+import { referenceRates, retainReferenceRates } from '@/composables/use-reference-rates';
 import { compareDecimalAmount, exactDecimalNumber } from '@/components/wallet/decimal-amount';
 import AmountInput from '@/components/common/amount-input.vue';
+import DepositMeter from '@/components/buyer/deposit-meter.vue';
 import { createSSRApp, h, nextTick, reactive } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 
@@ -10,9 +12,49 @@ describe('金额展示', () => {
   it('参考折算不冒充实时汇率，不改变 USDT 结算金额', () => {
     const value = priceSet('10');
     expect(value.usdtRaw).toBe('10');
-    expect(value.rateLabel).toContain('非实时');
+    expect(value.cny).toBe('—');
+    expect(value.rate).toBeUndefined();
+    expect(value.rateLabel).toContain('暂不可用');
     expect(value.rateLabel).toContain('以 USDT 结算');
     expect(RATE_SOURCE_TEXT).not.toContain('每 5 分钟');
+  });
+  it('顶部和金额折算共用实际参考快照，失败保留历史标识，不回退固定汇率', () => {
+    const before = { ...referenceRates.USDT };
+    try {
+      referenceRates.USDT = { value: 6.6641, fetchedAt: Date.now(), failed: false };
+      expect(formatCny('10')).toBe('¥66.64');
+      expect(priceSet('10').rate).toBe(6.6641);
+      expect(priceSet('10').rateLabel).toContain('6.6641');
+      referenceRates.USDT.failed = true;
+      expect(priceSet('10').rateLabel).toContain('历史');
+      expect(formatCny('10')).toBe('¥66.64');
+    } finally { referenceRates.USDT = before; }
+  });
+  it('参考行情在切入聊天取消后立即返回能重取，旧请求不得覆盖新报价', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('document', { hidden: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const pending: { resolve: (value: unknown) => void; asset: string }[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string) => new Promise(resolve => pending.push({ resolve, asset: new URL(url).searchParams.get('currency')! }))));
+    const before = { USDT: { ...referenceRates.USDT }, USDC: { ...referenceRates.USDC } };
+    let release: (() => void) | undefined;
+    try {
+      release = retainReferenceRates();
+      expect(pending).toHaveLength(2);
+      release();
+      release = retainReferenceRates();
+      expect(pending).toHaveLength(4);
+      for (const item of pending.slice(2)) item.resolve({ ok: true, json: async () => ({ data: { currency: item.asset, rates: { CNY: '6.5' } } }) });
+      await vi.advanceTimersByTimeAsync(1);
+      for (const item of pending.slice(0, 2)) item.resolve({ ok: true, json: async () => ({ data: { currency: item.asset, rates: { CNY: '7.18' } } }) });
+      await vi.advanceTimersByTimeAsync(1);
+      expect(referenceRates.USDT.value).toBe(6.5);
+      expect(referenceRates.USDC.value).toBe(6.5);
+      expect(referenceRates.USDT.failed).toBe(false);
+    } finally {
+      release?.();
+      referenceRates.USDT = before.USDT; referenceRates.USDC = before.USDC;
+      vi.unstubAllGlobals(); vi.useRealTimers();
+    }
   });
   it('统一保留两位小数并添加千分位', () => {
     expect(formatAmount('1234567.8')).toBe('1,234,567.80');
@@ -54,6 +96,19 @@ describe('金额展示', () => {
     expect(formatAmount('Infinity')).toBe('—');
     expect(formatAmount(NaN, { fallback: '待确认' })).toBe('待确认');
     expect(formatAmount('1e10001')).toBe('—');
+  });
+
+  it('押金占用率未知或非法时不显示为零，有效零值保留百分号', async () => {
+    for (const rate of [undefined, null, '', 'NaN', 'Infinity', '-1', 'null']) {
+      const html = await renderToString(createSSRApp({ render:() => h(DepositMeter, { usageRate:rate }) }));
+      expect(html).toContain('<dt>占用率</dt><dd>—</dd>');
+      expect(html).not.toContain('null%');
+      expect(html).not.toContain('NaN%');
+    }
+    for (const rate of ['0', '0.00', '12.50']) {
+      const html = await renderToString(createSSRApp({ render:() => h(DepositMeter, { usageRate:rate }) }));
+      expect(html).toContain(`<dt>占用率</dt><dd>${rate}%</dd>`);
+    }
   });
 });
 
@@ -111,5 +166,21 @@ describe('金额输入的 number DTO 边界', () => {
     state.input('1.005');
     state.commit();
     expect(values).toEqual([1.005, 1]);
+  });
+
+  it('求购原文模式不在失焦时抬高预算或舍入小数', async () => {
+    const props = reactive({ rawValue:'500', preserveInput:true, precision:2, min:10 });
+    const values: string[] = [];
+    let state: any;
+    const Probe: any = { ...AmountInput, setup(props:any, context:any) { state = (AmountInput as any).setup(props, context); return state; } };
+    await renderToString(createSSRApp({ render:() => h(Probe, { ...props, 'onUpdate:rawValue': (value:string) => { props.rawValue = value; values.push(value); } }) }));
+    for (const text of ['1', '1.005', '9007199254740993.01', '0010.00', '']) {
+      state.input(text);
+      state.commit();
+      await nextTick();
+      expect(state.draft.value).toBe(text);
+      expect(props.rawValue).toBe(text);
+    }
+    expect(values).toEqual(['1', '1.005', '9007199254740993.01', '0010.00', '']);
   });
 });

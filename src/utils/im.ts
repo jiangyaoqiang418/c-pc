@@ -73,6 +73,64 @@ export function applyReadEvent(
   return { ...watermarks, [String(readerId)]: event.lastReadMessageId };
 }
 
+function validReadCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** 快照不提供成员明细，不能与实时人数相加；回读分页取得精确人数。 */
+export function messageReadCount(message: Api.RealNotify.ImMessageVO, watermarks: Record<string, string | number>) {
+  const liveCount = Object.entries(watermarks).filter(([reader, id]) =>
+    !sameBusinessId(reader, message.senderId) && compareBusinessId(id, message.id) >= 0).length;
+  return Math.max(validReadCount(message.readCount) ? message.readCount : 0, liveCount);
+}
+
+/** by-order 的订单字段属于群最近一单，独立订单页只展示路由所指订单。 */
+export function orderConversationMetadata(
+  conversation: Api.RealNotify.ImConversationVO,
+  orderId: string | number,
+  orders: Api.RealNotify.ImConversationOrder[]
+): Api.RealNotify.ImConversationVO {
+  const order = orders.find(item => sameBusinessId(item.orderId, orderId));
+  if (!order && sameBusinessId(conversation.orderId, orderId)) return conversation;
+  return { ...conversation, orderId,
+    orderNo: order?.orderNo, orderStatus: order?.orderStatus, orderStatusText: order?.orderStatusText,
+    productTitle: order?.productTitle, productImage: order?.productImage, amount: order?.amount };
+}
+
+export function isOrderConversationEvent(message: Api.RealNotify.ImMessageVO) {
+  const type = String(message.msgType || '').toUpperCase();
+  return type === 'ORDER_CARD' || (type === 'SYSTEM' && Boolean(message.eventType));
+}
+
+/** 重连和已读回执需回读旧消息；增量接口不会返回旧消息更新后的 readCount。 */
+export async function refreshMessageReadCounts(options: {
+  messages: Api.RealNotify.ImMessageVO[];
+  conversationId: string | number;
+  request: (pageNo: number, pageSize: number) => Promise<Api.RealNotify.PageResult<Api.RealNotify.ImMessageVO>>;
+  accept: (messages: Api.RealNotify.ImMessageVO[]) => void;
+  signal: AbortSignal;
+}) {
+  const ids = new Set(options.messages.filter(message => !String(message.id).startsWith('local:')).map(message => String(message.id)));
+  if (!ids.size) return;
+  const pageSize = 50;
+  const pages = Math.ceil(ids.size / pageSize) + 1;
+  for (let page = 1; page <= pages && ids.size; page += 1) {
+    options.signal.throwIfAborted();
+    const response = await options.request(page, pageSize);
+    options.signal.throwIfAborted();
+    if (response.records.some(message => !sameBusinessId(message.conversationId, options.conversationId))) {
+      throw new Error('已读状态返回了其他会话的消息，请重新同步');
+    }
+    const updates = response.records.filter(message => ids.has(String(message.id))).map(message => {
+      ids.delete(String(message.id));
+      return message;
+    });
+    options.accept(updates);
+    if (response.records.length < pageSize) break;
+  }
+  if (ids.size) throw new Error('已读状态尚未同步完整，请重新同步');
+}
+
 export function recalledMessage(message: Api.RealNotify.ImMessageVO): Api.RealNotify.ImMessageVO {
   return { ...message, recalled: true, content: undefined, mediaUrl: undefined, mediaFileId: undefined, coverUrl: undefined, coverFileId: undefined, duration: undefined, params: undefined };
 }
@@ -90,6 +148,9 @@ export function mergeMessages(
       (!!message.clientMsgId && item.clientMsgId === message.clientMsgId)
     );
     const merged = index >= 0 ? { ...result[index], ...message, pending: false, failed: false } : { ...message };
+    // 发送响应缺省 readCount，历史快照和重复回执均不能降低已经确认的人数。
+    const counts = [index >= 0 ? result[index].readCount : undefined, message.readCount].filter(validReadCount);
+    if (counts.length) merged.readCount = Math.max(...counts);
     // 撤回为终态；迟到分页或发送回执不能让旧内容/媒体复活，null 不回退旧值。
     if (message.recalled || (index >= 0 && result[index].recalled)) {
       Object.assign(merged, recalledMessage(merged));

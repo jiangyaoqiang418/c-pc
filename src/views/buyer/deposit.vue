@@ -10,6 +10,7 @@ import AmountInput from '@/components/common/amount-input.vue';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
+import { prerequisiteReturnPath } from '@/utils/prerequisite-navigation';
 import { useRoute, useRouter } from 'vue-router';
 import { enums, formatAmount } from '@shared';
 import DepositMeter from '@/components/buyer/deposit-meter.vue';
@@ -27,6 +28,7 @@ import { compareDecimalAmount, exactDecimalNumber } from '@/components/wallet/de
 const userStore = useUserStore();
 const walletStore = useWalletStore();
 const route = useRoute();
+const returnPath = computed(() => prerequisiteReturnPath(route.query.redirect, route.path));
 const router = useRouter();
 const current = ref(1);
 const pageSize = ref(20);
@@ -166,8 +168,10 @@ const guaranteedOrderCount = computed(() => {
   if (values.some(value => !Number.isFinite(value) || value < 0)) return undefined;
   return values.reduce((sum, value) => sum + Math.floor(value), 0);
 });
-const depositUtilization = computed(() => summary.value?.usageRate === undefined || summary.value.usageRate === null
-  ? undefined : `${summary.value.usageRate}%`);
+const depositUtilization = computed(() => {
+  const text = typeof summary.value?.usageRate === 'string' ? summary.value.usageRate.trim() : '';
+  return /^\d+(?:\.\d+)?$/.test(text) && Number.isFinite(Number(text)) ? `${text}%` : undefined;
+});
 
 function openDepositTransfer(kind: 'pay' | 'refund') {
   if (transferring.value) return;
@@ -242,7 +246,7 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 
 <template>
   <div class="deposit-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>押金管理</h1><p>清晰掌握每一步，从容经营每一天。</p></div></header>
+    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>押金管理</h1><button v-if="returnPath" type="button" class="text-link" :disabled="transferring" @click="router.push(returnPath)">返回原操作 →</button><p>清晰掌握每一步，从容经营每一天。</p></div></header>
     <Alert v-if="loadError" variant="destructive"><AlertDescription class="notice-row"><span>{{ loadError }}</span><Button class="outline" variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新加载</Button></AlertDescription></Alert>
     <Alert v-if="account && (account.available === undefined || summary?.depositBalance === undefined || summary?.depositFrozen === undefined || summary?.depositAvailable === undefined)"><AlertDescription class="notice-row"><span>部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。</span><Button class="outline" variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新读取余额</Button></AlertDescription></Alert>
     <section v-if="account" class="paper deposit-summary"><DepositMeter :balance="summary?.depositBalance" :frozen="summary?.depositFrozen" :available="summary?.depositAvailable" :usage-rate="summary?.usageRate" size="lg"><template #heading><h2>押金概况</h2></template><template #actions><div class="button-row"><Button class="primary" :disabled="transferring || loading" @click="openDepositTransfer('pay')">缴纳保证金</Button><Button class="outline" variant="outline" :disabled="transferring || loading" @click="openDepositTransfer('refund')">退还至钱包</Button><Tooltip><TooltipTrigger as-child><Button variant="ghost" size="sm"><UmIcon name="shield" />规则说明</Button></TooltipTrigger><TooltipContent class="rules-tooltip">上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。</TooltipContent></Tooltip></div></template></DepositMeter></section><Alert v-if="account"><AlertDescription>保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</AlertDescription></Alert>

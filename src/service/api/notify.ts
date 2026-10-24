@@ -57,9 +57,9 @@ export function fetchSupportConversation() {
   return realNotifyRequest.post<Api.RealNotify.ImConversationVO>('/im/conversations/support', undefined, notifyRequestOptions);
 }
 
-export function fetchConversationOrders(conversationId: string | number, includeHistory = false) {
+export function fetchConversationOrders(conversationId: string | number, includeHistory = false, options: { signal?: AbortSignal } = {}) {
   return realNotifyRequest.get<Api.RealNotify.ImConversationOrder[]>('/im/conversations/orders', {
-    params: { conversationId, includeHistory }, ...notifyRequestOptions
+    params: { conversationId, includeHistory }, ...notifyRequestOptions, signal: options.signal
   });
 }
 

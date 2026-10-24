@@ -14,6 +14,9 @@ import { useNotifyStore, useUserStore } from '@/stores';
 import * as notifyApi from '@/service/api/notify';
 import {
   applyReadEvent,
+  messageReadCount,
+  refreshMessageReadCounts,
+  isOrderConversationEvent,
   captureMessageAnchor,
   restoreMessageAnchor,
   compareBusinessId,
@@ -83,6 +86,9 @@ const conversationListGuard = createLatestRequestGuard(() => `${String(userStore
 const messageListGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const olderMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const incrementalMessagesGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const readCountsGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
+const readCountsRefresh = createCoalescedRefresh(refreshReadCounts, () => { messageSyncError.value = '已读状态尚未同步，请重试'; });
+const ordersRefresh = createCoalescedRefresh(loadConversationOrders, () => { /* 请求层提示失败。 */ });
 const conversationOrdersGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const supportGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const interventionGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
@@ -91,6 +97,9 @@ function invalidateConversationActions() {
   conversationOrdersGuard.invalidate();
   supportGuard.invalidate();
   interventionGuard.invalidate();
+  readCountsGuard.invalidate();
+  readCountsRefresh.cancel();
+  ordersRefresh.cancel();
   ordersLoading.value = false;
   supportLoading.value = false;
   interventionLoading.value = false;
@@ -147,6 +156,19 @@ watch(imageUrls, (urls, previous) => {
 }, { flush: 'sync' });
 
 function currentCandidates() { return activeTab.value === 'group' ? groups.value : csSessions.value; }
+
+async function refreshReadCounts() {
+  const id = selectedConversationId.value;
+  if (disposed || id === undefined) return;
+  const isCurrent = readCountsGuard.begin();
+  try {
+    await refreshMessageReadCounts({ messages: messages.value, conversationId: id, signal: isCurrent.signal,
+      request: (pageNo, pageSize) => notifyApi.fetchConversationMessages({ conversationId: id, pageNo, pageSize }, { signal: isCurrent.signal }),
+      accept: incoming => { if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) messages.value = mergeMessages(messages.value, incoming); }
+    });
+    if (isCurrent() && messageSyncError.value === '已读状态尚未同步，请重试') messageSyncError.value = '';
+  } catch (error) { if (isCurrent()) throw error; }
+}
 
 async function loadConversations(selectFirst = true, append = false) {
   if (disposed) return;
@@ -293,6 +315,7 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO,
     messageSyncError.value = '';
     newMessagesAvailable.value = false;
     hasOlder.value = messages.value.length < (response.total || 0);
+    readCountsRefresh.schedule();
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     await scrollToBottom();
   } catch {
@@ -311,7 +334,7 @@ async function loadConversationOrders() {
   const isCurrent = conversationOrdersGuard.begin();
   ordersLoading.value = true;
   try {
-    const rows = await notifyApi.fetchConversationOrders(id, includeHistoryOrders.value);
+    const rows = await notifyApi.fetchConversationOrders(id, includeHistoryOrders.value, { signal: isCurrent.signal });
     if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) conversationOrders.value = rows;
   } catch { /* 请求层已提示读取失败，保留当前列表供显式重试。 */ }
   finally {
@@ -368,6 +391,7 @@ async function loadOlderMessages() {
     messages.value = mergeMessages(response.records || [], messages.value);
     pageNo.value = nextPage;
     hasOlder.value = messages.value.length < (response.total || 0);
+    readCountsRefresh.schedule();
     await nextTick();
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     if (scrollVersion === historyScrollVersion) restoreMessageAnchor(container, anchor);
@@ -411,8 +435,10 @@ async function reportRead(expectedConversationId?: string | number) {
       || !isCurrentUser(requestedUserId, requestedSession)
       || !sameBusinessId(selectedConversationId.value, conversation.id)
     ) return;
-    conversation.lastReadMessageId = lastReadMessageId;
-    conversation.unreadCount = 0;
+    const current = selectedConversation.value;
+    if (!current) return;
+    if (current.lastReadMessageId === undefined || compareBusinessId(lastReadMessageId, current.lastReadMessageId) > 0) current.lastReadMessageId = lastReadMessageId;
+    current.unreadCount = 0;
     notifyStore.scheduleUnreadRefresh();
   } catch {
     // 分页不再隐式已读；失败保留未读水位，下次可见/滚动时重试。
@@ -443,6 +469,7 @@ async function syncCurrentConversation() {
     });
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     syncIncomplete.value = !complete;
+    await refreshReadCounts();
     if (!isCurrent() || !sameBusinessId(selectedConversationId.value, conversationId)) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else if (receivedNewMessages) newMessagesAvailable.value = true;
@@ -502,7 +529,7 @@ function getSenderName(message: Api.RealNotify.ImMessageVO) {
 
 function readText(message: Api.RealNotify.ImMessageVO) {
   if (sideOf(message) !== 'right' || message.pending || message.failed) return '';
-  const count = Object.values(readerWatermarks.value).filter(id => compareBusinessId(id, message.id) >= 0).length;
+  const count = messageReadCount(message, readerWatermarks.value);
   return count ? `已读 ${count}` : '未读';
 }
 
@@ -711,7 +738,7 @@ async function refreshRestData() {
   const lifecycle = conversationLifecycleVersion;
   restSyncing.value = true;
   try {
-    const [list, messagesResult] = await Promise.allSettled([loadConversations(false), syncCurrentConversation()]);
+    const [list, messagesResult] = await Promise.allSettled([loadConversations(false), syncCurrentConversation(), loadConversationOrders()]);
     if (disposed || lifecycle !== conversationLifecycleVersion) return;
     if (list.status === 'fulfilled' && messagesResult.status === 'fulfilled' && messagesResult.value) lastSyncedAt.value = new Date();
   } catch {
@@ -737,7 +764,7 @@ function showConversationList() {
 
 notifyStore.subscribe(async event => {
   if (event.type === 'SYNC') {
-    await Promise.allSettled([loadConversations(false), syncCurrentConversation()]);
+    await Promise.allSettled([loadConversations(false), syncCurrentConversation(), loadConversationOrders()]);
     return;
   }
   if (event.type === 'IM_MESSAGE') {
@@ -748,6 +775,7 @@ notifyStore.subscribe(async event => {
       const followBottom = isNearMessageBottom(scrollRef.value);
       const scrollVersion = historyScrollVersion;
       messages.value = mergeMessages(messages.value, message);
+      if (isOrderConversationEvent(message)) ordersRefresh.schedule();
       if (!sameBusinessId(selectedConversationId.value, message.conversationId) || disposed) return;
       if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
       else newMessagesAvailable.value = true;
@@ -773,13 +801,21 @@ notifyStore.subscribe(async event => {
     return;
   }
   if (event.type === 'IM_READ') {
-    readerWatermarks.value = applyReadEvent(readerWatermarks.value, selectedConversationId.value, event.payload);
+    const reader = event.payload.readerUserId ?? event.payload.userId;
+    if (sameBusinessId(reader, userStore.currentUser?.id)) return;
+    const next = applyReadEvent(readerWatermarks.value, selectedConversationId.value, event.payload);
+    if (next !== readerWatermarks.value) { readerWatermarks.value = next; readCountsRefresh.schedule(); }
     return;
   }
   if (event.type === 'IM_INTERVENE') {
     const conversation = conversations.value.find(item => sameBusinessId(item.id, event.payload.conversationId));
     if (conversation) conversation.interveneStatus = event.payload.action === 'INTERVENE_CLOSED' ? 'NONE' : (event.payload.interveneStatus || 'REQUESTED');
     if (sameBusinessId(selectedConversationId.value, event.payload.conversationId)) await loadConversations(false);
+    return;
+  }
+  if (event.type === 'NOTIFICATION' && String(event.payload.bizType || '').toUpperCase().includes('ORDER')) {
+    scheduleConversationRefresh();
+    ordersRefresh.schedule();
   }
 });
 

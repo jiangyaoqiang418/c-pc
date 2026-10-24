@@ -50,6 +50,9 @@ import ThemePicker from '@/components/layout/theme-picker.vue';
 import { provideSSRWidth } from '@vueuse/core';
 import * as addressApi from './address';
 import { Message } from '@/lib/feedback';
+import BuyerApply from '@/views/buyer/apply.vue';
+import { clearBuyerApplicationDraft, clearPrerequisiteDrafts, saveBuyerApplicationDraft, takeBuyerApplicationDraft, saveWithdrawDraft, takeWithdrawDraft } from '@/utils/prerequisite-navigation';
+import { clearAccessToken, setAccessToken } from '@/service/request/token';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -76,6 +79,186 @@ describe('v47前端本地边界', () => {
   interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
   const file = () => new File(['local-only'], 'evidence.png', { type:'image/png' });
   const uploaded: Api.RealProduct.FileUploadResult = { id:'local-only', bucket:'local-only', filePath:'local-only', url:'https://example.com/local-only.png' };
+
+  interface BuyerApplyState {
+    canApply:boolean; kycStatus?:Api.User.KycStatus; kycAction?:{ label:string }; loadError:string;
+    form:Api.RealBuyer.BuyerApplyParams; loadApplication:() => Promise<void>; openKyc:() => Promise<void>; submit:() => Promise<void>;
+  }
+  function buyerApplyHarness(kyc: { value:Api.RealKyc.KycVO | null; fail?:boolean }) {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const user = useUserStore();
+    user.currentUser = { id:'qa-application-owner', isBuyer:false } as Api.RealSession.UserRecord;
+    const get = vi.spyOn(realUserRequest, 'get').mockImplementation(async path => {
+      if (path === '/buyer/application') return null;
+      if (path === '/kyc/detail') {
+        if (kyc.fail) throw new Error('KYC unavailable');
+        return kyc.value;
+      }
+      throw new Error('Unexpected read in buyer application test');
+    });
+    const post = vi.spyOn(realUserRequest, 'post').mockResolvedValue(undefined);
+    const push = vi.fn().mockResolvedValue(undefined);
+    function mount() {
+      return mountSubject<BuyerApplyState>(BuyerApply, {}, undefined, app => {
+        app.use(pinia);
+        app.provide(routeLocationKey, { fullPath:'/buyer/apply?source=profile', query:{ source:'profile' } } as unknown as RouteLocationNormalizedLoaded);
+        app.provide(routerKey, { push } as unknown as Router);
+      });
+    }
+    return { user, get, post, push, mount };
+  }
+
+  it.each([
+    { detail:null, status:'none', action:'去实名认证' },
+    { detail:{ id:'kyc-local', status:'PENDING' }, status:'pending', action:'查看认证进度' },
+    { detail:{ id:'kyc-local', status:'REJECTED' }, status:'rejected', action:'完善实名认证' },
+    { detail:{ id:'kyc-local', status:'PASSED', expireAt:'1' }, status:'expired', action:'重新实名认证' }
+  ])('买手申请根据实名认证 $status 显示处理入口并阻止提交', async ({ detail, status, action }) => {
+    clearBuyerApplicationDraft();
+    const fixture = buyerApplyHarness({ value:detail });
+    const mounted = fixture.mount();
+    try {
+      await mounted.state.loadApplication();
+      expect(mounted.state.kycStatus).toBe(status);
+      expect(mounted.state.kycAction?.label).toBe(action);
+      expect(mounted.state.canApply).toBe(false);
+      Object.assign(mounted.state.form, { realName:'本地测试', contact:'qa-only', reason:'本地测试申请说明至少十个字' });
+      await mounted.state.submit();
+      expect(fixture.post).not.toHaveBeenCalled();
+      expect(fixture.get).toHaveBeenCalledWith('/kyc/detail', expect.objectContaining({ showError:false, signal:expect.any(AbortSignal) }));
+    } finally { mounted.app.unmount(); clearBuyerApplicationDraft(); }
+  });
+
+  it('实名认证有效时允许申请，读取失败后关闭提交而不沿用旧认证结果', async () => {
+    clearBuyerApplicationDraft();
+    const kyc = { value:{ id:'kyc-local', status:'PASSED', expireAt:String(Date.now() + 86400_000) } as Api.RealKyc.KycVO, fail:false };
+    const fixture = buyerApplyHarness(kyc);
+    const mounted = fixture.mount();
+    try {
+      await mounted.state.loadApplication();
+      expect(mounted.state.canApply).toBe(true);
+      expect(mounted.state.kycAction).toBeUndefined();
+      kyc.fail = true;
+      await mounted.state.loadApplication();
+      expect(mounted.state.canApply).toBe(false);
+      expect(mounted.state.kycStatus).toBeUndefined();
+      expect(mounted.state.loadError).toContain('实名认证状态加载失败');
+      await mounted.state.submit();
+      expect(fixture.post).not.toHaveBeenCalled();
+    } finally { mounted.app.unmount(); clearBuyerApplicationDraft(); }
+  });
+
+  it('实名认证已通过但非空有效期非法时不可申请，也不自动跳转或提交', async () => {
+    clearBuyerApplicationDraft();
+    const fixture = buyerApplyHarness({ value:{ id:'kyc-local', status:'PASSED', expireAt:'not-a-date' } });
+    const mounted = fixture.mount();
+    try {
+      await mounted.state.loadApplication();
+      expect(mounted.state.canApply).toBe(false);
+      expect(mounted.state.kycStatus).toBeUndefined();
+      expect(mounted.state.loadError).toContain('实名认证状态加载失败');
+      await mounted.state.submit();
+      expect(fixture.push).not.toHaveBeenCalled();
+      expect(fixture.post).not.toHaveBeenCalled();
+    } finally { mounted.app.unmount(); clearBuyerApplicationDraft(); }
+  });
+
+  it('前往实名再返回买手申请恢复本人本次草稿并重新读取状态，不自动提交', async () => {
+    clearBuyerApplicationDraft();
+    const kyc: { value:Api.RealKyc.KycVO | null } = { value:null };
+    const fixture = buyerApplyHarness(kyc);
+    let mounted = fixture.mount();
+    const draft = { realName:'本地测试', contact:'qa-only', reason:'本地测试采购经验及服务品类说明' };
+    try {
+      await mounted.state.loadApplication();
+      Object.assign(mounted.state.form, draft);
+      await mounted.state.openKyc();
+      expect(fixture.push).toHaveBeenCalledExactlyOnceWith({ name:'kyc', query:{ redirect:'/buyer/apply?source=profile' } });
+      expect(fixture.post).not.toHaveBeenCalled();
+      mounted.app.unmount();
+      kyc.value = { id:'kyc-local', status:'PASSED', expireAt:String(Date.now() + 86400_000) };
+      mounted = fixture.mount();
+      expect(mounted.state.form).toEqual(draft);
+      expect(mounted.state.canApply).toBe(false);
+      await mounted.state.loadApplication();
+      expect(mounted.state.canApply).toBe(true);
+      expect(fixture.post).not.toHaveBeenCalled();
+    } finally { mounted.app.unmount(); clearBuyerApplicationDraft(); }
+  });
+
+  it.each(['owner', 'session'] as const)('买手申请草稿在 %s 改变后不恢复给新会话', async boundary => {
+    clearBuyerApplicationDraft();
+    const fixture = buyerApplyHarness({ value:null });
+    let mounted = fixture.mount();
+    try {
+      await mounted.state.loadApplication();
+      Object.assign(mounted.state.form, { realName:'旧会话资料', contact:'qa-only', reason:'本地测试采购经验及服务品类说明' });
+      await mounted.state.openKyc();
+      mounted.app.unmount();
+      if (boundary === 'owner') fixture.user.currentUser = { id:'qa-different-owner', isBuyer:false } as Api.RealSession.UserRecord;
+      else fixture.user.sessionVersion += 1;
+      mounted = fixture.mount();
+      expect(mounted.state.form).toEqual({ realName:'', contact:'', reason:'' });
+      await mounted.state.loadApplication();
+      expect(mounted.state.canApply).toBe(false);
+      expect(fixture.post).not.toHaveBeenCalled();
+    } finally { mounted.app.unmount(); clearBuyerApplicationDraft(); }
+  });
+
+  it('提现绕行草稿仅恢复所选资产的非敏感表单，不保留支付密码或费用报价', () => {
+    clearPrerequisiteDrafts();
+    const form = {
+      asset:'USDC' as const, chain:'ETH' as const, toAddress:'qa-local-only-address', amount:'9007199254740993.01',
+      payPassword:'local-only-input', feePreview:{ amount:'0.01', expiresAt:123 }, idempotencyKey:'local-only-key'
+    };
+    try {
+      saveWithdrawDraft('9007199254740993', 3, form);
+      const restored = takeWithdrawDraft('9007199254740993', 3, 'USDC');
+      expect(restored).toEqual({ asset:'USDC', chain:'ETH', toAddress:'qa-local-only-address', amount:'9007199254740993.01' });
+      expect(restored).not.toHaveProperty('payPassword');
+      expect(restored).not.toHaveProperty('feePreview');
+      expect(restored).not.toHaveProperty('idempotencyKey');
+      expect(takeWithdrawDraft('9007199254740993', 3, 'USDC')).toBeUndefined();
+    } finally { clearPrerequisiteDrafts(); }
+  });
+
+  it.each(['owner', 'session', 'asset'] as const)('提现绕行草稿的 %s 不匹配时拒绝恢复并丢弃旧草稿', boundary => {
+    clearPrerequisiteDrafts();
+    try {
+      saveWithdrawDraft('qa-owner', 3, { asset:'USDC', chain:'ETH', toAddress:'qa-local-only-address', amount:'12.34' });
+      expect(takeWithdrawDraft(boundary === 'owner' ? 'qa-other' : 'qa-owner', boundary === 'session' ? 4 : 3, boundary === 'asset' ? 'USDT' : 'USDC')).toBeUndefined();
+      expect(takeWithdrawDraft('qa-owner', 3, 'USDC')).toBeUndefined();
+    } finally { clearPrerequisiteDrafts(); }
+  });
+
+  it.each(['logout', 'external-logout'] as const)('真实用户Store的 %s 清除买手申请与提现绕行草稿', async boundary => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem:(key:string) => storage.get(key) ?? null,
+      setItem:(key:string, value:string) => storage.set(key, value),
+      removeItem:(key:string) => storage.delete(key)
+    });
+    clearPrerequisiteDrafts();
+    setAccessToken('qa-local-only-session');
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id:'qa-owner' } as Api.RealSession.UserRecord;
+    const session = user.sessionVersion;
+    saveBuyerApplicationDraft('qa-owner', session, { realName:'本地测试', contact:'qa-only', reason:'本地申请说明' });
+    saveWithdrawDraft('qa-owner', session, { asset:'USDT', chain:'TRON', toAddress:'qa-local-only-address', amount:'12.34' });
+    try {
+      if (boundary === 'logout') user.logout();
+      else {
+        clearAccessToken();
+        expect(await user.syncExternalSession()).toBe(true);
+      }
+      expect(user.currentUser).toBeUndefined();
+      expect(takeBuyerApplicationDraft('qa-owner', session)).toBeUndefined();
+      expect(takeWithdrawDraft('qa-owner', session, 'USDT')).toBeUndefined();
+    } finally { clearPrerequisiteDrafts(); clearAccessToken(); }
+  });
 
   it('配色参考展开状态同步原生toggle，重开面板恢复折叠', async () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
@@ -1311,6 +1494,46 @@ describe('分页总数适配', () => {
 });
 
 describe('锁仓确认金额快照', () => {
+  it('起投金额移除接口尾零后可直接预览，保留真实精度并在身份重置时恢复', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id: 'qa-owner' } as Api.RealSession.UserRecord;
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const product: Api.RealFinance.FinanceProductVO = {
+      id: '9007199254740993', name: 'QA', code: 'QA', annualRate: '0.365', lockDays: 1,
+      minAmount: '1.00000000', maxAmount: '1000', earlyRedeemEnabled: false, status: 'ON_SALE'
+    };
+    const app = renderer.createApp({ ...InterestPreview, render: () => null }, { product, availableBalance: '1000' });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const state = (app as unknown as { _instance: { setupState: {
+      amount: string; normalizedAmount?: string; expectedInterest?: string; estimatedTotal?: string; errMsg: string;
+    } } })._instance.setupState;
+    try {
+      expect(state.amount).toBe('1');
+      expect(state.normalizedAmount).toBe('1.00');
+      expect(state.errMsg).toBe('');
+      expect(state.expectedInterest).toBe('0.00100000');
+      expect(state.estimatedTotal).toBe('1.001');
+      state.amount = '2';
+      user.sessionVersion += 1;
+      await nextTick();
+      expect(state.amount).toBe('1');
+      product.minAmount = '1.00500000';
+      user.sessionVersion += 1;
+      await nextTick();
+      expect(state.amount).toBe('1.005');
+      expect(state.normalizedAmount).toBeUndefined();
+      expect(state.errMsg).toContain('最多 2 位小数');
+      state.amount = '9007199254740993.01';
+      expect(state.normalizedAmount).toBe('9007199254740993.01');
+    } finally { app.unmount(); }
+  });
+
   it('确认期间本金改变立即撤销勾选，改回原金额也必须重新确认', () => {
     vi.stubGlobal('localStorage', { getItem: () => null });
     setActivePinia(createPinia());

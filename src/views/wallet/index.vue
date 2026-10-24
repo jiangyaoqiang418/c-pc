@@ -145,7 +145,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
     </section>
     <div class="stats-grid" aria-label="钱包概况">
       <section class="paper"><span>锁仓余额</span><h2>{{ money(account?.lockedFinance) }} <small>{{ asset }}</small></h2></section>
-      <section class="paper"><span>今日支出</span><h2>{{ money(today?.withdrawOut) }} <small>{{ asset }}</small></h2></section>
+      <section class="paper"><span title="北京时间今日链上提现，不含商品消费、退款、冻结或理财划转">今日链上提现</span><h2>{{ money(today?.withdrawOut) }} <small>{{ asset }}</small></h2></section>
       <section class="paper"><span>资产币种</span><h2>{{ asset }} <small>稳定币</small></h2></section>
     </div>
     <section class="paper">
@@ -160,7 +160,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
     <!-- v47 production supplement: real buckets and safety entry points have no complete prototype panel. -->
     <section v-if="showProductionDetails" class="paper wallet-assets" :aria-busy="walletStore.loadingByAsset[asset]">
       <div class="section-heading"><h2>资产明细</h2><span class="wallet-total">资产总额 <b>{{ money(totalAssets) }}</b> {{ asset }}</span></div>
-      <div class="wallet-cashflow"><span>今日转入 <b>{{ money(today?.depositIn) }} {{ asset }}</b></span><span>今日转出 <b>{{ money(today?.withdrawOut) }} {{ asset }}</b></span></div>
+      <div class="wallet-cashflow" title="按北京时间自然日统计，仅含链上充值和提现"><span>今日链上充值 <b>{{ money(today?.depositIn) }} {{ asset }}</b></span><span>今日链上提现 <b>{{ money(today?.withdrawOut) }} {{ asset }}</b></span></div>
       <button v-for="bucket in assetBuckets" :key="bucket.key" type="button" class="transaction asset-bucket" @click="goBucket(bucket.key)"><UmIcon :name="bucketIcons[bucket.key]" /><span class="transaction-copy"><b>{{ bucket.label }}</b><small>{{ bucket.hint }}</small></span><b>{{ money(bucket.value) }} <small>{{ asset }}</small><span v-if="bucket.ratio != null" class="bucket-ratio">{{ formatFinanceRate(bucket.ratio, 1, '暂不可用') }}</span></b><UmIcon name="arrow" /></button>
       <div v-if="!assetBuckets.length" class="empty"><UmIcon name="wallet" /><h2>{{ loading ? '正在读取资产…' : '资产暂不可用' }}</h2><p>重新加载后查看完整资产明细。</p><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
     </section>

@@ -5,6 +5,7 @@ import * as realAuthApi from '@/service/api/auth';
 import { getAccessToken, setAccessToken, isAuthenticationFailure } from '@/service/request';
 import { useCartStore } from './cart';
 import { useWalletStore } from './wallet';
+import { clearPrerequisiteDrafts } from '@/utils/prerequisite-navigation';
 import { acceptStoredAccessToken, getAcceptedAccessToken } from '@/service/request/token';
 
 export const useUserStore = defineStore('bw-user', () => {
@@ -112,6 +113,7 @@ export const useUserStore = defineStore('bw-user', () => {
     const result = await authApi.switchCurrentUser(userId);
     if (operation !== loginVersion || startVersion !== identityVersion) throw new Error('登录请求已失效，请重新登录');
     if (!result || 'error' in result) throw new Error((result as { error: string })?.error || '登录失败');
+    clearPrerequisiteDrafts();
     identityVersion += 1;
     useWalletStore().clear();
     demoUser.value = result;
@@ -135,6 +137,7 @@ export const useUserStore = defineStore('bw-user', () => {
     }
     setAccessToken(result.token);
     sessionToken = result.token;
+    clearPrerequisiteDrafts();
     identityVersion += 1;
     sessionVersion.value += 1;
     useWalletStore().clear();
@@ -188,6 +191,7 @@ export const useUserStore = defineStore('bw-user', () => {
 
   function logout() {
     loginVersion += 1;
+    clearPrerequisiteDrafts();
     identityVersion += 1;
     refreshVersion += 1;
     initialized.value = true;
@@ -213,6 +217,7 @@ export const useUserStore = defineStore('bw-user', () => {
     if (nextToken === sessionToken) return false;
     sessionToken = nextToken;
     loginVersion += 1;
+    clearPrerequisiteDrafts();
     identityVersion += 1;
     refreshVersion += 1;
     const version = identityVersion;
