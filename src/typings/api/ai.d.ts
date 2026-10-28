@@ -2,9 +2,40 @@ declare namespace Api.Ai {
   interface ChatParams {
     message: string;
     conversationId: string | null;
+    clientMessageId?: string;
   }
 
   type CardKind = 'products' | 'product' | 'order' | 'balance' | 'recharge' | 'withdraw' | 'order_pay';
+
+  type Timestamp = string | number | null;
+  interface Session {
+    conversationId: string;
+    title: string;
+    status: 'ACTIVE' | 'ARCHIVED';
+    messageCount: number;
+    lastMessageAt: Timestamp;
+    lastMessagePreview: string | null;
+    createdAt: Timestamp;
+    current: boolean;
+  }
+  interface SessionPage { rows: Session[]; hasMore: boolean; nextCursor: string | null; }
+  interface SessionState { conversationId: string; current: boolean; }
+  interface PageQuery { cursor?: string | null; limit: number; }
+  interface MessageQuery extends PageQuery { conversationId: string; }
+  type MessageStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'INTERRUPTED';
+  interface Message {
+    messageId: string;
+    requestId: string | null;
+    clientMessageId: string | null;
+    role: 'USER' | 'ASSISTANT';
+    content: string;
+    structuredData: { cards?: { tool: string; data: CardData }[]; truncated?: boolean } | null;
+    status: MessageStatus;
+    errorCode: string | null;
+    createdAt: Timestamp;
+    completedAt: Timestamp;
+  }
+  interface MessagePage { conversationId: string; rows: Message[]; hasMore: boolean; nextCursor: string | null; }
 
   interface CardData {
     code: string;

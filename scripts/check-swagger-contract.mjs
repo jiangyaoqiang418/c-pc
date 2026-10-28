@@ -140,8 +140,24 @@ for (const path of ['/withdraw/create', '/withdraw/page']) expectProperties(requ
 const aiStream = operation(user, '/ai/customer-service/chat/stream', 'post');
 const aiInput = requestSchema(user, aiStream);
 expectRequired(aiInput, ['message'], 'AI 客服');
-expectProperties(aiInput, ['message', 'conversationId'], 'AI 客服会话');
+expectProperties(aiInput, ['message', 'conversationId', 'clientMessageId'], 'AI 客服会话');
 if (aiInput.properties.message.maxLength !== 2000 || !aiStream.responses?.['200']?.content?.['text/event-stream']) throw new Error('AI 客服流式契约变化');
+for (const path of ['/sessions/list', '/messages/list']) {
+  const op = operation(user, `/ai/customer-service${path}`, 'post');
+  expectProperties(requestSchema(user, op), ['cursor', 'limit'], `AI ${path} 查询`);
+  const page = responseDataSchema(user, op);
+  expectProperties(page, ['rows', 'hasMore', 'nextCursor'], `AI ${path} 分页`);
+  expectFieldType(page, 'hasMore', 'boolean', `AI ${path} 分页`);
+}
+const aiMessages = operation(user, '/ai/customer-service/messages/list', 'post');
+expectRequired(requestSchema(user, aiMessages), ['conversationId'], 'AI 历史消息');
+expectProperties(resolveSchema(user, responseDataSchema(user, aiMessages).properties.rows.items),
+  ['messageId', 'requestId', 'clientMessageId', 'role', 'content', 'structuredData', 'status'], 'AI 消息');
+const aiActivate = operation(user, '/ai/customer-service/sessions/activate', 'put');
+expectRequired(requestSchema(user, aiActivate), ['conversationId'], 'AI 切换会话');
+for (const op of [aiActivate, operation(user, '/ai/customer-service/sessions/create', 'post')]) {
+  expectProperties(responseDataSchema(user, op), ['conversationId', 'current'], 'AI 当前会话');
+}
 operation(user, '/kyc/files/upload', 'post');
 operation(user, '/kyc/files/access', 'get');
 const kycSubmit = requestSchema(user, operation(user, '/kyc/submit', 'post'));
@@ -406,6 +422,16 @@ if (notifyResponse.status === 404) {
   operation(notify, '/back/im/status', 'get');
   notifySummary = `notify: ${Object.keys(notify.paths || {}).length} paths, ${countOperations(notify)} operations, ${Object.keys(notify.components?.schemas || {}).length} schemas`;
 }
+
+const aiAdminList = operation(admin, '/ai/customer-service/sessions/list', 'post');
+expectRequired(requestSchema(admin, aiAdminList), ['reason'], '后台 AI 会话');
+expectProperties(requestSchema(admin, aiAdminList), ['userId', 'conversationId', 'status', 'startTime', 'endTime', 'cursor', 'limit'], '后台 AI 筛选');
+expectParameters(operation(admin, '/ai/customer-service/sessions/detail', 'get'), ['conversationId', 'reason', 'cursor', 'limit'], '后台 AI 详情');
+expectRequired(requestSchema(admin, operation(admin, '/ai/customer-service/messages/list', 'post')), ['conversationId', 'reason'], '后台 AI 历史消息');
+const aiPrompt = operation(admin, '/ai/customer-service/prompts/detail', 'get');
+expectParameters(aiPrompt, ['reason'], '后台 AI 提示词');
+expectProperties(responseDataSchema(admin, aiPrompt), ['configuredPrompt', 'defaultPrompt', 'effectivePrompt', 'source', 'version', 'history', 'enforcedCodeBoundaries'], '后台 AI 提示词详情');
+expectRequired(requestSchema(admin, operation(admin, '/ai/customer-service/prompts/update', 'put')), ['content', 'expectedVersion', 'reason'], '后台 AI 提示词更新');
 
 for (const [name, document] of Object.entries({ admin, user, order })) {
   if (!document) continue;

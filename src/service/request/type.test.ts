@@ -18,6 +18,9 @@ import * as reviewApi from '@/service/api/review';
 import { confirmReceipt as confirmReceiptApi, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
 import { streamCustomerChat } from '@/service/api/ai';
 import { readEventStream } from './stream';
+import * as aiApi from '@/service/api/ai';
+import { createRenderer } from 'vue';
+import { historyMessage, mergeAiMessages, useAiConversations, type AiDisplayMessage } from '@/composables/use-ai-conversations';
 
 function confirmOrderReceipt(id: string | number, userId: string | number) {
   return confirmReceiptApi(id, userId, '123456');
@@ -1733,5 +1736,143 @@ describe('AI 客服 POST 流与身份隔离', () => {
     await vi.advanceTimersByTimeAsync(19_999);
     await rejected;
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AI 持久化会话与历史恢复', () => {
+  const first = 'a'.repeat(32), second = 'b'.repeat(32);
+  let unmount: (() => void) | undefined;
+  afterEach(() => { unmount?.(); unmount = undefined; });
+  function session(id = first, current = true): Api.Ai.Session {
+    return { conversationId: id, title: '历史问题', status: 'ACTIVE', current, messageCount: 2,
+      lastMessageAt: '1793074839421', createdAt: '1793074800000', lastMessagePreview: '历史回答' };
+  }
+  function message(id = '1', status: Api.Ai.MessageStatus = 'COMPLETED'): Api.Ai.Message {
+    return { messageId: id, requestId: 'req-saved', clientMessageId: 'web-original-key', role: 'USER', content: '历史问题',
+      structuredData: null, status, errorCode: null, createdAt: '1793074839421', completedAt: null };
+  }
+  function setup(loggedIn = true) {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
+    vi.stubGlobal('window', { location: { origin: 'http://localhost', pathname: '/ai-guide', search: '', hash: '' }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    setAccessToken(loggedIn ? 'accepted-user-a' : '');
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    if (loggedIn) user.currentUser = { id: '2093370220769533954' } as Api.RealSession.UserRecord;
+    return user;
+  }
+  function mount() {
+    let state!: ReturnType<typeof useAiConversations>;
+    const renderer = createRenderer<object, object>({ createElement: () => ({}), patchProp() {}, insert() {}, remove() {},
+      setElementText() {}, createText: () => ({}), setText() {}, createComment: () => ({}), parentNode: () => null, nextSibling: () => null });
+    const app = renderer.createApp({ setup() { state = useAiConversations(); return () => null; } });
+    app.mount({}); unmount = () => app.unmount(); return state;
+  }
+  it('当前会话不在首页时继续查找，不能自动激活最新一条', async () => {
+    setup();
+    const list = vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValueOnce({ rows: [session(first, false)], hasMore: true, nextCursor: 'opaque-next' })
+      .mockResolvedValueOnce({ rows: [session(second)], hasMore: false, nextCursor: 'non-empty-terminal' });
+    const history = vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: second, rows: [message()], hasMore: false, nextCursor: null });
+    const activate = vi.spyOn(aiApi, 'activateAiSession');
+    const state = mount();
+    await vi.waitFor(() => expect(state.messages.value).toHaveLength(1));
+    expect(state.conversationId.value).toBe(second);
+    expect(list.mock.calls[1][0].cursor).toBe('opaque-next');
+    expect(state.sessionMore.value).toBe(false);
+    expect(history.mock.calls[0][0].conversationId).toBe(second);
+    expect(activate).not.toHaveBeenCalled();
+  });
+  it('新建失败保留旧历史并锁住发送，回查后才可继续', async () => {
+    setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [session()], hasMore: false, nextCursor: null });
+    vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: first, rows: [message()], hasMore: false, nextCursor: null });
+    const create = vi.spyOn(aiApi, 'createAiSession').mockRejectedValue(new RequestError('结果未知', { code: 'REQUEST_TIMEOUT' }));
+    const state = mount();
+    await vi.waitFor(() => expect(state.messages.value).toHaveLength(1));
+    await state.changeSession();
+    expect(state.conversationId.value).toBe(first);
+    expect(state.messages.value[0].id).toBe('1');
+    expect(state.ready.value).toBe(false);
+    expect(create).toHaveBeenCalledTimes(1);
+    await state.loadSessions(false, true);
+    expect(state.ready.value).toBe(true);
+  });
+  it('会话不存在时清选中并刷新列表，不循环恢复、不自动创建', async () => {
+    setup();
+    const list = vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [session()], hasMore: false, nextCursor: null });
+    const history = vi.spyOn(aiApi, 'fetchAiMessages').mockRejectedValue(new RequestError('不存在', { code: '-325' }));
+    const create = vi.spyOn(aiApi, 'createAiSession');
+    const state = mount();
+    await vi.waitFor(() => expect(state.listLoading.value).toBe(false));
+    expect(state.conversationId.value).toBeNull();
+    expect(history).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(create).not.toHaveBeenCalled();
+  });
+  it('首轮未收到 start 就断流时回查当前会话，不自动重发', async () => {
+    setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValueOnce({ rows: [], hasMore: false, nextCursor: null })
+      .mockResolvedValue({ rows: [session()], hasMore: false, nextCursor: null });
+    const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockRejectedValue(new Error('连接中断'));
+    const history = vi.spyOn(aiApi, 'fetchAiMessages').mockImplementation(async () => ({
+      conversationId: first, rows: [{ ...message(), clientMessageId: stream.mock.calls[0][0].clientMessageId! }],
+      hasMore: false, nextCursor: null
+    }));
+    const state = mount();
+    await vi.waitFor(() => expect(state.ready.value).toBe(true));
+    state.input.value = '首轮问题';
+    await state.send();
+    expect(stream).toHaveBeenCalledTimes(1);
+    expect(history).toHaveBeenCalledTimes(1);
+    expect(state.conversationId.value).toBe(first);
+    expect(state.messages.value.map(row => row.id)).toEqual(['1']);
+  });
+  it('首轮断流且尚无持久化会话时保留中断提示', async () => {
+    setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [], hasMore: false, nextCursor: null });
+    vi.spyOn(aiApi, 'streamCustomerChat').mockRejectedValue(new Error('连接中断'));
+    const state = mount();
+    await vi.waitFor(() => expect(state.ready.value).toBe(true));
+    state.input.value = '首轮问题';
+    await state.send();
+    expect(state.conversationId.value).toBeNull();
+    expect(state.messages.value).toHaveLength(2);
+    expect(state.messages.value[1]).toMatchObject({ state: 'INTERRUPTED', error: '连接中断' });
+  });
+  it('游客不调用任何登录会话接口', () => {
+    setup(false);
+    const list = vi.spyOn(aiApi, 'fetchAiSessions');
+    const state = mount();
+    expect(state.ready.value).toBe(true);
+    expect(list).not.toHaveBeenCalled();
+  });
+  it('服务端 ID 和两种关联键去重，前插历史保留已加载的消息', () => {
+    const temp: AiDisplayMessage = { id: 'temporary', clientMessageId: 'web-original-key', role: 'user', text: '历史问题', parts: [], state: 'COMPLETED', temporary: true };
+    const saved = message('9007199254740993123');
+    const result = mergeAiMessages([historyMessage(message('0')), temp], [saved]);
+    expect(result.map(row => row.id)).toEqual(['0', '9007199254740993123']);
+    expect(mergeAiMessages(result, [message('-1'), message('0')], true).map(row => row.id)).toEqual(['-1', '0', '9007199254740993123']);
+  });
+  it.each(['PENDING', 'FAILED', 'INTERRUPTED', 'COMPLETED'] as const)('历史 %s 保持原状态和卡片原始金额', status => {
+    const row = message('saved', status);
+    row.role = 'ASSISTANT'; row.structuredData = { truncated: true, cards: [{ tool: 'get_my_balance', data: { code: 'OK', kind: 'balance', rows: [{ id: '9007199254740993123', total: '12345678901234567890.12345678' }] } }] };
+    const display = historyMessage(row);
+    expect(display.state).toBe(status);
+    expect(display.truncated).toBe(true);
+    expect(display.parts[0]).toMatchObject({ card: { rows: [{ id: '9007199254740993123', total: '12345678901234567890.12345678' }] } });
+  });
+  it('历史失败和分页字段缺失不能冒充真实空态', async () => {
+    setup();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"code":1,"data":{"rows":[],"nextCursor":null}}')));
+    await expect(aiApi.fetchAiSessions({ limit: 20 })).rejects.toMatchObject({ code: 'INVALID_AI_PAGE' });
+  });
+  it('发送保留原 clientMessageId，流失败不重放', async () => {
+    setup();
+    const fetch = vi.fn().mockResolvedValue(new Response('{"code":-326,"message":"消息已记录"}', { status: 409 }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(streamCustomerChat({ message: '问题', conversationId: first, clientMessageId: 'web-original-key' }, new AbortController().signal, vi.fn())).rejects.toMatchObject({ code: '-326' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ clientMessageId: 'web-original-key', conversationId: first });
   });
 });
