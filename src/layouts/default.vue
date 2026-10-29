@@ -99,12 +99,16 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
     </main>
     <footer v-if="!isMessaging" class="footer"><div class="wrap um-wrap"><div class="footer-callout"><UmIcon name="globe" /><span>有 U，自在买。<small>用 USDT，连接你与全球好物。</small></span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>全球好物 / 用 U 探索<br />把喜欢，融入日常。</p><span>GOOD FINDS. BETTER DAYS.</span></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button><button type="button" @click="router.push('/design')">页面总览 ↗</button></div></div></div></footer>
     <nav class="mobile-nav" :aria-label="isBuyerWorkspace ? '买手工作台导航' : '手机主导航'"><button v-for="link in mobileLinks" :key="link.to" type="button" :class="{ active: route.path === link.to }" :aria-current="route.path === link.to ? 'page' : undefined" @click="router.push(link.to)"><span><UmIcon :name="link.icon" /><b v-if="link.to === '/cart' && cart.count">{{ cart.count }}</b></span>{{ link.label }}</button></nav>
-    <div v-if="!isMessaging" class="floating-tools"><button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button><button type="button" aria-label="页面总览" @click="router.push('/design')"><UmIcon name="grid" /></button><button type="button" aria-label="回到顶部" @click="scrollTop">↑</button></div>
+    <div v-if="!isMessaging" class="floating-tools">
+      <button class="ai-guide-entry" type="button" aria-label="AI 导购" title="AI 导购" @click="router.push('/ai-guide')"><UmIcon name="ai" /></button>
+      <button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button><button type="button" aria-label="页面总览" @click="router.push('/design')"><UmIcon name="grid" /></button><button type="button" aria-label="回到顶部" @click="scrollTop">↑</button>
+    </div>
   </div></template>
 
 <style scoped>
 .layout-default { min-height:100vh; display:flex; flex-direction:column; }
 .main-container { flex:1; outline:0; }
+@media(max-width:700px) { .floating-tools > .ai-guide-entry { display:none; } }
 .layout-default.is-messaging { height:100dvh; min-height:0; overflow:hidden; }
 .is-messaging > .header,.is-messaging > :deep(.utility-bar) { flex-shrink:0; }
 .is-messaging .main-container { display:flex; flex-direction:column; min-height:0; padding-block:12px; }

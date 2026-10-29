@@ -36,7 +36,8 @@ Object.assign(memePaths,{
  edit:'M3 21l1-7L17 1l6 6L10 20zM13 5l6 6M3 21l7-1',
  trash:'M3 6h18M5 6l1 16h12l1-16M9 6V2h6v4M9 11v6M15 11v6',
  globe:'M7 2h10l5 5v10l-5 5H7l-5-5V7zM2 12h20M12 2l-4 5v10l4 5 4-5V7z',
- eye:'M2 12l5-7h10l5 7-5 7H7zM9 9h6v6H9z'
+ eye:'M2 12l5-7h10l5 7-5 7H7zM9 9h6v6H9z',
+ ai:'M4 8h10l1 13H3L4 8zM6 8V6a3 3 0 0 1 6 0v2M18 2l1.3 3.7L23 7l-3.7 1.3L18 12l-1.3-3.7L13 7l3.7-1.3L18 2z'
 });
 const paths = memePaths;
 </script>
