@@ -109,7 +109,7 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
 </template>
 
 <style scoped>
-.buyer-sku-editor { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; }
+.buyer-sku-editor { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; margin-bottom:20px; }
 .sku-group,.sku-row { display:grid; gap:14px; padding:18px; border:1px solid var(--line); border-radius:8px; min-width:0; }
 .sku-group-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; overflow-wrap:anywhere; }
 .sku-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }

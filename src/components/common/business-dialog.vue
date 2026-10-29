@@ -116,6 +116,7 @@ async function confirm() {
 .um-dialog-close:disabled { opacity:.4; cursor:not-allowed; }
 .um-dialog-body { min-height:0; overflow-wrap:anywhere; }
 .um-dialog-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:24px; padding:20px 0 0; border-top:1px solid var(--line); }
+.um-dialog-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
 @media (max-width:700px) {
   .um-dialog.dialog { width:100%!important; max-width:100%; }
   .um-dialog:not(.buyer-dialog) .um-dialog-title { font-size:21px; }

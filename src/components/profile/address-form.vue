@@ -147,7 +147,7 @@ function submit() {
       <div class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-postal`">邮编</Label><Input :id="`${fieldId}-postal`" v-model="form.postalCode" autocomplete="postal-code" :placeholder="v47 ? undefined : '选填，请输入邮编'" /></div><div class="field"><Label :for="`${fieldId}-identity`">清关证件号</Label><Input :id="`${fieldId}-identity`" v-model="form.idCardNo" placeholder="选填，请输入清关证件号" /></div></div>
       <label class="default-field" :class="{ 'check-label': v47 }"><input v-if="v47" v-model="form.defaultFlag" type="checkbox" :disabled="submitting" /><Checkbox v-else :model-value="!!form.defaultFlag" aria-label="设为默认地址" :disabled="submitting" @update:model-value="value => form.defaultFlag = value === true" />设为默认地址</label>
     </fieldset>
-    <div class="actions"><button v-if="v47" type="submit" class="primary full" :disabled="!canSubmit || submitting">{{ submitting ? '正在保存…' : '保存地址' }}</button><Button v-else type="submit" :disabled="!canSubmit || submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在保存' : '保存地址' }}</Button></div>
+    <div class="actions" :class="{ 'um-dialog-actions': v47 }"><button v-if="v47" type="submit" class="primary" :disabled="!canSubmit || submitting">{{ submitting ? '正在保存…' : '保存地址' }}</button><Button v-else type="submit" :disabled="!canSubmit || submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在保存' : '保存地址' }}</Button></div>
   </form>
 </template>
 
@@ -175,6 +175,6 @@ function submit() {
 .address-form.v47 .field :deep(.address-select-trigger) { height:45px; }
 .address-form.v47 .field :deep(textarea) { min-height:85px; padding:12px 14px; }
 .address-form.v47 .default-field { gap:0; margin:18px 0; }
-.address-form.v47 .actions { display:block; margin-top:0; }
+.address-form.v47 .actions { display:flex; justify-content:flex-end; }
 @media (max-width: 500px) { .two-fields, .region-fields { grid-template-columns: 1fr; } }
 </style>

@@ -343,7 +343,7 @@ async function savePrice() {
     <div v-if="products.length" class="buyer-products"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>
     <div v-else-if="loading" class="buyer-products" aria-busy="true" aria-label="正在读取商品列表"><Skeleton v-for="n in 6" :key="n" class="product-skeleton" /></div>
     <EmptyState v-else :title="loadError ? '商品列表加载失败' : '该状态下没有商品'" :description="loadError || '点击右上角「发布商品」开始售卖'" :action-text="loadError ? '重新加载' : '发布商品'" @action="loadError ? load() : router.push('/buyer/products/create')" />
-    <a-modal content-class="buyer-dialog" v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving"><form class="price-form" @submit.prevent="savePrice"><p class="buyer-price-product-name">{{ priceProduct?.title }}</p><p class="hint">当前售价 {{ priceProduct?.price }} USDT</p><Label for="quick-product-price">售价（USDT）<span>*</span></Label><Input id="quick-product-price" v-model="newPrice" inputmode="decimal" :disabled="priceSaving" placeholder="请输入新的商品售价" /><p class="hint">改价立即生效，已下单订单的价格不受影响。最多 8 位小数。</p><div class="modal-actions"><Button class="outline" type="button" variant="outline" :disabled="priceSaving" @click="priceVisible = false">取消</Button><Button class="primary" type="submit" :disabled="priceSaving">{{ priceSaving ? '正在提交…' : '确认改价' }}</Button></div></form></a-modal>
+    <a-modal content-class="buyer-dialog" v-model:visible="priceVisible" title="快捷改价" :footer="false" :closable="!priceSaving" :mask-closable="!priceSaving" :esc-to-close="!priceSaving"><form class="price-form" @submit.prevent="savePrice"><p class="buyer-price-product-name">{{ priceProduct?.title }}</p><p class="hint">当前售价 {{ priceProduct?.price }} USDT</p><Label for="quick-product-price">售价（USDT）<span>*</span></Label><Input id="quick-product-price" v-model="newPrice" inputmode="decimal" :disabled="priceSaving" placeholder="请输入新的商品售价" /><p class="hint">改价立即生效，已下单订单的价格不受影响。最多 8 位小数。</p><div class="modal-actions um-dialog-actions"><Button class="outline" type="button" variant="outline" :disabled="priceSaving" @click="priceVisible = false">取消</Button><Button class="primary" type="submit" :disabled="priceSaving">{{ priceSaving ? '正在提交…' : '确认改价' }}</Button></div></form></a-modal>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; syncQuery(); }" />
   </div>
 </template>
@@ -357,7 +357,7 @@ async function savePrice() {
 .price-form { display:grid; gap:12px; }
 .price-form label > span { color:var(--yb-danger); }
 .buyer-price-product-name { overflow-wrap:anywhere; }
-.modal-actions { display:flex; justify-content:flex-end; gap:16px; margin-top:12px; }
+.modal-actions { display:flex; justify-content:flex-end; }
 @media(max-width:700px) {
   .buyer-page-top { flex-direction:column; align-items:stretch; }
   .buyer-page-top > div { width:100%; min-width:0; }
