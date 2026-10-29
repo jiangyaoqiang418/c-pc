@@ -6,7 +6,7 @@
   --meme-yellow:var(--gold)!important;
   --meme-negative:var(--yb-danger)!important;
 }
-:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.primary,.account-auth .primary,.all-categories) {
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.primary,.gold,.account-auth .primary,.all-categories) {
   background:var(--green)!important;
   color:var(--on-primary)!important;
   border-color:var(--green)!important;
@@ -91,4 +91,209 @@
 /* The MEME close control has a literal green stroke; other palettes use their line color. */
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .dialog-close {
   border-color:var(--line)!important;
+}
+
+/* The frozen MEME layout remains active for every palette. Override its literal
+   color pairs only outside MEME; keep geometry and the reference cascade intact. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.product-meta .product-name,.footer h4) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.meme-market-heading small,.meme-market-heading>div>span:not(.meme-dot),.section-heading h2 small,.product-meta p,.meme-card-top small) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .eyebrow {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.order-shortcuts b,.level-badge,.buyer-number-heading>span) {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .help-layout>aside button.active {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .editorial:after {
+  background:linear-gradient(90deg,var(--paper),color-mix(in srgb,var(--paper) 93%,transparent) 40%,transparent)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .editorial h3 {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .editorial :is(span,p) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-card-open {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+}
+
+/* Product, order and buyer cards use the current palette's neutral surfaces. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.order-card,.buyer-product,.buyer-order-row) {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .order-head {
+  background:var(--soft)!important;
+  color:var(--muted)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-product-body h3,.buyer-product-price,.checkout-item h3,.checkout-item>b,.order-footer>span b) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-product-body>small,.buyer-product-price>span,.buyer-product-stats,.buyer-product .buyer-inline-hint,.checkout-item p,.order-head small,.order-footer>span) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-product-actions,.order-head,.order-footer>span) {
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-product-actions,.order-footer .button-row) .outline {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-status.OFF_SHELF {
+  background:var(--soft)!important;
+  color:var(--muted)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .order-detail-summary {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .order-detail-summary .money-row b {
+  color:var(--ink)!important;
+}
+
+/* Pair the shared hero surfaces with their own foreground, including dark palettes. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.profile-hero,.buyer-hero,.buyer-wallet-hero,.auth-art) {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.profile-hero,.buyer-hero,.buyer-wallet-hero,.auth-art) :is(h1,h2,p,b,strong,small,.eyebrow,.buyer-hero-art>span) {
+  color:var(--on-primary)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.profile-hero,.buyer-hero,.buyer-wallet-hero) :is(.gold,.outline) {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .auth-art:after {
+  background:linear-gradient(color-mix(in srgb,var(--green) 75%,transparent),transparent)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .brand-hero {
+  background:var(--green)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .brand-hero :is(h1,p,.eyebrow) {
+  color:var(--on-primary)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .brand-hero:after {
+  background:linear-gradient(90deg,var(--green) 40%,transparent 75%)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .brand-hero .gold {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-donut>div {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-donut small {
+  color:var(--muted)!important;
+}
+
+/* Navigation and editorial copy must not retain MEME's black bars or white text. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .product-content .product-content-nav {
+  background:var(--paper)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .product-content-nav button {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .product-content-nav button.active {
+  color:var(--green)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .detail-editorial>div {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .detail-editorial h2 {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .detail-editorial p {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buy-actions .gold {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+
+/* Shared informational banners keep status meaning without a fixed dark fill. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .status-banner {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .status-banner :is(small,p) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .status-banner>svg {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-application .status-text {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+}
+
+/* Vault's component-local asset aliases otherwise retain the default dark colors. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .vault-workspace {
+  --asset-surface:var(--paper);
+  --asset-raised:var(--soft);
+  --asset-line:var(--line);
+  --asset-dim:var(--muted);
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-plan,.vault-product-info,.vault-calculator,.vault-position,.vault-lock-main,.vault-lock-aside,.vault-ledger,.vault-rules) {
+  --plan-accent:var(--green);
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-balance-card,.vault-available,.vault-estimate,.vault-amount-input,.vault-periods,.vault-demo-note,.vault-plan-tag,.vault-product-rate strong small) {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-total,.vault-balance-bottom strong,.vault-plan-top h3,.vault-rate strong,.vault-product-title h2,.vault-product-rate strong,.vault-product-facts b,.vault-term-badge strong,.vault-calculator h2,.vault-estimate strong,.vault-breakdown dd) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-card-top>span,.vault-total small,.vault-balance-bottom>span,.vault-plan-rule,.vault-product-info>p,.vault-product-rules p,.vault-product-rules svg,.vault-estimate>span,.vault-amount-input button) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-token,.vault-tabs button.active,.vault-periods button.active,.vault-plan>button,.vault-balance-bottom>button) {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-presets button,.vault-amount-input button) {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-plan>button:hover,.vault-presets button:hover) {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-balance-bottom,.vault-plan-meta,.vault-term-badge,.vault-product-facts,.vault-product-rate,.vault-product-rules,.vault-breakdown>div) {
+  border-color:var(--line)!important;
+}
+
+/* The sent-message foreground belongs to the primary fill, not the page surface. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.message.me .bubble.text,.ai-message.user .ai-message-text) {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
 }
