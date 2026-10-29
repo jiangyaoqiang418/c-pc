@@ -31,8 +31,18 @@ export function historyMessage(row: Api.Ai.Message): AiDisplayMessage {
 export function mergeAiMessages(existing: AiDisplayMessage[], rows: Api.Ai.Message[], prepend = false) {
   const saved = rows.map(historyMessage);
   const ids = new Set(saved.map(row => row.id));
-  const remaining = existing.filter(row => !ids.has(row.id) && !(row.temporary && saved.some(item => item.role === row.role
-    && ((row.requestId && item.requestId === row.requestId) || (row.clientMessageId && item.clientMessageId === row.clientMessageId)))));
+  const requestByClientId = new Map<string, string>();
+  for (const row of [...existing, ...saved]) if (row.role === 'user' && row.clientMessageId && row.requestId) {
+    requestByClientId.set(row.clientMessageId, row.requestId);
+  }
+  const remaining = existing.filter(row => {
+    if (ids.has(row.id)) return false;
+    if (!row.temporary) return true;
+    // start 到达前断流时，从已保存问题的去重键找回请求 ID，才能替换对应的临时回答。
+    const requestId = row.requestId || (row.clientMessageId ? requestByClientId.get(row.clientMessageId) : undefined);
+    return !saved.some(item => item.role === row.role && ((requestId && item.requestId === requestId)
+      || (row.clientMessageId && item.clientMessageId === row.clientMessageId)));
+  });
   return prepend ? [...saved, ...remaining] : [...remaining.filter(row => !row.temporary), ...saved, ...remaining.filter(row => row.temporary)];
 }
 
@@ -55,6 +65,7 @@ export function useAiConversations() {
   const scrollRef = ref<HTMLElement>();
   let sessionCursor: string | null = null;
   let historyCursor: string | null = null;
+  let historyLoaded = false;
   let scope = 0;
   let turn = 0;
   let listVersion = 0;
@@ -96,8 +107,9 @@ export function useAiConversations() {
       if (page.hasMore && page.nextCursor === cursor) throw new Error('历史游标未推进，请刷新后重试');
       messages.value = mergeAiMessages(messages.value, page.rows, earlier);
       ready.value = true;
-      // 刷新首屏时保留此前更早页的游标。
-      if (earlier || historyCursor === null) { historyCursor = page.nextCursor; historyMore.value = page.hasMore; }
+      // 首屏初始化和翻页才推进历史游标；翻到底后刷新不能重新打开已加载的早页。
+      if (earlier || !historyLoaded) { historyCursor = page.nextCursor; historyMore.value = page.hasMore; }
+      historyLoaded = true;
       if (earlier) { await nextTick(); if (element && id === conversationId.value) element.scrollTop = top + element.scrollHeight - height; }
       else scrollBottom();
     } catch (e) {
@@ -138,7 +150,7 @@ export function useAiConversations() {
         conversationId.value = rows.find(row => row.current)?.conversationId ?? null;
         // 没有服务端会话时保留未确认首轮的中断提示，避免把失败显示成空对话。
         if (conversationId.value || !messages.value.every(row => row.temporary)) messages.value = [];
-        historyCursor = null; historyMore.value = false;
+        historyCursor = null; historyMore.value = false; historyLoaded = false;
         ready.value = true;
         restored = true;
       }
@@ -159,7 +171,7 @@ export function useAiConversations() {
       if (!/^[0-9a-f]{32}$/.test(state?.conversationId) || state.current !== true
         || (id && state.conversationId !== id)) throw new Error('当前会话确认失败，请刷新会话列表核对');
       conversationId.value = state.conversationId;
-      messages.value = []; input.value = ''; historyCursor = null; historyMore.value = false;
+      messages.value = []; input.value = ''; historyCursor = null; historyMore.value = false; historyLoaded = false;
       ready.value = true;
       await loadHistory();
       await loadSessions();
@@ -177,7 +189,7 @@ export function useAiConversations() {
     const key = `web-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
     const aborter = new AbortController(); stream = aborter;
     const fromUser: AiDisplayMessage = { id: `user-${key}`, clientMessageId: key, temporary: true, role: 'user', text: question, parts: [], state: 'COMPLETED' };
-    messages.value.push(fromUser, { id: `answer-${key}`, temporary: true, role: 'assistant', text: '', parts: [], state: 'PENDING', progress: '正在连接客服…' });
+    messages.value.push(fromUser, { id: `answer-${key}`, clientMessageId: key, temporary: true, role: 'assistant', text: '', parts: [], state: 'PENDING', progress: '正在连接客服…' });
     const answer = messages.value[messages.value.length - 1];
     running.value = true; input.value = ''; error.value = ''; notice.value = ''; scrollBottom();
     const active = () => current(version, token) && requestTurn === turn;
@@ -227,7 +239,7 @@ export function useAiConversations() {
     scope++; listVersion++; historyVersion++; mutationVersion++;
     invalidateStream(); reads.abort(); reads = new AbortController();
     sessions.value = []; messages.value = []; conversationId.value = null; input.value = '';
-    historyCursor = null; sessionCursor = null; historyMore.value = false; sessionMore.value = false;
+    historyCursor = null; sessionCursor = null; historyMore.value = false; sessionMore.value = false; historyLoaded = false;
     listLoading.value = false; historyLoading.value = false; busy.value = false;
     error.value = ''; listError.value = ''; notice.value = '';
     ready.value = !user.initializing && !user.isLoggedIn;
