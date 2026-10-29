@@ -207,7 +207,6 @@ const groupDefinitions = [
 const entryGroups = computed(() => groupDefinitions.map(group => ({
   ...group, entries: group.keys.flatMap(key => quickEntries.value.filter(entry => entry.key === key))
 })));
-const columns = computed(() => [entryGroups.value.slice(0, 3), entryGroups.value.slice(3)]);
 const media = window.matchMedia('(max-width: 760px)');
 const servicesLayout = ref<'mobile' | 'desktop'>(media.matches ? 'mobile' : 'desktop');
 const servicePreferences = reactive<Record<'mobile' | 'desktop', Record<string, boolean>>>({ mobile: {}, desktop: {} });
@@ -258,10 +257,10 @@ watch(() => user.value?.avatar, () => { avatarFailed.value = false; });
       </section>
       <section class="profile-services" aria-labelledby="profile-services-title">
         <div class="profile-services-heading"><div><span class="eyebrow">MY SERVICES</span><h2 id="profile-services-title">我的服务</h2><p>按需展开，轻松找到所需服务</p></div><button class="services-toggle-all" @click="toggleAllGroups"><UmIcon :name="allGroupsOpen ? 'minus' : 'plus'" />{{ allGroupsOpen ? '全部收起' : '全部展开' }}</button></div>
-        <div class="services-columns"><div v-for="(column, index) in columns" :key="index" class="services-column"><section v-for="group in column" :key="group.key" class="service-category" :class="{ 'is-open': openGroups[group.key] }">
+        <div class="services-columns"><section v-for="group in entryGroups" :key="group.key" class="service-category" :class="{ 'is-open': openGroups[group.key] }">
           <h3><button :id="'service-toggle-' + group.key" class="service-category-toggle" :aria-expanded="openGroups[group.key]" :aria-controls="'service-panel-' + group.key" @click="toggleGroup(group.key)"><span class="service-category-symbol"><UmIcon :name="group.icon" /></span><span class="service-category-copy"><span class="service-category-title">{{ group.label }}<small>{{ group.entries.length }} 项</small></span><span class="service-category-summary">{{ group.summary }}</span></span><span class="service-category-state" aria-hidden="true">{{ openGroups[group.key] ? '收起' : '展开' }}<UmIcon name="chevron" /></span></button></h3>
           <div :id="'service-panel-' + group.key" class="service-category-panel" role="region" :aria-labelledby="'service-toggle-' + group.key" :aria-hidden="!openGroups[group.key]" :inert="!openGroups[group.key]"><div class="service-category-clip"><div class="service-category-links"><RouterLink v-for="entry in group.entries" :key="entry.key" :to="entry.path"><UmIcon :name="entry.icon" /><span>{{ entry.label }}</span><UmIcon name="chevron" /></RouterLink></div></div></div>
-        </section></div></div>
+        </section></div>
       </section>
       <button class="text-link" @click="logout"><UmIcon name="logout" />退出登录</button>
     </template>
