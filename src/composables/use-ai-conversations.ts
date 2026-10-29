@@ -74,6 +74,8 @@ export function useAiConversations() {
   let disposed = false;
   let stream: AbortController | undefined;
   let reads = new AbortController();
+  // 只过滤展示，当前会话恢复和分页仍使用服务端原始记录。
+  const visibleSessions = computed(() => sessions.value.filter(row => row.messageCount !== 0));
   const archived = computed(() => sessions.value.find(row => row.conversationId === conversationId.value)?.status === 'ARCHIVED');
   const canSend = computed(() => ready.value && !running.value && !busy.value && !historyLoading.value
     && !archived.value && !!input.value.trim() && input.value.length <= 2000 && !user.initializing);
@@ -164,9 +166,15 @@ export function useAiConversations() {
     if (!ready.value || busy.value || listLoading.value || historyLoading.value || !user.isLoggedIn || (id && id === conversationId.value)) return;
     invalidateStream();
     const version = scope, token = getAccessToken(), operation = ++mutationVersion;
+    if (!id) {
+      conversationId.value = null;
+      messages.value = []; input.value = ''; historyCursor = null; historyMore.value = false; historyLoaded = false;
+      error.value = ''; notice.value = '';
+      return;
+    }
     busy.value = true; error.value = ''; notice.value = '';
     try {
-      const state = id ? await activateAiSession(id) : await createAiSession();
+      const state = await activateAiSession(id);
       if (!current(version, token) || operation !== mutationVersion) return;
       if (!/^[0-9a-f]{32}$/.test(state?.conversationId) || state.current !== true
         || (id && state.conversationId !== id)) throw new Error('当前会话确认失败，请刷新会话列表核对');
@@ -188,11 +196,34 @@ export function useAiConversations() {
     const question = input.value.trim(), version = scope, token = getAccessToken(), requestTurn = ++turn;
     const key = `web-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
     const aborter = new AbortController(); stream = aborter;
+    const active = () => current(version, token) && requestTurn === turn;
+    running.value = true; error.value = ''; notice.value = '';
+    if (user.isLoggedIn && !conversationId.value) {
+      busy.value = true; notice.value = '正在创建会话…';
+      try {
+        // 首次实际发送才创建；拿到 ID 后始终复用，避免发送失败又创建空会话。
+        const state = await createAiSession();
+        if (!active()) return;
+        if (!/^[0-9a-f]{32}$/.test(state?.conversationId) || state.current !== true) throw new Error('新会话确认失败');
+        conversationId.value = state.conversationId;
+      } catch (e) {
+        if (active()) {
+          ready.value = false; running.value = false; stream = undefined; notice.value = '';
+          error.value = `${problem(e)}；问题尚未发送，请刷新会话确认创建结果后再操作。`;
+        }
+        return;
+      } finally { if (active()) busy.value = false; }
+      if (aborter.signal.aborted) {
+        running.value = false; stream = undefined; notice.value = '已停止，问题尚未发送。';
+        return;
+      }
+      notice.value = '';
+    }
     const fromUser: AiDisplayMessage = { id: `user-${key}`, clientMessageId: key, temporary: true, role: 'user', text: question, parts: [], state: 'COMPLETED' };
     messages.value.push(fromUser, { id: `answer-${key}`, clientMessageId: key, temporary: true, role: 'assistant', text: '', parts: [], state: 'PENDING', progress: '正在连接客服…' });
     const answer = messages.value[messages.value.length - 1];
-    running.value = true; input.value = ''; error.value = ''; notice.value = ''; scrollBottom();
-    const active = () => current(version, token) && requestTurn === turn;
+    if (input.value.trim() === question) input.value = '';
+    scrollBottom();
     try {
       await streamCustomerChat({ message: question, conversationId: conversationId.value, clientMessageId: key }, aborter.signal, event => {
         if (!active()) return;
@@ -247,6 +278,6 @@ export function useAiConversations() {
   }, { immediate: true, flush: 'sync' });
 
   onBeforeUnmount(() => { disposed = true; scope++; invalidateStream(); reads.abort(); });
-  return { sessions, messages, conversationId, input, running, busy, listLoading, historyLoading, ready, error, listError,
+  return { sessions, visibleSessions, messages, conversationId, input, running, busy, listLoading, historyLoading, ready, error, listError,
     notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send };
 }

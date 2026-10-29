@@ -9,7 +9,7 @@ import { useUserStore } from '@/stores/user';
 
 const router = useRouter();
 const user = useUserStore();
-const { sessions, messages, conversationId, input, running, busy, listLoading, historyLoading, ready, error, listError,
+const { visibleSessions, messages, conversationId, input, running, busy, listLoading, historyLoading, ready, error, listError,
   notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
 const locked = computed(() => busy.value || listLoading.value || historyLoading.value);
 function login() { void router.push({ path: '/auth/login', query: { redirect: '/ai-guide' } }); }
@@ -28,12 +28,19 @@ function onKeydown(event: KeyboardEvent) {
     </div>
     <div class="ai-workspace" :class="{ 'has-history': user.isLoggedIn }">
       <aside v-if="user.isLoggedIn" class="session-list" aria-label="历史会话">
-        <div class="session-heading"><strong>历史会话</strong><button class="text-link" type="button" :disabled="locked || running" @click="loadSessions(false, !ready)">刷新会话</button></div>
-        <p v-if="listLoading" role="status">正在读取会话…</p>
+        <div class="session-heading">
+          <strong>历史会话</strong>
+          <span class="session-refresh">
+            <button class="text-link" type="button" :disabled="locked || running" @click="loadSessions(false, !ready)">刷新会话</button>
+            <span class="session-loading" role="status" :aria-label="listLoading ? '正在读取会话' : undefined">
+              <span v-if="listLoading" class="session-spinner" aria-hidden="true" />
+            </span>
+          </span>
+        </div>
         <p v-if="listError" class="message-error" role="alert">{{ listError }}</p>
-        <p v-if="!listLoading && !listError && !sessions.length">暂无会话</p>
-        <button v-for="session in sessions" :key="session.conversationId" type="button" class="session-row" :class="{ selected: session.conversationId === conversationId }" :aria-current="session.conversationId === conversationId ? 'true' : undefined" :disabled="locked || !ready" @click="changeSession(session.conversationId)">
-          <strong>{{ session.title || '新会话' }}</strong><small>{{ session.lastMessagePreview || '暂无消息' }}</small><small v-if="session.status === 'ARCHIVED'">已归档</small>
+        <p v-if="!listLoading && !listError && !visibleSessions.length">{{ sessionMore ? '当前页暂无有消息的会话，请加载更多。' : '暂无会话' }}</p>
+        <button v-for="session in visibleSessions" :key="session.conversationId" type="button" class="session-row" :class="{ selected: session.conversationId === conversationId }" :aria-current="session.conversationId === conversationId ? 'true' : undefined" :disabled="locked || !ready" @click="changeSession(session.conversationId)">
+          <strong :title="session.title || '新会话'">{{ session.title || '新会话' }}</strong>
         </button>
         <button v-if="sessionMore" class="text-link" type="button" :disabled="locked" @click="loadSessions(true)">加载更多会话</button>
       </aside>
@@ -122,9 +129,13 @@ function onKeydown(event: KeyboardEvent) {
 .ai-conversation { flex:1; min-width:0; }
 .session-list { width:200px; flex-shrink:0; max-height:72dvh; overflow-y:auto; border-right:1px solid var(--line); padding-right:12px; font-size:12px; }
 .session-heading,.history-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
-.session-row { display:flex; flex-direction:column; gap:4px; width:100%; min-height:56px; margin:5px 0; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:inherit; text-align:left; }
-.session-row strong,.session-row small { overflow-wrap:anywhere; white-space:pre-wrap; }
-.session-row small { color:var(--muted); }
+.session-refresh { display:inline-flex; align-items:center; gap:6px; }
+.session-loading { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; flex-shrink:0; color:var(--green); }
+.session-spinner { width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:session-spin .8s linear infinite; }
+@keyframes session-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .session-spinner { animation:none; } }
+.session-row { display:flex; align-items:center; width:100%; min-height:44px; margin:5px 0; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:inherit; text-align:left; }
+.session-row strong { min-width:0; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .session-row.selected { border-color:var(--green); }
 button:disabled { opacity:.55; cursor:not-allowed; }
 .session-row:focus-visible { outline:2px solid var(--green); outline-offset:2px; }

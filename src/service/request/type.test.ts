@@ -1783,20 +1783,153 @@ describe('AI 持久化会话与历史恢复', () => {
     expect(history.mock.calls[0][0].conversationId).toBe(second);
     expect(activate).not.toHaveBeenCalled();
   });
-  it('新建失败保留旧历史并锁住发送，回查后才可继续', async () => {
+  it('新会话只清空为本地草稿，刷新列表不恢复旧会话、不创建空记录', async () => {
+    setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [session()], hasMore: false, nextCursor: null });
+    vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: first, rows: [message()], hasMore: false, nextCursor: null });
+    const create = vi.spyOn(aiApi, 'createAiSession');
+    const activate = vi.spyOn(aiApi, 'activateAiSession').mockResolvedValue({ conversationId: first, current: true });
+    const state = mount();
+    await vi.waitFor(() => expect(state.messages.value).toHaveLength(1));
+    await state.changeSession();
+    await state.changeSession();
+    await state.loadSessions();
+    expect(state.conversationId.value).toBeNull();
+    expect(state.messages.value).toEqual([]);
+    expect(state.sessions.value).toHaveLength(1);
+    expect(state.ready.value).toBe(true);
+    state.input.value = '   ';
+    await state.send();
+    expect(create).not.toHaveBeenCalled();
+    await state.changeSession(first);
+    expect(activate).toHaveBeenCalledWith(first);
+    expect(state.conversationId.value).toBe(first);
+    expect(state.messages.value).toHaveLength(1);
+  });
+  it('首次发送创建结果未知时保留问题并锁住发送，回查后复用服务端空会话', async () => {
     setup();
     vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [session()], hasMore: false, nextCursor: null });
     vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: first, rows: [message()], hasMore: false, nextCursor: null });
     const create = vi.spyOn(aiApi, 'createAiSession').mockRejectedValue(new RequestError('结果未知', { code: 'REQUEST_TIMEOUT' }));
+    const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockResolvedValue();
     const state = mount();
     await vi.waitFor(() => expect(state.messages.value).toHaveLength(1));
     await state.changeSession();
-    expect(state.conversationId.value).toBe(first);
-    expect(state.messages.value[0].id).toBe('1');
+    state.input.value = '新问题';
+    await state.send();
+    expect(state.conversationId.value).toBeNull();
+    expect(state.messages.value).toEqual([]);
+    expect(state.input.value).toBe('新问题');
     expect(state.ready.value).toBe(false);
+    expect(state.running.value).toBe(false);
+    expect(state.busy.value).toBe(false);
     expect(create).toHaveBeenCalledTimes(1);
+    await state.send();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(stream).not.toHaveBeenCalled();
+    vi.mocked(aiApi.fetchAiSessions).mockResolvedValue({ rows: [{ ...session(second), messageCount: 0 }], hasMore: false, nextCursor: null });
+    vi.mocked(aiApi.fetchAiMessages).mockResolvedValue({ conversationId: second, rows: [], hasMore: false, nextCursor: null });
     await state.loadSessions(false, true);
     expect(state.ready.value).toBe(true);
+    expect(state.conversationId.value).toBe(second);
+    expect(state.visibleSessions.value).toEqual([]);
+    await state.send();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(stream.mock.calls[0][0]).toMatchObject({ message: '新问题', conversationId: second });
+  });
+  it('首次发送创建期间防重入，创建后发送失败也复用同一会话', async () => {
+    setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [], hasMore: false, nextCursor: null });
+    vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: second, rows: [], hasMore: false, nextCursor: null });
+    let finishCreate!: (state: Api.Ai.SessionState) => void;
+    const create = vi.spyOn(aiApi, 'createAiSession').mockImplementation(() => new Promise(resolve => { finishCreate = resolve; }));
+    const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockRejectedValue(new Error('连接中断'));
+    const state = mount();
+    await vi.waitFor(() => expect(state.ready.value).toBe(true));
+    state.input.value = '首个问题';
+    const sending = state.send();
+    expect(state.running.value).toBe(true);
+    expect(state.busy.value).toBe(true);
+    await state.send();
+    await state.changeSession();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(stream).not.toHaveBeenCalled();
+    state.input.value = '创建期间输入的新草稿';
+    finishCreate({ conversationId: second, current: true });
+    await sending;
+    expect(stream.mock.calls[0][0]).toMatchObject({ message: '首个问题', conversationId: second });
+    expect(state.conversationId.value).toBe(second);
+    expect(state.input.value).toBe('创建期间输入的新草稿');
+    expect(state.messages.value.at(-1)?.state).toBe('INTERRUPTED');
+    state.input.value = '下一个问题';
+    await state.send();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(stream.mock.calls[1][0].conversationId).toBe(second);
+  });
+  it('创建期间停止不会发问题，保留输入和已创建 ID，下一次发送不重建', async () => {
+    setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [], hasMore: false, nextCursor: null });
+    vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: second, rows: [], hasMore: false, nextCursor: null });
+    let finishCreate!: (state: Api.Ai.SessionState) => void;
+    const create = vi.spyOn(aiApi, 'createAiSession').mockImplementation(() => new Promise(resolve => { finishCreate = resolve; }));
+    const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockResolvedValue();
+    const state = mount();
+    await vi.waitFor(() => expect(state.ready.value).toBe(true));
+    state.input.value = '不能丢的问题';
+    const sending = state.send();
+    state.stop();
+    finishCreate({ conversationId: second, current: true });
+    await sending;
+    expect(stream).not.toHaveBeenCalled();
+    expect(state.input.value).toBe('不能丢的问题');
+    expect(state.messages.value).toEqual([]);
+    expect(state.conversationId.value).toBe(second);
+    expect(state.running.value).toBe(false);
+    expect(state.busy.value).toBe(false);
+    await state.send();
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(stream).toHaveBeenCalledTimes(1);
+  });
+  it('创建期间切换账号忽略迟到的会话 ID 和问题，不向新账号发送', async () => {
+    const user = setup();
+    vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [], hasMore: false, nextCursor: null });
+    let finishCreate!: (state: Api.Ai.SessionState) => void;
+    vi.spyOn(aiApi, 'createAiSession').mockImplementation(() => new Promise(resolve => { finishCreate = resolve; }));
+    const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockResolvedValue();
+    const state = mount();
+    await vi.waitFor(() => expect(state.ready.value).toBe(true));
+    state.input.value = '旧账号问题';
+    const sending = state.send();
+    setAccessToken('accepted-user-b');
+    user.currentUser = { id: '2093370220769533955' } as Api.RealSession.UserRecord;
+    finishCreate({ conversationId: second, current: true });
+    await sending;
+    expect(stream).not.toHaveBeenCalled();
+    expect(state.conversationId.value).toBeNull();
+    expect(state.input.value).toBe('');
+    expect(state.messages.value).toEqual([]);
+    expect(state.running.value).toBe(false);
+    expect(state.busy.value).toBe(false);
+  });
+  it('只隐藏消息数为零的行，跨空页恢复当前会话并保留后续分页游标', async () => {
+    setup();
+    const list = vi.spyOn(aiApi, 'fetchAiSessions')
+      .mockResolvedValueOnce({ rows: [{ ...session(first, false), messageCount: 0 }], hasMore: true, nextCursor: 'empty-page' })
+      .mockResolvedValueOnce({ rows: [{ ...session(second), messageCount: 0 }], hasMore: true, nextCursor: 'older-page' })
+      .mockResolvedValueOnce({ rows: [session('c'.repeat(32), false)], hasMore: false, nextCursor: null });
+    vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: second, rows: [], hasMore: false, nextCursor: null });
+    const state = mount();
+    await vi.waitFor(() => expect(state.ready.value).toBe(true));
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(state.conversationId.value).toBe(second);
+    expect(state.sessions.value).toHaveLength(2);
+    expect(state.visibleSessions.value).toEqual([]);
+    expect(state.sessionMore.value).toBe(true);
+    await state.loadSessions(true);
+    expect(list.mock.calls[2][0].cursor).toBe('older-page');
+    expect(state.sessions.value).toHaveLength(3);
+    expect(state.visibleSessions.value.map(row => row.conversationId)).toEqual(['c'.repeat(32)]);
+    expect(state.sessionMore.value).toBe(false);
   });
   it('会话不存在时清选中并刷新列表，不循环恢复、不自动创建', async () => {
     setup();
@@ -1810,13 +1943,15 @@ describe('AI 持久化会话与历史恢复', () => {
     expect(list).toHaveBeenCalledTimes(2);
     expect(create).not.toHaveBeenCalled();
   });
-  it('首轮未收到 start 就断流时回查当前会话，不自动重发', async () => {
+  it('首轮未收到 start 就断流时回查已创建会话，不自动重发或保留重复助手', async () => {
     setup();
     vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValueOnce({ rows: [], hasMore: false, nextCursor: null })
       .mockResolvedValue({ rows: [session()], hasMore: false, nextCursor: null });
     const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockRejectedValue(new Error('连接中断'));
+    vi.spyOn(aiApi, 'createAiSession').mockResolvedValue({ conversationId: first, current: true });
     const history = vi.spyOn(aiApi, 'fetchAiMessages').mockImplementation(async () => ({
-      conversationId: first, rows: [{ ...message(), clientMessageId: stream.mock.calls[0][0].clientMessageId! }],
+      conversationId: first, rows: [{ ...message(), clientMessageId: stream.mock.calls[0][0].clientMessageId! },
+        { ...message('2', 'INTERRUPTED'), role: 'ASSISTANT', clientMessageId: null }],
       hasMore: false, nextCursor: null
     }));
     const state = mount();
@@ -1826,26 +1961,36 @@ describe('AI 持久化会话与历史恢复', () => {
     expect(stream).toHaveBeenCalledTimes(1);
     expect(history).toHaveBeenCalledTimes(1);
     expect(state.conversationId.value).toBe(first);
-    expect(state.messages.value.map(row => row.id)).toEqual(['1']);
+    expect(state.messages.value.map(row => row.id)).toEqual(['1', '2']);
   });
-  it('首轮断流且尚无持久化会话时保留中断提示', async () => {
+  it('首轮断流且尚无持久化消息时保留中断提示和已创建的会话 ID', async () => {
     setup();
     vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [], hasMore: false, nextCursor: null });
     vi.spyOn(aiApi, 'streamCustomerChat').mockRejectedValue(new Error('连接中断'));
+    vi.spyOn(aiApi, 'createAiSession').mockResolvedValue({ conversationId: first, current: true });
+    vi.spyOn(aiApi, 'fetchAiMessages').mockResolvedValue({ conversationId: first, rows: [], hasMore: false, nextCursor: null });
     const state = mount();
     await vi.waitFor(() => expect(state.ready.value).toBe(true));
     state.input.value = '首轮问题';
     await state.send();
-    expect(state.conversationId.value).toBeNull();
+    expect(state.conversationId.value).toBe(first);
     expect(state.messages.value).toHaveLength(2);
     expect(state.messages.value[1]).toMatchObject({ state: 'INTERRUPTED', error: '连接中断' });
   });
-  it('游客不调用任何登录会话接口', () => {
+  it('游客发送也不调用任何登录会话接口', async () => {
     setup(false);
     const list = vi.spyOn(aiApi, 'fetchAiSessions');
+    const create = vi.spyOn(aiApi, 'createAiSession');
+    const history = vi.spyOn(aiApi, 'fetchAiMessages');
+    const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockResolvedValue();
     const state = mount();
     expect(state.ready.value).toBe(true);
+    state.input.value = '游客问题';
+    await state.send();
+    expect(stream.mock.calls[0][0].conversationId).toBeNull();
     expect(list).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(history).not.toHaveBeenCalled();
   });
   it('服务端 ID 和两种关联键去重，前插历史保留已加载的消息', () => {
     const temp: AiDisplayMessage = { id: 'temporary', clientMessageId: 'web-original-key', role: 'user', text: '历史问题', parts: [], state: 'COMPLETED', temporary: true };
