@@ -306,7 +306,7 @@ async function submitReply() {
     await finishAction(pending, '评价回复已提交并核对', modalVersion);
   } catch (error) {
     if (!isCurrent()) return;
-    if (wrote && !acknowledged && !previous && isDefinitiveRejection(error)) {
+    if (wrote && !acknowledged && !previous && (isDefinitiveRejection(error) || reviewApi.isReviewWriteRejected(error))) {
       uncertainActions.delete(actionKey(target.reviewId, 'reply'));
       Message.error(error instanceof Error ? error.message : '评价回复未提交');
     } else {

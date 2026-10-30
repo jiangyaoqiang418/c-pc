@@ -112,7 +112,11 @@ const canSubmit = computed(() => !loading.value && !loadError.value && !!country
 function submit() {
   if (props.submitting || !canSubmit.value) { Message.warning(loadError.value || prepared.value.error || '请完整选择地址地区'); return; }
   const params = { ...prepared.value.params };
-  if (hasRegion.value) { delete params.province; delete params.city; delete params.district; }
+  if (hasRegion.value) {
+    delete params.province; delete params.city; delete params.district;
+    if (!needCity.value) { delete params.cityCode; delete params.districtCode; }
+    else if (!needDistrict.value) delete params.districtCode;
+  }
   else { delete params.provinceCode; delete params.cityCode; delete params.districtCode; }
   emit('submit', params);
 }
@@ -130,19 +134,19 @@ function submit() {
         <div class="field"><Label :for="`${fieldId}-phone`">联系电话 <span>*</span></Label><Input :id="`${fieldId}-phone`" v-model="form.receiverPhone" autocomplete="tel" type="tel" maxlength="32" required :placeholder="v47 ? undefined : '请输入联系电话'" /></div>
       </div>
       <div class="field">
-        <Label :for="`${fieldId}-country`">{{ v47 ? '国家 / 地区' : '国家/地区' }} <span>*</span></Label>
-        <Input v-model="countrySearch" class="country-search" aria-label="搜索国家或地区" placeholder="输入名称或代码筛选国家/地区" :disabled="loading || submitting" />
+        <Label :for="`${fieldId}-country`">国家 <span>*</span></Label>
+        <Input v-model="countrySearch" class="country-search" aria-label="搜索国家" placeholder="输入名称或代码筛选国家" :disabled="loading || submitting" />
         <Select :model-value="form.countryCode" :disabled="loading || submitting" @update:model-value="value => onCountryChange(String(value))">
-          <SelectTrigger class="address-select-trigger" :id="`${fieldId}-country`"><SelectValue placeholder="请选择国家/地区"><template v-if="country">{{ country.name }}{{ !v47 && country.enName ? ` / ${country.enName}` : '' }}</template></SelectValue></SelectTrigger>
-          <SelectContent><SelectItem v-for="item in filteredCountries" :key="item.code" :value="item.code">{{ item.name }}{{ !v47 && item.enName ? ` / ${item.enName}` : '' }}</SelectItem><p v-if="!filteredCountries.length" class="empty-options">没有匹配的国家/地区</p></SelectContent>
+          <SelectTrigger class="address-select-trigger" :id="`${fieldId}-country`"><SelectValue placeholder="请选择国家"><template v-if="country">{{ country.name }}{{ !v47 && country.enName ? ` / ${country.enName}` : '' }}</template></SelectValue></SelectTrigger>
+          <SelectContent><SelectItem v-for="item in filteredCountries" :key="item.code" :value="item.code">{{ item.name }}{{ !v47 && item.enName ? ` / ${item.enName}` : '' }}</SelectItem><p v-if="!filteredCountries.length" class="empty-options">没有匹配的国家</p></SelectContent>
         </Select>
       </div>
       <div v-if="hasRegion" class="region-fields" :class="{ 'form-grid': v47 }">
-        <div class="field"><Label :for="`${fieldId}-province`">{{ v47 ? '省 / 州' : '省/州' }} <span>*</span></Label><Select :model-value="form.provinceCode" :disabled="loading || submitting" @update:model-value="value => onProvinceChange(String(value))"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-province`"><SelectValue placeholder="请选择省/州" /></SelectTrigger><SelectContent><SelectItem v-for="item in provinces" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
+        <div class="field"><Label :for="`${fieldId}-province`">省/地区 <span>*</span></Label><Select :model-value="form.provinceCode" :disabled="loading || submitting" @update:model-value="value => onProvinceChange(String(value))"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-province`"><SelectValue placeholder="请选择省/地区" /></SelectTrigger><SelectContent><SelectItem v-for="item in provinces" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
         <div v-if="needCity" class="field"><Label :for="`${fieldId}-city`">城市 <span>*</span></Label><Select :model-value="form.cityCode" :disabled="loading || submitting" @update:model-value="value => onCityChange(String(value))"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-city`"><SelectValue placeholder="请选择城市" /></SelectTrigger><SelectContent><SelectItem v-for="item in cities" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
         <div v-if="needDistrict" class="field"><Label :for="`${fieldId}-district`">区/县 <span>*</span></Label><Select v-model="form.districtCode" :disabled="loading || submitting"><SelectTrigger class="address-select-trigger" :id="`${fieldId}-district`"><SelectValue placeholder="请选择区/县" /></SelectTrigger><SelectContent><SelectItem v-for="item in districts" :key="item.code" :value="item.code">{{ item.name }}</SelectItem></SelectContent></Select></div>
       </div>
-      <div v-else class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-province-text`">{{ v47 ? '省 / 州' : '省/州' }} <span>*</span></Label><Input :id="`${fieldId}-province-text`" v-model="form.province" autocomplete="address-level1" :placeholder="v47 ? undefined : '请输入省/州'" required /></div><div class="field"><Label :for="`${fieldId}-city-text`">城市 <span>*</span></Label><Input :id="`${fieldId}-city-text`" v-model="form.city" autocomplete="address-level2" :placeholder="v47 ? undefined : '请输入城市'" required /></div></div>
+      <div v-else class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-province-text`">省/地区 <span>*</span></Label><Input :id="`${fieldId}-province-text`" v-model="form.province" autocomplete="address-level1" :placeholder="v47 ? undefined : '请输入省/地区'" required /></div><div class="field"><Label :for="`${fieldId}-city-text`">城市 <span>*</span></Label><Input :id="`${fieldId}-city-text`" v-model="form.city" autocomplete="address-level2" :placeholder="v47 ? undefined : '请输入城市'" required /></div></div>
       <div class="field"><Label :for="`${fieldId}-detail`">详细地址 <span>*</span></Label><Textarea :id="`${fieldId}-detail`" v-model="form.detailAddress" :rows="v47 ? 2 : 3" autocomplete="street-address" required :placeholder="v47 ? '街道、楼栋、门牌号' : '街道、门牌号、楼栋等'" /></div>
       <div class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-postal`">邮编</Label><Input :id="`${fieldId}-postal`" v-model="form.postalCode" autocomplete="postal-code" :placeholder="v47 ? undefined : '选填，请输入邮编'" /></div><div class="field"><Label :for="`${fieldId}-identity`">清关证件号</Label><Input :id="`${fieldId}-identity`" v-model="form.idCardNo" placeholder="选填，请输入清关证件号" /></div></div>
       <label class="default-field" :class="{ 'check-label': v47 }"><input v-if="v47" v-model="form.defaultFlag" type="checkbox" :disabled="submitting" /><Checkbox v-else :model-value="!!form.defaultFlag" aria-label="设为默认地址" :disabled="submitting" @update:model-value="value => form.defaultFlag = value === true" />设为默认地址</label>

@@ -186,7 +186,7 @@ function confirmReview(params: Api.RealReview.ReviewSubmitParams, restoring = fa
         await reviewStore.submit(snapshot, restoring, verifyContent);
         if (!isCurrentWrite()) return;
         formRef.value?.markSaved();
-        Message.success('评价内容已提交并核对');
+        Message.success(snapshot.images?.length ? '带图评价已提交，等待平台审核' : '评价内容已提交并核对');
         void router.push('/review');
       } catch (error) {
         if (!isCurrentWrite()) return;
@@ -195,7 +195,7 @@ function confirmReview(params: Api.RealReview.ReviewSubmitParams, restoring = fa
           submissionIssue.value = error.message;
           Message.warning(error.message);
         } else {
-          submissionIssue.value = '未能确认评价提交结果，原评分和内容保持保留，请先核对已提交评价后按原内容恢复';
+          submissionIssue.value = error instanceof RequestError ? `${error.message}；原评分和内容已保留，请核对后继续操作。` : '未能确认评价提交结果，原评分和内容保持保留，请先核对已提交评价后按原内容恢复';
           if (!(error instanceof RequestError)) Message.warning(submissionIssue.value);
         }
       } finally {

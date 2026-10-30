@@ -53,8 +53,56 @@ import { Message } from '@/lib/feedback';
 import BuyerApply from '@/views/buyer/apply.vue';
 import { clearBuyerApplicationDraft, clearPrerequisiteDrafts, saveBuyerApplicationDraft, takeBuyerApplicationDraft, saveWithdrawDraft, takeWithdrawDraft } from '@/utils/prerequisite-navigation';
 import { clearAccessToken, setAccessToken } from '@/service/request/token';
+import { normalizeSearchHistory, searchHistoryKey, fetchSearchSuggestions } from './search';
+import { fetchReviewComments, createReviewComment, createReviewReport } from './review';
+import SearchBar from '@/components/layout/search-bar.vue';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe('搜索与评论对接边界', () => {
+  it('历史只保留有效词，去重后最近优先且账号与游客隔离', () => {
+    expect(normalizeSearchHistory([' 手机 ', '手机', '', null, 'x'.repeat(51), '平板'])).toEqual(['手机', '平板']);
+    expect(normalizeSearchHistory(Array.from({ length: 25 }, (_, i) => `词${i}`))).toHaveLength(20);
+    expect(searchHistoryKey()).not.toBe(searchHistoryKey('2090377523934879745'));
+    expect(searchHistoryKey('a')).not.toBe(searchHistoryKey('b'));
+  });
+  it('商品标题联想不要求词库ID，并保留原始商品ID', async () => {
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue([{ keyword:'手机', productId:'2090377523934879745', promoted:false }]);
+    expect(await fetchSearchSuggestions('shou')).toEqual([{ keyword:'手机', productId:'2090377523934879745', promoted:false }]);
+    expect(get).toHaveBeenCalledWith('/storefront/search/suggest', expect.objectContaining({ params:{ keyword:'shou' } }));
+    get.mockResolvedValueOnce([{ keyword:'手机', productId:2090377523934879745 }]);
+    await expect(fetchSearchSuggestions('shou')).rejects.toThrow('搜索词数据异常');
+  });
+  it('评论分页走公开读取，写入保留Long原文且不传后台操作人', async () => {
+    const reviewId = '2090377523934879745', parentId = '2090377523934879746';
+    const read = vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ pageNo:1, pageSize:20, total:'0', records:[] });
+    expect((await fetchReviewComments(reviewId, 1)).total).toBe(0);
+    expect(read).toHaveBeenCalledWith('/storefront/reviews/comments/page', { reviewId, pageNo:1, pageSize:20 }, expect.anything());
+    const write = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(parentId);
+    await createReviewComment({ reviewId, parentId, content:'使用感受' });
+    await createReviewReport({ reviewId, commentId:parentId, reason:'举报原因' });
+    expect(write).toHaveBeenNthCalledWith(1, '/reviews/comments/create', { reviewId, parentId, content:'使用感受' }, expect.anything());
+    expect(write).toHaveBeenNthCalledWith(2, '/reviews/reports/create', { reviewId, commentId:parentId, reason:'举报原因' }, expect.anything());
+    read.mockResolvedValueOnce({ total:'0' });
+    await expect(fetchReviewComments(reviewId, 1)).rejects.toThrow();
+    read.mockResolvedValueOnce({ total:'1', records:[{ id:parentId, reviewId, hidden:true, content:'已隐藏内容', authorName:'匿名', createdAt:'1' }] });
+    await expect(fetchReviewComments(reviewId, 1)).rejects.toThrow('公开评论数据异常');
+  });
+  it('评价明确过滤拒绝后保留原输入并允许编辑，网络异常仍保留未知结果', async () => {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    setActivePinia(createPinia());
+    useUserStore().currentUser = { id:'qa-review' } as Api.RealSession.UserRecord;
+    const store = useReviewStore();
+    const params = { orderId:'2090377523934879745', productScore:5, sellerScore:5, content:'原输入' };
+    const post = vi.spyOn(realOrderRequest, 'post').mockRejectedValueOnce(new RequestError('内容含禁止信息', { response:{ code:-1, data:null, message:'内容含禁止信息' } }));
+    await expect(store.submit(params)).rejects.toThrow('内容含禁止信息');
+    expect(store.getPending(params.orderId)).toBeUndefined();
+    expect(params.content).toBe('原输入');
+    post.mockRejectedValueOnce(new Error('offline'));
+    await expect(store.submit(params)).rejects.toThrow('offline');
+    expect(store.getPending(params.orderId)?.state).toBe('unknown');
+  });
+});
 
 describe('v47前端本地边界', () => {
   function mountSubject<T>(component: Component, input: Record<string, unknown>, viewportWidth?: number, configure?: (app: App) => void) {
@@ -76,6 +124,32 @@ describe('v47前端本地边界', () => {
     reloadRegions:() => Promise<void>; onCountryChange:(code: string) => Promise<void>; submit:() => void;
     form:Api.RealAddress.AddressSaveParams; provinces:Api.RealAddress.RegionVO[]; canSubmit:boolean; loadError:string;
   }
+  it('联想旧响应不能覆盖新输入，切账号后立即隔离历史并拒绝旧结果', async () => {
+    vi.useFakeTimers();
+    const values = new Map([[searchHistoryKey('a'), JSON.stringify(['甲的历史'])], [searchHistoryKey('b'), JSON.stringify(['乙的历史'])]]);
+    vi.stubGlobal('localStorage', { getItem:(key: string) => values.get(key) || null, setItem:(key: string, value: string) => values.set(key, value) });
+    const pinia = createPinia(); setActivePinia(pinia);
+    const user = useUserStore(); user.currentUser = { id:'a' } as Api.RealSession.UserRecord;
+    const pending = new Map<string, (rows: Api.RealSearch.Keyword[]) => void>();
+    vi.spyOn(realOrderRequest, 'get').mockImplementation((path, options) => {
+      if (path === '/storefront/search/suggest') return new Promise(resolve => { pending.set(String(options?.params?.keyword), resolve); });
+      return Promise.resolve([]);
+    });
+    const fixture = mountSubject<{ kw:string; history:string[]; suggestions:Api.RealSearch.Keyword[]; focus:() => void }>(SearchBar, {}, undefined, app => {
+      app.use(pinia); app.provide(routeLocationKey, { name:'home', query:{} } as unknown as RouteLocationNormalizedLoaded);
+      app.provide(routerKey, { push:vi.fn() } as unknown as Router);
+    });
+    try {
+      fixture.state.focus(); fixture.state.kw = 'sh'; await nextTick(); await vi.advanceTimersByTimeAsync(250);
+      fixture.state.kw = 'ping'; await nextTick(); await vi.advanceTimersByTimeAsync(250);
+      pending.get('sh')!([{ keyword:'手机', productId:'1', promoted:false }]); await nextTick();
+      expect(fixture.state.suggestions).toEqual([]);
+      pending.get('ping')!([{ keyword:'平板', productId:'2', promoted:false }]); await nextTick(); await nextTick();
+      expect(fixture.state.suggestions.map(row => row.keyword)).toEqual(['平板']);
+      user.currentUser = { id:'b' } as Api.RealSession.UserRecord; await nextTick();
+      expect(fixture.state.history).toEqual(['乙的历史']); expect(fixture.state.suggestions).toEqual([]);
+    } finally { fixture.app.unmount(); vi.useRealTimers(); }
+  });
   interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
   const file = () => new File(['local-only'], 'evidence.png', { type:'image/png' });
   const uploaded: Api.RealProduct.FileUploadResult = { id:'local-only', bucket:'local-only', filePath:'local-only', url:'https://example.com/local-only.png' };
@@ -397,19 +471,21 @@ describe('v47前端本地边界', () => {
     } finally { app.unmount(); }
   });
 
-  it('叶子省份无需伪造城市，编辑地址Long原值保留', async () => {
+  it.each(['71', '81', '82', '110000'])('末级地区 %s 不提交历史市区编码，地址Long原值保留', async code => {
     const submit = vi.fn();
     const fixture: AddressVisualFixture = {
       countries:async () => [{ code:'CN', name:'中国大陆', hasRegion:true }],
-      regions:async () => [{ code:'110000', name:'北京市', level:1, leaf:true }]
+      regions:async () => [{ code, name:'末级地区', level:1, leaf:true }]
     };
-    const { app, state } = mountSubject<AddressState>(AddressForm, { visualFixture:fixture, modelValue:{ id:'9007199254740993', countryCode:'CN', provinceCode:'110000', receiverName:'本地样例', receiverPhone:'00000000000', detail:'本地地址' }, onSubmit:submit });
+    const { app, state } = mountSubject<AddressState>(AddressForm, { visualFixture:fixture, modelValue:{ id:'9007199254740993', countryCode:'CN', provinceCode:code, cityCode:'old-city', districtCode:'old-district', receiverName:'本地样例', receiverPhone:'00000000000', detail:'本地地址' }, onSubmit:submit });
     try {
       await state.reloadRegions();
       expect(state.canSubmit).toBe(true);
       state.submit();
-      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ id:'9007199254740993', provinceCode:'110000' }));
+      expect(submit).toHaveBeenCalledWith(expect.objectContaining({ id:'9007199254740993', countryCode:'CN', provinceCode:code }));
       expect(submit.mock.calls[0]![0]).not.toHaveProperty('province');
+      expect(submit.mock.calls[0]![0]).not.toHaveProperty('cityCode');
+      expect(submit.mock.calls[0]![0]).not.toHaveProperty('districtCode');
     } finally { app.unmount(); }
   });
 

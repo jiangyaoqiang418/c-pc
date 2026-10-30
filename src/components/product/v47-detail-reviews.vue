@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import UmIcon from '@/components/common/um-icon.vue';
+import ReviewDiscussionDialog from '@/components/review/review-discussion-dialog.vue';
 import V47CatalogPagination from '@/components/product/v47-catalog-pagination.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -32,6 +33,10 @@ const scrollRail = useUmScrollRail(rail, { cardStep:true });
 const railHeight = ref<number>();
 const expanded = ref<Record<string, boolean>>({});
 const replies = ref<Record<string, boolean>>({});
+const discussion = ref<Api.RealReview.ReviewDTO>();
+const discussionMode = ref<'comments' | 'report'>('comments');
+function openDiscussion(review: Api.RealReview.ReviewDTO, mode: 'comments' | 'report') { discussionMode.value = mode; discussion.value = review; }
+watch(() => props.rows, () => { discussion.value = undefined; });
 const average = computed(() => {
   const score = Number(props.summary?.averageScore);
   return props.summary && props.summary.totalCount > 0 && Number.isFinite(score) ? Math.max(0, Math.min(5, score)).toFixed(1) : '—';
@@ -109,12 +114,14 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
           <div v-if="review.images?.length" class="review-photos"><button v-for="(image, index) in review.images" :key="`${image}-${index}`" type="button" :aria-label="'查看 ' + name(review) + ' 的第 ' + (index + 1) + ' 张配图'" @click="emit('photo', review.images!, index, name(review) + ' 的评价配图')"><img :src="image" alt="评价配图" loading="lazy" @error="setImageFallback" /></button></div>
           <div class="review-card-bottom"><button type="button" class="review-helpful" :class="{ liked:review.helpful }" :aria-pressed="review.helpful ?? undefined" :disabled="helpfulBusy?.[String(review.reviewId)]" @click="emit('helpful', review)"><UmIcon :name="review.helpful ? 'check' : 'thumb'" />{{ review.helpful ? '有帮助' : '对我有帮助' }}<span>{{ review.helpfulCount ?? '—' }}</span></button><button v-if="review.replyContent" type="button" class="review-reply-toggle" :aria-expanded="!!replies[String(review.reviewId)]" @click="replies[String(review.reviewId)] = !replies[String(review.reviewId)]">买手回复<UmIcon name="chevron" /></button></div>
           <div v-if="review.replyContent && replies[String(review.reviewId)]" class="review-reply"><b>买手回复</b><p>{{ review.replyContent }}</p></div>
+          <div class="discussion-entry"><button type="button" class="text-link" @click="openDiscussion(review, 'comments')">评论</button><button type="button" class="text-link" @click="openDiscussion(review, 'report')">举报</button></div>
         </article>
       </div>
       <div v-if="scrollRail.overflow.value" class="edge-scroll-layer"><button type="button" class="edge-scroll-button edge-scroll-prev" :disabled="!scrollRail.canPrev.value" aria-label="向左滑动评价" @click="scrollRail.step(-1)"><UmIcon name="chevron" /></button><button type="button" class="edge-scroll-button edge-scroll-next" :disabled="!scrollRail.canNext.value" aria-label="向右滑动评价" @click="scrollRail.step(1)"><UmIcon name="chevron" /></button></div>
     </div>
     <div v-else class="reviews-empty"><UmIcon :name="stars || hasImage || keyword ? 'search' : 'chat'" /><h3>{{ stars || hasImage || keyword ? '没有找到匹配的评价' : '期待第一份使用感受' }}</h3><p>{{ stars || hasImage || keyword ? '调整筛选，或查看所有购买感受。' : '完成订单后，即可从订单详情分享评价。' }}</p><button v-if="stars || hasImage || keyword" type="button" class="outline" @click="reset">查看全部评价</button></div>
     <V47CatalogPagination v-if="!error && !loading && total > pageSize" class="review-pagination" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="emit('page', $event)" />
+    <ReviewDiscussionDialog :review="discussion" :mode="discussionMode" @close="discussion = undefined" />
   </section>
 </template>
 
@@ -124,6 +131,8 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
 .review-loading { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
 .review-pagination { margin-top:28px; }
 .review-summary-error { flex-wrap:wrap; }
+.discussion-entry { display:flex; gap:16px; margin-top:8px; }
+.discussion-entry button { min-height:44px; }
 .review-summary-error > span { flex:1; }
 @media (max-width:700px) {
   .review-loading { grid-template-columns:1fr; }

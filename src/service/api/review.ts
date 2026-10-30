@@ -9,6 +9,31 @@ function normalizePage<T>(page: Api.RealReview.PageResult<T>) {
   return { ...page, records: requireArray<T>(page.records, '评价分页记录'), total };
 }
 
+/** 文本过滤返回明确业务拒绝；网络/5xx及无响应体仍按未知结果处理。 */
+export function isReviewWriteRejected(error: unknown) {
+  return error instanceof RequestError && !!error.response && /^-?\d+$/.test(String(error.response.code)) && String(error.response.code) !== '1'
+    && (error.status === undefined || error.status < 500);
+}
+
+export async function fetchReviewComments(reviewId: string | number, pageNo: number, signal?: AbortSignal) {
+  const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.Comment>>(
+    '/storefront/reviews/comments/page', { reviewId, pageNo, pageSize: 20 }, { signal, showError: false });
+  const result = normalizePage(page);
+  if (result.records.some(row => !row || typeof row.id !== 'string' || !row.id
+    || String(row.reviewId) !== String(reviewId) || row.hidden !== false || typeof row.content !== 'string'
+    || typeof row.authorName !== 'string' || typeof row.createdAt !== 'string'
+    || (row.parentId != null && typeof row.parentId !== 'string'))) throw new Error('公开评论数据异常，请重新读取');
+  return result;
+}
+
+export function createReviewComment(params: Api.RealReview.CommentCreateParams) {
+  return realOrderRequest.post<string>('/reviews/comments/create', params, { showError: false });
+}
+
+export function createReviewReport(params: Api.RealReview.ReportCreateParams) {
+  return realOrderRequest.post<string>('/reviews/reports/create', params, { showError: false });
+}
+
 export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}, options: { signal?: AbortSignal } = {}) {
   const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.ReviewableOrderVO>, Api.RealReview.PageQuery>('/reviews/reviewable/page', params, options);
   return normalizePage(page);

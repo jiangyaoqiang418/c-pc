@@ -433,6 +433,22 @@ expectParameters(aiPrompt, ['reason'], '后台 AI 提示词');
 expectProperties(responseDataSchema(admin, aiPrompt), ['configuredPrompt', 'defaultPrompt', 'effectivePrompt', 'source', 'version', 'history', 'enforcedCodeBoundaries'], '后台 AI 提示词详情');
 expectRequired(requestSchema(admin, operation(admin, '/ai/customer-service/prompts/update', 'put')), ['content', 'expectedVersion', 'reason'], '后台 AI 提示词更新');
 
+// 2026-10-30 搜索、评论举报与内容治理；Long 传输按对接约定保留字符串，不依赖 integer 注解转换。
+for (const path of ['/storefront/search/promotions', '/storefront/search/hot', '/storefront/search/suggest']) operation(order, path, 'get');
+expectParameters(operation(order, '/storefront/search/suggest', 'get'), ['keyword'], '搜索联想');
+expectRequired(requestSchema(order, operation(order, '/storefront/search/track', 'post')), ['keyword'], '搜索打点');
+expectRequired(requestSchema(order, operation(order, '/storefront/reviews/comments/page', 'post')), ['reviewId'], '评价评论分页');
+expectRequired(requestSchema(order, operation(order, '/reviews/comments/create', 'post')), ['reviewId', 'content'], '发表评论');
+expectRequired(requestSchema(order, operation(order, '/reviews/reports/create', 'post')), ['reviewId', 'reason'], '评价举报');
+expectParameters(operation(order, '/reviews/comments/delete', 'delete'), ['id'], '本人评论删除（归属展示字段待补）');
+for (const prefix of ['/search-keywords', '/sensitive-words']) {
+  operation(admin, `${prefix}/page`, 'post'); operation(admin, `${prefix}/create`, 'post');
+  operation(admin, `${prefix}/update`, 'put'); expectParameters(operation(admin, `${prefix}/delete`, 'delete'), ['id'], prefix);
+}
+operation(admin, '/review-discussions/reports/page', 'post');
+expectRequired(requestSchema(admin, operation(admin, '/review-discussions/reports/handle', 'put')), ['id', 'accepted', 'reason'], '处理举报');
+expectRequired(requestSchema(admin, operation(admin, '/review-discussions/remove', 'put')), ['reviewId', 'reason'], '违规内容移除');
+
 for (const [name, document] of Object.entries({ admin, user, order })) {
   if (!document) continue;
   const schemas = Object.keys(document.components?.schemas || {}).length;

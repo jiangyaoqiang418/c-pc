@@ -2,7 +2,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { defineStore } from 'pinia';
 import { useUserStore } from './user';
 import { isDefinitiveRejection, RequestError } from '@/service/request/type';
-import { submitReview } from '@/service/api/review';
+import { isReviewWriteRejected, submitReview } from '@/service/api/review';
 
 interface PendingReview {
   params: Api.RealReview.ReviewSubmitParams;
@@ -60,7 +60,7 @@ export const useReviewStore = defineStore('bw-review', () => {
     } catch (error) {
       if (version === generation) {
         if (error instanceof RequestError && error.code === 'REVIEW_CONTENT_MISMATCH'
-          || !receivedId && !previous && isDefinitiveRejection(error)) delete pending.value[key];
+          || !receivedId && !previous && (isDefinitiveRejection(error) || isReviewWriteRejected(error))) delete pending.value[key];
         else pending.value[key] = { params: snapshot, state: 'unknown' };
       }
       throw error;
