@@ -78,7 +78,7 @@ function blur() { commit(); focused.value = false; }
 </script>
 
 <template>
-  <Input v-bind="$attrs" :model-value="draft" inputmode="decimal" autocomplete="off" @update:model-value="input" @focus="focused = true" @blur="blur" @keydown.enter="(event: KeyboardEvent) => { if (!event.isComposing) commit(); }" />
+  <Input placeholder="请输入金额" v-bind="$attrs" :model-value="draft" inputmode="decimal" autocomplete="off" @update:model-value="input" @focus="focused = true" @blur="blur" @keydown.enter="(event: KeyboardEvent) => { if (!event.isComposing) commit(); }" />
   <p v-if="exactDecimal && amountError" class="error-text" role="alert">{{ amountError }}</p>
 </template>
 

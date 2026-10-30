@@ -18,7 +18,7 @@ function selectAddress(event: FocusEvent) { if (event.target instanceof HTMLInpu
             <header class="um-dialog-header"><DialogTitle as="h2" class="um-dialog-title">分享商品</DialogTitle><DialogClose class="icon-btn dialog-close" aria-label="关闭分享弹窗"><UmIcon name="close" /></DialogClose></header>
             <div class="um-dialog-body">
             <DialogDescription as="p">复制下方地址，分享这件商品。</DialogDescription>
-            <input class="full" :value="url" readonly aria-label="商品页面地址" @focus="selectAddress" />
+            <input placeholder="暂无分享链接" class="full" :value="url" readonly aria-label="商品页面地址" @focus="selectAddress" />
             <p class="demo-note">复制页面完整地址，即可分享当前商品。</p>
             </div>
           </DialogContent>

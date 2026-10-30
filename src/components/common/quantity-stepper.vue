@@ -45,7 +45,7 @@ function step(direction: number) {
   <div class="quantity-field">
     <div class="quantity-stepper" :class="{ disabled }">
       <button type="button" :disabled="disabled || modelValue <= min" :aria-label="`减少${label}`" @click="step(-1)"><Icon icon="lucide:minus" width="14" /></button>
-      <Input v-model="draft" class="quantity-input" inputmode="numeric" role="spinbutton" :aria-label="label" :aria-valuemin="min" :aria-valuemax="maximum" :aria-valuenow="modelValue" :aria-invalid="!!error" :disabled="disabled" @blur="commit" @keydown.enter.prevent="commit" @keydown.up.prevent="step(1)" @keydown.down.prevent="step(-1)" />
+      <Input placeholder="请输入数量" v-model="draft" class="quantity-input" inputmode="numeric" role="spinbutton" :aria-label="label" :aria-valuemin="min" :aria-valuemax="maximum" :aria-valuenow="modelValue" :aria-invalid="!!error" :disabled="disabled" @blur="commit" @keydown.enter.prevent="commit" @keydown.up.prevent="step(1)" @keydown.down.prevent="step(-1)" />
       <button type="button" :disabled="disabled || modelValue >= maximum" :aria-label="`增加${label}`" @click="step(1)"><Icon icon="lucide:plus" width="14" /></button>
     </div>
     <span v-if="error" class="quantity-error" role="alert">{{ error }}</span>
