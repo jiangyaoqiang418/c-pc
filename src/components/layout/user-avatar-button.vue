@@ -108,7 +108,15 @@ function logout() {
             <nav v-if="links.length" class="menu-links" aria-label="账户快捷入口"><button v-for="item in links" :key="item.to" type="button" @click="go(item.to)"><span><UmIcon :name="item.icon" /></span>{{ item.label }}</button></nav>
             <button v-if="userStore.isLoggedIn" type="button" class="menu-center-link" @click="go(role === 'buyer' ? '/buyer/dashboard' : '/profile')">{{ role === 'buyer' ? '进入买手中心' : '进入个人中心' }}<UmIcon name="arrow" /></button>
             </div>
-            <footer class="menu-account-footer um-dialog-footer"><span class="menu-support-links"><button type="button" @click="go('/im')"><UmIcon name="chat" />联系支持<small v-if="notify.imUnreadCount" class="unread">{{ notify.imUnreadCount > 99 ? '99+' : notify.imUnreadCount }}</small></button><button v-if="!userStore.isLoggedIn" type="button" @click="go('/help')"><UmIcon name="headset" />帮助中心</button></span><button v-if="userStore.isLoggedIn" type="button" aria-label="查看平台通知" @click="go('/notifications')"><UmIcon name="bell" />通知<small v-if="notify.notificationUnreadCount" class="unread">{{ notify.notificationUnreadCount > 99 ? '99+' : notify.notificationUnreadCount }}</small></button><button v-if="userStore.isLoggedIn" type="button" @click="logout"><UmIcon name="logout" />退出登录</button><span v-else>好物，无界。</span></footer>
+            <footer class="menu-account-footer um-dialog-footer" :class="{ 'is-signed-in': userStore.isLoggedIn }">
+              <span class="menu-support-links">
+                <button type="button" :aria-label="notify.imUnreadCount ? `联系支持，${notify.imUnreadCount} 条未读消息` : '联系支持'" @click="go('/im')"><span class="menu-footer-icon"><UmIcon name="chat" /><small v-if="notify.imUnreadCount" class="unread" aria-hidden="true">{{ notify.imUnreadCount > 99 ? '99+' : notify.imUnreadCount }}</small></span><span>联系支持</span></button>
+                <button v-if="!userStore.isLoggedIn" type="button" @click="go('/help')"><UmIcon name="headset" />帮助中心</button>
+              </span>
+              <button v-if="userStore.isLoggedIn" type="button" :aria-label="notify.notificationUnreadCount ? `查看平台通知，${notify.notificationUnreadCount} 条未读通知` : '查看平台通知'" @click="go('/notifications')"><span class="menu-footer-icon"><UmIcon name="bell" /><small v-if="notify.notificationUnreadCount" class="unread" aria-hidden="true">{{ notify.notificationUnreadCount > 99 ? '99+' : notify.notificationUnreadCount }}</small></span><span>通知</span></button>
+              <button v-if="userStore.isLoggedIn" type="button" @click="logout"><span class="menu-footer-icon"><UmIcon name="logout" /></span><span>退出登录</span></button>
+              <span v-else>好物，无界。</span>
+            </footer>
           </DialogContent>
         </DialogOverlay>
       </Transition>
@@ -127,7 +135,14 @@ function logout() {
 .menu-account-summary small { display:block; font-size:10px; }
 .menu-account-summary button { white-space:nowrap; }
 .menu-support-links { display:flex; align-items:center; gap:16px; }
-.unread { display:grid; place-items:center; min-width:15px; height:15px; padding:0 3px; border-radius:4px; background:var(--green); color:var(--on-primary,#fff); font-size:9px; }
+.account-menu-dialog .menu-account-footer { justify-content:space-between; }
+.menu-account-footer.is-signed-in { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.menu-account-footer.is-signed-in .menu-support-links { display:contents; }
+.menu-account-footer.is-signed-in button { flex-direction:column; justify-content:center; gap:6px; min-width:0; min-height:56px; padding:6px 4px; border-radius:8px; font-size:12px; line-height:1.4; white-space:nowrap; }
+.menu-account-footer.is-signed-in button:hover { color:var(--ink); background:var(--soft); }
+.menu-footer-icon { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:22px; }
+.menu-account-footer .menu-footer-icon svg { width:18px; height:18px; }
+.menu-account-footer .menu-footer-icon .unread { position:absolute; top:-5px; right:-10px; display:grid; place-items:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:var(--green); color:var(--on-primary,#fff); box-shadow:0 0 0 2px var(--paper); font-size:10px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
 @media (max-width:700px) {
   .header .header-actions > .mobile-account-trigger { display:flex; }
   :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog { top:92px; bottom:auto; left:auto; right:14px; transform:none; width:360px; max-width:calc(100vw - 28px); }
@@ -144,6 +159,5 @@ function logout() {
 <style scoped>
 :root .um-dialog.account-menu-dialog { max-height:calc(100dvh - 120px)!important; }
 .account-menu-dialog .um-dialog-title { font-size:18px; }
-.account-menu-dialog .menu-account-footer { justify-content:flex-end; }
 @media (max-height:600px) { :root .um-dialog.account-menu-dialog { max-height:calc(100dvh - 40px)!important; } }
 </style>
