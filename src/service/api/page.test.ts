@@ -1007,7 +1007,7 @@ describe('v47 新接入契约与恢复边界', () => {
     const get = vi.spyOn(realNotifyRequest, 'get').mockResolvedValue({ ...article, body:'<p>审核正文</p>' });
     expect((await fetchHelpDetail(productId)).id).toBe(productId);
     get.mockResolvedValueOnce({ ...article, body:null });
-    await expect(fetchHelpDetail(productId)).rejects.toThrow('资料不完整');
+    await expect(fetchHelpDetail(productId)).rejects.toThrow('内容加载异常');
     get.mockResolvedValueOnce({ ...article, contentType:'AGREEMENT', code:'privacy', body:'正文' });
     await expect(fetchAgreementCurrent('user')).rejects.toThrow('种类');
     get.mockRejectedValueOnce(new RequestError('offline', { code:'-324' }));

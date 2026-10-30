@@ -20,13 +20,13 @@ export type BucketKey =
   | 'depositGuaranteed';
 
 export const BUCKET_META: Record<BucketKey, BucketMeta> = {
-  available: { label: '可用余额', color: 'green', hint: '可出金可消费', icon: 'mdi:wallet-outline' },
-  nonWithdrawable: { label: '不可提现余额', color: 'blue', hint: '奖励/利息；可消费', icon: 'mdi:gift-outline' },
+  available: { label: '可用余额', color: 'green', hint: '可转出、可消费', icon: 'mdi:wallet-outline' },
+  nonWithdrawable: { label: '不可转出余额', color: 'blue', hint: '奖励/利息；可消费', icon: 'mdi:gift-outline' },
   lockedFinance: { label: '小金库锁仓', color: 'purple', hint: '小金库锁定本金', icon: 'mdi:lock-outline' },
   frozenOrder: { label: '订单冻结', color: 'orange', hint: '下单/待结算占用', icon: 'mdi:cart-outline' },
   frozenRisk: { label: '风控冻结', color: 'red', hint: '风控审查中', icon: 'mdi:shield-alert-outline' },
-  depositAvailable: { label: '可担保押金', color: 'cyan', hint: '尚未占用', icon: 'mdi:safe' },
-  depositGuaranteed: { label: '已担保押金', color: 'gray', hint: '被进行中交易占用', icon: 'mdi:safe-square-outline' }
+  depositAvailable: { label: '可用保证金', color: 'cyan', hint: '尚未占用', icon: 'mdi:safe' },
+  depositGuaranteed: { label: '已占用保证金', color: 'gray', hint: '被进行中交易占用', icon: 'mdi:safe-square-outline' }
 };
 
 export interface TxnTypeMeta {
@@ -45,11 +45,11 @@ export const TXN_TYPE_META: Record<Api.Wallet.TxnType, TxnTypeMeta> = {
   FINANCE_LOCK: { label: '小金库存入', color: 'purple', group: 'finance', icon: 'mdi:lock' },
   FINANCE_UNLOCK: { label: '小金库取出', color: 'magenta', group: 'finance', icon: 'mdi:lock-open-variant' },
   INTEREST_ACCRUE: { label: '利息发放', color: 'gold', group: 'finance', icon: 'mdi:cash-plus' },
-  DEPOSIT_PLEDGE: { label: '押金担保', color: 'cyan', group: 'deposit', icon: 'mdi:safe' },
+  DEPOSIT_PLEDGE: { label: '保证金担保', color: 'cyan', group: 'deposit', icon: 'mdi:safe' },
   DEPOSIT_FREEZE: { label: '订单占用', color: 'orange', group: 'deposit', icon: 'mdi:lock' },
   DEPOSIT_UNFREEZE: { label: '订单释放', color: 'green', group: 'deposit', icon: 'mdi:lock-open' },
-  DEPOSIT_RELEASE: { label: '押金释放', color: 'green', group: 'deposit', icon: 'mdi:lock-open' },
-  DEPOSIT_FORFEIT: { label: '押金扣罚', color: 'red', group: 'deposit', icon: 'mdi:cash-remove' },
+  DEPOSIT_RELEASE: { label: '保证金释放', color: 'green', group: 'deposit', icon: 'mdi:lock-open' },
+  DEPOSIT_FORFEIT: { label: '保证金扣罚', color: 'red', group: 'deposit', icon: 'mdi:cash-remove' },
   ORDER_FREEZE: { label: '订单冻结', color: 'orange', group: 'order', icon: 'mdi:cart-arrow-down' },
   ORDER_SETTLE: { label: '订单结算', color: 'green', group: 'order', icon: 'mdi:cart-check' },
   RISK_FREEZE: { label: '风控冻结', color: 'red', group: 'risk', icon: 'mdi:shield-lock-outline' },

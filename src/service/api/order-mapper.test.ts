@@ -360,7 +360,7 @@ describe('v47 交易契约边界', () => {
     expect(validateRechargeDeclaration({ ...record, amount: '9007199254740993.123456780' }, expected)).toBeDefined();
     for (const delta of [{ chain: 'ETH' }, { amount: '9007199254740993.12345679' }, { source: 'ADDRESS' },
       { source: undefined }, { asset: 'USDC' }, { id: '9007199254740994' }, { amount: undefined }]) {
-      expect(() => validateRechargeDeclaration({ ...record, ...delta } as Api.RealWallet.RechargeVO, expected)).toThrow('原网络、金额或来源');
+      expect(() => validateRechargeDeclaration({ ...record, ...delta } as Api.RealWallet.RechargeVO, expected)).toThrow('充值信息未能核对一致');
     }
     expect(() => validateRechargeDeclaration(record, { ...expected, chain: undefined })).toThrow();
     expect(() => validateRechargeDeclaration({ ...record, amount: '0' }, { ...expected, amount: '0' })).toThrow();
@@ -407,7 +407,7 @@ describe('v47 交易契约边界', () => {
     expect(post.mock.calls[1][1]).toMatchObject({ asset: 'USDC', amount: '0.123456', idempotencyKey: 'wd-original' });
     expect(prepareWithdrawal({ ...params, amount: '0.12345601' }, '1', config).error).toContain('6 位');
     expect(prepareWithdrawal({ ...params, amount: '0.09' }, '1', config).error).toContain('0.1 USDC');
-    expect(prepareWithdrawal(params, '1', { ...config, enabled: false }).error).toContain('暂不可提现');
+    expect(prepareWithdrawal(params, '1', { ...config, enabled: false }).error).toContain('暂不可转出');
     expect(exactAssetAmount('1.000000001', 6).error).toContain('8 位');
     expect(exactAssetAmount('1e-6', 6).error).not.toBe('');
   });
@@ -646,7 +646,7 @@ describe('toOrderRecord', () => {
     const record = toOrderRecord({ orderId: '1', status: 'PAID', productId: null, createdAt: '1786454129000', totalAmount: '1' });
 
     expect(record.productId).toBe('');
-    expect(record.shippingAddress).toBe('后端暂未返回收货地址');
+    expect(record.shippingAddress).toBe('暂无法获取收货地址');
     expect(record.trackingNumber).toBeUndefined();
     expect(record.purchaseScreenshotUrl).toBeUndefined();
     expect(record.shippingScreenshotUrl).toBeUndefined();

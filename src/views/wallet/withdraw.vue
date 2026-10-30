@@ -27,6 +27,10 @@ const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
 const walletStore = useWalletStore();
+const withdrawalStatusLabels: Record<string, string> = { REVIEWING: '审核中', APPROVED: '已通过', SUCCESS: '已完成', REJECTED: '已驳回' };
+function withdrawalStatus(status?: string, statusText?: string) {
+  return statusText || (status && Object.hasOwn(withdrawalStatusLabels, status) ? withdrawalStatusLabels[status] : '状态暂不可用');
+}
 const asset = computed<Api.RealWallet.Asset>(() => route.query.asset === 'USDC' ? 'USDC' : 'USDT');
 async function selectAsset(next: Api.RealWallet.Asset) {
   if (submitting.value || next === asset.value) return;
@@ -109,7 +113,7 @@ const available = computed(() => overview.value?.account.available);
 const walletReady = computed(() => !walletLoading.value && !loadError.value && !!overview.value
   && String(overview.value.account.userId) === String(userStore.currentUser?.id));
 const availableForSubmit = computed(() => walletReady.value ? available.value : undefined);
-const errMsg = computed(() => chainLoading.value ? '正在读取可用网络' : chainError.value || (!selectedChain.value ? '暂无可用提现网络' : amountValidation.value.error || realWalletApi.prepareWithdrawal(form, availableForSubmit.value, selectedChain.value).error));
+const errMsg = computed(() => chainLoading.value ? '正在读取可用网络' : chainError.value || (!selectedChain.value ? '暂无可用转出网络' : amountValidation.value.error || realWalletApi.prepareWithdrawal(form, availableForSubmit.value, selectedChain.value).error));
 const canSubmit = computed(() => !submitting.value && !errMsg.value && !submissionIssue.value);
 const kycTipNeeded = computed(() => userStore.currentUser && userStore.currentUser.kycStatus !== 'approved');
 const feePreview = ref<Api.RealWallet.WithdrawFeePreviewVO>();
@@ -273,7 +277,7 @@ async function loadAll() {
     }
   } else {
     chainOptions.value = [];
-    chainError.value = '可提现网络读取失败，请重试';
+    chainError.value = '可转出网络读取失败，请重试';
   }
 }
 
@@ -316,7 +320,7 @@ async function confirm() {
     const latestChains = await realWalletApi.fetchWithdrawChains(prepared.params.asset ?? 'USDT', { showError: false });
     if (!isCurrentWrite()) return;
     const latest = latestChains.find(item => item.chain === prepared.params.chain);
-    if (!latest) throw new Error('所选网络已变化，请重新读取后确认');
+    if (!latest) throw new Error('所选网络已变化，请重新加载后确认');
     const validation = realWalletApi.prepareWithdrawal(prepared.params, availableForSubmit.value, latest);
     if (validation.error) throw new Error(validation.error);
     const id = await submitKeyedFinancialOperation(requestedUserId, 'withdraw', prepared.params, createWithdrawalIntentApi(payPassword, isCurrentWrite));
@@ -487,7 +491,7 @@ const statusFilter = computed({
   <WalletOperationDialog :visible="true" :title="`转出 ${asset}`" description="选择网络，核对收款地址与金额。" :busy="submitting" @dismiss="closeOperation">
     <WalletAssetTabs :model-value="asset" :disabled="submitting" @update:model-value="selectAsset" />
     <div v-if="submissionIssue" class="deposit-hint" role="alert"><UmIcon name="shield" /><span>{{ submissionIssue }}。请先核实原申请结果。<small v-if="pendingSnapshot">待核对：{{ pendingSnapshot.chain }} · {{ String(pendingSnapshot.amount) }} {{ pendingSnapshot.asset ?? 'USDT' }} · {{ pendingSnapshot.toAddress }}</small><button class="outline wallet-note-action" :disabled="submitting" @click="restoreWithdrawal">{{ submitting ? '正在核对…' : '恢复原申请' }}</button></span></div>
-    <div v-if="loadError || chainError || (walletReady && available === undefined)" class="deposit-hint" role="alert"><UmIcon name="return" /><span>{{ loadError || chainError || '可用余额尚未取得，暂不可转出。' }}<button class="outline wallet-note-action" :disabled="walletLoading || chainLoading || submitting" @click="loadAll">重新读取</button></span></div>
+    <div v-if="loadError || chainError || (walletReady && available === undefined)" class="deposit-hint" role="alert"><UmIcon name="return" /><span>{{ loadError || chainError || '可用余额尚未取得，暂不可转出。' }}<button class="outline wallet-note-action" :disabled="walletLoading || chainLoading || submitting" @click="loadAll">重新加载</button></span></div>
     <div class="deposit-subline"><span>转出至 {{ asset }} 钱包</span><button @click="operationView = operationView === 'form' ? 'records' : 'form'">{{ operationView === 'form' ? '申请记录' : '返回申请' }}<UmIcon name="chevron" /></button></div>
     <template v-if="operationView === 'form'">
       <div class="withdraw-balance"><span><span class="coin-icon usdt">{{ asset === 'USDT' ? '₮' : '$' }}</span>可用余额</span><Skeleton v-if="walletLoading" class="h-8 w-32" /><strong v-else>{{ walletReady && available !== undefined ? String(available) : '暂不可用' }} <small>{{ asset }}</small></strong></div>
@@ -500,21 +504,21 @@ const statusFilter = computed({
         <p v-if="errMsg" class="deposit-error" role="status">{{ errMsg }}</p>
         <DialogActions><button type="button" class="outline wallet-dismiss" :disabled="submitting" @click="closeOperation">返回钱包</button><button type="submit" form="wallet-withdraw-form" class="gold" :disabled="!canSubmit">{{ submitting ? '正在提交…' : '核对转出信息' }}</button></DialogActions>
       </form>
-      <div v-if="kycTipNeeded" class="deposit-hint"><UmIcon name="shield" /><span>您尚未完成实名认证，实际审核结果以平台规则为准。<button class="text-link wallet-note-action" @click="router.push({ name: 'kyc', query: { redirect: route.fullPath } })">前往实名认证</button></span></div>
-      <p class="wallet-operation-note">确认申请后需输入支付密码。申请提交后进入平台审核，到账状态以平台和链上确认结果为准；手续费、限额及可用网络以平台接口为准。</p>
-      <section v-if="createdWithdrawal" class="deposit-record"><div><strong>{{ formatMoney(createdWithdrawal.amount, createdWithdrawal.asset) }}</strong><span>{{ createdWithdrawal.statusText || createdWithdrawal.status || '待确认' }}</span></div><p>最新转出申请 · {{ createdWithdrawal.chain }}</p><small>{{ createdWithdrawal.id }}<br />{{ formatTime(createdWithdrawal.createdAt) }}</small><button @click="showDetail(createdWithdrawal)">查看申请详情</button></section>
+      <div v-if="kycTipNeeded" class="deposit-hint"><UmIcon name="shield" /><span>您尚未完成实名认证，请查看认证要求并完成认证。<button class="text-link wallet-note-action" @click="router.push({ name: 'kyc', query: { redirect: route.fullPath } })">前往实名认证</button></span></div>
+      <p class="wallet-operation-note">确认申请后需输入支付密码。申请提交后进入平台审核，到账状态以平台和链上确认结果为准；请核对页面显示的手续费、限额和可用网络。</p>
+      <section v-if="createdWithdrawal" class="deposit-record"><div><strong>{{ formatMoney(createdWithdrawal.amount, createdWithdrawal.asset) }}</strong><span>{{ withdrawalStatus(createdWithdrawal.status, createdWithdrawal.statusText) }}</span></div><p>最新转出申请 · {{ createdWithdrawal.chain }}</p><small>{{ createdWithdrawal.id }}<br />{{ formatTime(createdWithdrawal.createdAt) }}</small><button @click="showDetail(createdWithdrawal)">查看申请详情</button></section>
     </template>
     <section v-else class="deposit-panel" :aria-busy="loadingRecords">
       <div class="deposit-record-heading"><button @click="operationView = 'form'"><UmIcon name="arrow" />返回申请</button><h3>转出申请</h3></div>
       <Select v-model="statusFilter"><SelectTrigger class="app-select-trigger wallet-record-filter h-11" aria-label="筛选转出申请状态"><SelectValue placeholder="请选择转出申请状态" /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="REVIEWING">审核中</SelectItem><SelectItem value="APPROVED">已通过</SelectItem><SelectItem value="SUCCESS">已完成</SelectItem><SelectItem value="REJECTED">已驳回</SelectItem></SelectContent></Select>
       <div v-if="loadingRecords && !recentWithdrawals.length" class="wallet-skeletons"><Skeleton v-for="n in 3" :key="n" class="h-16" /></div>
-      <div v-else-if="recentWithdrawals.length" :class="{ 'wallet-refreshing': loadingRecords }"><article v-for="record in recentWithdrawals" :key="record.id" class="deposit-record"><div><strong>{{ formatMoney(record.amount, record.asset) }}</strong><span>{{ record.statusText || record.status || '待确认' }}</span></div><p>{{ record.chain }} · 扣费后 {{ formatMoney(record.actualAmount, record.asset) }}</p><small>{{ formatTime(record.createdAt) }}<br />{{ record.id }}</small><button @click="showDetail(record)">查看详情</button></article></div>
-      <EmptyState v-else :title="recordError || '暂无转出申请'" :action-text="recordError ? '重新读取' : undefined" @action="recordError && loadRecords()" />
+      <div v-else-if="recentWithdrawals.length" :class="{ 'wallet-refreshing': loadingRecords }"><article v-for="record in recentWithdrawals" :key="record.id" class="deposit-record"><div><strong>{{ formatMoney(record.amount, record.asset) }}</strong><span>{{ withdrawalStatus(record.status, record.statusText) }}</span></div><p>{{ record.chain }} · 扣费后 {{ formatMoney(record.actualAmount, record.asset) }}</p><small>{{ formatTime(record.createdAt) }}<br />{{ record.id }}</small><button @click="showDetail(record)">查看详情</button></article></div>
+      <EmptyState v-else :title="recordError || '暂无转出申请'" :action-text="recordError ? '重新加载' : undefined" @action="recordError && loadRecords()" />
       <BusinessPagination v-if="recordTotal > recordSize" :total="recordTotal" :current="recordCurrent" :page-size="recordSize" :loading="loadingRecords" @change="(page: number) => { recordCurrent = page; syncRecordsQuery(); }" />
     </section>
   </WalletOperationDialog>
   <V47VaultDialog v-model:visible="modalOpen" title="确认提交转出申请" description="请确认收款地址与所选链一致，提交后将进入平台审核。" icon="shield" :busy="submitting"><DescriptionList :items="[{ label: '网络 / 币种', value: `${confirmedParams?.chain || '—'} / ${confirmedParams?.asset || asset}` }, { label: '转出金额', value: `${confirmedParams?.amount ?? '—'} ${confirmedParams?.asset || asset}` }, { label: '收款地址', value: confirmedParams?.toAddress || '—' }]" /><DialogActions><button class="primary" :disabled="submitting" @click="confirm">{{ submitting ? '正在提交…' : '确认提交' }}</button></DialogActions></V47VaultDialog>
-  <V47VaultDialog v-model:visible="detailOpen" title="转出申请详情" description="平台审核及链上打款记录" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 6" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ label: '申请编号', value: String(detail.id) }, { label: '资产', value: detail.asset ?? 'USDT' }, { label: '网络', value: detail.chain }, { label: '收款地址', value: detail.toAddress }, { label: '转出金额', value: formatMoney(detail.amount, detail.asset) }, { label: '手续费', value: formatMoney(detail.fee, detail.asset) }, { label: '扣费后金额', value: formatMoney(detail.actualAmount, detail.asset) }, { label: '状态', value: detail.statusText || detail.status || '待确认' }, { label: '审核意见', value: detail.reviewComment || '—' }, { label: '失败原因', value: detail.failReason || '—' }, { label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '打款时间', value: formatTime(detail.paidAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新读取" @action="detailTargetId !== undefined && openDetail(detailTargetId, detailExpectedSnapshot)" /></V47VaultDialog>
+  <V47VaultDialog v-model:visible="detailOpen" title="转出申请详情" description="平台审核及链上打款记录" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 6" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ label: '申请编号', value: String(detail.id) }, { label: '资产', value: detail.asset ?? 'USDT' }, { label: '网络', value: detail.chain }, { label: '收款地址', value: detail.toAddress }, { label: '转出金额', value: formatMoney(detail.amount, detail.asset) }, { label: '手续费', value: formatMoney(detail.fee, detail.asset) }, { label: '扣费后金额', value: formatMoney(detail.actualAmount, detail.asset) }, { label: '状态', value: withdrawalStatus(detail.status, detail.statusText) }, { label: '审核意见', value: detail.reviewComment || '—' }, { label: '失败原因', value: detail.failReason || '—' }, { label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '打款时间', value: formatTime(detail.paidAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTargetId !== undefined && openDetail(detailTargetId, detailExpectedSnapshot)" /></V47VaultDialog>
   </div>
 </template>
 

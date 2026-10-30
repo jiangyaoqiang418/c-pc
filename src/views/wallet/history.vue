@@ -49,7 +49,7 @@ const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
   { label: '链上', types: ['DEPOSIT_IN', 'WITHDRAW_OUT'] },
   { label: '内部', types: ['INTERNAL_PAY', 'INTERNAL_RECEIVE', 'INTERNAL_REFUND'] },
   { label: '小金库', types: ['FINANCE_LOCK', 'FINANCE_UNLOCK', 'INTEREST_ACCRUE'] },
-  { label: '押金', types: ['DEPOSIT_PLEDGE', 'DEPOSIT_FREEZE', 'DEPOSIT_UNFREEZE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT'] },
+  { label: '保证金', types: ['DEPOSIT_PLEDGE', 'DEPOSIT_FREEZE', 'DEPOSIT_UNFREEZE', 'DEPOSIT_RELEASE', 'DEPOSIT_FORFEIT'] },
   { label: '订单', types: ['ORDER_FREEZE', 'ORDER_SETTLE'] },
   { label: '风控', types: ['RISK_FREEZE', 'RISK_UNFREEZE'] },
   { label: '调整', types: ['ADJUST_PLUS', 'ADJUST_MINUS', 'FEE_DEDUCT'] }
@@ -58,12 +58,12 @@ const TYPE_GROUPS: { label: string; types: Api.Wallet.TxnType[] }[] = [
 const BUCKET_OPTIONS: { value?: Api.Wallet.Bucket; label: string }[] = [
   { value: undefined, label: '全部桶' },
   { value: 'available', label: '可用余额' },
-  { value: 'nonWithdrawable', label: '不可提现' },
+  { value: 'nonWithdrawable', label: '不可转出' },
   { value: 'lockedFinance', label: '小金库锁仓' },
   { value: 'frozenOrder', label: '订单冻结' },
   { value: 'frozenRisk', label: '风控冻结' },
-  { value: 'depositAvailable', label: '可担保押金' },
-  { value: 'depositGuaranteed', label: '已担保押金' }
+  { value: 'depositAvailable', label: '可担保保证金' },
+  { value: 'depositGuaranteed', label: '已担保保证金' }
 ];
 
 const filter = reactive<{
@@ -287,7 +287,7 @@ const toDate = computed({
       <div v-if="filter.types.length" class="ledger-type-chips"><button v-for="t in filter.types" :key="t" type="button" :aria-label="`取消筛选：${enums.TXN_TYPE_META[t]?.label || t}`" @click="setType(t, false)">{{ enums.TXN_TYPE_META[t]?.label || t }}<UmIcon name="close" /></button></div>
       <footer class="button-row ledger-filter-actions"><button type="submit" class="primary" :disabled="loading">查询</button><button type="button" class="outline" :disabled="loading" @click="reset">重置</button><button type="button" class="outline ledger-export" :disabled="loading || !!loadError || !list.length" @click="exportCsv">导出当前页（{{ list.length }} 条）</button></footer>
     </form>
-    <section class="paper" :aria-busy="loading" aria-label="资金流水列表"><div v-if="loading && !list.length" class="ledger-skeletons"><Skeleton v-for="n in 5" :key="n" class="h-20" /></div><div v-else-if="list.length" :class="{ 'ledger-refreshing': loading }"><button v-for="t in list" :key="t.id" class="transaction wallet-transaction" :aria-label="'查看流水 ' + t.id" @click="openDetail(t)"><UmIcon :name="t.type === 'DEPOSIT_IN' || t.type === 'WITHDRAW_OUT' ? 'wallet' : t.type.startsWith('FINANCE') || t.type === 'INTEREST_ACCRUE' ? 'clock' : 'bag'" /><span class="transaction-copy"><b>{{ t.testData ? '测试模拟到账' : t.bizTypeText || enums.TXN_TYPE_META[t.type]?.label || t.type }} · {{ t.refId || t.id }}</b><small>{{ formatDateValue(t.createdAt) }}</small><small v-if="t.remark" class="ledger-caption">{{ t.remark }}</small><small v-if="t.bucketFrom || t.bucketTo" class="ledger-caption">{{ t.bucketFrom ? enums.BUCKET_META[t.bucketFrom]?.label || t.bucketFrom : '' }}{{ t.bucketFrom && t.bucketTo ? ' → ' : '' }}{{ t.bucketTo ? enums.BUCKET_META[t.bucketTo]?.label || t.bucketTo : '' }}</small></span><b>{{ t.direction === 'in' ? '+' : '−' }} {{ formatAmount(t.amount) }} {{ t.currency || 'USDT' }}</b></button></div><EmptyState v-else :title="loadError || '暂无资金流水'" :description="loadError ? '请检查网络后重新读取。' : '充值、转出、订单支付或退款后会生成资金流水。'" :action-text="loadError ? '重新读取' : '返回钱包'" @action="handleEmptyAction" /></section>
+    <section class="paper" :aria-busy="loading" aria-label="资金流水列表"><div v-if="loading && !list.length" class="ledger-skeletons"><Skeleton v-for="n in 5" :key="n" class="h-20" /></div><div v-else-if="list.length" :class="{ 'ledger-refreshing': loading }"><button v-for="t in list" :key="t.id" class="transaction wallet-transaction" :aria-label="'查看流水 ' + t.id" @click="openDetail(t)"><UmIcon :name="t.type === 'DEPOSIT_IN' || t.type === 'WITHDRAW_OUT' ? 'wallet' : t.type.startsWith('FINANCE') || t.type === 'INTEREST_ACCRUE' ? 'clock' : 'bag'" /><span class="transaction-copy"><b>{{ t.bizTypeText || enums.TXN_TYPE_META[t.type]?.label || '资金变动' }} · {{ t.refId || t.id }}</b><small>{{ formatDateValue(t.createdAt) }}</small><small v-if="t.remark" class="ledger-caption">{{ t.remark }}</small><small v-if="t.bucketFrom || t.bucketTo" class="ledger-caption">{{ t.bucketFrom ? enums.BUCKET_META[t.bucketFrom]?.label || t.bucketFrom : '' }}{{ t.bucketFrom && t.bucketTo ? ' → ' : '' }}{{ t.bucketTo ? enums.BUCKET_META[t.bucketTo]?.label || t.bucketTo : '' }}</small></span><b>{{ t.direction === 'in' ? '+' : '−' }} {{ formatAmount(t.amount) }} {{ t.currency || 'USDT' }}</b></button></div><EmptyState v-else :title="loadError || '暂无资金流水'" :description="loadError ? '请检查网络后重新加载。' : '充值、转出、订单支付或退款后会生成资金流水。'" :action-text="loadError ? '重新加载' : '返回钱包'" @action="handleEmptyAction" /></section>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
   </div>

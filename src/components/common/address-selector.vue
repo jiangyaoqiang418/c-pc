@@ -157,7 +157,7 @@ async function submit(params: Api.RealAddress.AddressSaveParams) {
       <legend class="sr-only">选择收货地址</legend>
       <label v-for="a in list" :key="a.id" class="address-option" :class="{ active:isSelected(a) }"><input type="radio" :name="groupId" :checked="isSelected(a)" :aria-label="`${a.receiverName}，${a.receiverPhone}，${a.detail}`" @change="onSelect(a)" /><div><b>{{ a.receiverName }}</b> <span>{{ a.receiverPhone }}</span><small>{{ a.country }} {{ a.province }} {{ a.city }} {{ a.district }} {{ a.detail }}<template v-if="a.postalCode"> · {{ a.postalCode }}</template></small></div><span v-if="a.isDefault" class="pill">默认</span></label>
     </fieldset>
-    <div v-else-if="!loadError" class="address-empty"><UmIcon name="pin" /><p>添加一个地址，让好物找到你。</p><button type="button" class="outline" :disabled="submitting || loading" @click="openAdd">添加收货地址</button></div>
+    <div v-else-if="!loadError" class="address-empty"><UmIcon name="pin" /><p>请添加收货地址</p><button type="button" class="outline" :disabled="submitting || loading" @click="openAdd">添加收货地址</button></div>
     <a-modal v-model:visible="modalOpen" title="添加收货地址" :width="540" :footer="false" :mask-closable="!submitting" :esc-to-close="!submitting" :closable="!submitting"><AddressForm :key="String(userId) + ':' + userStore.sessionVersion + ':' + modalOpen" v47 :submitting="submitting" @submit="submit" /></a-modal>
   </div>
 </template>

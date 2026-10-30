@@ -16,7 +16,7 @@ export function resolvePageSize(page: { size?: number; pageSize?: number }, requ
  * 缺少数组时抛错，由页面现有错误态承接，避免把契约异常误显示成空态。
  */
 export function requireArray<T>(value: unknown, label = '接口返回数据') {
-  if (!Array.isArray(value)) throw new Error(`${label}格式异常`);
+  if (!Array.isArray(value)) throw Object.assign(new Error('数据加载异常，请重试'), { field: label });
   return value as T[];
 }
 

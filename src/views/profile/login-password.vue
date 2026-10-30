@@ -58,12 +58,12 @@ async function loadState(afterSave = false) {
       else Message.info('当前账号已设置登录密码');
       await router.replace(redirect.value);
     } else if (userStore.currentUser?.loginPasswordSet !== false) {
-      loadError.value = '未取得登录密码状态，请重新读取。';
+      loadError.value = '未取得登录密码状态，请重新加载。';
     }
   } catch {
     if (operation === operationVersion) {
       loadError.value = afterSave
-        ? '密码已保存，但最新账号状态读取失败，请重新读取。'
+        ? '密码已保存，但最新账号状态读取失败，请重新加载。'
         : '账号状态读取失败，请稍后重试。';
     }
   } finally {
@@ -127,7 +127,7 @@ async function submit() {
 <template>
   <div class="security-page"><section class="paper narrow" :aria-busy="loading">
     <h1>设置登录密码</h1><p>设置后可使用邮箱和该密码登录，当前第三方登录方式仍可继续使用。</p>
-    <div v-if="loadError" class="status-banner security-notice" :role="saved ? 'status' : 'alert'"><UmIcon name="shield" /><span>{{ loadError }}</span><button type="button" class="outline" :disabled="loading || submitting" @click="loadState(saved)">重新读取</button></div>
+    <div v-if="loadError" class="status-banner security-notice" :role="saved ? 'status' : 'alert'"><UmIcon name="shield" /><span>{{ loadError }}</span><button type="button" class="outline" :disabled="loading || submitting" @click="loadState(saved)">重新加载</button></div>
     <div v-if="loading" class="security-skeletons"><Skeleton class="h-10" /><Skeleton class="h-16" /><Skeleton class="h-16" /></div>
     <template v-else-if="!loadError && userStore.needsLoginPassword">
       <form novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">

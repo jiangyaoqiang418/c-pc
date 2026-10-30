@@ -9,9 +9,9 @@ import authCat from '@/assets/images/brand/umaomao-cat-logo.svg';
       <section class="auth-art" aria-label="欢迎来到 Umaomao">
         <img :src="authCat" alt="Umaomao 好物生活" style="object-fit:contain" />
         <div>
-          <span class="eyebrow">WELCOME TO UMAOMAO</span>
+
           <h1>把世界的好物，<br />带进你的生活。</h1>
-          <p>每一次相遇，都值得期待。</p>
+
         </div>
       </section>
       <RouterView />

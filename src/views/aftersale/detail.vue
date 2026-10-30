@@ -122,7 +122,7 @@ function cancel() {
         submitted = true;
         const canceledId = await refundApi.cancelRefund(refundId);
         if (!isCurrentWrite()) return;
-        if (String(canceledId) !== String(refundId)) throw new Error('撤销回执尚未核对');
+        if (String(canceledId) !== String(refundId)) throw new Error('撤销结果待核实，请先刷新售后状态');
         Message.success('已撤销退款申请');
         await load();
       } catch (error) {

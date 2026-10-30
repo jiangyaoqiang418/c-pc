@@ -88,12 +88,11 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
 
 <template>
   <section class="reviews-section" aria-label="用户评价" :aria-busy="loading">
-    <div class="reviews-heading"><div><span class="eyebrow">VOICES OF EVERYDAY</span><h2>好不好用，听听他们说。</h2></div></div>
+    <div class="reviews-heading"><div><h2>商品评价</h2></div></div>
     <div v-if="summaryError" class="status-banner review-summary-error" role="alert"><span>{{ summaryError }}</span><button type="button" class="outline" :disabled="summaryLoading" @click="emit('retry-summary')">重新加载统计</button></div>
     <div class="reviews-overview" :aria-busy="summaryLoading">
       <div class="reviews-score"><strong>{{ average }}</strong><div><span class="review-stars aggregate-stars" :style="{ '--rating-fill':ratingFill + '%' }" aria-hidden="true">★★★★★</span><p>{{ summary?.totalCount ?? '—' }} 条评价 · 满分 5 分</p></div></div>
       <div class="review-distribution" aria-label="按星级筛选"><button v-for="item in distribution" :key="item.stars" type="button" :aria-label="item.stars + ' 星，' + (item.count ?? '未知') + ' 条评价'" :aria-pressed="stars === item.stars" :class="{ selected:stars === item.stars }" @click="toggleStars(item.stars)"><span>{{ item.stars }} <em>★</em></span><i><b :style="{ width:(summary?.totalCount ? Math.min(100, (item.count || 0) / summary.totalCount * 100) : 0) + '%' }"></b></i><small>{{ item.count ?? '—' }}</small></button></div>
-      <div class="review-summary-note"><UmIcon name="chat" /><h3>每一种体验，都值得被看见</h3><p>从商品质感到配送细节，<br />找到对你有用的购买参考。</p></div>
     </div>
     <div class="reviews-toolbar">
       <form class="review-search" role="search" @submit.prevent="search"><UmIcon name="search" /><input v-model="keywordDraft" aria-label="搜索评价正文、公开作者或购买规格" placeholder="搜索评价中的关键词" title="搜索评价正文、公开作者名称和历史购买规格；输入后按 Enter 查询" maxlength="100" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }" /><button v-if="keywordDraft" type="button" aria-label="清除评价搜索" @click="keywordDraft = ''; filter({ keyword:'' })"><UmIcon name="close" /></button></form>
@@ -119,13 +118,14 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); window.removeEventListener
       </div>
       <div v-if="scrollRail.overflow.value" class="edge-scroll-layer"><button type="button" class="edge-scroll-button edge-scroll-prev" :disabled="!scrollRail.canPrev.value" aria-label="向左滑动评价" @click="scrollRail.step(-1)"><UmIcon name="chevron" /></button><button type="button" class="edge-scroll-button edge-scroll-next" :disabled="!scrollRail.canNext.value" aria-label="向右滑动评价" @click="scrollRail.step(1)"><UmIcon name="chevron" /></button></div>
     </div>
-    <div v-else class="reviews-empty"><UmIcon :name="stars || hasImage || keyword ? 'search' : 'chat'" /><h3>{{ stars || hasImage || keyword ? '没有找到匹配的评价' : '期待第一份使用感受' }}</h3><p>{{ stars || hasImage || keyword ? '调整筛选，或查看所有购买感受。' : '完成订单后，即可从订单详情分享评价。' }}</p><button v-if="stars || hasImage || keyword" type="button" class="outline" @click="reset">查看全部评价</button></div>
+    <div v-else class="reviews-empty"><UmIcon :name="stars || hasImage || keyword ? 'search' : 'chat'" /><h3>{{ stars || hasImage || keyword ? '暂无符合条件的评价' : '暂无评价' }}</h3><p>{{ stars || hasImage || keyword ? '调整筛选，或查看所有购买感受。' : '完成订单后，即可从订单详情分享评价。' }}</p><button v-if="stars || hasImage || keyword" type="button" class="outline" @click="reset">查看全部评价</button></div>
     <V47CatalogPagination v-if="!error && !loading && total > pageSize" class="review-pagination" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="emit('page', $event)" />
     <ReviewDiscussionDialog :review="discussion" :mode="discussionMode" @close="discussion = undefined" />
   </section>
 </template>
 
 <style scoped>
+.reviews-overview { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
 .reviews-rail-host { position:relative; }
 .reviews-rail-host > .edge-scroll-layer { inset:0; }
 .review-loading { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }

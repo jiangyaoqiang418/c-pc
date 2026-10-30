@@ -246,7 +246,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
 
 <template>
   <div class="buyer-aftersales-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>卖出商品售后</h1><p>确认售后意见，跟进平台审核与退款进度。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/orders')"><UmIcon name="return" />返回买手订单</Button></header>
+    <header class="buyer-page-top"><div><h1>卖出商品售后</h1><p>确认售后意见，跟进平台审核与退款进度。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/orders')"><UmIcon name="return" />返回买手订单</Button></header>
     <div class="buyer-info"><UmIcon name="shield" /><span>买手提交同意或不同意的意见后，均由平台继续审核。最终退款决定与资金处理由平台完成。</span></div>
     <div class="buyer-tabs" role="group" aria-label="售后状态"><button v-for="item in statusDefs" :key="item.key" type="button" :class="{ active:activeKey === item.key }" :aria-pressed="activeKey === item.key" @click="activeKey = item.key">{{ item.label }}</button></div>
     <form class="buyer-filter" @submit.prevent="current = 1; syncQuery()"><label><UmIcon name="search" /><input v-model="orderNo" aria-label="按订单号精确查询售后" placeholder="按订单号精确查询" /></label><button type="submit" :disabled="loading">查询</button><button type="button" @click="reset">重置</button></form>

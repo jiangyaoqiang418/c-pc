@@ -91,7 +91,7 @@ export const useCartStore = defineStore('bw-cart', () => {
       cacheError.value = '';
       return parsed.map(item => ({ ...item, selected: item.selected !== false }));
     } catch {
-      cacheError.value = '购物车记录无法读取，原记录未清空，请重新读取后再操作';
+      cacheError.value = '购物袋记录加载失败，原记录未清空，请重新加载后再操作';
       throw new Error(cacheError.value);
     }
   }
@@ -101,9 +101,9 @@ export const useCartStore = defineStore('bw-cart', () => {
     const owner = ownerId.value;
     pendingMutations.value += 1;
     try {
-      if (!navigator.locks) throw new Error('当前浏览器不支持安全同步购物车，请使用新版浏览器');
+      if (!navigator.locks) throw new Error('当前浏览器不支持安全同步购物袋，请使用新版浏览器');
       return await navigator.locks.request(cartStorageKey(owner), () => {
-        if (ownerId.value !== owner) throw new Error('账号已切换，本次购物车操作已取消');
+        if (ownerId.value !== owner) throw new Error('账号已切换，本次购物袋操作已取消');
         items.value = readLatestItems();
         return action();
       });
@@ -112,7 +112,7 @@ export const useCartStore = defineStore('bw-cart', () => {
         try { items.value = readLatestItems(); } catch { /* 读取同样失败时保留当前展示，不覆盖存储。 */ }
       }
       if (throwFailure) throw error;
-      Message.warning(error instanceof Error ? error.message : '购物车保存失败，请重试');
+      Message.warning(error instanceof Error ? error.message : '购物袋保存失败，请重试');
       return undefined;
     } finally {
       pendingMutations.value -= 1;
@@ -127,7 +127,7 @@ export const useCartStore = defineStore('bw-cart', () => {
       items.value = latest;
       void refresh();
     } catch {
-      Message.warning('购物车同步失败，已保留当前页面，请核对后重试');
+      Message.warning('购物袋同步失败，已保留当前页面，请核对后重试');
     }
   }
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { enums } from '@shared';
 
 const props = defineProps<{ card: Api.Ai.CardData }>();
 defineEmits<{ login: [] }>();
-const titles: Record<string, string> = { products: '商品查询', product: '商品查询', order: '订单查询', balance: '钱包余额', recharge: '充值记录', withdraw: '提现记录', order_pay: '订单钱包直付' };
+const titles: Record<string, string> = { products: '商品查询', product: '商品查询', order: '订单查询', balance: '钱包余额', recharge: '充值记录', withdraw: '转出记录', order_pay: '订单钱包直付' };
 const kind = computed(() => props.card.kind ?? '');
 const isProduct = computed(() => kind.value === 'products' || kind.value === 'product');
 const supported = computed(() => Object.hasOwn(titles, kind.value));
@@ -11,6 +12,28 @@ const title = computed(() => supported.value ? titles[kind.value] : '查询结�
 const rows = computed(() => (props.card.rows ?? []).slice(0, 100));
 const text = (value: unknown) => typeof value === 'string' ? value : '暂不可用';
 const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : text(value);
+const orderStatuses: Record<Api.RealOrder.OrderStatus, string> = {
+  CREATED: '待付款', PAID: '已付款', SHIPPED: '已发货', AFTERSALE_CONFIRM: '售后确认',
+  REFUND_REVIEW: '退款审核中', REFUNDED: '已退款', COMPLETED: '已完成', CANCELED: '已取消'
+};
+const logisticsStatuses: Record<Api.RealOrder.LogisticsStatus, string> = {
+  PENDING_SHIPMENT: '待发货', SHIPPED: '已发货', IN_TRANSIT: '运输中', DELIVERING: '派送中',
+  SIGNED: '已签收', EXCEPTION: '物流异常', RETURNED: '已退回'
+};
+const withdrawalStatuses = { REVIEWING: '审核中', APPROVED: '已通过', SUCCESS: '已完成', REJECTED: '已驳回' };
+const rechargeStatuses = { PENDING: '待确认', CONFIRMED: '已确认', CANCELED: '已取消' };
+const aftersaleTypes = { NONE: '无售后', SEVEN_DAY_NO_REASON: '7 天无理由', SHOP_WARRANTY: '店铺保修', NATIONAL_WARRANTY: '全国联保' };
+const displayOrderStatuses = { ...Object.fromEntries(Object.entries(enums.ORDER_STATUS_META).map(([key, meta]) => [key, meta.label])), ...orderStatuses };
+const displayAftersaleTypes = { ...Object.fromEntries(Object.entries(enums.AFTERSALE_TYPE_META).map(([key, meta]) => [key, meta.label])), ...aftersaleTypes };
+function label(value: unknown, labels: Record<string, string>, fallback = '状态暂不可用') {
+  if (typeof value !== 'string') return fallback;
+  return Object.hasOwn(labels, value) ? labels[value] : /[\u4e00-\u9fff]/.test(value) ? value : fallback;
+}
+function recordStatus(value: unknown) {
+  const labels = kind.value === 'withdraw' ? withdrawalStatuses
+    : kind.value === 'recharge' ? rechargeStatuses : orderStatuses;
+  return label(value, labels);
+}
 function timestamp(value: unknown) {
   if (typeof value !== 'number' || !Number.isSafeInteger(value)) return '暂不可用';
   const date = new Date(value);
@@ -29,7 +52,7 @@ function specs(value: unknown) {
   return '规格暂不可用';
 }
 const buckets = [
-  ['AVAILABLE', 'available', '可用余额'], ['NON_WITHDRAWABLE', 'non_withdrawable', '不可提现余额'],
+  ['AVAILABLE', 'available', '可用余额'], ['NON_WITHDRAWABLE', 'non_withdrawable', '不可转出余额'],
   ['FINANCE_LOCKED', 'finance_locked', '理财锁定'], ['ORDER_FROZEN', 'order_frozen', '订单冻结'],
   ['RISK_FROZEN', 'risk_frozen', '风控冻结'], ['DEPOSIT_AVAILABLE', 'deposit_available', '保证金可用']
 ] as const;
@@ -38,10 +61,10 @@ function balanceFields(row: Record<string, unknown>) {
   return buckets.map(([type, field, label]) => ({ label, value: text(distribution.find(item => item.type === type)?.amount ?? row[field]) }));
 }
 function fields(row: Record<string, unknown>) {
-  const id = ['记录 ID', text(row.id)];
-  if (isProduct.value) return [id, ['运费', text(row.shipping_fee)], ['税费', text(row.tax_fee)], ['售后类型', text(row.after_sale_type)], ['更新时间', timestamp(row.updated_at)]];
-  if (props.card.kind === 'order') return [id, ['订单号', text(row.order_no)], ['数量', count(row.quantity)], ['成交单价', text(row.unit_price)], ['成交总额', text(row.total_amount)], ['订单状态', text(row.status)], ['物流状态', text(row.logistics_status)], ['更新时间', timestamp(row.updated_at)]];
-  return [id, ['资产', text(row.asset ?? row.currency)], ['网络', text(row.chain)], ['金额', text(row.amount)], ['状态', text(row.status)], ['交易哈希', text(row.tx_hash)], ['更新时间', timestamp(row.updated_at)]];
+  const id = ['记录编号', text(row.id)];
+  if (isProduct.value) return [id, ['运费', text(row.shipping_fee)], ['税费', text(row.tax_fee)], ['售后类型', label(row.after_sale_type, displayAftersaleTypes, '售后信息暂不可用')], ['更新时间', timestamp(row.updated_at)]];
+  if (props.card.kind === 'order') return [id, ['订单号', text(row.order_no)], ['数量', count(row.quantity)], ['成交单价', text(row.unit_price)], ['成交总额', text(row.total_amount)], ['订单状态', label(row.status, displayOrderStatuses)], ['物流状态', label(row.logistics_status, logisticsStatuses)], ['更新时间', timestamp(row.updated_at)]];
+  return [id, ['资产', text(row.asset ?? row.currency)], ['网络', text(row.chain)], ['金额', text(row.amount)], ['状态', recordStatus(row.status)], ['交易哈希', text(row.tx_hash)], ['更新时间', timestamp(row.updated_at)]];
 }
 function recordTitle(row: Record<string, unknown>, index: number) {
   if (isProduct.value) return text(row.title);
@@ -72,13 +95,13 @@ function recordTitle(row: Record<string, unknown>, index: number) {
             <template v-else-if="row.has_sku === true">
               <p v-if="!skus(row).length" class="card-note">规格信息暂不可用。</p>
               <div v-for="(sku, skuIndex) in skus(row)" :key="skuIndex" class="sku-result">
-                <b>{{ specs(sku.specs) }}</b><dl><dt>规格 ID</dt><dd>{{ text(sku.id) }}</dd><dt>价格</dt><dd>{{ text(sku.price) }}</dd><dt>库存</dt><dd>{{ count(sku.stock) }}</dd></dl>
+                <b>{{ specs(sku.specs) }}</b><dl><dt>规格编号</dt><dd>{{ text(sku.id) }}</dd><dt>价格</dt><dd>{{ text(sku.price) }}</dd><dt>库存</dt><dd>{{ count(sku.stock) }}</dd></dl>
               </div>
               <p v-if="row.sku_has_more === true || (Array.isArray(row.skus) && row.skus.length > 100)" class="card-note">还有更多规格，可继续提问缩小范围。</p>
             </template>
           </template>
           <p v-if="card.kind === 'recharge'" class="card-note">仅已确认到账的充值单代表到账，交易哈希不代表余额已增加。</p>
-          <p v-else-if="card.kind === 'withdraw'" class="card-note">仅 SUCCESS 表示已到账，其他状态请以提现记录为准。</p>
+          <p v-else-if="card.kind === 'withdraw'" class="card-note">仅状态为“已完成”时表示已到账，其他状态请查看转出记录。</p>
           <p v-else-if="card.kind === 'order_pay'" class="card-note">支付结果请以原订单状态为准。</p>
         </template>
       </article>

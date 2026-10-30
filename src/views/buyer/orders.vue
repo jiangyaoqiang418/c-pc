@@ -410,7 +410,7 @@ function selectTab(value: unknown) {
 
 <template>
   <div class="buyer-orders-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>买手订单</h1><p>从采购到交付，清晰掌握每一步。</p></div><Button class="outline" variant="outline" :disabled="loading" @click="load"><UmIcon name="return" />刷新</Button></header>
+    <header class="buyer-page-top"><div><h1>买手订单</h1></div><Button class="outline" variant="outline" :disabled="loading" @click="load"><UmIcon name="return" />刷新</Button></header>
     <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="selectTab(tab.key)">{{ tab.label }}</button></div><form class="buyer-filter order-search" role="search" @submit.prevent="searchOrders"><label><UmIcon name="search" /><input v-model="orderNoDraft" aria-label="订单号精确查询" placeholder="订单号（精确匹配）" autocomplete="off" /></label><label><UmIcon name="search" /><input v-model="productTitleDraft" aria-label="商品名称关键词" placeholder="商品名称" autocomplete="off" /></label><button type="submit" :disabled="loading">查询</button><button type="button" :disabled="loading" @click="resetSearch">重置</button></form>
     <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @procure="onProcure" @manage-logistics="manageLogistics" /></div>
     <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取买手订单"><Skeleton v-for="n in 3" :key="n" class="order-skeleton" /></div>

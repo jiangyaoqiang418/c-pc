@@ -54,7 +54,7 @@ export async function submitDepositOperation(
 ) {
   const key = depositLockKey(userId);
   return withSubmissionLock(key, async () => {
-    if (depositSubmitting.has(key)) throw new Error('押金操作正在提交，请勿重复操作');
+    if (depositSubmitting.has(key)) throw new Error('保证金操作正在提交，请勿重复操作');
     if (!Number.isFinite(amount) || amount <= 0) throw new Error('请输入正确的保证金金额');
     const operation: DepositOperation = { kind, amount, idempotencyKey: crypto.randomUUID() };
     depositSubmitting.add(key);

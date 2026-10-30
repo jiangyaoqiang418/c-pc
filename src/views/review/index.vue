@@ -244,7 +244,7 @@ async function readActionReview(pending: UncertainAction, userId: string | numbe
   if (!isCurrent()) throw new RequestError('会话或页面已切换，请重新核对', { code:'SESSION_CHANGED' });
   if (!sameBusinessId(detail.reviewId, pending.review.reviewId) || !sameBusinessId(detail.orderId, pending.review.orderId)
     || !sameBusinessId(pending.kind === 'delete' ? detail.userId : detail.sellerId, userId)) {
-    throw new Error('评价归属回读不一致，原操作保持待核实');
+    throw new Error('评价信息未能核对一致，请先核对原评价');
   }
   updateKnownReview(detail);
   return detail;
@@ -299,7 +299,7 @@ async function submitReply() {
     const receipt = await reviewApi.replyReview({ reviewId:target.reviewId, content }, { showError:false });
     acknowledged = true;
     if (!isCurrent()) return;
-    if (!sameBusinessId(receipt, target.reviewId)) throw new Error('回复回执不匹配，请核对原评价');
+    if (!sameBusinessId(receipt, target.reviewId)) throw new Error('回复结果待核实，请先查看原评价');
     const after = await readActionReview(pending, userId, isCurrent);
     if (!isCurrent()) return;
     if (!after.replyContent || after.replyContent.trim() !== content) throw new Error('尚未读到原回复内容，请继续核对');
@@ -363,7 +363,7 @@ async function submitAppeal() {
     const receipt = await reviewApi.createReviewAppeal({ reviewId:target.reviewId, reason, evidenceImages:[...(pending.evidenceImages || [])] }, { showError:false });
     acknowledged = true;
     if (!isCurrent()) return;
-    if (!(typeof receipt === 'string' && receipt.trim() || typeof receipt === 'number' && Number.isSafeInteger(receipt))) throw new Error('申诉回执缺失，请核对原评价');
+    if (!(typeof receipt === 'string' && receipt.trim() || typeof receipt === 'number' && Number.isSafeInteger(receipt))) throw new Error('申诉结果待核实，请先查看申诉记录');
     pending.receipt = receipt;
     const after = await readActionReview(pending, userId, isCurrent);
     if (!isCurrent()) return;
@@ -446,7 +446,7 @@ async function removeReview(review: Api.RealReview.ReviewDTO, checkOnly = false)
     const receipt = await reviewApi.deleteReview(review.reviewId);
     acknowledged = true;
     if (!isCurrent()) return;
-    if (!sameBusinessId(receipt, review.reviewId)) throw new Error('删除回执不匹配，请核对原评价');
+    if (!sameBusinessId(receipt, review.reviewId)) throw new Error('删除结果待核实，请先查看原评价');
     const existing = await findVisibleOwnReview(pending, userId, isCurrent);
     if (!isCurrent()) return;
     if (existing) throw new Error('原评价仍可见，删除结果需要继续核对');

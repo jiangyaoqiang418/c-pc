@@ -17,19 +17,19 @@ export interface WalletOverview {
 }
 
 function requireAsset(value: unknown): Api.RealWallet.Asset {
-  if (value !== 'USDT' && value !== 'USDC') throw new Error('资产参数无法核对，请重新读取');
+  if (value !== 'USDT' && value !== 'USDC') throw new Error('资产参数无法核对，请重新加载');
   return value;
 }
 
 function assertAsset(actual: unknown, expected: Api.RealWallet.Asset, label: string) {
-  if (actual !== expected) throw new Error(`${label}资产无法核对，请重新读取`);
+  if (actual !== expected) throw new Error(`${label}资产无法核对，请重新加载`);
 }
 
 /** 流水金额必须有权威值；校验十进制格式后保留原值，不转换金额或业务 ID。 */
 export function readLedgerAmount(value: unknown, label: string) {
-  if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') throw new Error(`${label}尚未确认，请重新读取`);
+  if ((typeof value !== 'string' && typeof value !== 'number') || String(value).trim() === '') throw new Error(`${label}尚未确认，请重新加载`);
   const text = String(value).trim();
-  try { sumPaymentAmounts([text]); } catch { throw new Error(`${label}格式异常，请重新读取`); }
+  try { sumPaymentAmounts([text]); } catch { throw new Error(`${label}格式异常，请重新加载`); }
   return text;
 }
 
@@ -190,7 +190,6 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
     || (inferredDirection === 'in' ? 'ADJUST_PLUS' : 'ADJUST_MINUS');
   const direction: Api.Wallet.Txn['direction'] = incomeTxnTypes.has(type) ? 'in' : 'out';
   const remark = dto.remark || dto.bizTypeText || dto.bizGroupText;
-  const testData = /\[测试数据\]|\btestData\b|DEV-TEST-/i.test(remark || '');
   const chainTxHash = remark?.match(/(?:txHash=|交易哈希[：:])([^\s，,]+)/i)?.[1];
 
   return {
@@ -210,7 +209,6 @@ function toTxn(dto: Api.RealWallet.WalletLedgerDTO): Api.RealWallet.Ledger {
     bucketTo,
     remark,
     chainTxHash,
-    testData,
     createdAt: toIsoDate(dto.createdAt)
   };
 }
@@ -222,10 +220,10 @@ export async function fetchWalletOverview(userId: Api.RealSession.Id, options: W
   assertAsset(wallet?.currency, asset, '钱包余额');
   const identities = new Set<string>();
   const distribution = (wallet.distribution === undefined ? [] : requireArray<Api.RealWallet.WalletBucketVO>(wallet.distribution, '钱包余额分布')).map(bucket => {
-    if (!bucket || typeof bucket.type !== 'string') throw new Error('钱包余额分布不完整，请重新读取');
+    if (!bucket || typeof bucket.type !== 'string') throw new Error('钱包余额分布不完整，请重新加载');
     const key = bucketMap[bucket.type];
     const identity = key || bucket.type;
-    if (identities.has(identity)) throw new Error('钱包余额分布重复，请重新读取');
+    if (identities.has(identity)) throw new Error('钱包余额分布重复，请重新加载');
     identities.add(identity);
     const ratio = optionalAmount(bucket.ratio);
     return { ...bucket, key, amount: optionalAmount(bucket.amount) ?? null,
@@ -370,7 +368,7 @@ export function validateRechargeDeclaration(record: Api.RealWallet.RechargeVO,
   } catch { /* 缺失与损坏金额均拒绝。 */ }
   if (!record || !validId(record.id) || !validId(expected.id) || String(record.id) !== String(expected.id)
     || record.asset !== (expected.asset ?? 'USDT') || record.source !== 'DECLARATION' || !expected.chain || record.chain !== expected.chain || !matchesAmount) {
-    throw new Error('充值申报回读与原网络、金额或来源不一致，请核实原申报，勿转账');
+    throw new Error('充值信息未能核对一致，请核对原充值记录，暂勿转账');
   }
   return record;
 }
@@ -378,8 +376,8 @@ export function validateRechargeDeclaration(record: Api.RealWallet.RechargeVO,
 export async function fetchWithdrawByKey(idempotencyKey: string, asset: Api.RealWallet.Asset = 'USDT') {
   requireAsset(asset);
   const result = await realUserRequest.get<Api.RealWallet.WithdrawVO | null>('/withdraw/by-key', { params: { idempotencyKey }, showError: false, preserveDecimals: true });
-  if (result !== null && (!result || typeof result !== 'object')) throw new Error('提现原单回查响应不完整');
-  if (result !== null) assertAsset(result.asset, asset, '提现原单');
+  if (result !== null && (!result || typeof result !== 'object')) throw new Error('转出记录信息不完整，请重试');
+  if (result !== null) assertAsset(result.asset, asset, '转出记录');
   return result;
 }
 
@@ -405,10 +403,10 @@ export async function fetchRechargeAssets(options: { signal?: AbortSignal; showE
     if (!item || !['USDT', 'USDC'].includes(item.asset) || !['ETH', 'TRON', 'BSC'].includes(item.chain)
       || typeof item.enabled !== 'boolean' || typeof item.label !== 'string' || !Array.isArray(item.methods)
       || item.methods.some(method => !['ADDRESS', 'DECLARATION', 'WALLET'].includes(method))) {
-      throw new Error('充值配置不完整，请重新读取');
+      throw new Error('充值配置不完整，请重新加载');
     }
     const key = `${item.asset}:${item.chain}`;
-    if (identities.has(key)) throw new Error('充值资产与网络配置重复，请重新读取');
+    if (identities.has(key)) throw new Error('充值资产与网络配置重复，请重新加载');
     identities.add(key);
     if (item.enabled && (!item.tokenContract?.trim() || !item.methods.length
       || !Number.isSafeInteger(item.decimals) || item.decimals < 0 || item.decimals > 18
@@ -425,7 +423,7 @@ export async function fetchRechargeAddress(chain: string, options: WalletReadOpt
   requireAsset(asset);
   const result = await realUserRequest.get<Api.RealWallet.RechargeAddressVO>('/recharge/address', { ...requestOptions, params: { asset, chain }, preserveDecimals: true });
   assertAsset(result?.asset, asset, '充值地址');
-  if (result.chain !== chain) throw new Error('充值地址网络无法核对，请重新读取');
+  if (result.chain !== chain) throw new Error('充值地址网络无法核对，请重新加载');
   return result;
 }
 
@@ -448,7 +446,7 @@ export async function fetchRechargePage(
     { ...options, preserveDecimals: true }
   );
   const current = Number(page.current ?? page.pageNo ?? params.pageNo ?? 1);
-  if (!Number.isSafeInteger(current) || current < 1) throw new Error('充值记录页码异常，请重新读取');
+  if (!Number.isSafeInteger(current) || current < 1) throw new Error('充值记录页码异常，请重新加载');
   return {
     current,
     size: resolvePageSize(page, params.pageSize ?? 10),
@@ -467,16 +465,16 @@ export function cancelRecharge(id: string | number) {
 export async function fetchWithdrawChains(asset: Api.RealWallet.Asset = 'USDT', options: WalletReadOptions = {}) {
   requireAsset(asset);
   const list = requireArray<Api.RealWallet.WithdrawChainVO>(await realUserRequest.get<Api.RealWallet.WithdrawChainVO[]>(
-    '/withdraw/chains', { ...options, params: { asset }, preserveDecimals: true }), '提现网络配置');
+    '/withdraw/chains', { ...options, params: { asset }, preserveDecimals: true }), '转出网络配置');
   const seen = new Set<string>();
   for (const item of list) {
-    assertAsset(item?.asset, asset, '提现网络');
+    assertAsset(item?.asset, asset, '转出网络');
     if (!['ETH', 'BSC', 'TRON'].includes(item.chain) || seen.has(item.chain)
       || typeof item.label !== 'string' || typeof item.enabled !== 'boolean'
       || !Number.isSafeInteger(item.decimals) || item.decimals < 0 || item.decimals > 18
       || [item.minAmount, item.maxAmount, item.estimatedNetworkFee].some(value => value != null && optionalAmount(value) === undefined)
       || (item.minAmount != null && item.maxAmount != null && compareDecimalAmount(item.minAmount, item.maxAmount) === 1)) {
-      throw new Error('提现网络配置不完整，请重新读取');
+      throw new Error('转出网络配置不完整，请重新加载');
     }
     seen.add(item.chain);
   }
@@ -496,7 +494,7 @@ export async function fetchWithdrawFeePreview(params: Api.RealWallet.WithdrawFee
     || (result.estimatedNetworkFee !== null && optionalAmount(result.estimatedNetworkFee) === undefined)
     || !/^\d+$/.test(String(result.expiresAt))
     || (result.feeLimitAtomic !== null && (typeof result.feeLimitAtomic !== 'string' || !/^\d+$/.test(result.feeLimitAtomic)))) {
-    throw new Error('提现费用预览不完整，请重新读取');
+    throw new Error('转出费用预览不完整，请重新加载');
   }
   return result;
 }
@@ -510,7 +508,7 @@ export function prepareWithdrawal(params: Omit<Api.RealWallet.WithdrawCreatePara
   let error = '';
   if (!balanceKnown) error = '请先成功读取钱包余额';
   else if (normalized.asset !== 'USDT' && normalized.asset !== 'USDC') error = '资产参数无法核对';
-  else if (config && (config.asset !== normalized.asset || config.chain !== normalized.chain || !config.enabled)) error = '所选资产网络暂不可提现';
+  else if (config && (config.asset !== normalized.asset || config.chain !== normalized.chain || !config.enabled)) error = '所选资产网络暂不可转出';
   else if (amount.error) error = amount.error;
   else if (config && config.minAmount != null && compareDecimalAmount(normalized.amount, config.minAmount) === -1) error = `单笔最小转出 ${config.minAmount} ${normalized.asset}`;
   else if (config && config.maxAmount != null && compareDecimalAmount(normalized.amount, config.maxAmount) === 1) error = `单笔最大转出 ${config.maxAmount} ${normalized.asset}`;
@@ -536,7 +534,7 @@ export async function fetchWithdrawDetail(id: string | number, options: WalletRe
   const { asset = 'USDT', ...requestOptions } = options;
   requireAsset(asset);
   const result = await realUserRequest.get<Api.RealWallet.WithdrawVO>('/withdraw/detail', { ...requestOptions, params: { id }, preserveDecimals: true });
-  assertAsset(result?.asset, asset, '提现详情');
+  assertAsset(result?.asset, asset, '转出详情');
   return result;
 }
 
@@ -551,13 +549,13 @@ export async function fetchWithdrawPage(
     { ...options, preserveDecimals: true }
   );
   const current = Number(page.current ?? page.pageNo ?? params.pageNo ?? 1);
-  if (!Number.isSafeInteger(current) || current < 1) throw new Error('提现记录页码异常，请重新读取');
+  if (!Number.isSafeInteger(current) || current < 1) throw new Error('转出记录页码异常，请重新加载');
   return {
     current,
     size: resolvePageSize(page, params.pageSize ?? 10),
     total: toPageTotal(page.total),
-    records: requireArray<Api.RealWallet.WithdrawVO>(page.records, '提现记录分页记录').map(record => {
-      assertAsset(record.asset, asset, '提现记录');
+    records: requireArray<Api.RealWallet.WithdrawVO>(page.records, '转出记录分页记录').map(record => {
+      assertAsset(record.asset, asset, '转出记录');
       return record;
     })
   };

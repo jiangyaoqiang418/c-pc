@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
   <AModal :visible="visible" :title="agreement?.title || '协议'" :width="720" ok-text="我已阅读" cancel-text="关闭" @update:visible="(v: boolean) => $emit('update:visible', v)" @ok="$emit('update:visible', false)">
     <div v-if="loading" aria-busy="true" aria-label="正在读取协议"><Skeleton v-for="n in 5" :key="n" class="line-skeleton" /></div>
     <PublicContentBody v-else-if="agreement" :content="agreement" />
-    <div v-else-if="loadError" class="error" role="alert"><span>{{ loadError }}</span><button type="button" class="outline" @click="load">重新读取</button></div>
+    <div v-else-if="loadError" class="error" role="alert"><span>{{ loadError }}</span><button type="button" class="outline" @click="load">重新加载</button></div>
   </AModal>
 
 </template>

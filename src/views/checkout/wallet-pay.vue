@@ -144,7 +144,7 @@ async function settleSuccess(current: WalletPayOrder) {
 function acceptPay(current: WalletPayOrder) {
   if (current.orderGroupNo !== orderGroupNo.value) throw new Error('支付单不属于当前订单组');
   const checked = validateWalletPay(current, orderGroupNo.value);
-  if (pay.value && pay.value.payNo !== checked.payNo) throw new Error('支付单已变化，请重新读取');
+  if (pay.value && pay.value.payNo !== checked.payNo) throw new Error('支付单已变化，请重新加载');
   if (pay.value?.status === 'SUCCESS' && checked.status !== 'SUCCESS') return;
   pay.value = checked;
   readProgress(current);
@@ -185,7 +185,7 @@ async function reportHashFor(current: WalletPayOrder, userId: string | number, h
 async function reportHash(hash: string, fromAddress?: string) {
   const current = pay.value;
   const userId = userStore.currentUser?.id;
-  if (!current || userId === undefined) throw new Error('当前支付单已变化，请重新读取');
+  if (!current || userId === undefined) throw new Error('当前支付单已变化，请重新加载');
   const version = generation;
   const session = getAccessToken();
   await withSubmissionLock(transferLockKey(userId, current.payNo), async () => {
@@ -390,7 +390,7 @@ watch([orderGroupNo, () => userStore.currentUser?.id, () => userStore.sessionVer
         <Alert v-else-if="chainRetryable" class="notice"><AlertDescription>原链上交易执行失败，资金未转出。请核对钱包记录后，使用本支付单原链、金额和收款地址重新转账并上报新哈希。</AlertDescription></Alert>
         <Alert v-else-if="pay.status === 'SUBMITTED'" class="notice" aria-live="polite"><AlertDescription>{{ chainProgressText || `交易已提交，正在等待链上确认${minConfirmations ? `（至少 ${minConfirmations} 个确认）` : ''}和平台入账。` }}请勿重复转账。</AlertDescription></Alert>
         <Alert v-else-if="pay.status === 'CLOSED'" class="notice"><AlertDescription>支付单已关闭，仍可能收到延迟到账回调。请先核对链上交易，再决定是否重新发起。</AlertDescription></Alert>
-        <Alert v-else-if="pay.status === 'FAILED'" class="notice"><AlertDescription>链上到账未能完成订单支付，资金将按后端规则入平台余额。请前往订单核对，勿重复链上转账。</AlertDescription></Alert>
+        <Alert v-else-if="pay.status === 'FAILED'" class="notice"><AlertDescription>链上转账未完成本次订单支付。转入资金按平台规则处理，请核对订单和钱包余额，勿重复转账。</AlertDescription></Alert>
         <Alert v-if="transferAmountInsufficient" class="notice"><AlertDescription>已识别转入金额低于应付金额，到账后可能存入平台余额；最终付款结果以支付单状态为准。</AlertDescription></Alert>
         <dl class="spec-table pay-details">
           <div><dt>订单组号</dt><dd>{{ pay.orderGroupNo }}</dd></div><div><dt>支付单号</dt><dd>{{ pay.payNo }}</dd></div>

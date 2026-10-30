@@ -57,7 +57,7 @@ function toShippingAddress(dto: Api.RealOrder.OrderDTO) {
     dto.receiverDistrict || dto.district,
     dto.receiverDetailAddress || dto.detailAddress
   ].filter(Boolean);
-  return parts.length ? parts.join('') : '后端暂未返回收货地址';
+  return parts.length ? parts.join('') : '暂无法获取收货地址';
 }
 
 function toShippingCarrier(code?: string): Api.Order.ShippingCarrier | undefined {

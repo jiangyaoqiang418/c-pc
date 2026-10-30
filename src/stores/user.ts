@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
-import { type Audience, MOCK_USERS, STORAGE_KEY, authApi } from '@shared';
+import { type Audience, STORAGE_KEY } from '@shared';
 import * as realAuthApi from '@/service/api/auth';
 import { getAccessToken, setAccessToken, isAuthenticationFailure } from '@/service/request';
 import { useCartStore } from './cart';
@@ -10,8 +10,6 @@ import { acceptStoredAccessToken, getAcceptedAccessToken } from '@/service/reque
 
 export const useUserStore = defineStore('bw-user', () => {
   const currentUser = ref<Api.RealSession.UserRecord>();
-  const demoUser = ref<Api.User.UserRecord>();
-  const demoEnabled = import.meta.env.DEV;
   const currentAudience = ref<Audience>('customer');
   const initialized = ref(false);
   const initializing = ref(false);
@@ -58,7 +56,6 @@ export const useUserStore = defineStore('bw-user', () => {
           if (startVersion !== identityVersion || getAccessToken() !== requestedToken) return;
           currentUser.value = user;
           useCartStore().switchOwner(user.id);
-          demoUser.value = undefined;
           initializationError.value = '';
           currentAudience.value = user.isBuyer ? loadAudienceFromStorage() : 'customer';
           initialized.value = true;
@@ -76,22 +73,7 @@ export const useUserStore = defineStore('bw-user', () => {
           return;
         }
       }
-      const raw = localStorage.getItem(STORAGE_KEY.currentUserId);
-      let userId = raw ? Number(raw) : undefined;
-      // 迁移：老会话可能存了 MOCK_USERS 池外的旧 id（如 12 周维一——曾被误标为张丽琳）
-      // 检测到就复位到默认演示账号 (王小美)，防止「dropdown label 与 header 昵称对不上」的混淆
-      if (userId && !MOCK_USERS.some(u => u.userId === userId)) {
-        localStorage.setItem(STORAGE_KEY.currentUserId, String(MOCK_USERS[0].userId));
-        localStorage.setItem(STORAGE_KEY.currentAudience, 'customer');
-        userId = MOCK_USERS[0].userId;
-      }
-      if (userId && demoEnabled) {
-        const result = await authApi.switchCurrentUser(userId);
-        if (startVersion === identityVersion && result && !('error' in result)) {
-          demoUser.value = result;
-          currentAudience.value = 'customer';
-        }
-      }
+      localStorage.removeItem(STORAGE_KEY.currentUserId);
       if (startVersion === identityVersion) {
         initializationError.value = '';
         initialized.value = true;
@@ -103,28 +85,6 @@ export const useUserStore = defineStore('bw-user', () => {
     });
     initPromise = promise;
     return initPromise;
-  }
-
-  async function login(userId: number) {
-    if (!demoEnabled) throw new Error('当前环境不提供演示登录');
-    if (getAccessToken() || currentUser.value) throw new Error('请先退出真实账号后再体验演示模式，当前登录未改变');
-    const operation = ++loginVersion;
-    const startVersion = identityVersion;
-    const result = await authApi.switchCurrentUser(userId);
-    if (operation !== loginVersion || startVersion !== identityVersion) throw new Error('登录请求已失效，请重新登录');
-    if (!result || 'error' in result) throw new Error((result as { error: string })?.error || '登录失败');
-    clearPrerequisiteDrafts();
-    identityVersion += 1;
-    useWalletStore().clear();
-    demoUser.value = result;
-    currentUser.value = undefined;
-    useCartStore().switchOwner();
-    currentAudience.value = 'customer';
-    initialized.value = true;
-    initializing.value = false;
-    initializationError.value = '';
-    localStorage.setItem(STORAGE_KEY.currentUserId, String(userId));
-    localStorage.setItem(STORAGE_KEY.currentAudience, 'customer');
   }
 
   async function commitRealLogin(request: () => ReturnType<typeof realAuthApi.login>) {
@@ -142,7 +102,6 @@ export const useUserStore = defineStore('bw-user', () => {
     sessionVersion.value += 1;
     useWalletStore().clear();
     currentUser.value = result.user;
-    demoUser.value = undefined;
     useCartStore().switchOwner(result.user.id);
     currentAudience.value = result.user.isBuyer ? loadAudienceFromStorage() : 'customer';
     initialized.value = true;
@@ -199,17 +158,12 @@ export const useUserStore = defineStore('bw-user', () => {
     initializationError.value = '';
     useWalletStore().clear();
     currentUser.value = undefined;
-    demoUser.value = undefined;
     currentAudience.value = 'customer';
     useCartStore().switchOwner();
     realAuthApi.logoutLocal();
     sessionToken = '';
     localStorage.removeItem(STORAGE_KEY.currentUserId);
     localStorage.removeItem(STORAGE_KEY.currentAudience);
-  }
-
-  function switchDemoUser(userId: number) {
-    return login(userId);
   }
 
   async function syncExternalSession() {
@@ -226,7 +180,6 @@ export const useUserStore = defineStore('bw-user', () => {
     initializing.value = false;
     initializationError.value = '';
     currentUser.value = undefined;
-    demoUser.value = undefined;
     currentAudience.value = 'customer';
     useWalletStore().clear();
     useCartStore().switchOwner();
@@ -248,12 +201,9 @@ export const useUserStore = defineStore('bw-user', () => {
   const needsLoginPassword = computed(() => currentUser.value?.loginPasswordSet === false);
   const canSwitchToBuyer = computed(() => !!currentUser.value?.isBuyer);
   const isBuyerActive = computed(() => canSwitchToBuyer.value && currentAudience.value === 'buyer');
-  const demoUserList = computed(() => MOCK_USERS);
 
   return {
     currentUser,
-    demoUser,
-    demoEnabled,
     initializing,
     sessionVersion,
     initializationError,
@@ -263,16 +213,13 @@ export const useUserStore = defineStore('bw-user', () => {
     needsLoginPassword,
     canSwitchToBuyer,
     isBuyerActive,
-    demoUserList,
     init,
-    login,
     loginWithPassword,
     loginWithOAuth,
     register,
     refreshCurrentUser,
     syncExternalSession,
     logout,
-    switchDemoUser,
     setAudience
   };
 });

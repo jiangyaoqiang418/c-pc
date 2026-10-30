@@ -328,10 +328,10 @@ async function addToCart() {
   const added = await cart.add(product.value.id, qty.value, product.value, selectedSku.value?.id);
   if (added === undefined) return;
   if (!added) {
-    Message.warning('购买数量超过库存，请检查购物车已有数量');
+    Message.warning('购买数量超过库存，请检查购物袋已有数量');
     return;
   }
-  Message.success('已加入购物车');
+  Message.success('已加入购物袋');
 }
 function buyNow() {
   if (!product.value || !canBuy.value) return;
@@ -393,7 +393,7 @@ const buyDisabledReason = computed(() => {
   if (product.value.stock <= 0) return '商品已售罄';
   if (purchase.value?.selectionRequired) return '请选择完整商品规格';
   if (!purchase.value?.available) return '当前规格已停用、缺货或不可购买，请重新选择';
-  if (product.value.shippingFee === undefined || product.value.tax === undefined) return '运费或税费待确认，请重新读取后购买';
+  if (product.value.shippingFee === undefined || product.value.tax === undefined) return '运费或税费待确认，请重新加载后购买';
   return '';
 });
 const previewVisible = ref(false);
@@ -529,24 +529,24 @@ function share() {
             <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy ? 0 : undefined"><button type="button" class="gold" :disabled="!canBuy" @click="buyNow">{{ product.stock ? '立即购买' : '暂时售罄' }}<UmIcon name="arrow" /></button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason">{{ buyDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
           </div>
           <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" @click="router.push('/im')"><UmIcon name="headset" />咨询买手</button></div>
-          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small>{{ sellerScoreLoading ? '正在读取买手评分…' : sellerScoreError ? '买手评分读取失败' : '用心挑选每一件好物' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
-          <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新读取买手评分</button>
+          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small v-if="sellerScoreLoading || sellerScoreError">{{ sellerScoreLoading ? '正在加载买手评分…' : '买手评分加载失败' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
+          <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新加载买手评分</button>
           <button v-if="sellerQualificationError" type="button" class="text-link seller-score-retry" @click="loadSellerQualification">重新核对买手资格</button>
         </section>
       </div>
       <V47DetailContent ref="content" :key="String(product.id)" :initial-review="route.query.tab === 'reviews'">
         <template #default="{ tab }">
           <template v-if="tab === '商品详情'">
-            <div class="detail-editorial"><div><span class="eyebrow">MADE FOR YOUR EVERYDAY</span><h2>细节，值得认真看。</h2><p>{{ product.summary }}<br />好的设计，让每一次使用都恰到好处。</p></div><img v-if="product.images[0]?.url" :src="product.images[0].url" :alt="product.title" @error="setImageFallback" /></div>
-            <div class="info-columns"><div><h3>关于这件好物</h3><RichTextContent :content="product.description" /></div><div><h3>认真挑选，安心入手</h3><p>请核对当前商品资料、包装清单、配送与售后信息后购买。</p></div></div>
+            <p v-if="product.summary" class="product-summary">{{ product.summary }}</p>
+            <div class="info-columns"><div><h3>商品详情</h3><RichTextContent :content="product.description" /></div><div><h3>购买提示</h3><p>请核对当前商品资料、包装清单、配送与售后信息后购买。</p></div></div>
           </template>
           <dl v-else-if="tab === '规格参数'" class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
           <template v-else-if="tab === '配送与售后'"><h2>配送与售后</h2><p>运费 {{ money(product.shippingFee) }} USDT，税费 {{ money(product.tax) }} USDT。{{ product.overseasCustoms ? '此商品为海外直邮，过关后不可退货退款。' : '' }}售后类型：{{ aftersaleMeta?.label || '待确认' }}。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
-          <template v-else><h2>支付说明</h2><p>支持站内余额与 USDT 钱包直付。支付网络以平台实际开放情况为准，金额以服务端订单为准。链上提交后需等待平台确认，请勿重复付款。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
+          <template v-else><h2>支付说明</h2><p>请在结算时选择可用支付方式和网络，并核对订单金额。链上转账后需等待到账确认，请勿重复付款。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
         </template>
         <template #reviews><V47DetailReviews :rows="reviews" :summary="reviewSummary" :summary-loading="reviewSummaryLoading" :summary-error="reviewSummaryError" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" :error="reviewError" :stars="reviewStars" :has-image="reviewHasImage" :keyword="reviewKeyword" :sort="reviewSort" :helpful-busy="helpfulBusy" @helpful="voteHelpful" @filter="filterReviews" @retry-summary="loadReviewSummary" @page="loadReviews" @photo="openPreview" /></template>
       </V47DetailContent>
-      <section class="section related-section"><div class="section-heading"><h2>一起选购，更合心意</h2><RouterLink to="/product/list">发现更多 →</RouterLink></div><div v-if="relatedLoading" class="product-grid related" role="status"><Skeleton v-for="index in 4" :key="index" class="h-72 w-full" /></div><div v-else-if="related.length" class="product-grid related"><ProductCard v-for="item in related" :key="item.id" :product="item" /></div><div v-else class="empty"><p>{{ relatedError ? '推荐商品读取失败' : '暂无推荐商品' }}</p><button v-if="relatedError" type="button" class="outline" @click="loadRelated">重新加载</button></div></section>
+      <section class="section related-section"><div class="section-heading"><h2>相关商品</h2><RouterLink to="/product/list">发现更多 →</RouterLink></div><div v-if="relatedLoading" class="product-grid related" role="status"><Skeleton v-for="index in 4" :key="index" class="h-72 w-full" /></div><div v-else-if="related.length" class="product-grid related"><ProductCard v-for="item in related" :key="item.id" :product="item" /></div><div v-else class="empty"><p>{{ relatedError ? '推荐商品读取失败' : '暂无推荐商品' }}</p><button v-if="relatedError" type="button" class="outline" @click="loadRelated">重新加载</button></div></section>
     </template>
     <div v-else-if="loading" class="detail-skeleton" role="status"><span class="sr-only">正在加载商品详情</span><Skeleton class="aspect-square w-full" /><div><Skeleton class="h-10 w-3/4" /><Skeleton class="mt-6 h-6 w-1/2" /><Skeleton class="mt-8 h-44 w-full" /><Skeleton class="mt-8 h-12 w-full" /></div></div>
     <EmptyState v-else icon="lucide:package-x" :title="loadError || '商品不存在'" :description="loadError ? '请稍后重试。' : undefined" :action-text="loadError ? '重新加载' : '返回首页'" @action="loadError ? load() : router.push('/')" />

@@ -51,7 +51,7 @@ async function readQuote() {
     if (String(detail.id) !== String(id)) throw new Error('锁仓对象不一致');
     latestOrder.value = detail;
   } catch {
-    if (isCurrent()) readError.value = '原锁仓费用读取失败，请重新读取';
+    if (isCurrent()) readError.value = '原锁仓费用读取失败，请重新加载';
   } finally {
     if (isCurrent()) reading.value = false;
   }
@@ -74,8 +74,8 @@ function submit() {
 </script>
 
 <template>
-  <V47VaultDialog :visible="visible" :title="pending ? '核实赎回结果' : '提前赎回报价'" :description="(displayedOrder?.productName || order?.productName || '锁仓') + ' · USDT'" eyebrow="REVIEW YOUR REDEMPTION" icon="return" :busy="submitting" @update:visible="emit('update:visible', $event)">
-    <div v-if="issue" class="status-banner quote-notice" role="alert"><UmIcon name="shield" /><span>{{ issue }}</span><button class="outline" :disabled="reading || submitting" @click="readQuote">{{ reading ? '正在核对…' : '重新读取' }}</button></div>
+  <V47VaultDialog :visible="visible" :title="pending ? '核实赎回结果' : '提前赎回报价'" :description="(displayedOrder?.productName || order?.productName || '锁仓') + ' · USDT'" icon="return" :busy="submitting" @update:visible="emit('update:visible', $event)">
+    <div v-if="issue" class="status-banner quote-notice" role="alert"><UmIcon name="shield" /><span>{{ issue }}</span><button class="outline" :disabled="reading || submitting" @click="readQuote">{{ reading ? '正在核对…' : '重新加载' }}</button></div>
     <Skeleton v-if="reading" class="quote-skeleton" aria-label="正在核对赎回费用" />
     <template v-else-if="displayedOrder">
       <p v-if="pending" class="vault-confirm-note" role="alert">上次赎回结果待确认，本次只读取原锁仓状态，不会重复发送赎回。</p>

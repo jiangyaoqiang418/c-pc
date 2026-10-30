@@ -69,7 +69,7 @@ const statusView = computed(() => {
   if (status.value === 'approved') {
     return {
       icon: 'lucide:badge-check',
-      title: '您已通过 KYC 实名认证',
+      title: '您已通过实名认证',
       description: '账号认证已通过，认证资料可在下方查看。'
     };
   }
@@ -77,7 +77,7 @@ const statusView = computed(() => {
     return {
       icon: 'lucide:clock-3',
       title: '您的认证正在审核中',
-      description: '审核进度以平台返回的最新状态为准。'
+      description: '请等待审核结果，可在此查看最新进度。'
     };
   }
   if (status.value === 'rejected') {
@@ -90,13 +90,13 @@ const statusView = computed(() => {
   if (status.value === 'expired') {
     return {
       icon: 'lucide:calendar-x-2',
-      title: 'KYC 认证已过期',
+      title: '实名认证已过期',
       description: '请按当前认证配置重新提交资料。'
     };
   }
   return {
     icon: 'lucide:user-round-search',
-    title: '尚未提交 KYC 认证',
+    title: '尚未提交 实名认证',
     description: '完成认证后可使用需要实名校验的功能；买手身份以平台审核结果为准。'
   };
 });
@@ -288,7 +288,7 @@ const submitDisabledReason = computed(() => {
   <div class="kyc-page v47-kyc">
 
     <div v-if="loading" class="skeletons"><Skeleton class="h-40" /><Skeleton class="h-56" /></div>
-    <section v-else class="paper narrow"><h1>实名认证</h1><button v-if="returnPath" type="button" class="text-link" :disabled="submitting || uploading" @click="router.push(returnPath)">返回{{ returnPath.split('?')[0] === '/buyer/apply' ? '买手申请' : '原操作' }} →</button><p class="kyc-intro">认证资料、必填项和重新提交条件以平台当前配置为准。</p>
+    <section v-else class="paper narrow"><h1>实名认证</h1><button v-if="returnPath" type="button" class="text-link" :disabled="submitting || uploading" @click="router.push(returnPath)">返回{{ returnPath.split('?')[0] === '/buyer/apply' ? '买手申请' : '原操作' }} →</button><p class="kyc-intro">请填写带 * 的必填项，并上传清晰有效的认证资料。</p>
       <header class="status-head"><div class="status-icon" :data-status="status"><Icon :icon="statusView.icon" width="32" /></div><div><span class="status-tag" :class="meta.color">{{ meta.label }}</span><h2>{{ statusView.title }}</h2><p>{{ statusView.description }}</p></div></header>
       <div v-if="loadError" class="status-banner notice warning" role="alert"><Icon icon="lucide:triangle-alert" /><span>{{ loadError }}<div class="notice-actions"><button :disabled="submitting" @click="load" class="outline">重新加载</button></div></span></div>
       <DescriptionList :columns="2" :items="[{ label: '当前账号', value: userStore.currentUser?.nickname || userStore.currentUser?.email || '—' }, { label: '手机号', value: userStore.currentUser?.phone || '—' }, { label: '账号身份', value: userStore.currentUser?.isBuyer ? '买手' : '顾客' }, { label: '认证姓名', value: kycDetail?.realName || '—' }, { label: '认证证件', value: kycDetail?.idNo || '—' }, { label: '提交时间', value: formatTime(kycDetail?.submittedAt) }, { label: '审核时间', value: formatTime(kycDetail?.reviewedAt) }, { label: '证件预览有效期', value: formatTime(kycDetail?.photoUrlExpireAt) }]" />

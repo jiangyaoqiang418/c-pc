@@ -193,7 +193,7 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => u
 
 <template>
   <div class="bp-create-page shop-container">
-    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/buyer/products">商品管理</RouterLink><span>/</span><span>{{ editing ? '编辑商品' : '创建商品' }}</span></nav><header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>{{ editing ? '编辑商品' : '创建商品' }}</h1><p>完善商品资料，提交平台审核后即可上架销售。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/products')"><UmIcon name="return" />返回商品管理</Button></header>
+    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/buyer/products">商品管理</RouterLink><span>/</span><span>{{ editing ? '编辑商品' : '创建商品' }}</span></nav><header class="buyer-page-top"><div><h1>{{ editing ? '编辑商品' : '创建商品' }}</h1><p>完善商品资料，提交平台审核后即可上架销售。</p></div><Button class="outline" variant="outline" @click="router.push('/buyer/products')"><UmIcon name="return" />返回商品管理</Button></header>
     <Alert v-if="detailError" variant="destructive"><AlertDescription class="alert-row"><span>{{ detailError }}</span><Button class="outline" variant="outline" size="sm" :disabled="detailLoading" @click="loadDetail">重新加载</Button></AlertDescription></Alert>
     <div v-if="detailLoading" class="loading-form" aria-busy="true" aria-label="正在读取当前商品信息"><Skeleton v-for="n in 3" :key="n" class="form-skeleton" /></div>
     <Alert v-if="initialProduct?.draftAuditOpinion"><AlertDescription>驳回原因：{{ initialProduct.draftAuditOpinion }}</AlertDescription></Alert>

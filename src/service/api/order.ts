@@ -136,7 +136,7 @@ export async function fetchOrderCreationByKey(idempotencyKey: string, options: {
 
 async function submitOrderPayment(id: string | number, confirmedAmount: string, payPassword: string, options: { showError?: boolean } = {}) {
   const receipt = await realOrderRequest.post<string | number, Api.RealOrder.OrderPayParams>('/orders/pay', { id, confirmedAmount, payPassword }, options);
-  if (!((typeof receipt === 'string' && receipt.trim()) || (typeof receipt === 'number' && Number.isSafeInteger(receipt)))) throw new Error('付款回执缺失，请核对原订单状态');
+  if (!((typeof receipt === 'string' && receipt.trim()) || (typeof receipt === 'number' && Number.isSafeInteger(receipt)))) throw new Error('付款结果待核实，请查看原订单状态，勿重复付款');
   return { ok: true, message: '' };
 }
 
@@ -276,7 +276,7 @@ export function extendReceipt(id: string | number, userId: string | number) {
         '/orders/extend-receipt', { id }, { showError: false }
       );
       assertSession();
-      if (String(receipt) !== String(id)) throw new Error('延长收货回执无法核对，请先查看订单最新状态');
+      if (String(receipt) !== String(id)) throw new Error('延长收货结果待核实，请先刷新订单状态');
       localStorage.removeItem(key);
       return { recovered: false };
     } catch (error) {

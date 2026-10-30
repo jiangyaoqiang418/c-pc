@@ -12,7 +12,7 @@ function readContent(value: Api.RealContent.PublicContentVO, type: Api.RealConte
     || typeof value.title !== 'string' || !value.title.trim()
     || typeof value.contentVersion !== 'string' || !value.contentVersion.trim()
     || (detail && (typeof value.body !== 'string' || !value.body.trim()))) {
-    throw new Error('正式内容资料不完整，请重新读取');
+    throw new Error('内容加载异常，请重试');
   }
   return value;
 }
@@ -70,8 +70,8 @@ export async function fetchAgreementCurrent(kind: Api.RealContent.AgreementKind,
 
 export function contentReadMessage(error: unknown, fallback = '内容读取失败，请稍后重试') {
   if (error instanceof RequestError) {
-    if (error.code === '-322') return '正式内容暂未发布';
-    if (error.code === '-323') return '正式内容尚未生效';
+    if (error.code === '-322') return '该内容暂未发布';
+    if (error.code === '-323') return '该内容尚未生效';
     if (error.code === '-324') return '该内容已下线';
     if (error.code === '-202' || error.code === '-200') return '当前账号无权查看此内容，请登录后重试';
   }

@@ -310,7 +310,7 @@ async function savePrice() {
     const latest = await productApi.fetchSellerProductDetail(p.id);
     if (!isCurrent()) return;
     if (String(latest.id) !== String(p.id) || String(latest.sellerId) !== String(userId) || !['ON_SALE', 'OFF_SHELF'].includes(latest.rawStatus || '') || productRequiresSku(latest)) {
-      Message.warning('商品归属、状态或规格已变化，不能快捷改价，请重新读取商品');
+      Message.warning('商品归属、状态或规格已变化，不能快捷改价，请重新加载商品');
       priceVisible.value = false;
       await load();
       return;
@@ -338,7 +338,7 @@ async function savePrice() {
 
 <template>
   <div class="bp-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>商品管理</h1><p>清晰掌握每一步，从容经营每一天。</p></div><div class="head-actions"><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button class="primary" @click="router.push('/buyer/products/create')"><UmIcon name="plus" />发布商品</Button></div></header>
+    <header class="buyer-page-top"><div><h1>商品管理</h1></div><div class="head-actions"><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/categories/apply')">分类申请</Button><Button class="outline" variant="outline" size="sm" @click="router.push('/buyer/flash-sales')">秒杀报名</Button><Button class="primary" @click="router.push('/buyer/products/create')"><UmIcon name="plus" />发布商品</Button></div></header>
     <div class="buyer-tabs" role="group" aria-label="商品状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="activeKey = tab.key">{{ tab.label }}</button></div>
     <form class="buyer-filter" @submit.prevent="queryProducts"><label><UmIcon name="search" /><input v-model="keyword" aria-label="搜索商品名称" placeholder="搜索商品名称" /></label><CategoryPicker v-model="categoryId" :options="categoryOptions" :loading="categoryLoading" /><Button class="outline" type="submit" :disabled="loading">查询</Button><Button class="outline" type="button" variant="outline" @click="resetFilters">重置</Button></form>
     <div v-if="products.length" class="buyer-products"><BuyerProductCard v-for="product in products" :key="product.id" :class="{ 'focused-product': focusedProductId && String(product.id) === focusedProductId }" :product="product" :shelving="shelvingId === product.id" :deleting="deletingId === product.id" :busy="priceSaving || shelvingId !== undefined || deletingId !== undefined" @edit="router.push({ name: 'buyer-product-edit', params: { id: String(product.id) } })" @price="openPrice(product)" @toggle-shelf="toggleShelf" @delete="deleteProduct" /></div>

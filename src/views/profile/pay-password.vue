@@ -171,7 +171,7 @@ async function submit() {
 <template>
   <div class="security-page"><section class="paper narrow" :aria-busy="statusLoading">
     <h1>支付密码</h1><p>用于付款和确认收货。支付密码为 6 位数字，请勿与登录密码混淆。</p>
-    <div v-if="loadError" class="status-banner security-notice" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button type="button" class="outline" :disabled="statusLoading || submitting" @click="load">重新读取</button></div>
+    <div v-if="loadError" class="status-banner security-notice" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button type="button" class="outline" :disabled="statusLoading || submitting" @click="load">重新加载</button></div>
     <div v-if="statusLoading" class="security-skeletons"><Skeleton class="h-10" /><Skeleton class="h-16" /><Skeleton class="h-16" /></div>
     <template v-else-if="!loadError && status">
       <div v-if="status.locked" class="status-banner security-notice" role="status"><UmIcon name="shield" /><span>支付密码已锁定，可使用平台登录密码重置。</span></div>

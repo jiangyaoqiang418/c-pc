@@ -203,7 +203,7 @@ export function readCheckoutIntent(id: string, ownerId: string | number): Checko
   try {
     value = JSON.parse(sessionStorage.getItem(`${prefix}${id}`) || 'null');
   } catch {
-    throw new Error('本次结算信息无法读取，请返回商品或购物车重新结算');
+    throw new Error('本次结算信息加载失败，请返回商品页或购物袋重新结算');
   }
   if (!value || !Array.isArray(value.items) || !value.items.length
     || !Number.isFinite(value.createdAt) || Date.now() - value.createdAt > 60 * 60 * 1000

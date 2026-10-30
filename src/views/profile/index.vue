@@ -142,7 +142,7 @@ async function refreshSavedProfile(saved = true) {
   } catch {
     if (operation === profileWriteVersion) {
       if (saved) profileRefreshError.value = true;
-      Message.warning(saved ? '资料已保存，但最新资料读取失败，请重新读取' : '会员资料读取失败，请稍后重试');
+      Message.warning(saved ? '资料已保存，但最新资料读取失败，请重新加载' : '会员资料读取失败，请稍后重试');
     }
   } finally {
     if (operation === profileWriteVersion) refreshingProfile.value = false;
@@ -248,7 +248,7 @@ watch(() => user.value?.avatar, () => { avatarFailed.value = false; });
         <button class="gold" :disabled="savingProfile" @click="openEditProfile">编辑资料<UmIcon name="arrow" /></button>
       </section>
       <div class="profile-account-meta"><span>{{ user.email ?? '未绑定邮箱' }}</span><span v-if="registeredDate">注册于 {{ registeredDate }}</span><span v-if="kycMeta">{{ kycMeta.label }}</span><span v-if="user.isBuyer">已是买手</span><span v-if="vipStatus && vipStatus.nextThreshold !== undefined">距离下一等级还差 {{ formatPoints(vipStatus.pointsToNext, '—') }} 积分</span></div>
-      <div v-if="user.accountInfoUnavailable || profileRefreshError" class="status-banner profile-notice" role="status"><UmIcon name="shield" /><span>{{ profileRefreshError ? '资料已保存，当前显示的资料尚未刷新。' : '积分或等级资料未更新，已有值仅供参考。' }}</span><button class="outline" :disabled="refreshingProfile" @click="refreshSavedProfile(profileRefreshError)">重新读取</button></div>
+      <div v-if="user.accountInfoUnavailable || profileRefreshError" class="status-banner profile-notice" role="status"><UmIcon name="shield" /><span>{{ profileRefreshError ? '资料已保存，当前显示的资料尚未刷新。' : '积分或等级资料未更新，已有值仅供参考。' }}</span><button class="outline" :disabled="refreshingProfile" @click="refreshSavedProfile(profileRefreshError)">重新加载</button></div>
       <section class="paper"><div class="section-heading"><h2>{{ userStore.isBuyerActive ? '卖出订单概况' : '我的订单' }}</h2><button @click="router.push('/order')">查看全部 →</button></div><div class="order-shortcuts"><button v-for="o in orderTabsMeta" :key="o.tab" @click="router.push({ path: '/order', query: { tab: o.tab } })"><UmIcon :name="orderIcons[o.tab]" /><span>{{ o.label }}</span><Skeleton v-if="loading && o.count === undefined" class="profile-count-loading" /><b v-else>{{ o.count ?? '—' }}</b></button></div></section>
       <section class="profile-assets" aria-label="账户资产与权益">
         <button @click="router.push('/wallet')"><span>我的可用余额</span><Skeleton v-if="loading && !totalAssets" class="profile-asset-loading" /><b v-else>{{ totalAssets?.account ? formatAmount(totalAssets.account.available) : '—' }} <small>USDT</small></b><UmIcon name="arrow" /></button>
@@ -256,7 +256,7 @@ watch(() => user.value?.avatar, () => { avatarFailed.value = false; });
         <button @click="router.push('/points')"><span>我的积分</span><b>{{ user.points === undefined ? '—' : formatPoints(user.points) }}</b><UmIcon name="arrow" /></button>
       </section>
       <section class="profile-services" aria-labelledby="profile-services-title">
-        <div class="profile-services-heading"><div><span class="eyebrow">MY SERVICES</span><h2 id="profile-services-title">我的服务</h2><p>按需展开，轻松找到所需服务</p></div><button class="services-toggle-all" @click="toggleAllGroups"><UmIcon :name="allGroupsOpen ? 'minus' : 'plus'" />{{ allGroupsOpen ? '全部收起' : '全部展开' }}</button></div>
+        <div class="profile-services-heading"><div><h2 id="profile-services-title">我的服务</h2><p>按需展开，轻松找到所需服务</p></div><button class="services-toggle-all" @click="toggleAllGroups"><UmIcon :name="allGroupsOpen ? 'minus' : 'plus'" />{{ allGroupsOpen ? '全部收起' : '全部展开' }}</button></div>
         <div class="services-columns"><section v-for="group in entryGroups" :key="group.key" class="service-category" :class="{ 'is-open': openGroups[group.key] }">
           <h3><button :id="'service-toggle-' + group.key" class="service-category-toggle" :aria-expanded="openGroups[group.key]" :aria-controls="'service-panel-' + group.key" @click="toggleGroup(group.key)"><span class="service-category-symbol"><UmIcon :name="group.icon" /></span><span class="service-category-copy"><span class="service-category-title">{{ group.label }}<small>{{ group.entries.length }} 项</small></span><span class="service-category-summary">{{ group.summary }}</span></span><span class="service-category-state" aria-hidden="true">{{ openGroups[group.key] ? '收起' : '展开' }}<UmIcon name="chevron" /></span></button></h3>
           <div :id="'service-panel-' + group.key" class="service-category-panel" role="region" :aria-labelledby="'service-toggle-' + group.key" :aria-hidden="!openGroups[group.key]" :inert="!openGroups[group.key]"><div class="service-category-clip"><div class="service-category-links"><RouterLink v-for="entry in group.entries" :key="entry.key" :to="entry.path"><UmIcon :name="entry.icon" /><span>{{ entry.label }}</span><UmIcon name="chevron" /></RouterLink></div></div></div>

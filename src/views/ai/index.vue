@@ -53,7 +53,7 @@ function onKeydown(event: KeyboardEvent) {
         </div>
         <p v-if="historyLoading" role="status">正在读取历史消息…</p>
         <div ref="scrollRef" class="chat-messages chat-scroll" role="log" aria-label="客服对话" aria-live="polite" aria-relevant="additions text" :aria-busy="running || historyLoading">
-          <EmptyState v-if="!messages.length && ready && !historyLoading && !error" icon="lucide:sparkles" title="有什么可以帮你？" description="可以咨询商品，或查询本人的订单、余额、充值、提现与钱包直付记录。" />
+          <EmptyState v-if="!messages.length && ready && !historyLoading && !error" icon="lucide:sparkles" title="有什么可以帮你？" description="可以咨询商品，或查询本人的订单、余额、充值、转出与钱包直付记录。" />
           <article v-for="message in messages" :key="message.id" class="ai-message" :class="message.role" :aria-label="message.role === 'user' ? '我的问题' : '客服回答'">
             <div class="ai-message-avatar" aria-hidden="true"><UmIcon :name="message.role === 'user' ? 'user' : 'headset'" /></div>
             <div class="ai-message-content">

@@ -37,7 +37,6 @@ watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.va
       <button v-for="(image, index) in images" :key="`${image.url}-${index}`" type="button" :class="{ active: photo === index }" :aria-label="(failed.has(image.url) ? '重试商品图片 ' : '商品图片 ') + (index + 1)" :title="failed.has(image.url) ? '图片加载失败，点击重试' : undefined" :aria-pressed="photo === index" @click="selectPhoto(index)">
         <img :src="source(image.url)" :alt="title + ' ' + (index + 1)" @error="imageError(image.url)" />
       </button>
-      <span>每一个细节，都值得认真看。</span>
     </div>
     <div class="gallery-actions">
       <button type="button" :disabled="favoriting" :aria-pressed="saved" :title="favoriteError" @click="emit('favorite')"><UmIcon name="heart" />{{ favoriting ? '正在更新' : favoriteError ? '重试收藏状态' : saved ? '已收藏 · 取消收藏' : '收藏这件好物' }}</button>

@@ -254,11 +254,11 @@ function handleEmptyAction() {
 <template>
   <div class="vault-workspace">
     <V47VaultHeader section="holdings" :holding-count="overview?.holdingCount" />
-    <div v-if="overviewError" class="status-banner vault-production-notice" role="alert"><span>部分锁仓概览未能读取，列表仍可查看。</span><button class="outline" :disabled="overviewReading" @click="loadCounts">重新读取概览</button></div>
+    <div v-if="overviewError" class="status-banner vault-production-notice" role="alert"><span>部分锁仓概览未能读取，列表仍可查看。</span><button class="outline" :disabled="overviewReading" @click="loadCounts">重新加载概览</button></div>
     <div class="vault-holdings-summary"><span>锁仓本金<strong>{{ formatAmount(overview?.holdingPrincipal) }} <small>USDT</small></strong></span><span>累计利息<strong class="positive">{{ accumulatedInterest === undefined ? '—' : '+ ' + formatAmount(accumulatedInterest, { decimals: 4 }) }} <small>USDT</small></strong></span></div>
     <div class="vault-status-tabs" role="group" aria-label="锁仓状态"><button v-for="t in TABS" :key="t.key" :class="{ active: activeKey === t.key }" :aria-pressed="activeKey === t.key" @click="changeTab(t.key)">{{ t.label }}<span v-if="allCounts[t.key] !== undefined">{{ allCounts[t.key] }}</span></button></div>
     <div v-if="loading" aria-busy="true" aria-label="正在读取锁仓列表"><Skeleton v-for="n in 3" :key="n" class="vault-lockup-skeleton" /></div>
-    <EmptyState v-else-if="loadError" title="锁仓列表加载失败" :description="loadError" action-text="重新读取" @action="load" />
+    <EmptyState v-else-if="loadError" title="锁仓列表加载失败" :description="loadError" action-text="重新加载" @action="load" />
     <div v-else-if="orders.length" class="vault-position-list"><LockupCard v-for="o in orders" :key="o.id" :order="o" @unlock="onUnlock" /></div>
     <EmptyState v-else title="该状态下没有锁仓" description="在这里查看每笔锁仓的进度与结算。" action-text="浏览锁仓产品" @action="handleEmptyAction" />
     <BusinessPagination v-if="!loading && !loadError && total > pageSize" :current="current" :page-size="pageSize" :total="total" @change="changePage" />

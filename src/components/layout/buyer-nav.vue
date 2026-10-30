@@ -21,7 +21,7 @@ const items: BuyerNavItem[] = [
   { name: 'buyer-flash-sales', label: '秒杀报名', path: '/buyer/flash-sales', emoji: '⚡' },
   { name: 'buyer-claimable', label: '求购接单', path: '/buyer/claimable', emoji: '🙋' },
   { name: 'buyer-orders', label: '买手订单', path: '/buyer/orders', emoji: '📋' },
-  { name: 'buyer-deposit', label: '押金管理', path: '/buyer/deposit', emoji: '🔒' },
+  { name: 'buyer-deposit', label: '保证金管理', path: '/buyer/deposit', emoji: '🔒' },
   { name: 'buyer-wallet', label: '买手钱包', path: '/buyer/wallet', emoji: '💼' }
 ];
 

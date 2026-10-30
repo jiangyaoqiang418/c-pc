@@ -234,7 +234,7 @@ async function continuePayment() {
       if (matchingPending !== (pending?.orderGroupNo === group)) throw new Error('结算记录已变化，请重新核对');
       if (matchingPending && pending && (pending.orderIds?.length !== fresh.ids.length
         || pending.orderIds.some(id => !fresh.ids.some(groupId => String(groupId) === String(id))))) {
-        throw new Error('本机结算订单组与服务端不一致，请返回结算页核对');
+        throw new Error('订单信息未能核对一致，请返回结算页核对，勿重复付款');
       }
       let attempt: WalletAttempt | undefined;
       if (matchingPending) {

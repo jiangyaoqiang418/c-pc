@@ -19,7 +19,7 @@ const AGREEMENTS: { kind: Api.RealContent.AgreementKind; label: string }[] = [
   { kind: 'user', label: '用户协议' },
   { kind: 'privacy', label: '隐私政策' },
   { kind: 'service', label: '服务协议' },
-  { kind: 'kyc', label: 'KYC 政策' },
+  { kind: 'kyc', label: '实名认证政策' },
   { kind: 'aml', label: 'AML 政策' }
 ];
 const agreementVisible = ref(false);
@@ -184,7 +184,7 @@ onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); topicG
         <form class="help-search" role="search" @submit.prevent="search"><input v-model="keyword" class="table-search" type="search" maxlength="100" placeholder="搜索帮助标题" aria-label="搜索帮助标题" /><button type="submit" class="outline" :disabled="loading">搜索</button></form>
         <div v-if="loading" class="paper" role="status" aria-label="正在读取帮助"><Skeleton v-for="n in 3" :key="n" class="help-skeleton" /></div>
         <div v-else-if="loadError" class="paper"><EmptyState icon="lucide:book-open" :title="loadError" action-text="重新加载" @action="load" /></div>
-        <template v-else-if="rows.length"><article v-for="row in rows" :key="row.id" class="faq"><button type="button" :aria-expanded="activeId === String(row.id)" :aria-controls="'help-' + row.id" @click="openArticle(row)"><span>{{ row.title }}</span><UmIcon :name="activeId === String(row.id) ? 'minus' : 'plus'" /></button><div v-if="activeId === String(row.id)" :id="'help-' + row.id"><div v-if="detailLoading" role="status" aria-label="正在读取帮助正文"><Skeleton class="help-skeleton" /><Skeleton class="help-skeleton" /></div><PublicContentBody v-else-if="detail" :content="detail" /><div v-else-if="detailError" class="content-error" role="alert"><p>{{ detailError }}</p><button type="button" class="outline" @click="openArticle(row, true)">重新读取</button></div></div></article></template>
+        <template v-else-if="rows.length"><article v-for="row in rows" :key="row.id" class="faq"><button type="button" :aria-expanded="activeId === String(row.id)" :aria-controls="'help-' + row.id" @click="openArticle(row)"><span>{{ row.title }}</span><UmIcon :name="activeId === String(row.id) ? 'minus' : 'plus'" /></button><div v-if="activeId === String(row.id)" :id="'help-' + row.id"><div v-if="detailLoading" role="status" aria-label="正在读取帮助正文"><Skeleton class="help-skeleton" /><Skeleton class="help-skeleton" /></div><PublicContentBody v-else-if="detail" :content="detail" /><div v-else-if="detailError" class="content-error" role="alert"><p>{{ detailError }}</p><button type="button" class="outline" @click="openArticle(row, true)">重新加载</button></div></div></article></template>
         <div v-else class="paper"><EmptyState icon="lucide:book-open" :title="keyword || topic ? '没有找到相关帮助' : '帮助文章暂未发布'" description="你仍可通过消息中心联系支持。" :action-text="keyword || topic ? '查看全部帮助' : '联系客服'" @action="keyword || topic ? router.push({ path: '/help' }) : router.push('/im')" /></div>
         <BusinessPagination v-if="total > pageSize && !loading && !loadError" :total="total" :current="current" :page-size="pageSize" @change="changePage" />
       </section>

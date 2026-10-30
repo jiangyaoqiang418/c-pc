@@ -8,7 +8,7 @@ import * as authApi from '@/service/api/auth';
 import { useUserStore } from '@/stores/user';
 import { useWalletStore } from '@/stores/wallet';
 import { useCartStore } from '@/stores/cart';
-import { authApi as demoAuthApi, MOCK_USERS } from '@shared';
+import { STORAGE_KEY } from '@shared';
 import { ACCESS_TOKEN_KEY } from './token';
 import { useNotifyStore } from '@/stores/notify';
 import * as notifyApi from '@/service/api/notify';
@@ -1390,41 +1390,36 @@ describe('登录失效跳转边界', () => {
     expect(user.isLoggedIn).toBe(false);
   });
 
-  it('演示入口不能清除或替代已有真实身份', async () => {
-    vi.stubEnv('DEV', true);
+  it('真实身份不再暴露演示登录或身份切换入口', () => {
     const { user, wallet, cart } = setupUser();
-    const demoLogin = vi.spyOn(demoAuthApi, 'switchCurrentUser');
-    await expect(user.login(MOCK_USERS[0].userId)).rejects.toThrow('当前登录未改变');
-    expect(demoLogin).not.toHaveBeenCalled();
+    expect('login' in user).toBe(false);
+    expect('switchDemoUser' in user).toBe(false);
+    expect('demoUser' in user).toBe(false);
     expect(user.currentUser?.id).toBe('account-a');
     expect(getAccessToken()).toBe('qa-session-a');
     expect(wallet.totalAssets).toBe('42');
     expect(cart.items).toHaveLength(1);
   });
 
-  it('演示身份和刷新恢复都不成为真实登录；非开发环境拒绝演示入口', async () => {
-    vi.stubEnv('DEV', true);
-    setupSession();
-    setAccessToken('');
-    setActivePinia(createPinia());
-    const user = useUserStore();
-    vi.spyOn(demoAuthApi, 'switchCurrentUser').mockResolvedValue({ id: 1, nickname: 'QA demo', isBuyer: true } as Api.User.UserRecord);
-    await user.login(MOCK_USERS[0].userId);
-    expect(user.demoUser?.nickname).toBe('QA demo');
-    expect(user.currentUser).toBeUndefined();
-    expect(user.isLoggedIn).toBe(false);
-    expect(user.canSwitchToBuyer).toBe(false);
-    setActivePinia(createPinia());
-    const restored = useUserStore();
-    await restored.init();
-    expect(restored.demoUser?.nickname).toBe('QA demo');
-    expect(restored.isLoggedIn).toBe(false);
-    vi.stubEnv('DEV', false);
-    setActivePinia(createPinia());
-    const production = useUserStore();
-    await production.init();
-    expect(production.demoUser).toBeUndefined();
-    await expect(production.login(MOCK_USERS[0].userId)).rejects.toThrow('不提供演示登录');
+  it('开发和生产环境的旧演示存储均不能恢复为登录身份', async () => {
+    for (const development of [true, false]) {
+      vi.stubEnv('DEV', development);
+      setupSession();
+      setAccessToken('');
+      localStorage.setItem(STORAGE_KEY.currentUserId, '1');
+      localStorage.setItem(STORAGE_KEY.currentAudience, 'buyer');
+      setActivePinia(createPinia());
+      const user = useUserStore();
+      const readUser = vi.spyOn(authApi, 'fetchCurrentUser');
+      await user.init();
+      expect(user.currentUser).toBeUndefined();
+      expect(user.isLoggedIn).toBe(false);
+      expect(user.canSwitchToBuyer).toBe(false);
+      expect(user.currentAudience).toBe('customer');
+      expect(localStorage.getItem(STORAGE_KEY.currentUserId)).toBeNull();
+      expect(readUser).not.toHaveBeenCalled();
+      vi.restoreAllMocks();
+    }
   });
 
   it('买手权限回读失效后立即退出操作视角，不能仅凭旧视角继续操作', async () => {

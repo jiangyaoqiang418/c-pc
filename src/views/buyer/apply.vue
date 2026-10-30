@@ -151,7 +151,7 @@ async function submit() {
       }
       else {
         submissionUnknown.value = true;
-        Message.warning('买手申请结果待核实，请重新读取申请状态；未确认前请勿再次提交');
+        Message.warning('买手申请结果待核实，请重新加载申请状态；未确认前请勿再次提交');
       }
     }
   } finally {
@@ -183,7 +183,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => us
 
 <template>
   <div class="buyer-apply-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>申请成为买手</h1><p>买手身份、KYC 状态及发布资格以平台审核结果为准。</p></div></header>
+    <header class="buyer-page-top"><div><h1>申请成为买手</h1><p>审核通过后可使用买手服务，发布商品还需满足页面提示的条件。</p></div></header>
     <Alert v-if="submissionUnknown" class="notice"><AlertDescription><p>上次申请结果待核实，本页已暂停重复提交。请读取申请状态；仍无法核实时联系平台，刷新页面不代表原申请失败。</p><Button class="outline" variant="outline" size="sm" :disabled="loading" @click="loadApplication">{{ loading ? '正在核对…' : '核对申请状态' }}</Button></AlertDescription></Alert>
     <Alert v-if="loadError" variant="destructive"><AlertDescription class="error-row"><span>{{ loadError }}</span><Button class="outline" variant="outline" size="sm" :disabled="loading" @click="loadApplication">重新加载</Button></AlertDescription></Alert>
     <Alert v-if="!loading && !loadError && kycAction && (!application || application.status === 'REJECTED')" class="notice"><AlertDescription><p>{{ kycAction.text }} 填写的申请资料会在本次页面跳转中保留。</p><Button type="button" class="outline" variant="outline" size="sm" :disabled="submitting" @click="openKyc">{{ kycAction.label }}</Button></AlertDescription></Alert>

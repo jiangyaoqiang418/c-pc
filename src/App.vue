@@ -103,7 +103,6 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
   <template v-else>
     <div v-if="!route.matched.length" class="session-state"><EmptyState icon="lucide:map" title="页面不存在" description="当前地址无对应页面，请检查链接。" action-text="返回首页" @action="router.push('/')" /></div>
     <template v-else>
-      <div v-if="userStore.demoUser && !userStore.isLoggedIn" class="demo-notice" role="status"><Icon icon="lucide:info" width="16" /><span>当前为本地演示模式，仅浏览公开页面；钱包、订单等真实业务需要平台账号登录。</span><Button type="button" variant="link" size="sm" @click="router.push({ name: 'login' })">真实账号登录</Button></div>
       <component :is="layoutComponent" />
     </template>
   </template>
@@ -120,5 +119,5 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
   gap: 12px;
   color: var(--yb-muted);
 }
-.session-state { min-height: 70dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; }.session-state :deep(.empty-state) { padding: 24px; }.demo-notice { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 8px 24px; color: var(--yb-primary); background: var(--yb-primary-soft); font-size: 13px; }.demo-notice > svg { flex-shrink: 0; }
+.session-state { min-height: 70dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; }.session-state :deep(.empty-state) { padding: 24px; }
 </style>

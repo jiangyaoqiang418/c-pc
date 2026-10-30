@@ -28,7 +28,7 @@ const items = computed(() => cart.enrichedItems);
 const selection = computed(() => cart.allSelected ? true : items.value.some(item => item.selected) ? 'indeterminate' as const : false);
 const hasUnconfirmedSelection = computed(() => items.value.some(item => item.selected && !item.available));
 const checkoutDisabledReason = computed(() => {
-  if (cart.mutating) return '购物车正在同步，请稍候再结算';
+  if (cart.mutating) return '购物袋正在同步，请稍候再结算';
   if (items.value.some(item => item.selected && !item.available)) return '已选商品尚未全部确认可购，请重试读取或调整数量和勾选';
   if (cart.selectedQty === 0) return '请先勾选至少一件可购商品';
   return '';
@@ -72,7 +72,7 @@ function goCheckout() {
     return;
   }
   if (cart.mutating) {
-    Message.warning('购物车正在同步，请稍候再结算');
+    Message.warning('购物袋正在同步，请稍候再结算');
     return;
   }
   if (items.value.some(item => item.selected && !item.available)) {
@@ -101,7 +101,7 @@ onMounted(() => {
     <div class="page-heading compact"><h1>购物袋</h1><span class="heading-meta">{{ cart.totalQty }} 件商品</span></div>
     <div v-if="cart.cacheError" class="empty paper" role="alert">
       <UmIcon name="bag" /><h2>购物袋读取失败</h2><p>{{ cart.cacheError }}</p>
-      <button type="button" class="primary" @click="cart.retryLoad">重新读取</button>
+      <button type="button" class="primary" @click="cart.retryLoad">重新加载</button>
     </div>
     <div v-else-if="items.length" class="cart-layout">
       <section class="paper cart-list" aria-label="购物袋商品" :aria-busy="cart.mutating">
@@ -120,7 +120,7 @@ onMounted(() => {
             <span v-if="item.product?.overseasCustoms" class="tag inline">海外直邮</span>
             <p v-if="item.confirmedInvalid" class="cart-item-notice danger">商品已失效，请移除后重新选择</p>
             <p v-else-if="item.loadState === 'loading'" class="cart-item-notice" role="status">正在读取商品信息</p>
-            <button v-else-if="item.loadState === 'error'" type="button" class="text-link cart-retry" @click="cart.refresh()">读取失败，重新读取</button>
+            <button v-else-if="item.loadState === 'error'" type="button" class="text-link cart-retry" @click="cart.refresh()">读取失败，重新加载</button>
             <p v-else-if="item.skuSelectionRequired" class="cart-item-notice">商品已更新规格，请返回商品页重新选购</p>
             <p v-else-if="!item.available" class="cart-item-notice">请检查数量或商品信息</p>
             <QuantityStepper class="cart-quantity" :model-value="item.qty" :max="item.stock || 1" :disabled="cart.mutating || item.loadState !== 'ready' || item.confirmedInvalid || item.skuSelectionRequired" :label="`${item.product?.title || '商品'}数量`" @update:model-value="value => cart.update(item.productId, value, item.skuId)" />
@@ -140,10 +140,10 @@ onMounted(() => {
         <div class="summary-total"><span>合计</span><b>{{ hasUnconfirmedSelection ? '待确认' : formatAmount(cart.subTotal) }}<small v-if="!hasUnconfirmedSelection"> USDT</small></b></div>
         <button type="button" class="gold full" :disabled="!!checkoutDisabledReason" :aria-describedby="checkoutDisabledReason ? 'cart-checkout-reason' : undefined" @click="goCheckout">去结算 · {{ cart.selectedQty }} 件 <UmIcon name="arrow" /></button>
         <p v-if="checkoutDisabledReason" id="cart-checkout-reason" class="cart-checkout-reason" role="status">{{ checkoutDisabledReason }}</p>
-        <button type="button" class="text-link full" @click="router.push('/product/list')">继续发现好物 →</button>
+        <button type="button" class="text-link full" @click="router.push('/product/list')">去逛逛</button>
       </aside>
     </div>
-    <div v-else class="empty paper"><UmIcon name="bag" /><h2>购物袋还是空的</h2><p>先去发现一些值得喜欢的好物吧。</p><button type="button" class="primary" @click="router.push('/product/list')">开始探索 <UmIcon name="arrow" /></button></div>
+    <div v-else class="empty paper"><UmIcon name="bag" /><h2>购物袋暂无商品</h2><button type="button" class="primary" @click="router.push('/product/list')">去逛逛 <UmIcon name="arrow" /></button></div>
   </div>
 </template>
 

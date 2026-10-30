@@ -58,6 +58,8 @@ const reviewableGuard = createLatestRequestGuard(() => `${String(userStore.curre
 
 const orderView = ref<'buy' | 'sell'>('buy');
 const role = computed(() => (orderView.value === 'sell' ? 'shopper' : 'customer'));
+const hasFilters = computed(() => activeKey.value !== 'all' || !!orderNo.value || !!productTitle.value);
+const emptyTitle = computed(() => hasFilters.value ? '暂无符合条件的订单' : orderView.value === 'sell' ? '暂无卖出订单' : '暂无订单');
 
 function syncFromQuery() {
   orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo.trim() : '';
@@ -286,7 +288,14 @@ function handleEmptyAction() {
     void load();
     return;
   }
-  router.push('/purchase/create');
+  if (hasFilters.value) {
+    activeKey.value = 'all';
+    orderNo.value = productTitle.value = orderNoDraft.value = productTitleDraft.value = '';
+    current.value = 1;
+    syncQuery();
+    return;
+  }
+  void router.push(orderView.value === 'sell' ? '/buyer/products' : '/product/list');
 }
 function changeTab(value: string | number) {
   const key = String(value);
@@ -306,7 +315,7 @@ function changeTab(value: string | number) {
       <p v-else-if="reviewableLoading" class="review-loading" role="status"><Icon icon="lucide:loader-circle" width="14" class="animate-spin" />正在核对评价资格…</p>
       <div v-if="loading && !orders.length" class="order-skeletons" aria-label="正在读取订单"><Skeleton v-for="i in 3" :key="i" class="order-skeleton" /></div>
       <div v-else-if="orders.length" :class="{ reading: loading }"><div class="order-table-labels" aria-hidden="true"><span>商品信息</span><span>订单金额</span><span>操作</span></div><OrderCard v-for="order in orders" :key="order.id" :order="order" :reviewable="reviewableOrderIds.has(String(order.id))" @changed="onChanged" /></div>
-      <div v-else class="empty paper"><UmIcon name="box" /><h2>{{ loadError || '该状态下没有订单' }}</h2><p>{{ loadError ? '请稍后重试。' : '完成第一笔订单，开启好物旅程。' }}</p><button type="button" class="primary" @click="handleEmptyAction">{{ loadError ? '重新加载' : '发起求购' }}</button></div>
+      <div v-else class="empty paper" :role="loadError ? 'alert' : 'status'"><UmIcon name="box" /><h2>{{ loadError || emptyTitle }}</h2><p v-if="loadError">请稍后重试。</p><button type="button" class="primary" @click="handleEmptyAction">{{ loadError ? '重新加载' : hasFilters ? '查看全部订单' : orderView === 'sell' ? '管理商品' : '去逛逛' }}</button></div>
     </section>
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
   </div>

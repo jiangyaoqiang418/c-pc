@@ -13,9 +13,8 @@ defineEmits<{ (e: 'detail', txn: Api.RealWallet.DisplayLedger): void }>();
 
 const isIn = computed(() => props.txn.direction === 'in');
 const typeLabel = computed(() => {
-  if (props.txn.testData) return '测试模拟到账';
   if ('bizTypeText' in props.txn && props.txn.bizTypeText) return props.txn.bizTypeText;
-  return enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type;
+  return enums.TXN_TYPE_META[props.txn.type]?.label || '资金变动';
 });
 
 const desc = computed(() => {

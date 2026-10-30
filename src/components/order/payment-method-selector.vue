@@ -38,7 +38,7 @@ const groupId = useId();
         <SelectTrigger :id="`${groupId}-chain`"><SelectValue placeholder="请选择支付链" /></SelectTrigger>
         <SelectContent><SelectItem v-for="chain in chains" :key="chain.chain" :value="chain.chain" :disabled="!props.chainAvailable(chain)">{{ chain.label || chain.chain }} · {{ chain.network }}{{ chain.minAmount ? `（最低 U ${chain.minAmount}）` : '' }}{{ !chain.enabled ? ' · 暂不可用' : '' }}</SelectItem></SelectContent>
       </Select>
-      <p>订单创建后以服务端金额为准；正式转账需少量 ETH、BNB 或 TRX 支付链上手续费。</p>
+      <p>支付金额以订单显示为准。链上转账还需使用对应网络的手续费币（如 ETH、BNB 或 TRX）支付手续费。</p>
     </div>
     <div v-else class="balance-meta"><slot name="balance" /></div>
   </div>

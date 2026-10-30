@@ -145,10 +145,10 @@ function confirmReview(params: Api.RealReview.ReviewSubmitParams, restoring = fa
         const detail = await reviewApi.fetchReviewDetail(reviewId, { showError:false });
         if (!isCurrentWrite()) throw new RequestError('会话或订单已切换，请重新核对', { code:'SESSION_CHANGED' });
         if (!sameBusinessId(detail.reviewId, reviewId) || !sameBusinessId(detail.orderId, requestedOrderId)
-          || !sameBusinessId(detail.userId, requestedUserId)) throw new Error('评价回读归属不一致，原内容保持保留');
+          || !sameBusinessId(detail.userId, requestedUserId)) throw new Error('评价信息未能核对一致，当前输入内容已保留，请先核对原评价');
         verifiedExisting = detail;
         const images = detail.images ?? [];
-        if (!Array.isArray(images)) throw new Error('评价图片回读不完整，原内容保持保留');
+        if (!Array.isArray(images)) throw new Error('评价图片未能核对完整，当前输入内容已保留，请先查看已提交的评价');
         if (detail.productScore !== snapshot.productScore || detail.sellerScore !== snapshot.sellerScore
           || (detail.content || '').trim() !== (snapshot.content || '').trim()
           || JSON.stringify(images) !== JSON.stringify(snapshot.images)

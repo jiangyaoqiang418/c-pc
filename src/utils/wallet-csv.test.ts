@@ -34,8 +34,8 @@ describe('提现提交校验', () => {
     expect(prepareWithdrawal({ ...params, amount: '0.000001' }, '1', config).error).toBe('');
     expect(prepareWithdrawal({ ...params, amount: '0.0000001' }, '1', config).error).not.toBe('');
     expect(prepareWithdrawal({ ...params, amount: '1.12345600' }, '2', config).params.amount).toBe('1.123456');
-    expect(prepareWithdrawal(params, params.amount, { ...config, enabled: false }).error).toContain('暂不可提现');
-    expect(prepareWithdrawal(params, params.amount, { ...config, asset: 'USDT' }).error).toContain('暂不可提现');
+    expect(prepareWithdrawal(params, params.amount, { ...config, enabled: false }).error).toContain('暂不可转出');
+    expect(prepareWithdrawal(params, params.amount, { ...config, asset: 'USDT' }).error).toContain('暂不可转出');
     expect(prepareWithdrawal(params, params.amount, { ...config, maxAmount: '10' }).error).toContain('最大转出');
   });
 });
@@ -65,7 +65,7 @@ describe('walletLedgerCsv', () => {
     expect(csv).toContain('"90071992547409931"');
   });
 
-  it('keeps test recharge semantics and escapes CSV content', () => {
+  it('保留真实流水类型与原始备注，不按备注覆盖类型，继续正确转义CSV', () => {
     const csv = walletLedgerCsv([{
       id: 1,
       userId: 1,
@@ -76,12 +76,12 @@ describe('walletLedgerCsv', () => {
       balanceAfter: '100',
       chainTxHash: 'DEV-TEST-1',
       remark: '测试,"到账"',
-      testData: true,
       createdAt: '2026-08-15T00:00:00.000Z'
     }]);
 
-    expect(csv).toContain('"测试模拟到账"');
-    expect(csv).toContain('"是"');
+    expect(csv).toContain('"链上入金"');
+    expect(csv).not.toContain('"测试模拟到账"');
+    expect(csv).not.toContain('"测试数据"');
     expect(csv).toContain('"测试,""到账"""');
     expect(csv).toContain('"DEV-TEST-1"');
   });

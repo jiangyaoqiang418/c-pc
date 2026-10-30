@@ -21,12 +21,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/home/index.vue'),
     meta: { layout: 'default', title: '首页' }
   },
-  {
+  ...(import.meta.env.DEV ? [{
     path: '/design',
     name: 'design',
     component: () => import('@/views/design/index.vue'),
     meta: { layout: 'default', title: '页面与状态总览' }
-  },
+  }] satisfies RouteRecordRaw[] : []),
   {
     path: '/brand',
     name: 'brand',
@@ -61,7 +61,7 @@ const routes: RouteRecordRaw[] = [
     path: '/cart',
     name: 'cart',
     component: () => import('@/views/cart/index.vue'),
-    meta: { layout: 'default', title: '购物车', requiresAuth: true }
+    meta: { layout: 'default', title: '购物袋', requiresAuth: true }
   },
   {
     path: '/order',
@@ -235,7 +235,7 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '申请成为买手', requiresAuth: true } },
   // 买手 (requiresAuth + requiresBuyer)
   { path: '/buyer/dashboard', name: 'buyer-dashboard', component: () => import('@/views/buyer/dashboard.vue'),
-    meta: { layout: 'default', title: '买手仪表盘', requiresAuth: true, requiresBuyer: true } },
+    meta: { layout: 'default', title: '买手工作台', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/products/create', name: 'buyer-product-create', component: () => import('@/views/buyer/product-create.vue'),
     meta: { layout: 'default', title: '创建商品', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/products/:id/edit', name: 'buyer-product-edit', component: () => import('@/views/buyer/product-create.vue'),
@@ -247,7 +247,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/buyer/products', name: 'buyer-products', component: () => import('@/views/buyer/products.vue'),
     meta: { layout: 'default', title: '商品管理', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/deposit', name: 'buyer-deposit', component: () => import('@/views/buyer/deposit.vue'),
-    meta: { layout: 'default', title: '买手押金', requiresAuth: true, requiresBuyer: true } },
+    meta: { layout: 'default', title: '保证金管理', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/orders', name: 'buyer-orders', component: () => import('@/views/buyer/orders.vue'),
     meta: { layout: 'default', title: '买手订单', requiresAuth: true, requiresBuyer: true } },
   { path: '/buyer/aftersales', name: 'buyer-aftersales', component: () => import('@/views/buyer/aftersales.vue'),

@@ -215,7 +215,7 @@ function selectStatus(value: string) {
 
 <template>
   <div class="buyer-category-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>分类申请</h1><p>现有分类无法满足商品发布时，可提交新增分类申请。</p></div><Button class="primary" @click="openSubmit">提交申请</Button></header>
+    <header class="buyer-page-top"><div><h1>分类申请</h1><p>现有分类无法满足商品发布时，可提交新增分类申请。</p></div><Button class="primary" @click="openSubmit">提交申请</Button></header>
     <div class="buyer-info"><UmIcon name="grid" /><span>现有分类无法满足选品时，可申请新分类。审核通过后才会出现于商品分类中。</span><button type="button" :disabled="submitting" @click="openSubmit">＋ 提交申请</button></div>
     <div class="buyer-tabs" role="group" aria-label="申请状态"><button v-for="item in [{ key:'all', label:'全部' },{ key:'PENDING', label:'待审核' },{ key:'APPROVED', label:'已通过' },{ key:'REJECTED', label:'已驳回' }]" :key="item.key" type="button" :class="{ active:filterStatus === item.key }" :aria-pressed="filterStatus === item.key" @click="selectStatus(item.key)">{{ item.label }}</button></div>
     <form class="buyer-filter" @submit.prevent="current = 1; load()"><label><UmIcon name="search" /><input v-model="filter.keyword" aria-label="搜索分类名称" placeholder="搜索分类名称" /></label><button type="submit" :disabled="loading">查询</button><button type="button" @click="reset">重置</button></form>

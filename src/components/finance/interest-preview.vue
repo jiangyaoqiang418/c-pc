@@ -90,7 +90,7 @@ watch([annualRate, lockDays, min, max], () => { confirmVisible.value = false; ac
 
 <template>
   <section class="vault-calculator">
-    <span class="eyebrow">PLAN YOUR LOCKUP</span><h2>预览这笔锁仓</h2>
+    <h2>收益测算</h2>
     <label for="finance-subscribe-amount">锁仓金额 <span>USDT</span></label>
     <div class="vault-amount-input"><input id="finance-subscribe-amount" v-model="amount" inputmode="decimal" autocomplete="off" placeholder="0.00" :disabled="submitting" maxlength="40" /><button :disabled="submitting || balance === undefined" @click="useMaximum">最大</button></div>
     <small class="vault-balance-hint">可用 {{ formatAmount(availableBalance) }} USDT · 最低 {{ formatAmount(min) }} USDT</small>
@@ -98,9 +98,9 @@ watch([annualRate, lockDays, min, max], () => { confirmVisible.value = false; ac
     <p v-if="errMsg" class="vault-error" role="alert">{{ errMsg }}</p>
     <div class="vault-estimate"><span>预计到期利息</span><strong>{{ expectedInterest === undefined ? '待确认' : '+ ' + formatAmount(expectedInterest, { decimals: 4 }) }} <small>USDT</small></strong><small>参考年化 {{ formatRate(annualRate) }} · {{ lockDays ?? '—' }} 天</small></div>
     <dl class="vault-breakdown"><div><dt>每日预估利息</dt><dd>+ {{ formatAmount(dailyEstimate, { decimals: 8 }) }}</dd></div><div><dt>预计到期日</dt><dd>{{ maturityDate }}</dd></div><div><dt>预计到期本息</dt><dd>{{ formatAmount(estimatedTotal, { decimals: 4 }) }} USDT</dd></div></dl>
-    <p class="vault-formula">本金 × 年化 ÷ 365 × 天数<br />测算仅作参考，以申购时确认的参数为准。</p>
+    <p class="vault-formula">本金 × 年化 ÷ 365 × 天数<br />测算结果仅供参考，实际收益以锁仓订单为准。</p>
     <button class="primary full" :disabled="!canSubmit || submitting" @click="openConfirm">{{ submitting ? '正在处理…' : '确认锁仓' }}<UmIcon v-if="!submitting" name="arrow" /></button>
-    <V47VaultDialog v-model:visible="confirmVisible" title="确认这笔锁仓" :description="product.name + ' · USDT'" eyebrow="REVIEW YOUR LOCKUP" :busy="submitting">
+    <V47VaultDialog v-model:visible="confirmVisible" title="确认申购" :description="product.name + ' · USDT'" :busy="submitting">
       <div class="vault-confirm-amount"><small>锁仓本金</small><strong>{{ formatAmount(normalizedAmount, { decimals: 4 }) }} <span>USDT</span></strong></div>
       <dl class="vault-breakdown"><div><dt>参考年化</dt><dd>{{ formatRate(annualRate) }}</dd></div><div><dt>锁仓期限</dt><dd>{{ lockDays }} 天</dd></div><div><dt>到期日期</dt><dd>{{ maturityDate }}</dd></div><div><dt>预计利息</dt><dd class="positive">+ {{ formatAmount(expectedInterest, { decimals: 8 }) }}</dd></div></dl>
       <p class="vault-confirm-note">每日计息不等于每日到账；本金与利息由系统结算。确认后需输入支付密码，实际收益以锁仓订单为准。</p>

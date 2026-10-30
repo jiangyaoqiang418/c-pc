@@ -19,9 +19,8 @@ const isIn = computed(() => props.txn?.direction === 'in');
 const referenceLabels = { order: '订单', finance: '理财', kyc: '实名认证', manual: '人工调整', risk: '风险管理', blacklist: '黑名单管理' };
 const typeLabel = computed(() => {
   if (!props.txn) return '';
-  if (props.txn.testData) return '测试模拟到账';
   if ('bizTypeText' in props.txn && props.txn.bizTypeText) return props.txn.bizTypeText;
-  return enums.TXN_TYPE_META[props.txn.type]?.label || props.txn.type;
+  return enums.TXN_TYPE_META[props.txn.type]?.label || '资金变动';
 });
 
 function copy(text?: string) {

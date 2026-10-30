@@ -236,7 +236,7 @@ function handleEmptyAction() {
       </aside></div>
       <section class="vault-ledger"><div class="vault-section-heading"><h3>按日计息明细</h3><small>理论参考 · 非到账流水</small></div><div class="vault-ledger-header"><span>计息日期</span><span>当日利息</span><span>累计计息</span></div><div v-for="row in theoreticalLedger" :key="row.day" class="vault-ledger-row"><span>{{ row.date }}<small>第 {{ row.day }} 天</small></span><b>+ {{ formatAmount(row.interest, { decimals: 4 }) }}</b><span>{{ formatAmount(row.total, { decimals: 4 }) }} USDT</span></div><p v-if="!theoreticalLedger.length" class="vault-formula">{{ completedDays === undefined || dailyTheoretical === undefined ? '持有天数或计息参数尚未确认，暂无法测算明细。' : '尚未完成首个计息日，请稍后查看。' }}</p><button v-if="completedDays !== undefined && completedDays > 5" class="vault-ledger-more" @click="expandLedger = !expandLedger">{{ expandLedger ? '收起明细' : completedDays > 90 ? '展开最近 90 天' : '展开全部 ' + completedDays + ' 天' }}<UmIcon name="chevron" /></button></section>
     </template>
-    <EmptyState v-else :title="loadError ? '锁仓信息加载失败' : '未找到这笔资产'" :description="loadError || undefined" :action-text="loadError ? '重新读取' : '返回我的锁仓'" @action="handleEmptyAction" />
+    <EmptyState v-else :title="loadError ? '锁仓信息加载失败' : '未找到这笔资产'" :description="loadError || undefined" :action-text="loadError ? '重新加载' : '返回我的锁仓'" @action="handleEmptyAction" />
     <EarlyUnlockModal v-model:visible="unlockModalOpen" :order="order" :submitting="unlocking" :pending="redemptionPending" @confirm="confirmUnlock" />
   </div>
 </template>

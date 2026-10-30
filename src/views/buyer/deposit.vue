@@ -114,9 +114,9 @@ async function loadAll() {
     orderCountsLoaded.value = countsResult.status === 'fulfilled';
     orderCounts.value = countsResult.status === 'fulfilled' ? countsResult.value : {};
     if (walletResult.status === 'rejected' || walletStore.account === undefined || summaryResult.status === 'rejected') {
-      loadError.value = '押金账户加载失败，请检查网络后重试。';
+      loadError.value = '保证金账户加载失败，请检查网络后重试。';
     } else if (txnResult.status === 'rejected' || countsResult.status === 'rejected') {
-      loadError.value = '押金流水或订单统计加载失败，请检查网络后重试。';
+      loadError.value = '保证金流水或订单统计加载失败，请检查网络后重试。';
     }
   } catch {
     if (!isCurrent()) return;
@@ -124,7 +124,7 @@ async function loadAll() {
     total.value = 0;
     orderCounts.value = {};
     orderCountsLoaded.value = false;
-    loadError.value = '押金信息加载失败，请检查网络后重试。';
+    loadError.value = '保证金信息加载失败，请检查网络后重试。';
   } finally {
     if (isCurrent()) loading.value = false;
   }
@@ -196,7 +196,7 @@ async function submitDepositTransfer() {
     return;
   }
   if (loading.value || !account.value || maxTransferAmount.value === undefined) {
-    Message.warning('请等待押金账户读取完成后再提交');
+    Message.warning('请等待保证金账户读取完成后再提交');
     return;
   }
   if (compareDecimalAmount(amount, maxTransferAmount.value) === 1) {
@@ -228,7 +228,7 @@ async function submitDepositTransfer() {
       await loadAll();
     } catch (error) {
       if (isCurrentWrite()) {
-        Message.error(error instanceof Error ? error.message : '押金操作未完成，请重新核对');
+        Message.error(error instanceof Error ? error.message : '保证金操作未完成，请重新核对');
       }
     }
   } finally {
@@ -246,14 +246,14 @@ function openTxn(t: Api.RealBuyer.DepositLedger) {
 
 <template>
   <div class="deposit-page shop-container">
-    <header class="buyer-page-top"><div><span class="eyebrow">UMAOMAO / BUYER STUDIO</span><h1>押金管理</h1><button v-if="returnPath" type="button" class="text-link" :disabled="transferring" @click="router.push(returnPath)">返回原操作 →</button><p>清晰掌握每一步，从容经营每一天。</p></div></header>
+    <header class="buyer-page-top"><div><h1>保证金管理</h1><button v-if="returnPath" type="button" class="text-link" :disabled="transferring" @click="router.push(returnPath)">返回原操作 →</button></div></header>
     <Alert v-if="loadError" variant="destructive"><AlertDescription class="notice-row"><span>{{ loadError }}</span><Button class="outline" variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新加载</Button></AlertDescription></Alert>
-    <Alert v-if="account && (account.available === undefined || summary?.depositBalance === undefined || summary?.depositFrozen === undefined || summary?.depositAvailable === undefined)"><AlertDescription class="notice-row"><span>部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。</span><Button class="outline" variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新读取余额</Button></AlertDescription></Alert>
-    <section v-if="account" class="paper deposit-summary"><DepositMeter :balance="summary?.depositBalance" :frozen="summary?.depositFrozen" :available="summary?.depositAvailable" :usage-rate="summary?.usageRate" size="lg"><template #heading><h2>押金概况</h2></template><template #actions><div class="button-row"><Button class="primary" :disabled="transferring || loading" @click="openDepositTransfer('pay')">缴纳保证金</Button><Button class="outline" variant="outline" :disabled="transferring || loading" @click="openDepositTransfer('refund')">退还至钱包</Button><Tooltip><TooltipTrigger as-child><Button variant="ghost" size="sm"><UmIcon name="shield" />规则说明</Button></TooltipTrigger><TooltipContent class="rules-tooltip">上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。</TooltipContent></Tooltip></div></template></DepositMeter></section><Alert v-if="account"><AlertDescription>保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</AlertDescription></Alert>
-    <Skeleton v-else-if="loading" class="summary-skeleton" aria-label="正在加载押金账户" />
-    <EmptyState v-else :title="loadError ? '押金信息加载失败' : '暂无押金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
+    <Alert v-if="account && (account.available === undefined || summary?.depositBalance === undefined || summary?.depositFrozen === undefined || summary?.depositAvailable === undefined)"><AlertDescription class="notice-row"><span>部分余额尚未取得，“—”不代表零；只能使用已确认的可用余额操作。</span><Button class="outline" variant="outline" size="sm" :disabled="loading || transferring" @click="loadAll">重新加载余额</Button></AlertDescription></Alert>
+    <section v-if="account" class="paper deposit-summary"><DepositMeter :balance="summary?.depositBalance" :frozen="summary?.depositFrozen" :available="summary?.depositAvailable" :usage-rate="summary?.usageRate" size="lg"><template #heading><h2>保证金概况</h2></template><template #actions><div class="button-row"><Button class="primary" :disabled="transferring || loading" @click="openDepositTransfer('pay')">缴纳保证金</Button><Button class="outline" variant="outline" :disabled="transferring || loading" @click="openDepositTransfer('refund')">退还至钱包</Button><Tooltip><TooltipTrigger as-child><Button variant="ghost" size="sm"><UmIcon name="shield" />规则说明</Button></TooltipTrigger><TooltipContent class="rules-tooltip">上架资格由保证金汇总与免押资格决定；订单完成后占用保证金自动释放。</TooltipContent></Tooltip></div></template></DepositMeter></section><Alert v-if="account"><AlertDescription>保证金从钱包可用余额划入或退还；提交后将刷新余额和流水。</AlertDescription></Alert>
+    <Skeleton v-else-if="loading" class="summary-skeleton" aria-label="正在加载保证金账户" />
+    <EmptyState v-else :title="loadError ? '保证金信息加载失败' : '暂无保证金账户'" :description="loadError" :action-text="loadError ? '重新加载' : undefined" @action="loadAll" />
     <section v-if="account" class="paper"><h2>担保中订单</h2><dl class="buyer-dl"><dt>担保中订单数</dt><dd>{{ guaranteedOrderCount ?? '—' }} 笔</dd><dt>订单占用</dt><dd>{{ summary?.depositFrozen === undefined ? '—' : formatAmount(summary.depositFrozen) }} USDT</dd><dt>担保利用率</dt><dd>{{ depositUtilization ?? '—' }}</dd></dl></section>
-    <section class="paper"><div class="buyer-section-title"><h2>押金流水</h2><Button variant="ghost" size="sm" :disabled="loading" @click="loadAll"><UmIcon name="return" />刷新</Button></div><div v-if="txns.length"><button v-for="txn in txns" :key="txn.id" type="button" class="buyer-ledger" @click="openTxn(txn)"><span class="buyer-ledger-icon"><UmIcon :name="txn.type === 'DEPOSIT_RELEASE' ? 'return' : 'wallet'" /></span><span><b>{{ txn.bizTypeText || enums.TXN_TYPE_META[txn.type]?.label || txn.type }}</b><small>{{ formatDateValue(txn.createdAt) }} · {{ txn.bucketFrom ? enums.BUCKET_META[txn.bucketFrom]?.label : '' }} → {{ txn.bucketTo ? enums.BUCKET_META[txn.bucketTo]?.label : '' }}</small><small v-if="txn.remark">{{ txn.remark }}</small></span><strong>{{ txn.direction === 'in' ? '+' : '−' }}{{ formatAmount(txn.amount) }} <small>USDT</small><UmIcon name="chevron" /></strong></button></div><div v-else-if="loading" class="loading-list" aria-busy="true"><Skeleton v-for="n in 3" :key="n" class="row-skeleton" /></div><EmptyState v-else :title="loadError || '暂无押金流水'" :description="loadError ? '请稍后重试。' : undefined" :action-text="loadError ? '重新加载' : undefined" @action="loadError && loadAll()" /><BusinessPagination v-if="total > pageSize" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="(page: number) => { current = page; syncPageQuery(); }" /></section>
+    <section class="paper"><div class="buyer-section-title"><h2>保证金流水</h2><Button variant="ghost" size="sm" :disabled="loading" @click="loadAll"><UmIcon name="return" />刷新</Button></div><div v-if="txns.length"><button v-for="txn in txns" :key="txn.id" type="button" class="buyer-ledger" @click="openTxn(txn)"><span class="buyer-ledger-icon"><UmIcon :name="txn.type === 'DEPOSIT_RELEASE' ? 'return' : 'wallet'" /></span><span><b>{{ txn.bizTypeText || enums.TXN_TYPE_META[txn.type]?.label || txn.type }}</b><small>{{ formatDateValue(txn.createdAt) }} · {{ txn.bucketFrom ? enums.BUCKET_META[txn.bucketFrom]?.label : '' }} → {{ txn.bucketTo ? enums.BUCKET_META[txn.bucketTo]?.label : '' }}</small><small v-if="txn.remark">{{ txn.remark }}</small></span><strong>{{ txn.direction === 'in' ? '+' : '−' }}{{ formatAmount(txn.amount) }} <small>USDT</small><UmIcon name="chevron" /></strong></button></div><div v-else-if="loading" class="loading-list" aria-busy="true"><Skeleton v-for="n in 3" :key="n" class="row-skeleton" /></div><EmptyState v-else :title="loadError || '暂无保证金流水'" :description="loadError ? '请稍后重试。' : undefined" :action-text="loadError ? '重新加载' : undefined" @action="loadError && loadAll()" /><BusinessPagination v-if="total > pageSize" :total="total" :current="current" :page-size="pageSize" :loading="loading" @change="(page: number) => { current = page; syncPageQuery(); }" /></section>
     <TxnDetailDrawer v-model:visible="drawerOpen" :txn="drawerTxn" />
     <a-modal content-class="buyer-dialog" v-model:visible="transferOpen" :title="transferKind === 'pay' ? '缴纳保证金' : '退还保证金至钱包'" :ok-loading="transferring" :closable="!transferring" :mask-closable="!transferring" :esc-to-close="!transferring" :on-before-cancel="() => !transferring" :on-before-ok="() => { void submitDepositTransfer(); return false; }">
       <div class="transfer-form"><Label for="buyer-deposit-amount">金额（USDT）<span class="required"> *</span></Label><AmountInput id="buyer-deposit-amount" :exact-decimal="true" v-model:raw-value="transferText" v-model="transferAmount" :min="0.01" :max="maxTransferNumeric" :disabled="transferring" :precision="2" placeholder="请输入金额" /><p class="available-hint">{{ transferKind === 'pay' ? '钱包可用余额' : '可退保证金' }}：U {{ maxTransferAmount === undefined ? '—' : formatAmount(maxTransferAmount) }}</p><Alert><AlertDescription>{{ transferKind === 'pay' ? '将从钱包可用余额划入保证金，需输入支付密码确认。' : '将从可用保证金退还至钱包余额。' }}</AlertDescription></Alert></div>

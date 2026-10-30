@@ -22,7 +22,7 @@ function onChange(v: 'customer' | 'buyer') {
       });
       return;
     }
-    Message.warning('您的 KYC 状态需为「已通过」才能切换为买手');
+    Message.warning('您的 实名认证状态需为「已通过」才能切换为买手');
     router.push('/kyc');
     return;
   }

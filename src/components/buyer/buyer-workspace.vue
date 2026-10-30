@@ -16,7 +16,7 @@ const links = [
   { to: '/buyer/claimable', label: '求购接单', icon: 'search' },
   { to: '/buyer/aftersales', label: '售后查看', icon: 'shield' },
   { to: '/buyer/wallet', label: '买手钱包', icon: 'wallet' },
-  { to: '/buyer/deposit', label: '押金管理', icon: 'shield' },
+  { to: '/buyer/deposit', label: '保证金管理', icon: 'shield' },
   { to: '/buyer/categories/apply', label: '分类申请', icon: 'grid' },
   { to: '/buyer/flash-sales', label: '秒杀报名', icon: 'clock' }
 ];
@@ -26,9 +26,9 @@ const isActive = (path: string) => route.path === path || (path === '/buyer/prod
 <template>
   <div class="buyer-workspace-host" :class="{ 'buyer-workspace': enabled, 'buyer-layout': enabled }">
     <aside v-if="enabled" class="buyer-sidebar">
-      <div class="buyer-brand"><span class="buyer-mark"><UmIcon name="bag" /></span><div><b>买手工作室</b><small>BUYER STUDIO</small></div></div>
+      <div class="buyer-brand"><span class="buyer-mark"><UmIcon name="bag" /></span><div><b>买手中心</b></div></div>
       <nav ref="menu" aria-label="买手导航" data-um-rail :tabindex="rail.overflow.value ? 0 : undefined" :class="{ 'drag-scroll-overflow':rail.overflow.value, 'is-dragging':rail.isDragging.value }" @scroll.passive="rail.update" @pointerdown="rail.onPointerdown" @pointermove="rail.onPointermove" @pointerup="rail.onPointerend" @pointercancel="rail.onPointerend" @lostpointercapture="rail.onPointerend" @click.capture="rail.onClickCapture" @dragstart="rail.onDragStart" @keydown="rail.onKeydown"><RouterLink v-for="link in links" :key="link.to" :to="link.to" :class="{ active: isActive(link.to) }" :aria-current="isActive(link.to) ? 'page' : undefined"><UmIcon :name="link.icon" /><span>{{ link.label }}</span><UmIcon name="chevron" /></RouterLink></nav>
-      <div class="buyer-sidebar-note"><UmIcon name="shield" /><b>认真选品，安心履约。</b><p>每一个细节，<br>都成就一份信任。</p><RouterLink :to="{ path:'/help', query:{ topic:'buyer' } }">买手帮助 →</RouterLink></div>
+      <div class="buyer-sidebar-note"><RouterLink :to="{ path:'/help', query:{ topic:'buyer' } }">买手帮助 →</RouterLink></div>
     </aside>
     <section class="buyer-content-host" :class="{ 'buyer-content': enabled }"><slot /></section>
   </div>

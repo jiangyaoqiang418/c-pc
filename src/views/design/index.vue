@@ -38,7 +38,7 @@ const pageLinks = [
   { path: '/buyer/orders', title: '买手订单' },
   { path: '/buyer/categories/apply', title: '分类申请' },
   { path: '/buyer/flash-sales', title: '秒杀报名' },
-  { path: '/buyer/deposit', title: '买手押金' },
+  { path: '/buyer/deposit', title: '买手保证金' },
   { path: '/buyer/wallet', title: '买手钱包' },
   { path: '/buyer/aftersales', title: '卖出商品售后' },
   { path: '/buyer/claimable', title: '求购接单' },

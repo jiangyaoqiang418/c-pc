@@ -16,10 +16,10 @@ const META: Record<Api.Point.BehaviorCode, { label: string; color: string }> = {
   WITHDRAW: { label: '转出', color: 'orange' },
   FINANCE_HOLD: { label: '小金库持仓', color: 'purple' },
   ORDER_DONE: { label: '订单完成', color: 'arcoblue' },
-  KYC_PASS: { label: 'KYC 通过', color: 'cyan' },
+  KYC_PASS: { label: '实名认证通过', color: 'cyan' },
   REVIEW_GOOD: { label: '好评', color: 'green' },
   REVIEW_BAD: { label: '差评', color: 'red' },
-  DEPOSIT_PLEDGE: { label: '押金担保', color: 'cyan' },
+  DEPOSIT_PLEDGE: { label: '保证金担保', color: 'cyan' },
   BUYER_NO_FULFILL: { label: '买手未履约', color: 'red' }
 };
 
