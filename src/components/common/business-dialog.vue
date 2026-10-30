@@ -117,7 +117,7 @@ async function confirm() {
 .um-dialog-header .um-dialog-title { flex:1; min-width:0; margin:0; text-align:left; overflow-wrap:anywhere; }
 :root .um-dialog-header .dialog-close { position:static!important; flex:none; display:grid; place-items:center; margin:0 0 0 auto; padding:0; width:44px; height:44px; }
 .um-dialog:not(.buyer-dialog) .um-dialog-title { font-size:23px; }
-:root .um-dialog .um-dialog-danger { background:var(--yb-danger)!important; border-color:var(--yb-danger)!important; color:#fff!important; }
+:root .um-dialog .um-dialog-danger { background:var(--yb-danger)!important; border-color:var(--yb-danger)!important; color:var(--yb-on-danger, #fff)!important; }
 :root .um-dialog .um-dialog-danger:hover { background:color-mix(in srgb,var(--yb-danger) 85%,var(--ink))!important; }
 .um-dialog-close:disabled { opacity:.4; cursor:not-allowed; }
 .um-dialog-body { flex:1 1 auto; min-height:0; min-width:0; overflow:auto; overscroll-behavior:contain; padding:24px; overflow-wrap:anywhere; }

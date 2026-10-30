@@ -1,10 +1,115 @@
 /* Shared MEME structure has a few exclusive surfaces with literal brand colors.
    Only their color roles change here; no sizes, spacing, typography or artwork. */
+:root[data-ui-layout="v47"][data-ui-palette] {
+  --yb-control-border:color-mix(in srgb,var(--line),var(--ink) 46%);
+  --input:var(--yb-control-border)!important;
+  --ui-d9ded5:var(--yb-control-border)!important;
+  --yb-on-danger:#fff;
+  --yb-success-soft:color-mix(in srgb,var(--yb-success) 10%,var(--paper));
+  --destructive-foreground:var(--yb-on-danger)!important;
+}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) {
   --meme-lime:var(--green)!important;
   --meme-purple:var(--gold-light)!important;
   --meme-yellow:var(--gold)!important;
-  --meme-negative:var(--yb-danger)!important;
+  --yb-danger:#b42318!important;
+  --yb-danger-soft:color-mix(in srgb,var(--yb-danger) 10%,var(--paper));
+  --yb-warning:#7a3f00;
+  --yb-warning-soft:color-mix(in srgb,var(--yb-warning) 10%,var(--paper));
+  --yb-info:#245b94;
+  --yb-info-soft:color-mix(in srgb,var(--yb-info) 10%,var(--paper));
+  --yb-faint:var(--muted)!important;
+  --meme-negative:#b42318!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:is([data-ui-palette="web3-meme"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) {
+  --yb-danger:#ff8d9c!important;
+  --yb-on-danger:var(--dark);
+  --yb-danger-soft:color-mix(in srgb,var(--yb-danger) 12%,var(--paper));
+  --yb-warning:#f2c572;
+  --yb-warning-soft:color-mix(in srgb,var(--yb-warning) 12%,var(--paper));
+  --yb-info:#8fc5ff;
+  --yb-info-soft:color-mix(in srgb,var(--yb-info) 12%,var(--paper));
+  --meme-negative:#ff8d9c!important;
+}
+
+/* Forest intentionally uses the original --ui-* fallbacks. The compatibility
+   data-ui-theme="web3-meme" attribute otherwise leaks MEME's generated palette
+   slots into it, so mark every slot invalid and let each var() use its fallback. */
+:root[data-ui-layout="v47"][data-ui-palette="forest"] {
+  --v47-palette-00:initial;
+  --v47-palette-01:initial;
+  --v47-palette-02:initial;
+  --v47-palette-03:initial;
+  --v47-palette-04:initial;
+  --v47-palette-05:initial;
+  --v47-palette-06:initial;
+  --v47-palette-07:initial;
+  --v47-palette-08:initial;
+  --v47-palette-09:initial;
+  --v47-palette-10:initial;
+  --v47-palette-11:initial;
+  --v47-palette-12:initial;
+  --v47-palette-13:initial;
+  --v47-palette-14:initial;
+  --v47-palette-15:initial;
+  --v47-palette-16:initial;
+  --v47-palette-17:initial;
+  --v47-palette-18:initial;
+  --v47-palette-19:initial;
+  --v47-palette-20:initial;
+  --v47-palette-21:initial;
+  --v47-palette-22:initial;
+  --v47-palette-23:initial;
+  --v47-palette-24:initial;
+  --v47-palette-25:initial;
+  --v47-palette-26:initial;
+  --v47-palette-27:initial;
+  --v47-palette-28:initial;
+  --v47-palette-29:initial;
+  --v47-palette-30:initial;
+  --v47-palette-31:initial;
+  --v47-palette-32:initial;
+  --v47-palette-33:initial;
+  --v47-palette-34:initial;
+  --v47-palette-35:initial;
+  --v47-palette-36:initial;
+  --v47-palette-37:initial;
+  --v47-palette-38:initial;
+  --v47-palette-39:initial;
+  --v47-palette-40:initial;
+  --v47-palette-41:initial;
+  --v47-palette-42:initial;
+  --v47-palette-43:initial;
+  --v47-palette-44:initial;
+  --v47-palette-45:initial;
+  --v47-palette-46:initial;
+  --v47-palette-47:initial;
+  --v47-palette-48:initial;
+  --v47-palette-49:initial;
+  --v47-palette-50:initial;
+  --v47-palette-51:initial;
+  --v47-palette-52:initial;
+  --v47-palette-53:initial;
+  --v47-palette-54:initial;
+  --v47-palette-55:initial;
+  --v47-palette-56:initial;
+  --v47-palette-57:initial;
+  --v47-palette-58:initial;
+  --v47-palette-59:initial;
+  --v47-palette-60:initial;
+  --v47-palette-61:initial;
+  --v47-palette-62:initial;
+  --v47-palette-63:initial;
+  --v47-palette-64:initial;
+  --v47-palette-65:initial;
+  --v47-palette-66:initial;
+  --v47-palette-67:initial;
+  --v47-palette-68:initial;
+  --v47-palette-69:initial;
+  --v47-palette-70:initial;
+  --v47-palette-71:initial;
+  --v47-palette-72:initial;
+  --v47-palette-73:initial;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.primary,.gold,.account-auth .primary,.all-categories) {
   background:var(--green)!important;
@@ -22,6 +127,12 @@
   border-color:var(--line)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero :is(h1,h1 em,p,.eyebrow,.meme-hero-index,.hero-controls) {
+  color:var(--accent-ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .meme-hero-type {
+  color:var(--accent-ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero .hero-controls em {
   color:var(--accent-ink)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .meme-hero h1 em:after { background:color-mix(in srgb,var(--green) 25%,white)!important; }
@@ -53,6 +164,69 @@
   color:var(--ink)!important;
   border-color:var(--line)!important;
 }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.home-account,.rank-grid>button) {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.home-account,.rank-grid>button) :is(h2,h3,h4,b,strong) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.home-account,.rank-grid>button) :is(p,small) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .home-account :is(.role-switch,.account-discover) {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .home-account .role-switch>span {
+  background:var(--paper)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .home-account :is(.role-switch button,.account-shortcuts button,.account-balance>span,.account-discover small) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .home-account :is(.role-switch button[aria-pressed="true"],.account-balance>button,.account-shortcuts svg) {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .home-account :is(.account-shortcuts b,.account-discover b) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .floating-tools {
+  background:var(--paper)!important;
+  color:var(--muted)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .floating-tools button {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .product-card .product-price {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .product-card .product-price small {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .brand-strip>button:not(.text-link) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .recommend-tabs button {
+  background:transparent!important;
+  color:var(--muted)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .recommend-tabs button.active {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .footer-callout {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .footer-callout :is(span,a,button,svg) {
+  color:var(--on-primary)!important;
+}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .discovery-cell-heading h2 { color:var(--ink)!important; }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .mobile-nav {
   background:var(--paper)!important;
@@ -60,6 +234,17 @@
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .mobile-nav button { color:var(--muted)!important; }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .mobile-nav button.active { color:var(--green)!important; }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .filters {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .filters :is(h3,summary,.catalog-sr-only,.price-inputs>span) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .filters :is(label,.section-heading>button) {
+  color:var(--muted)!important;
+}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .wallet-hero {
   background:linear-gradient(125deg,var(--dark),color-mix(in srgb,var(--dark) 88%,black))!important;
 }
@@ -136,6 +321,11 @@
   color:var(--muted)!important;
   border-color:var(--line)!important;
 }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .order-head .status-text {
+  background:var(--paper)!important;
+  color:var(--muted)!important;
+  border-color:var(--line)!important;
+}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-product-body h3,.buyer-product-price,.checkout-item h3,.checkout-item>b,.order-footer>span b) {
   color:var(--ink)!important;
 }
@@ -176,6 +366,17 @@
   background:var(--paper)!important;
   color:var(--ink)!important;
   border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .profile-assets {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .profile-assets span {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .profile-assets b {
+  color:var(--ink)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .auth-art:after {
   background:linear-gradient(color-mix(in srgb,var(--green) 75%,transparent),transparent)!important;
@@ -230,6 +431,31 @@
   color:var(--on-primary)!important;
   border-color:var(--green)!important;
 }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.detail-price,.main-image,.stepper) {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .detail-price>span {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .detail-price :is(p,small,div) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .main-image>span {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .stepper :is(button,span) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.option-row,.review-topics) button.active {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.option-row,.review-topics) button.active * {
+  color:var(--on-primary)!important;
+}
 
 /* Shared informational banners keep status meaning without a fixed dark fill. */
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .status-banner {
@@ -242,6 +468,42 @@
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .status-banner>svg {
   color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.error,.danger,.review-alert,[role="alert"]:not(.notice)) {
+  background:var(--yb-danger-soft)!important;
+  color:var(--ink)!important;
+  border-color:color-mix(in srgb,var(--yb-danger) 58%,var(--line))!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.error,.danger,.review-alert,[role="alert"]:not(.notice)) :is(small,p),
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.error,.danger,.review-alert,[role="alert"]:not(.notice))>svg {
+  color:var(--yb-danger)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.warning,.notice.warning) {
+  background:var(--yb-warning-soft)!important;
+  color:var(--ink)!important;
+  border-color:color-mix(in srgb,var(--yb-warning) 58%,var(--line))!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.warning,.notice.warning) :is(small,p),
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.warning,.notice.warning)>svg {
+  color:var(--yb-warning)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner.success {
+  background:var(--yb-success-soft)!important;
+  color:var(--ink)!important;
+  border-color:color-mix(in srgb,var(--yb-success) 58%,var(--line))!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner.success :is(small,p),
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner.success>svg {
+  color:var(--yb-success)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.info,[role="status"]):not(.success):not(.warning):not(.error):not(.danger) {
+  background:var(--yb-info-soft,var(--soft))!important;
+  color:var(--ink)!important;
+  border-color:color-mix(in srgb,var(--yb-info) 58%,var(--line))!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.info,[role="status"]):not(.success):not(.warning):not(.error):not(.danger) :is(small,p),
+:root[data-ui-layout="v47"][data-ui-palette] .status-banner:is(.info,[role="status"]):not(.success):not(.warning):not(.error):not(.danger)>svg {
+  color:var(--yb-info)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-application .status-text {
   background:var(--soft)!important;
@@ -272,6 +534,9 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-card-top>span,.vault-total small,.vault-balance-bottom>span,.vault-plan-rule,.vault-product-info>p,.vault-product-rules p,.vault-product-rules svg,.vault-estimate>span,.vault-amount-input button) {
   color:var(--muted)!important;
 }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .vault-formula {
+  color:var(--muted)!important;
+}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-token,.vault-tabs button.active,.vault-periods button.active,.vault-plan>button,.vault-balance-bottom>button) {
   background:var(--green)!important;
   color:var(--on-primary)!important;
@@ -290,10 +555,188 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.vault-balance-bottom,.vault-plan-meta,.vault-term-badge,.vault-product-facts,.vault-product-rate,.vault-product-rules,.vault-breakdown>div) {
   border-color:var(--line)!important;
 }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .vault-plan-meta b {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .vault-plan-meta b small {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .vault-tabs button span {
+  background:var(--soft)!important;
+  color:var(--muted)!important;
+}
 
 /* The sent-message foreground belongs to the primary fill, not the page surface. */
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.message.me .bubble.text,.ai-message.user .ai-message-text) {
   background:var(--green)!important;
   color:var(--on-primary)!important;
   border-color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.im-page,.im-group-page) .avatar {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+
+/* The five additional dark Web3 palettes inherited MEME's dark heading on a
+   palette-local dark surface. Keep the card dark and use its own text roles. */
+:root[data-ui-layout="v47"]:is([data-ui-palette="forest"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) .join-banner {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"]:is([data-ui-palette="forest"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) .join-banner h2 {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"]:is([data-ui-palette="forest"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) .join-banner p {
+  color:var(--muted)!important;
+}
+
+/* Destructive actions must not be recolored as an ordinary primary action. */
+:root[data-ui-layout="v47"][data-ui-palette] .um-dialog .um-dialog-danger {
+  background:var(--yb-danger)!important;
+  color:var(--yb-on-danger)!important;
+  border-color:var(--yb-danger)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .um-dialog .um-dialog-danger:hover {
+  background:color-mix(in srgb,var(--yb-danger) 84%,var(--ink))!important;
+  color:var(--yb-on-danger)!important;
+}
+
+:root[data-ui-layout="v47"][data-ui-palette] .app-select-trigger {
+  border-color:var(--yb-control-border)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .positive {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette="forest"] .vault-workspace .positive {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .business-pagination .page-number.active {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
+
+/* Buyer workspace surfaces were authored against the original light palette.
+   Rebind the complete shell so every palette supplies the matching foreground. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-sidebar {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-brand b {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-sidebar nav a {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-sidebar nav a:is(:hover,.active) {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-sidebar nav a.active {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-sidebar-note {
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-sidebar-note a {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-info,.buyer-deposit-mini) {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.buyer-info>span,.buyer-info small,.buyer-deposit-mini>p,.buyer-inline-hint) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-info>button {
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-deposit-mini>p b {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-demand-mini>button {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-demand-mini :is(b,strong) {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-demand-mini small {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette] .buyer-status:is(.CANCELLED,.OFF_SHELF) {
+  background:var(--soft)!important;
+  color:var(--muted)!important;
+  border:1px solid var(--line)!important;
+}
+
+/* Product publishing contains several legacy palette-slot aliases. They must
+   inherit the active semantic palette instead of MEME's light foreground. */
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(label,span) {
+  color:inherit;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(small,.helper) {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(input,select,textarea),
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field .app-select-trigger {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--yb-control-border)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field .outline {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--yb-control-border)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-switch {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-switch b {
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-switch small {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--yb-control-border)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor .toolbar {
+  background:var(--soft)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor .toolbar button {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor :is(.tiptap,.editor-tip) {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor .editor-tip {
+  color:var(--muted)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-form-footer {
+  background:color-mix(in srgb,var(--paper) 94%,transparent)!important;
+  color:var(--ink)!important;
+  border-color:var(--line)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-form-footer .outline {
+  background:var(--paper)!important;
+  color:var(--ink)!important;
+  border-color:var(--yb-control-border)!important;
 }

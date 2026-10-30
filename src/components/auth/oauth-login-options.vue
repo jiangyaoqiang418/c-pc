@@ -199,7 +199,7 @@ onBeforeUnmount(() => {
 .oauth-provider { width: 100%; min-height: 40px; display: flex; align-items: center; justify-content: center; }
 .oauth-option--disabled { opacity: .55; pointer-events: none; }
 .oauth-option--loading .oauth-provider { visibility: hidden; }
-.oauth-placeholder, .oauth-busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #dadce0; border-radius: 6px; background: #fff; color: var(--yb-ink-2); font-size: 13px; }
+.oauth-placeholder, .oauth-busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--yb-control-border, var(--yb-hairline-2)); border-radius: 6px; background: var(--yb-surface); color: var(--yb-ink-2); font-size: 13px; }
 .oauth-option--telegram .oauth-placeholder, .oauth-option--telegram .oauth-busy { border-color: #8bcbed; background: #eef8fd; color: #1677a8; }
 .oauth-failure { display:grid; gap:8px; padding:10px; width:100%; border:1px solid var(--yb-hairline); border-radius:6px; background:var(--yb-fill); color:var(--yb-muted); font-size:12px; line-height:1.7; }
 .oauth-failure button { justify-self:start; }

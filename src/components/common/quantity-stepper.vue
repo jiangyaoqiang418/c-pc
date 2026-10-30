@@ -53,12 +53,14 @@ function step(direction: number) {
 </template>
 
 <style scoped>
-.quantity-stepper { display: inline-flex; align-items: center; height: 40px; border: 1px solid var(--yb-hairline-2); border-radius: 6px; background: var(--yb-surface); overflow: hidden; }
+.quantity-stepper { display: inline-flex; align-items: center; height: 40px; border: 1px solid var(--yb-control-border, var(--yb-hairline-2)); border-radius: 6px; background: var(--yb-surface); overflow: hidden; }
 .quantity-stepper button { display: grid; place-items: center; width: 32px; height: 38px; flex-shrink: 0; transition: background 150ms; }
 .quantity-stepper button:hover:not(:disabled) { background: var(--yb-fill); }
-.quantity-stepper button:disabled { opacity: .4; }
+.quantity-stepper button:disabled { color: var(--yb-muted); opacity: .6; }
 .quantity-input { width: 48px; height: 38px; padding: 0 2px; border: 0; border-radius: 0; text-align: center; font-size: 14px; box-shadow: none; }
-.quantity-stepper.disabled { opacity: .55; }
+.quantity-stepper.disabled { background: var(--yb-fill); color: var(--yb-muted); }
+.quantity-stepper.disabled button:disabled { color: var(--yb-muted); opacity: 1; }
+.quantity-stepper.disabled :deep(input:disabled) { color: var(--yb-muted); opacity: 1; }
 .quantity-error { display: block; margin-top: 4px; max-width: 180px; color: var(--yb-danger); font-size: 12px; }
 @media (prefers-reduced-motion: reduce) { .quantity-stepper button { transition: none; } }
 </style>
