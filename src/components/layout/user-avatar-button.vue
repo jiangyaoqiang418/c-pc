@@ -96,19 +96,19 @@ function logout() {
     <DialogPortal force-mount>
       <Transition name="modal">
         <DialogOverlay v-if="open" force-mount class="modal-overlay account-menu-overlay v47-reference-mask">
-          <DialogContent force-mount as="section" class="dialog account-menu-dialog v47-reference-dialog" aria-label="账户功能与身份切换" @close-auto-focus="restoreTrigger">
+          <DialogContent force-mount as="section" class="um-dialog dialog account-menu-dialog v47-reference-dialog" aria-label="账户功能与身份切换" @close-auto-focus="restoreTrigger">
             <V47SheetGrip :open="open" @dismiss="open = false" />
-            <DialogTitle class="sr-only">账户功能与身份切换</DialogTitle><DialogDescription class="sr-only">查看账户资料、切换视角，以及打开订单、钱包等常用功能。</DialogDescription>
-            <DialogClose as-child><button type="button" class="dialog-close" aria-label="关闭对话框"><UmIcon name="close" /></button></DialogClose>
-            <div :id="menuId">
+            <header class="um-dialog-header"><DialogTitle as="h2" class="um-dialog-title">账户功能与身份切换</DialogTitle><DialogClose as-child><button type="button" class="dialog-close" aria-label="关闭对话框"><UmIcon name="close" /></button></DialogClose></header>
+            <DialogDescription class="sr-only">查看账户资料、切换视角，以及打开订单、钱包等常用功能。</DialogDescription>
+            <div :id="menuId" class="um-dialog-body">
             <div class="menu-profile"><span class="menu-profile-avatar" :class="{ buyer: role === 'buyer' }"><UmIcon :name="role === 'buyer' ? 'bag' : 'user'" /></span><div><span class="eyebrow">{{ role === 'buyer' ? 'CURATE YOUR WORLD' : 'YOUR EVERYDAY FINDS' }}</span><h2 :title="userStore.displayName">{{ userStore.isLoggedIn ? userStore.displayName : '欢迎来到 Umaomao' }}</h2><p>{{ userStore.currentUser?.accountInfoUnavailable ? '账户资料暂未更新' : userStore.isLoggedIn ? (role === 'buyer' ? '买手视角 · 精选好物，分享生活' : '顾客视角 · 发现你的心仪好物') : '登录后，管理订单与切换买手身份' }}</p></div></div>
             <div v-if="userStore.isLoggedIn" class="menu-role-choices" role="group" aria-label="选择顾客或买手身份"><button v-for="item in [{ id: 'customer' as const, name: '顾客', icon: 'user', note: '选购与收藏' }, { id: 'buyer' as const, name: '买手', icon: 'bag', note: '商品与订单' }]" :key="item.id" type="button" :class="{ active: role === item.id }" :aria-pressed="role === item.id" @click="switchRole(item.id)"><span class="menu-role-avatar"><UmIcon :name="item.icon" /></span><span><b>{{ item.name }}</b><small>{{ item.note }}</small></span><UmIcon v-if="role === item.id" name="check" class="role-check" /></button></div>
             <div v-if="userStore.isLoggedIn" class="menu-account-summary"><span>{{ role === 'buyer' ? '买手工作台' : '可用余额' }}<b>{{ role === 'buyer' ? '好物，由你精选' : walletStore.loading ? '正在加载…' : `${balance} USDT` }}</b><small v-if="role !== 'buyer' && (walletError || (!walletStore.loading && !walletStore.account))">暂不可用，前往钱包重试</small></span><button type="button" @click="go(role === 'buyer' ? '/buyer/products/create' : '/wallet')">{{ role === 'buyer' ? '发布商品' : '查看钱包' }}<UmIcon name="plus" /></button></div>
             <div v-else class="menu-account-login"><button type="button" class="primary" @click="go('/auth/login')">登录账户</button><button type="button" class="outline" @click="go('/auth/register')">注册</button></div>
             <nav v-if="links.length" class="menu-links" aria-label="账户快捷入口"><button v-for="item in links" :key="item.to" type="button" @click="go(item.to)"><span><UmIcon :name="item.icon" /></span>{{ item.label }}</button></nav>
             <button v-if="userStore.isLoggedIn" type="button" class="menu-center-link" @click="go(role === 'buyer' ? '/buyer/dashboard' : '/profile')">{{ role === 'buyer' ? '进入买手中心' : '进入个人中心' }}<UmIcon name="arrow" /></button>
-            <div class="menu-account-footer"><span class="menu-support-links"><button type="button" @click="go('/im')"><UmIcon name="chat" />联系支持<small v-if="notify.imUnreadCount" class="unread">{{ notify.imUnreadCount > 99 ? '99+' : notify.imUnreadCount }}</small></button><button v-if="!userStore.isLoggedIn" type="button" @click="go('/help')"><UmIcon name="headset" />帮助中心</button></span><button v-if="userStore.isLoggedIn" type="button" aria-label="查看平台通知" @click="go('/notifications')"><UmIcon name="bell" />通知<small v-if="notify.notificationUnreadCount" class="unread">{{ notify.notificationUnreadCount > 99 ? '99+' : notify.notificationUnreadCount }}</small></button><button v-if="userStore.isLoggedIn" type="button" @click="logout"><UmIcon name="logout" />退出登录</button><span v-else>好物，无界。</span></div>
             </div>
+            <footer class="menu-account-footer um-dialog-footer"><span class="menu-support-links"><button type="button" @click="go('/im')"><UmIcon name="chat" />联系支持<small v-if="notify.imUnreadCount" class="unread">{{ notify.imUnreadCount > 99 ? '99+' : notify.imUnreadCount }}</small></button><button v-if="!userStore.isLoggedIn" type="button" @click="go('/help')"><UmIcon name="headset" />帮助中心</button></span><button v-if="userStore.isLoggedIn" type="button" aria-label="查看平台通知" @click="go('/notifications')"><UmIcon name="bell" />通知<small v-if="notify.notificationUnreadCount" class="unread">{{ notify.notificationUnreadCount > 99 ? '99+' : notify.notificationUnreadCount }}</small></button><button v-if="userStore.isLoggedIn" type="button" @click="logout"><UmIcon name="logout" />退出登录</button><span v-else>好物，无界。</span></footer>
           </DialogContent>
         </DialogOverlay>
       </Transition>
@@ -139,4 +139,11 @@ function logout() {
 @keyframes accountMenuDropdownIn { from { opacity:0; transform:translateY(-8px) scale(.97); } to { opacity:1; transform:none; } }
 @keyframes accountMenuDropdownOut { from { opacity:1; transform:none; } to { opacity:0; transform:translateY(-8px) scale(.97); } }
 @media (prefers-reduced-motion:reduce) { .account-menu-overlay[data-state],.account-menu-dialog[data-state] { animation:none; } }
+</style>
+
+<style scoped>
+:root .um-dialog.account-menu-dialog { max-height:calc(100dvh - 120px)!important; }
+.account-menu-dialog .um-dialog-title { font-size:18px; }
+.account-menu-dialog .menu-account-footer { justify-content:flex-end; }
+@media (max-height:600px) { :root .um-dialog.account-menu-dialog { max-height:calc(100dvh - 40px)!important; } }
 </style>

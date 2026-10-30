@@ -15,14 +15,17 @@ const source = computed(() => props.images[Math.max(0, Math.min(props.images.len
     <DialogPortal force-mount>
       <Transition name="modal" :css="review">
         <DialogOverlay v-if="modelValue" force-mount :class="review ? 'modal-overlay v47-reference-mask' : 'zoom-overlay'">
-          <DialogContent force-mount :class="review ? 'dialog review-photo-dialog v47-reference-dialog' : 'zoom-content'" @click="!review && emit('update:modelValue', false)">
+          <DialogContent force-mount :class="review ? 'um-dialog dialog review-photo-dialog v47-reference-dialog' : 'zoom-content'" @click="!review && emit('update:modelValue', false)">
             <V47SheetGrip v-if="review" :open="modelValue" @dismiss="emit('update:modelValue', false)" />
-            <span v-if="review" class="eyebrow">REVIEW PHOTO</span>
-            <DialogTitle as="h2" :class="review ? undefined : 'sr-only'">{{ title }}</DialogTitle>
+            <header :class="{ 'um-dialog-header': review }">
+              <DialogTitle as="h2" :class="review ? 'um-dialog-title' : 'sr-only'">{{ title }}</DialogTitle>
+              <DialogClose :class="review ? 'icon-btn dialog-close' : 'icon-btn zoom-close'" aria-label="关闭大图" @click.stop><UmIcon name="close" /></DialogClose>
+            </header>
             <DialogDescription class="sr-only">{{ review ? '点击关闭按钮或按 Escape 关闭评价配图。' : '点击图片、关闭按钮或按 Escape 关闭大图。' }}</DialogDescription>
-            <DialogClose :class="review ? 'icon-btn dialog-close' : 'icon-btn zoom-close'" aria-label="关闭大图" @click.stop><UmIcon name="close" /></DialogClose>
+            <div :class="review ? 'um-dialog-body' : 'zoom-image-wrap'">
             <img v-if="source" :class="{ 'review-photo-full':review }" :src="source" :alt="title" @error="setImageFallback" />
             <p v-if="review" class="demo-note">顾客上传的评价配图</p>
+            </div>
           </DialogContent>
         </DialogOverlay>
       </Transition>
@@ -34,7 +37,9 @@ const source = computed(() => props.images[Math.max(0, Math.min(props.images.len
 <style scoped>
 .zoom-overlay { z-index:105; }
 .zoom-content { position:fixed; inset:0; z-index:106; display:flex; align-items:center; justify-content:center; padding:24px; outline:none; }
-.zoom-content > img { max-width:90vw; max-height:88dvh; object-fit:contain; border-radius:6px; }
+.zoom-image-wrap { display:contents; }
+.zoom-image-wrap > img { max-width:90vw; max-height:88dvh; object-fit:contain; border-radius:6px; }
 .zoom-close { position:absolute; top:25px; right:25px; color:white; background:#ffffff20; }
-@media (max-width:700px) { .zoom-content { padding:16px; } .zoom-content > img { max-width:100%; max-height:85dvh; } .zoom-close { top:15px; right:15px; } }
+@media (max-width:700px) { .zoom-content { padding:16px; } .zoom-image-wrap { display:contents; }
+.zoom-image-wrap > img { max-width:100%; max-height:85dvh; } .zoom-close { top:15px; right:15px; } }
 </style>

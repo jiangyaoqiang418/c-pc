@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import DialogActions from '@/components/common/dialog-actions.vue';
+import { computed, onBeforeUnmount, ref, watch, useId } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BusinessDialog from '@/components/common/business-dialog.vue';
 import { useUserStore } from '@/stores/user';
@@ -10,6 +11,7 @@ import { formatDateValue } from '@/utils/date-range';
 
 const props = defineProps<{ review?: Api.RealReview.ReviewDTO; mode: 'comments' | 'report' }>();
 const emit = defineEmits<{ close: [] }>();
+const formId = useId();
 const user = useUserStore();
 const route = useRoute();
 const router = useRouter();
@@ -137,11 +139,11 @@ onBeforeUnmount(() => { closeDeleteConfirmation(); version++; reads.invalidate()
       <p v-if="!loading && !error && !rows.length">暂无评论</p>
       <div class="discussion-actions"><button class="outline" type="button" :disabled="page <= 1 || loading || sending" @click="load(page - 1)">上一页</button><span>{{ page }} / {{ Math.max(1, Math.ceil(total / 20)) }}</span><button class="outline" type="button" :disabled="page * 20 >= total || loading || sending" @click="load(page + 1)">下一页</button></div>
       <p v-if="!user.isLoggedIn"><button type="button" class="text-link" @click="login">登录后发表评论或举报</button></p>
-      <form v-else @submit.prevent="submit">
+      <form v-else :id="formId" @submit.prevent="submit">
         <fieldset :disabled="sending || user.initializing">
           <template v-if="reporting"><label for="discussion-reason">{{ target ? '举报评论' : '举报评价' }}的原因（仅审核人员可见）</label><textarea id="discussion-reason" v-model="reason" maxlength="500" rows="3" required /><small>{{ reason.length }}/500</small></template>
           <template v-else><label for="discussion-content">{{ parent ? '回复 ' + parent.authorName : '发表评论' }}</label><button v-if="parent" type="button" class="text-link" @click="parent = undefined">取消回复</button><textarea id="discussion-content" v-model="content" :disabled="unknown" maxlength="1000" rows="3" required /><small>{{ content.length }}/1000</small><p v-if="unknown">上次评论提交结果待核实。<button type="button" class="text-link" @click="uncertain.delete(String(review?.reviewId))">我已核对评论列表，继续编辑</button></p></template>
-          <button class="primary" type="submit" :disabled="sending || (!reporting && unknown) || !(reporting ? reason : content).trim()">{{ sending ? '提交中…' : reporting ? '提交举报' : '提交评论' }}</button>
+          <DialogActions><button class="primary" type="submit" :form="formId" :disabled="sending || user.initializing || (!reporting && unknown) || !(reporting ? reason : content).trim()">{{ sending ? '提交中…' : reporting ? '提交举报' : '提交评论' }}</button></DialogActions>
         </fieldset>
       </form>
     </div>

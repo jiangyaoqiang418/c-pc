@@ -23,7 +23,7 @@ function manageAddress() { regionOpen.value = false; void router.push('/address'
 
 <template>
   <ReferenceRateTicker class="utility-bar">
-    <template #utilities><div class="rate-utilities"><DialogRoot v-model:open="regionOpen"><DialogTrigger as-child><button data-region-trigger type="button"><UmIcon name="pin" />中国大陆</button></DialogTrigger><DialogPortal force-mount><Transition name="modal"><DialogOverlay v-if="regionOpen" force-mount class="modal-overlay region-overlay v47-reference-mask"><DialogContent force-mount as="section" class="dialog region-dialog v47-reference-dialog" @close-auto-focus="restoreRegionFocus"><V47SheetGrip :open="regionOpen" @dismiss="regionOpen = false" /><DialogClose as-child><button type="button" class="dialog-close icon-btn region-close" aria-label="关闭对话框"><UmIcon name="close" /></button></DialogClose><DialogTitle as="h2">配送至哪里？</DialogTitle><DialogDescription as="p">配送信息将在结算时根据收货地址核对。</DialogDescription><button type="button" class="primary full region-confirm" @click="manageAddress">管理收货地址</button></DialogContent></DialogOverlay></Transition></DialogPortal></DialogRoot><span>中文 / USDT</span><button type="button" @click="router.push('/help')">帮助中心</button></div></template>
+    <template #utilities><div class="rate-utilities"><DialogRoot v-model:open="regionOpen"><DialogTrigger as-child><button data-region-trigger type="button"><UmIcon name="pin" />中国大陆</button></DialogTrigger><DialogPortal force-mount><Transition name="modal"><DialogOverlay v-if="regionOpen" force-mount class="modal-overlay region-overlay v47-reference-mask"><DialogContent force-mount as="section" class="um-dialog dialog region-dialog v47-reference-dialog" @close-auto-focus="restoreRegionFocus"><V47SheetGrip :open="regionOpen" @dismiss="regionOpen = false" /><header class="um-dialog-header"><DialogTitle as="h2" class="um-dialog-title">配送至哪里？</DialogTitle><DialogClose as-child><button type="button" class="dialog-close icon-btn region-close" aria-label="关闭对话框"><UmIcon name="close" /></button></DialogClose></header><div class="um-dialog-body"><DialogDescription as="p">配送信息将在结算时根据收货地址核对。</DialogDescription></div><footer class="um-dialog-footer"><button type="button" class="primary region-confirm" @click="manageAddress">管理收货地址</button></footer></DialogContent></DialogOverlay></Transition></DialogPortal></DialogRoot><span>中文 / USDT</span><button type="button" @click="router.push('/help')">帮助中心</button></div></template>
   </ReferenceRateTicker>
 </template>
 
@@ -31,5 +31,5 @@ function manageAddress() { regionOpen.value = false; void router.push('/address'
 <style scoped>
 .region-dialog { z-index:171; width:540px; max-width:calc(100vw - 48px); }
 .region-overlay { z-index:170; }
-.region-confirm { width:100%; }
+.region-confirm { width:auto; }
 </style>

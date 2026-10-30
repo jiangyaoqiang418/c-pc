@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DialogActions from '@/components/common/dialog-actions.vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47VaultDialog from './v47-vault-dialog.vue';
 import { sumPaymentAmounts } from '@/utils/checkout';
@@ -83,7 +84,7 @@ function submit() {
       <p class="vault-confirm-note">提前赎回将停止后续计息。确认后需输入支付密码，费用以最新订单报价为准，最终到账以结算结果为准。</p>
       <label v-if="!pending" class="vault-ack"><input v-model="acknowledged" type="checkbox" :disabled="submitting" /><span>我已核对违约费与预计到账金额</span></label>
     </template>
-    <button class="primary full" :disabled="submitting || reading || !!issue || !displayedOrder || (!pending && (!acknowledged || expectedTotal === undefined))" @click="submit">{{ submitting ? '正在处理…' : pending ? '核实赎回结果' : '确认赎回' }}</button>
+    <DialogActions><button class="primary" :disabled="submitting || reading || !!issue || !displayedOrder || (!pending && (!acknowledged || expectedTotal === undefined))" @click="submit">{{ submitting ? '正在处理…' : pending ? '核实赎回结果' : '确认赎回' }}</button></DialogActions>
   </V47VaultDialog>
 </template>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DialogActions from '@/components/common/dialog-actions.vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47VaultDialog from './v47-vault-dialog.vue';
 import { computed, ref, watch } from 'vue';
@@ -105,7 +106,7 @@ watch([annualRate, lockDays, min, max], () => { confirmVisible.value = false; ac
       <p class="vault-confirm-note">每日计息不等于每日到账；本金与利息由系统结算。确认后需输入支付密码，实际收益以锁仓订单为准。</p>
       <label class="vault-ack"><input v-model="acknowledged" type="checkbox" :disabled="submitting" /><span>我已核对锁仓期限与计息规则</span></label>
       <p v-if="errMsg" class="vault-error" role="alert">{{ errMsg }}</p>
-      <button class="primary full" :disabled="!acknowledged || !canSubmit || submitting" @click="submit">确认锁仓</button>
+      <DialogActions><button class="primary" :disabled="!acknowledged || !canSubmit || submitting" @click="submit">确认锁仓</button></DialogActions>
     </V47VaultDialog>
   </section>
 </template>

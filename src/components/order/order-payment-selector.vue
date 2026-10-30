@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DialogActions from '@/components/common/dialog-actions.vue';
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -308,7 +309,7 @@ async function continuePayment() {
         <p v-else-if="chainDisabledReason" class="hint">{{ chainDisabledReason }}。</p>
         <div v-if="method === 'chain'" class="chain-select field"><label for="order-payment-chain">支付网络</label><Select v-model="selectedChain" :disabled="loading || submitting"><SelectTrigger id="order-payment-chain"><SelectValue placeholder="选择支付链" /></SelectTrigger><SelectContent><SelectItem v-for="item in chains" :key="item.chain" :value="item.chain">{{ item.label }} · {{ item.network }}</SelectItem></SelectContent></Select></div>
       </template>
-      <div class="button-row actions um-dialog-actions"><button type="button" class="outline"  :disabled="submitting" @click="close">取消</button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="continueDisabledReason ? 0 : undefined"><button type="button" class="primary" :disabled="!!continueDisabledReason" @click="continuePayment"><Icon v-if="submitting" icon="lucide:loader-circle" width="16" class="animate-spin" />继续付款</button></span></TooltipTrigger><TooltipContent v-if="continueDisabledReason">{{ continueDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></div>
+      <DialogActions><button type="button" class="outline"  :disabled="submitting" @click="close">取消</button><TooltipProvider><Tooltip><TooltipTrigger as-child><span :tabindex="continueDisabledReason ? 0 : undefined"><button type="button" class="primary" :disabled="!!continueDisabledReason" @click="continuePayment"><Icon v-if="submitting" icon="lucide:loader-circle" width="16" class="animate-spin" />继续付款</button></span></TooltipTrigger><TooltipContent v-if="continueDisabledReason">{{ continueDisabledReason }}</TooltipContent></Tooltip></TooltipProvider></DialogActions>
     </div>
   </a-modal>
 </template>

@@ -1,23 +1,18 @@
 <script setup lang="ts">
-import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from 'reka-ui';
-import UmIcon from '@/components/common/um-icon.vue';
-import V47SheetGrip from '@/components/common/v47-sheet-grip.vue';
+import BusinessDialog from '@/components/common/business-dialog.vue';
 
 const props = defineProps<{ visible: boolean; title: string; description: string; deposit?: boolean; busy?: boolean }>();
 const emit = defineEmits<{ dismiss: [] }>();
 function update(value: boolean) { if (!value && !props.busy) emit('dismiss'); }
-function preventBusy(event: Event) { if (props.busy) event.preventDefault(); }
 </script>
 
 <template>
-  <DialogRoot :open="visible" @update:open="update"><DialogPortal force-mount><Transition name="modal"><DialogOverlay v-if="visible" force-mount class="modal-overlay v47-wallet-overlay"><DialogContent force-mount class="dialog wallet-operation-dialog" :class="{ 'deposit-dialog': deposit }" @escape-key-down="preventBusy" @interact-outside="preventBusy">
-    <V47SheetGrip :disabled="busy" @dismiss="update(false)" />
-    <button class="dialog-close icon-btn" aria-label="关闭钱包操作" :disabled="busy" @click="update(false)"><UmIcon name="close" /></button>
-    <div class="deposit-heading"><DialogTitle as="h2">{{ title }}</DialogTitle><DialogDescription as="p">{{ description }}</DialogDescription></div>
+  <BusinessDialog :visible="visible" :title="title" :width="490" :footer="false" :content-class="deposit ? 'wallet-operation-dialog deposit-dialog' : 'wallet-operation-dialog'" :closable="!busy" :mask-closable="!busy" :esc-to-close="!busy" @update:visible="update">
+    <p class="wallet-operation-description">{{ description }}</p>
     <slot />
-  </DialogContent></DialogOverlay></Transition></DialogPortal></DialogRoot>
+  </BusinessDialog>
 </template>
 
-<style>
-.v47-wallet-overlay { z-index:1000; }
+<style scoped>
+.wallet-operation-description { margin-bottom:16px; }
 </style>
