@@ -121,6 +121,16 @@ async function confirm() {
 :root .um-dialog .um-dialog-danger:hover { background:color-mix(in srgb,var(--yb-danger) 85%,var(--ink))!important; }
 .um-dialog-close:disabled { opacity:.4; cursor:not-allowed; }
 .um-dialog-body { flex:1 1 auto; min-height:0; min-width:0; overflow:auto; overscroll-behavior:contain; padding:24px; overflow-wrap:anywhere; }
+.um-dialog-body { --dialog-scrollbar-thumb:color-mix(in srgb,var(--muted) 40%,transparent); --dialog-scrollbar-hover:color-mix(in srgb,var(--muted) 65%,transparent); }
+.um-dialog-body,.um-dialog-body * { scrollbar-width:thin; scrollbar-color:var(--dialog-scrollbar-thumb) transparent; }
+@supports selector(::-webkit-scrollbar) {
+  .um-dialog-body,.um-dialog-body * { scrollbar-width:auto; scrollbar-color:auto; }
+  .um-dialog-body::-webkit-scrollbar,.um-dialog-body ::-webkit-scrollbar { width:6px; height:6px; }
+  .um-dialog-body::-webkit-scrollbar-track,.um-dialog-body ::-webkit-scrollbar-track { background:transparent; }
+  .um-dialog-body::-webkit-scrollbar-thumb,.um-dialog-body ::-webkit-scrollbar-thumb { background:var(--dialog-scrollbar-thumb); border-radius:999px; }
+  .um-dialog-body::-webkit-scrollbar-thumb:hover,.um-dialog-body ::-webkit-scrollbar-thumb:hover { background:var(--dialog-scrollbar-hover); }
+  .um-dialog-body::-webkit-scrollbar-button,.um-dialog-body ::-webkit-scrollbar-button { display:none; width:0; height:0; }
+}
 .um-dialog-footer { flex:none; display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:12px; margin:0; padding:16px 24px; border-top:1px solid var(--line); }
 .um-dialog-footer:empty { display:none; }
 .um-dialog-action-group { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:12px; width:100%; }
