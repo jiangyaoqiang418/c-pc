@@ -3,7 +3,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BusinessDialog from '@/components/common/business-dialog.vue';
 import { useUserStore } from '@/stores/user';
-import { createReviewComment, createReviewReport, fetchReviewComments, isReviewWriteRejected } from '@/service/api/review';
+import { createReviewComment, createReviewReport, deleteReviewComment, fetchReviewComments, isReviewWriteRejected } from '@/service/api/review';
+import { Modal } from '@/lib/feedback';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
 
@@ -29,6 +30,45 @@ const unknown = computed(() => !!props.review && uncertain.value.has(String(prop
 const context = () => `${user.currentUser?.id}:${user.sessionVersion}:${props.review?.reviewId}`;
 const reads = createLatestRequestGuard(context);
 let version = 0;
+let deleteConfirmation: ReturnType<typeof Modal.confirm> | undefined;
+
+function closeDeleteConfirmation() { deleteConfirmation?.close(); deleteConfirmation = undefined; }
+function canDelete(row: Api.RealReview.Comment) {
+  return !!props.review && user.isLoggedIn && !user.initializing && !sending.value && !loading.value
+    && row.canDelete === true && rows.value.some(item => item.id === row.id && item.canDelete === true);
+}
+function requestDelete(row: Api.RealReview.Comment) {
+  if (!canDelete(row)) return;
+  closeDeleteConfirmation();
+  const owner = context(), openedVersion = version;
+  deleteConfirmation = Modal.confirm({
+    title: '删除评论', content: '确认删除这条评论？已有回复会保留。', okText: '删除',
+    okButtonProps: { status: 'danger' },
+    onBeforeOk: async () => {
+      if (owner !== context() || openedVersion !== version || !canDelete(row)) return;
+      const current = ++version;
+      const valid = () => current === version && owner === context();
+      sending.value = true; error.value = ''; notice.value = '';
+      try {
+        const id = await deleteReviewComment(row.id);
+        if (!valid()) return;
+        if (id !== row.id) throw new Error('未收到对应评论的删除结果');
+        if (parent.value?.id === row.id) parent.value = undefined;
+        if (target.value?.id === row.id) { target.value = undefined; reporting.value = false; reason.value = ''; }
+        notice.value = '评论已删除';
+        await load();
+        if (valid() && !error.value && page.value > 1 && !rows.value.length) {
+          await load(Math.max(1, Math.ceil(total.value / 20)));
+        }
+      } catch (e) {
+        if (!valid()) return;
+        error.value = e instanceof Error ? e.message : '删除失败';
+        if (!isReviewWriteRejected(e)) error.value += '；删除结果待核实，请刷新评论确认，勿重复操作。';
+      } finally { if (valid()) sending.value = false; }
+    },
+    onClose: () => { deleteConfirmation = undefined; }
+  });
+}
 
 function login() { void router.push({ path: '/auth/login', query: { redirect: route.fullPath } }); }
 async function load(next = page.value) {
@@ -71,15 +111,17 @@ async function submit() {
   } finally { if (valid()) sending.value = false; }
 }
 watch([() => props.review?.reviewId, () => props.mode], () => {
+  closeDeleteConfirmation();
   version++; reads.invalidate(); rows.value = []; total.value = 0; page.value = 1; content.value = ''; reason.value = '';
   parent.value = undefined; target.value = undefined; error.value = ''; notice.value = ''; sending.value = false;
   reporting.value = props.mode === 'report';
   if (props.review) void load();
 }, { immediate: true, flush: 'sync' });
 watch([() => user.sessionVersion, () => user.currentUser?.id], () => {
+  closeDeleteConfirmation();
   version++; reads.invalidate(); uncertain.value.clear(); content.value = ''; reason.value = ''; rows.value = []; emit('close');
 }, { flush: 'sync' });
-onBeforeUnmount(() => { version++; reads.invalidate(); });
+onBeforeUnmount(() => { closeDeleteConfirmation(); version++; reads.invalidate(); });
 </script>
 
 <template>
@@ -90,7 +132,7 @@ onBeforeUnmount(() => { version++; reads.invalidate(); });
       <p v-if="notice" role="status">{{ notice }}</p><p v-if="error" role="alert">{{ error }}</p>
       <p v-if="loading" role="status">正在读取评论…</p>
       <ol v-else class="comment-list">
-        <li v-for="row in rows" :key="row.id"><div><strong>{{ row.authorName || '用户' }}</strong> <time>{{ formatDateValue(row.createdAt, true) }}</time></div><small v-if="row.parentId">{{ rows.some(item => item.id === row.parentId) ? '回复评论' : '回复评论（原评论不在当前页或已不可见）' }}</small><p>{{ row.content }}</p><div class="discussion-actions"><button type="button" class="text-link" :disabled="sending || unknown" @click="parent = row; reporting = false">回复</button><button type="button" class="text-link" :disabled="sending" @click="report(row)">举报评论</button></div></li>
+        <li v-for="row in rows" :key="row.id"><div><strong>{{ row.authorName || '用户' }}</strong> <time>{{ formatDateValue(row.createdAt, true) }}</time></div><small v-if="row.parentId">{{ rows.some(item => item.id === row.parentId) ? '回复评论' : '回复评论（原评论不在当前页或已不可见）' }}</small><p>{{ row.content }}</p><div class="discussion-actions"><button type="button" class="text-link" :disabled="sending || unknown" @click="parent = row; reporting = false">回复</button><button type="button" class="text-link" :disabled="sending" @click="report(row)">举报评论</button><button v-if="user.isLoggedIn && row.canDelete === true" type="button" class="text-link" :disabled="sending || loading || user.initializing" @click="requestDelete(row)">删除评论</button></div></li>
       </ol>
       <p v-if="!loading && !error && !rows.length">暂无评论</p>
       <div class="discussion-actions"><button class="outline" type="button" :disabled="page <= 1 || loading || sending" @click="load(page - 1)">上一页</button><span>{{ page }} / {{ Math.max(1, Math.ceil(total / 20)) }}</span><button class="outline" type="button" :disabled="page * 20 >= total || loading || sending" @click="load(page + 1)">下一页</button></div>

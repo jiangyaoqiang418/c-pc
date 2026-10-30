@@ -49,13 +49,14 @@ import DetailReviews from '@/components/product/v47-detail-reviews.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
 import { provideSSRWidth } from '@vueuse/core';
 import * as addressApi from './address';
-import { Message } from '@/lib/feedback';
+import { Message, confirmations } from '@/lib/feedback';
 import BuyerApply from '@/views/buyer/apply.vue';
 import { clearBuyerApplicationDraft, clearPrerequisiteDrafts, saveBuyerApplicationDraft, takeBuyerApplicationDraft, saveWithdrawDraft, takeWithdrawDraft } from '@/utils/prerequisite-navigation';
 import { clearAccessToken, setAccessToken } from '@/service/request/token';
 import { normalizeSearchHistory, searchHistoryKey, fetchSearchSuggestions } from './search';
-import { fetchReviewComments, createReviewComment, createReviewReport } from './review';
+import { fetchReviewComments, createReviewComment, createReviewReport, deleteReviewComment } from './review';
 import SearchBar from '@/components/layout/search-bar.vue';
+import ReviewDiscussion from '@/components/review/review-discussion-dialog.vue';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -102,6 +103,17 @@ describe('搜索与评论对接边界', () => {
     await expect(store.submit(params)).rejects.toThrow('offline');
     expect(store.getPending(params.orderId)?.state).toBe('unknown');
   });
+  it('删除只信布尔权限，缺失或损坏标记不放开，删除保留Long原文', async () => {
+    const reviewId = '2090377523934879745';
+    const flags = [true, false, undefined, 'true', 1];
+    vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ total:'5', records:flags.map((canDelete, i) => ({
+      id:`209037752393487975${i}`, reviewId, hidden:false, canDelete, content:'同名作者评论', authorName:'匿名', createdAt:'1'
+    })) });
+    expect((await fetchReviewComments(reviewId, 1)).records.map(row => row.canDelete)).toEqual([true, false, false, false, false]);
+    const remove = vi.spyOn(realOrderRequest, 'delete').mockResolvedValue('2090377523934879750');
+    await deleteReviewComment('2090377523934879750');
+    expect(remove).toHaveBeenCalledWith('/reviews/comments/delete', { params:{ id:'2090377523934879750' }, showError:false });
+  });
 });
 
 describe('v47前端本地边界', () => {
@@ -124,6 +136,63 @@ describe('v47前端本地边界', () => {
     reloadRegions:() => Promise<void>; onCountryChange:(code: string) => Promise<void>; submit:() => void;
     form:Api.RealAddress.AddressSaveParams; provinces:Api.RealAddress.RegionVO[]; canSubmit:boolean; loadError:string;
   }
+  interface DiscussionState {
+    requestDelete:(row: Api.RealReview.Comment) => void; load:(page?:number) => Promise<void>;
+    rows:Api.RealReview.Comment[]; sending:boolean; page:number; error:string; notice:string;
+  }
+  function discussionHarness() {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    const pinia = createPinia(); setActivePinia(pinia);
+    const user = useUserStore(); user.currentUser = { id:'qa-owner' } as Api.RealSession.UserRecord;
+    const own:Api.RealReview.Comment = { id:'2090377523934879746', reviewId:'2090377523934879745', authorName:'匿名', content:'QA评论', createdAt:'1', hidden:false, canDelete:true };
+    const other = { ...own, id:'2090377523934879747', canDelete:false };
+    const read = vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ total:'2', records:[own, other] });
+    const remove = vi.spyOn(realOrderRequest, 'delete').mockResolvedValue(own.id);
+    const fixture = mountSubject<DiscussionState>(ReviewDiscussion, { review:{ reviewId:own.reviewId, content:'QA评价' }, mode:'comments' }, undefined, app => {
+      app.use(pinia); app.provide(routeLocationKey, { fullPath:'/review' } as RouteLocationNormalizedLoaded);
+      app.provide(routerKey, { push:vi.fn() } as unknown as Router);
+    });
+    return { ...fixture, user, own, other, read, remove };
+  }
+  it('同名他人评论无删除确认，切账号后旧确认失效且不发请求', async () => {
+    const fixture = discussionHarness();
+    try {
+      await fixture.state.load();
+      fixture.state.requestDelete(fixture.other); expect(confirmations).toHaveLength(0);
+      fixture.state.requestDelete(fixture.own); expect(confirmations).toHaveLength(1);
+      const confirm = confirmations[0]!.onBeforeOk!;
+      fixture.user.currentUser = { id:'qa-other' } as Api.RealSession.UserRecord;
+      expect(confirmations).toHaveLength(0);
+      await confirm(); expect(fixture.remove).not.toHaveBeenCalled();
+    } finally { fixture.app.unmount(); }
+  });
+  it('删除确认期间防重复，末页删除后回退有效页并读取真实结果', async () => {
+    const fixture = discussionHarness();
+    try {
+      await fixture.state.load(2);
+      fixture.state.requestDelete(fixture.own);
+      let done!:(id:string) => void;
+      fixture.remove.mockImplementationOnce(() => new Promise(resolve => { done = resolve; }));
+      fixture.read.mockResolvedValueOnce({ total:'20', records:[] }).mockResolvedValueOnce({ total:'20', records:[fixture.other] });
+      const confirm = confirmations[0]!.onBeforeOk!;
+      const pending = confirm(); expect(fixture.state.sending).toBe(true);
+      await confirm(); expect(fixture.remove).toHaveBeenCalledTimes(1);
+      done(fixture.own.id); await pending;
+      expect(fixture.state.page).toBe(1); expect(fixture.state.rows.map(row => row.id)).toEqual([fixture.other.id]);
+      expect(fixture.state.notice).toBe('评论已删除'); expect(fixture.state.sending).toBe(false);
+    } finally { fixture.app.unmount(); }
+  });
+  it('删除网络结果不明不自动重发，原评论与核对提示保留', async () => {
+    const fixture = discussionHarness();
+    try {
+      await fixture.state.load(); fixture.state.requestDelete(fixture.own);
+      fixture.remove.mockRejectedValueOnce(new Error('offline'));
+      await confirmations[0]!.onBeforeOk!();
+      expect(fixture.remove).toHaveBeenCalledTimes(1);
+      expect(fixture.state.rows).toHaveLength(2); expect(fixture.state.error).toContain('删除结果待核实');
+      expect(fixture.state.sending).toBe(false);
+    } finally { fixture.app.unmount(); }
+  });
   it('联想旧响应不能覆盖新输入，切账号后立即隔离历史并拒绝旧结果', async () => {
     vi.useFakeTimers();
     const values = new Map([[searchHistoryKey('a'), JSON.stringify(['甲的历史'])], [searchHistoryKey('b'), JSON.stringify(['乙的历史'])]]);

@@ -23,7 +23,7 @@ export async function fetchReviewComments(reviewId: string | number, pageNo: num
     || String(row.reviewId) !== String(reviewId) || row.hidden !== false || typeof row.content !== 'string'
     || typeof row.authorName !== 'string' || typeof row.createdAt !== 'string'
     || (row.parentId != null && typeof row.parentId !== 'string'))) throw new Error('公开评论数据异常，请重新读取');
-  return result;
+  return { ...result, records: result.records.map(row => ({ ...row, canDelete: row.canDelete === true })) };
 }
 
 export function createReviewComment(params: Api.RealReview.CommentCreateParams) {
@@ -32,6 +32,10 @@ export function createReviewComment(params: Api.RealReview.CommentCreateParams) 
 
 export function createReviewReport(params: Api.RealReview.ReportCreateParams) {
   return realOrderRequest.post<string>('/reviews/reports/create', params, { showError: false });
+}
+
+export function deleteReviewComment(id: string) {
+  return realOrderRequest.delete<string>('/reviews/comments/delete', { params: { id }, showError: false });
 }
 
 export async function fetchReviewableOrders(params: Api.RealReview.PageQuery = {}, options: { signal?: AbortSignal } = {}) {

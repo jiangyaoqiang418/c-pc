@@ -4,6 +4,7 @@ declare namespace Api.RealReview {
     reviewId: string;
     parentId?: string | null;
     authorName: string;
+    canDelete: boolean;
     content: string;
     createdAt: string;
     hidden: boolean;

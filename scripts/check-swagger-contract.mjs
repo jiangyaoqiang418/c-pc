@@ -440,7 +440,8 @@ expectRequired(requestSchema(order, operation(order, '/storefront/search/track',
 expectRequired(requestSchema(order, operation(order, '/storefront/reviews/comments/page', 'post')), ['reviewId'], '评价评论分页');
 expectRequired(requestSchema(order, operation(order, '/reviews/comments/create', 'post')), ['reviewId', 'content'], '发表评论');
 expectRequired(requestSchema(order, operation(order, '/reviews/reports/create', 'post')), ['reviewId', 'reason'], '评价举报');
-expectParameters(operation(order, '/reviews/comments/delete', 'delete'), ['id'], '本人评论删除（归属展示字段待补）');
+expectParameters(operation(order, '/reviews/comments/delete', 'delete'), ['id'], '本人评论删除');
+expectFieldType(order.components?.schemas?.ReviewCommentDTO, 'canDelete', 'boolean', '评论删除权限');
 for (const prefix of ['/search-keywords', '/sensitive-words']) {
   operation(admin, `${prefix}/page`, 'post'); operation(admin, `${prefix}/create`, 'post');
   operation(admin, `${prefix}/update`, 'put'); expectParameters(operation(admin, `${prefix}/delete`, 'delete'), ['id'], prefix);
