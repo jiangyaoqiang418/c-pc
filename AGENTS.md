@@ -2,7 +2,7 @@
 
 ## Summary
 
-项目是油宝 C 端 PC，基于 `Vue 3 + Vite + TypeScript + Arco Design Vue + Pinia + Vue Router + Tailwind CSS`。后续接口对接沿用后台项目的处理原则：前端现有交互和业务行为优先，接口路径、字段、类型、枚举、分页及响应结构以后端 Swagger 为准。
+项目是油宝 C 端 PC，基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS`。后续接口对接沿用后台项目的处理原则：前端现有交互和业务行为优先，接口路径、字段、类型、枚举、分页及响应结构以后端 Swagger 为准。
 
 ## 跨设备承接
 
@@ -23,7 +23,7 @@
 - 项目统一使用 2 空格缩进。
 - 新增和修改代码保持当前文件风格，不做无关格式化或重构。
 - Vue 文件继续使用 `<script setup lang="ts">`，顺序保持 `script` → `template` → `style scoped`。
-- 保留现有 Arco Design、Tailwind 和局部 scoped CSS 的使用方式，不批量替换 UI 或样式体系。
+- 保留现有 shadcn-vue / Reka UI、Tailwind 和局部 scoped CSS 的使用方式，不批量替换 UI 或样式体系。
 
 ### 页面与组件
 

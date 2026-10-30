@@ -1,10 +1,6 @@
 # Umaomao C 端 PC
 
-基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4` 的 Umaomao C 端 PC 项目。v47 已合入 `main`，迁移仍为部分完成；跨设备开发统一承接 `main`。当前状态以 [当前承接状态](./docs/api-integration-plan.md) 为准，验证证据见 [设计验收记录](./design-qa.md)。
-
-2026-10-16 最新本地补查已完成：特殊昵称/摘要、旧媒体节点释放、长SKU收缩及配色面板键盘循环已修复；Chrome补完当前配色长文本、表单、配图连续反向、筛选及本地WAV共6项。9文件324项测试、类型/参考契约检查和生产构建通过，未安装依赖；本次代码、此前保留改动与三批验收记录按用户授权一并提交推送main，并更新承接。旧“36组多断点通过”经原始证据复核已撤回；有效MEME记录保留。详见[最新验收记录](./qa/v47/2026-10-16/frontend-closeout/README.md)及[去重清单](./design-qa.md)。真实设备系统行为、未覆盖像素/连续绘制及业务闭环仍单列，不代表整站验收完成。
-
-Umaomao v47 是唯一 UI 基准，真实请求、状态与权限边界保留，接口失败不回退 Mock。设计边界见 [迁移计划](./PC-v47-migration-plan.md)，已有后端契约事项见 [后端清单](./PC-v47-backend-requirements.md) 与 [后端代码整改任务单](./PC-v47-后端修改任务单.md)。前序保存点为 `b712ef7`（前端）与 `9ddd348`（后端资料）；当前保存位置以Git HEAD及origin/main为准，具体交付和剩余边界见承接状态。后端代码整改任务单仅列 B03 六类评价主题适配，编码及旧值兼容规则待确认。
+基于 `Vue 3 + Vite + TypeScript + shadcn-vue / Reka UI + Pinia + Vue Router + Tailwind CSS v4`。v47 代码迁移已完成，后续在 `main` 分支维护。业务接口接入与真实验收状态见 [接口接入计划](./docs/api-integration-plan.md) 和 [Swagger 匹配矩阵](./docs/api-swagger-match-matrix.md)。
 
 ## 环境与命令
 
@@ -21,8 +17,6 @@ pnpm typecheck
 - 开发服务端口由 `vite.config.ts` 配置为 `5173`。
 - 构建产物位于 `dist/`。
 - 换电脑承接统一使用 `main`；先检查工作区，干净时 fetch 后 `git pull --ff-only origin main`，有本地改动先检查保留。缺少依赖时仅恢复已有锁定包，不新增或升级。
-- `http://localhost:5173/visual-v47.html` 是独立开发视觉验收页，仅使用只读原型数据；不进入正常生产构建，不作为接口错误回退。普通入口继续使用真实接口。
-- 原型引用素材、主题、生成 CSS 与视觉数据已保存在工程内；重新生成参考文件才需要旁侧 `Umaomao-v47/dist`，运行项目不依赖该目录。
 
 ## 目录
 
@@ -53,28 +47,18 @@ src/
 - 后台协作、审核及测试数据操作统一访问已部署管理站：[https://testhou.merchantsale.store/](https://testhou.merchantsale.store/)；不使用本地后台启动地址。C-PC 的 `localhost:5173` 仅用于本地页面开发和代理验证。
 - 后台登录账号以后台项目文档中明确记录的开发、测试或演示账号为准；不在本项目复制或提交任何凭据。
 - 交互逻辑以前端现有页面为准；路径、字段、类型、枚举、分页和响应结构以后端接口为准。
-- 后续按模块建立 `src/service/request/`、`src/service/api/` 和 `src/typings/api/`，请求职责与后台项目保持一致。
+- 真实接口代码统一放在 `src/service/request/`、`src/service/api/` 和 `src/typings/api/`，请求职责与后台项目保持一致。
 - 未对接模块继续使用现有 Mock；已切真实接口的模块不自动 fallback Mock。
-- 当前未安装 Axios，首个真实模块实施时再按确认方案补充请求基础设施。
+- 请求层使用原生 fetch，复用现有封装。
 
 详细规则见：
 
-- [AGENTS.md](./AGENTS.md)
-- [真实接口接入计划](./docs/api-integration-plan.md)
-- [Swagger 真实接口匹配矩阵](./docs/api-swagger-match-matrix.md)
-
-## Swagger 历史快照（2026-08-29，不代表当前 v47 进度）
-
-截至 2026-08-29，实时契约检查读取到：admin `178` 路径 / `179` 操作，user `46/46`，order `65/67`，notify `22/22`；`pnpm check:swagger` 已通过。
-
-- 当前实施进度约 `95%`，完整真实验收 `29/35`（约 `83%`）。主交易链路已完成地址、下单、支付、签收、仅退款的双账号回归；隔离订单已完成买手发货、物流、通知和订单群回读，顾客侧签收/评价及真实链上出款仍受测试条件限制。
-- 本批已补齐新商品/求购/物流/通知/积分契约，以及提现、评价、IM 媒体和充值取消的页面适配。
-- Notify WebSocket 的直连和 Vite 代理均已验证 `101 → READY → PING/PONG`；Chrome/Safari 双账号浏览器端的实时消息、已读、撤回与断线补偿也已完成。外部缺口为充值地址、提现真实链上回归，以及没有 C 端契约的 CMS、AI 模块。
-- 逐模块路径、字段差异及后端补充项见 [Swagger 真实接口匹配矩阵](./docs/api-swagger-match-matrix.md)。
+- [AGENTS.md](AGENTS.md)
+- [真实接口接入计划](docs/api-integration-plan.md)
+- [Swagger 真实接口匹配矩阵](docs/api-swagger-match-matrix.md)
 
 ## 主题配色
 
-- 当前支持原型 27 主题，默认 `web3-meme`；`umaomao-themes-v47.css` 归并主题与旧变量别名，`main.css` 映射 Tailwind/shadcn 语义变量。`umaomao-reference-v47.css` 按原型 17 份 CSS 的级联顺序统一加载，来源哈希见 `v47-reference-manifest.json`。迁移中保留旧 `umaomao.css` 的兼容层，已有原型外观不能被库默认风格替换。
 - 主操作和链接使用 `--yb-brand-primary`，悬停使用 `--yb-brand-hover`，选中底色使用 `--yb-primary-soft`。
 - 活动背景使用 `--yb-accent` 并搭配 `--yb-accent-ink`；白底上的金色小字使用更深的 `--yb-gold`。
 - 旧 `--yb-brand-pink*`、`--yb-primary*` 和 `--bw-*` 保留兼容映射。Arco 入口、样式与依赖已移除；`AModal` / `a-modal` 是基于 Reka Dialog 的业务弹窗兼容名称，不再调用 Arco。
@@ -86,11 +70,16 @@ src/
 - 全局消息支持悬浮或聚焦暂停消失；弹窗、抽屉、下拉和 Tooltip 分层，抽屉保留左侧遮罩。
 - 既有筛选、分页、失败重试、上传、支付密码、未保存提示、实时消息及结果核对流程保留；原型缺失的业务操作沿用现有实现。
 - 帮助文章、公告与协议读取正式内容接口，列表为空或没有有效协议时显示真实状态；不回退演示正文。AI 选购助手 `/ai-guide` 已接 Java 网关 POST SSE，支持商品及本人订单/钱包查询、停止生成、账号隔离和异常断流；真实模型返回仍需测试环境配置就绪后验收。
-- 2026-10-14 本批保存前类型检查、9 文件/203 项现有测试及生产构建通过；首页默认 MEME 关键节点已做 Chrome 同数据对照，整站像素、动画与真实写入验收仍未完成，详见 [design-qa](./design-qa.md)。
 
 ## 开发边界
 
 - 界面按 v47 组织，保留真实筛选、分页、路由 query、错误恢复和权限边界；缺失生产状态沿原型设计语言补充并记录。
 - 优先在请求/API adapter 边界处理后端字段差异。
 - 不做无关重构、不升级依赖、不批量修改历史 Mock 或 ID 类型。
-- 迁移与保存进度按计划执行适用的类型、测试、构建和 Chrome 检查；检查通过不等于整站或真实业务验收完成。
+- 修改后执行适用的类型、测试、构建和 Chrome 检查；检查通过不等于真实业务验收完成。
+
+## 历史资料与开发工具
+
+- v47 迁移归档（历史资料已清理）：历史迁移计划、交付资料和设计验收记录，不作为当前进度。
+- 业务组件及样式中的 `v47` 名称仍有实际引用，不代表待迁移代码。
+- `outputs/` 为本地截图、检查报告等临时产物，不纳入 Git。

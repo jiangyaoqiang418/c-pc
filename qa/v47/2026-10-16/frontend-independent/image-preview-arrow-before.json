@@ -1,7 +1,0 @@
-{
-  "initialFocus": "关闭弹窗",
-  "key": "ArrowRight",
-  "before": "1 / 2",
-  "after": "1 / 2",
-  "result": "Arrow keys did not reach the image container from the initial close-button focus."
-}

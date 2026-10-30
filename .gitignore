@@ -7,3 +7,6 @@ coverage/
 .vscode/
 /.ui-acceptance-accounts.local
 
+
+# Local screenshots and ad-hoc acceptance outputs
+/outputs/
