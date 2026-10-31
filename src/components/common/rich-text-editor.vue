@@ -136,7 +136,7 @@ async function uploadImage(event: Event) {
       <button type="button" :disabled="uploading" @click="fileInput?.click()">{{ uploading ? '上传中' : '图片' }}</button>
       <button type="button" @click="editor.chain().focus().undo().run()">撤销</button>
       <button type="button" @click="editor.chain().focus().redo().run()">重做</button>
-      <span v-if="activeFormats.image" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" :value="imageWidth()" @input="resizeImage" @change="($event.target as HTMLInputElement).value = String(imageWidth())" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
+      <span v-if="activeFormats.image" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" placeholder="10–100" :value="imageWidth()" @input="resizeImage" @change="($event.target as HTMLInputElement).value = String(imageWidth())" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
       <input ref="fileInput" hidden type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="uploadImage">
     </fieldset>
     <EditorContent :editor="editor" class="editor-content" />

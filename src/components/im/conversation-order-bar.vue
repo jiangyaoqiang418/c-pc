@@ -71,7 +71,7 @@ onBeforeUnmount(() => { active = false; guard.invalidate(); });
     <button v-if="error" type="button" class="text-link" @click="load">{{ error }}，重试</button>
     <span v-else-if="loading" role="status">正在核对订单</span>
   </section>
-  <a-modal v-model:visible="open" title="修改待付款订单价格" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :ok-loading="submitting" :on-before-ok="submit" :on-before-cancel="() => !submitting"><label>订单金额（USDT）<AmountInput v-model="amount" :min="0.01" :precision="2" :disabled="submitting" /></label><p>请核对修改后的订单金额。</p></a-modal>
+  <a-modal v-model:visible="open" title="修改待付款订单价格" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :ok-loading="submitting" :on-before-ok="submit" :on-before-cancel="() => !submitting"><label>订单金额（USDT）<AmountInput v-model="amount" placeholder="输入金额" :min="0.01" :precision="2" :disabled="submitting" /></label><p>请核对修改后的订单金额。</p></a-modal>
 </template>
 
 <style scoped>

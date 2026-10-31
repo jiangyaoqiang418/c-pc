@@ -178,7 +178,7 @@ onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); topicG
 <template>
 
   <div class="help-page">
-    <header class="page-heading compact help-heading"><h1>帮助中心</h1><button type="button" class="text-link" @click="router.push('/im')"><UmIcon name="headset" />联系客服</button></header>
+    <h1 class="sr-only">帮助中心</h1>
     <div class="help-layout"><aside class="paper"><h3>帮助主题</h3><button type="button" :class="{ active: !topic }" :aria-pressed="!topic" @click="selectTopic('')">全部帮助<UmIcon name="chevron" /></button><button v-for="item in TOPICS" :key="item.label" type="button" :disabled="topicDisabled(item)" :title="topicHint(item)" :class="{ active: topic === item.value }" :aria-pressed="topic === item.value" @click="selectTopic(item.value)">{{ item.label }}<UmIcon name="chevron" /></button><h3>协议与政策</h3><button v-for="a in AGREEMENTS" :key="a.kind" type="button" @click="openAgreement(a.kind)">{{ a.label }}<UmIcon name="chevron" /></button></aside>
       <section class="help-content" :aria-busy="loading">
         <form class="help-search" role="search" @submit.prevent="search"><input v-model="keyword" class="table-search" type="search" maxlength="100" placeholder="搜索帮助标题" aria-label="搜索帮助标题" /><button type="submit" class="outline" :disabled="loading">搜索</button></form>
@@ -195,7 +195,6 @@ onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); topicG
 </template>
 
 <style scoped>
-.help-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .help-content { min-width:0; min-height:300px; }
 .help-search { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
 .help-search input { width:100%; min-width:0; flex:1; }
@@ -205,7 +204,6 @@ onBeforeUnmount(() => { listGuard.invalidate(); detailGuard.invalidate(); topicG
 .content-error p { margin:0; color:var(--yb-danger); }
 .help-layout > aside h3:not(:first-child) { margin-top:24px; }
 @media (max-width:700px) {
-  .help-heading { align-items:flex-start; }
   :root[data-ui-theme="web3-meme"] .help-layout > aside { margin-left:-12px; margin-right:-12px; padding-left:16px; padding-right:16px; }
 }
 </style>

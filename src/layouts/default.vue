@@ -96,7 +96,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
       </nav>
     </header>
     <main id="main-content" ref="main" class="main main-container wrap um-wrap" :class="{ 'home-main': route.name === 'home' }" :data-page="route.path" tabindex="-1">
-      <nav v-if="showBreadcrumb && !isMessaging" class="breadcrumb global-breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">{{ route.meta.title }}</span></nav>
+      <nav v-if="showBreadcrumb && !isMessaging" class="breadcrumb global-breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><span aria-current="page">{{ route.meta.title }}</span><button v-if="route.name === 'help'" type="button" class="text-link breadcrumb-support" @click="router.push('/im')"><UmIcon name="headset" />联系客服</button></nav>
       <slot><BuyerWorkspace :enabled="!!route.meta.requiresBuyer || isBuyerWalletOperation || (isBuyerWorkspace && route.name === 'buyer-apply')"><RouterView v-slot="{ Component }"><Transition :name="isMeme ? 'um-page' : undefined"><component :is="Component" :key="route.path" /></Transition></RouterView></BuyerWorkspace></slot>
     </main>
     <footer v-if="!isMessaging" class="footer"><div class="footer-callout"><div class="footer-callout-content wrap um-wrap"><UmIcon name="globe" /><span>USDT 支付说明</span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div></div><div class="wrap um-wrap"><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>用 USDT，连接你与全球好物。</p></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button><button v-if="isDevelopment" type="button" @click="router.push('/design')">页面总览 ↗</button></div></div></div></footer>
@@ -117,6 +117,8 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
 .floating-tools :deep(.back-top-icon) { transform:rotate(-90deg); }
 .layout-default { min-height:100vh; display:flex; flex-direction:column; }
 .main-container { flex:1; outline:0; }
+.global-breadcrumb > .breadcrumb-support { display:inline-flex; align-items:center; gap:6px; flex-shrink:0; min-height:28px; margin-left:auto; padding:2px 0; color:var(--green); font-size:12px; white-space:nowrap; }
+.breadcrumb-support :deep(svg) { width:16px; height:16px; }
 @media (min-width:701px) and (max-width:1640px) { .layout-default:not(.is-messaging) > .main-container { padding-right:76px; } }
 .footer > .footer-callout { display:block; width:100%; max-width:none; margin:0; padding:24px 0; border-radius:0; }
 .footer-callout-content { display:flex; align-items:center; gap:19px; }

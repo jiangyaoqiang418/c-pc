@@ -32,6 +32,20 @@
   --meme-negative:#ff8d9c!important;
 }
 
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .empty.empty-state > svg {
+  background:var(--soft)!important;
+  color:var(--green)!important;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .category-browser-home {
+  background:var(--paper)!important;
+  border-color:var(--line)!important;
+  border-radius:10px;
+}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .category-browser-home > .category-menu-surface {
+  background:var(--paper)!important;
+  border-radius:inherit;
+}
+
 /* Forest intentionally uses the original --ui-* fallbacks. The compatibility
    data-ui-theme="web3-meme" attribute otherwise leaks MEME's generated palette
    slots into it, so mark every slot invalid and let each var() use its fallback. */
