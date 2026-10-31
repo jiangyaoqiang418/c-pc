@@ -419,7 +419,6 @@ function ignoreVisualFavorite() {}
     <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><template v-if="filter.categoryId"><RouterLink :to="categoryLocation()">精选商品</RouterLink><template v-for="(node, index) in categoryPath" :key="node.id"><UmIcon name="chevron" /><RouterLink v-if="index < categoryPath.length - 1" :to="categoryLocation(node.id)">{{ node.name }}</RouterLink><span v-else aria-current="page">{{ node.name }}</span></template><template v-if="!categoryPath.length"><UmIcon name="chevron" /><span aria-current="page">{{ categoryLabel }}</span></template></template><span v-else aria-current="page">精选商品</span></nav>
     <h1 class="catalog-sr-only">{{ title }}</h1><p v-if="filter.keyword" class="catalog-search-caption">“{{ filter.keyword }}” 的搜索结果</p>
     <div class="catalog-layout">
-    <section v-if="imageFileId" class="paper"><h2>识图搜索结果</h2><AiImage :file-id="imageFileId" /><p>展示可能相关的在售商品，结果不代表精确同款。</p><button type="button" class="outline" @click="router.push({name:'product-list'})">退出识图搜索</button></section>
       <div v-if="filterOpen" class="catalog-filter-touch-mask" aria-hidden="true" @pointerdown.prevent @touchmove.prevent @click.stop="closeFilterPanel()" />
       <FocusScope as-child :trapped="filterOpen" :loop="filterOpen" :present="filterOpen" @mount-auto-focus="$event.preventDefault()" @unmount-auto-focus="$event.preventDefault()">
       <aside class="filters" :class="{ open: filterOpen }" :role="filterOpen ? 'dialog' : undefined" :aria-modal="filterOpen || undefined" aria-labelledby="catalog-filter-title">
@@ -431,6 +430,11 @@ function ignoreVisualFavorite() {}
       </aside>
       </FocusScope>
       <div class="catalog-content">
+        <section v-if="imageFileId" class="paper image-search-summary" aria-label="识图搜索">
+          <div class="image-search-preview"><AiImage :file-id="imageFileId" /></div>
+          <div class="image-search-copy"><h2>识图搜索结果</h2><p>展示可能相关的在售商品，结果不代表精确同款。</p></div>
+          <button type="button" class="outline image-search-exit" @click="router.push({name:'product-list'})">退出识图搜索</button>
+        </section>
         <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />
         <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button ref="filterTrigger" type="button" class="filter-button outline" :aria-expanded="filterOpen" @click="openFilters"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="app-select-trigger catalog-sort" aria-label="商品排序"><SelectValue placeholder="请选择排序方式" /></SelectTrigger><SelectContent><SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
         <div v-if="filter.categoryId || filter.aftersaleType || filter.overseasCustoms" class="active-filters" role="group" aria-label="已选筛选条件"><button v-if="filter.categoryId" type="button" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">{{ categoryLabel }} ×</button><button v-if="filter.aftersaleType" type="button" aria-label="清除售后服务筛选" @click="selectAftersale('all')">{{ aftersaleOptions.find(option => option.value === filter.aftersaleType)?.label }} ×</button><button v-if="filter.overseasCustoms" type="button" aria-label="清除海外直邮筛选" @click="selectOverseas('all')">海外直邮 ×</button><button v-if="categoryError && !categoryLoading" type="button" @click="loadCategoryPath(true)">重试分类名称</button></div>
@@ -449,6 +453,16 @@ function ignoreVisualFavorite() {}
 <style scoped>
 .breadcrumb { flex-wrap:wrap; }
 .breadcrumb a,.breadcrumb span { min-width:0; overflow-wrap:anywhere; }
+.catalog-content { min-width:0; }
+.image-search-summary { display:flex; align-items:center; gap:16px; min-width:0; margin-bottom:20px; padding:16px; }
+.image-search-preview { flex:0 0 88px; width:88px; min-width:0; overflow-wrap:anywhere; }
+.image-search-preview :deep(.ai-image) { min-width:0; }
+.image-search-preview :deep(.ai-image > button) { display:flex; align-items:center; justify-content:center; width:100%; }
+.image-search-preview :deep(.ai-image img) { max-width:100%; max-height:88px; }
+.image-search-copy { flex:1; min-width:0; overflow-wrap:anywhere; }
+.image-search-copy h2 { margin:0 0 6px; font-size:18px; }
+.image-search-copy p { margin:0; font-size:12px; line-height:1.7; }
+.image-search-exit { flex-shrink:0; max-width:100%; white-space:nowrap; }
 .catalog-results { min-height:320px; }
 .feed-grid { transition:opacity .15s; }
 .feed-grid.is-updating { opacity:.55; }
@@ -456,6 +470,11 @@ function ignoreVisualFavorite() {}
 .skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
 .active-filters button { max-width:100%; white-space:normal; text-align:left; }
 @media (max-width:700px) {
+  .image-search-summary { display:grid; grid-template-columns:64px minmax(0,1fr); gap:12px; padding:14px; margin-bottom:16px; }
+  .image-search-preview { width:64px; }
+  .image-search-preview :deep(.ai-image img) { max-height:64px; }
+  .image-search-copy h2 { font-size:16px; }
+  .image-search-exit { grid-column:1/-1; justify-self:start; }
   .catalog-filter-touch-mask { position:fixed; inset:0; z-index:69; background:transparent; }
   .filters.open { overscroll-behavior:contain; }
   .catalog-toolbar { flex-wrap:wrap; gap:10px; }

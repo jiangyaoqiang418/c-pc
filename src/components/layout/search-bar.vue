@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import { useRoute, useRouter } from 'vue-router';
 import UmIcon from '@/components/common/um-icon.vue';
 import { useUserStore } from '@/stores/user';
@@ -140,7 +141,7 @@ function onSearchKeydown(event: KeyboardEvent) {
         @keydown.enter="onSearchKeydown"
       />
       <input ref="imageInput" type="file" hidden accept="image/jpeg,image/png,image/webp" @change="imageSearch" />
-      <button type="button" class="image-search-button" :disabled="imageUploading" aria-label="上传图片搜索商品" @click="user.isLoggedIn ? imageInput?.click() : router.push({path:'/auth/login',query:{redirect:route.fullPath}})">{{ imageUploading ? '上传中…' : '识图' }}</button>
+      <button type="button" class="image-search-button" :disabled="imageUploading" :aria-busy="imageUploading" aria-label="上传图片搜索商品" :title="imageUploading ? '正在上传图片…' : '以图搜索商品'" @click="user.isLoggedIn ? imageInput?.click() : router.push({path:'/auth/login',query:{redirect:route.fullPath}})"><Icon :icon="imageUploading ? 'lucide:loader-circle' : 'lucide:camera'" :class="{ 'animate-spin motion-reduce:animate-none': imageUploading }" aria-hidden="true" /></button>
       <button type="submit" class="search-btn" aria-label="搜索">
         <span>搜索</span>
         <UmIcon name="search" />
@@ -166,6 +167,11 @@ function onSearchKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .search-wrap { position:relative; width:100%; min-width:0; }
+.search-bar .image-search-button { display:grid; place-items:center; flex-shrink:0; width:42px; min-width:42px; padding:0; }
+.search-wrap .search-bar > .image-search-button { margin-right:16px !important; background:transparent !important; color:var(--muted) !important; border:0; box-shadow:none; transition:color .15s; }
+.search-wrap .search-bar > .image-search-button:hover:not(:disabled),.search-wrap .search-bar > .image-search-button:focus-visible { color:var(--green) !important; }
+.search-bar .image-search-button > svg { display:block; width:24px; height:24px; }
+.search-bar .image-search-button:focus-visible { outline:2px solid var(--green); outline-offset:-2px; }
 .search-panel { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:60; max-height:65dvh; overflow:auto; padding:16px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); box-shadow:var(--shadow); font-size:14px; }
 .search-panel section + section { margin-top:16px; }
 .search-panel h3 { display:flex; align-items:center; gap:8px; margin:0 0 8px; font-size:14px; }

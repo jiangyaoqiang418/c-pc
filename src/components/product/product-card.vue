@@ -73,7 +73,7 @@ function goDetail() {
 <template>
   <article class="product-card" :class="{ 'is-home': variant === 'home', 'is-catalog': variant === 'catalog' }">
     <div class="meme-card-top">
-      <span>{{ product.brandName }}</span><small :title="String(product.id)">编号 {{ String(product.id).padStart(3, '0') }}</small>
+      <small :title="String(product.id)">编号 {{ String(product.id).padStart(3, '0') }}</small><span>{{ product.brandName }}</span>
     </div>
     <div class="product-image">
       <button type="button" class="image-button" :aria-label="'查看 ' + product.title" @click="goDetail">

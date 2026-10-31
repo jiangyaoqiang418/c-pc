@@ -136,6 +136,15 @@ async function uploadImage(event: Event) {
 </template>
 
 <style scoped>
+.editor-content :deep(.tiptap em),.editor-content :deep(.tiptap i) { font-style:italic; }
+.editor-content :deep(.tiptap ul),.editor-content :deep(.tiptap ol) { margin:0 0 12px; padding-left:24px; }
+.editor-content :deep(.tiptap ul) { list-style:disc outside; }
+.editor-content :deep(.tiptap ol) { list-style:decimal outside; }
+.editor-content :deep(.tiptap li) { display:list-item; }
+.editor-content :deep(.tiptap li p) { margin:0; }
+.editor-content :deep(.tiptap li + li) { margin-top:4px; }
+.editor-content :deep(.tiptap blockquote) { margin:0 0 12px; padding-left:12px; border-left:3px solid var(--yb-hairline-2); color:var(--yb-ink-2); }
+.editor-content :deep(.tiptap blockquote p) { color:inherit; }
 .image-controls { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }.image-controls label { font-size:12px; }.image-controls input { width:64px; padding:4px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); }
 .rich-editor { width:100%; border:1px solid var(--yb-hairline-2); border-radius:8px; background:var(--yb-surface); overflow:hidden; }.toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:10px; min-width:0; border:0; border-bottom:1px solid var(--yb-hairline); background:var(--yb-fill); }.toolbar button { padding:6px 9px; border:1px solid transparent; border-radius:5px; background:var(--yb-surface); color:var(--yb-ink); cursor:pointer; font-size:12px; transition:background 150ms var(--um-ease),color 150ms var(--um-ease); }.toolbar button:hover,.toolbar button.active { border-color:var(--yb-primary); color:var(--yb-primary); background:var(--yb-primary-soft); }.toolbar button:disabled { opacity:.5; cursor:not-allowed; }.editor-content :deep(.tiptap) { min-height:200px; padding:18px; line-height:1.8; }.editor-content :deep(.tiptap:focus-visible) { outline:2px solid var(--yb-primary); outline-offset:-2px; }.editor-content :deep(.tiptap p) { margin:0 0 12px; }.editor-content :deep(.tiptap img) { max-width:100%; height:auto; border-radius:7px; }.editor-content :deep(table) { width:100%; border-collapse:collapse; margin:14px 0; }.editor-content :deep(th),.editor-content :deep(td) { min-width:70px; padding:8px; border:1px solid var(--yb-hairline-2); vertical-align:top; }.editor-tip { padding:0 18px 13px; color:var(--yb-muted); font-size:12px; }.link-field { display:grid; gap:12px; }.link-field p { font-size:12px; color:var(--yb-muted); margin:0; }@media(prefers-reduced-motion:reduce) { .toolbar button { transition:none; } }
 @media(max-width:700px) {
