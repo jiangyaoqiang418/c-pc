@@ -31,6 +31,22 @@ import { productRequiresSku, resolveProductPurchase, skuCanPurchase, skuMatchesS
 
 const route = useRoute();
 const router = useRouter();
+const purchasePanelTop = ref(160);
+const purchasePanel = ref<HTMLElement>();
+const purchasePanelHeight = ref('calc(100dvh - 176px)');
+let purchaseHeaderObserver: ResizeObserver | undefined;
+let purchaseFrame = 0;
+let purchaseLayoutActive = false;
+function schedulePurchaseLayout() {
+  if (!purchaseLayoutActive || purchaseFrame) return;
+  purchaseFrame = requestAnimationFrame(() => {
+    purchaseFrame = 0;
+    const header = document.querySelector<HTMLElement>('.header');
+    purchasePanelTop.value = (header?.offsetHeight || 0) + 16;
+    const top = Math.max(purchasePanelTop.value, purchasePanel.value?.getBoundingClientRect().top || 0);
+    purchasePanelHeight.value = Math.max(0, window.innerHeight - top - 16) + 'px';
+  });
+}
 const cart = useCartStore();
 const userStore = useUserStore();
 const favorites = useProductFavoritesStore();
@@ -294,8 +310,18 @@ function refreshReviewsOnFocus() {
   void loadReviews(reviewPage.value);
   void loadReviewSummary();
 }
+watch(product, () => { void nextTick(schedulePurchaseLayout); });
 
 onMounted(() => {
+  purchaseLayoutActive = true;
+  const header = document.querySelector<HTMLElement>('.header');
+  if (header) {
+    purchaseHeaderObserver = new ResizeObserver(schedulePurchaseLayout);
+    purchaseHeaderObserver.observe(header);
+  }
+  window.addEventListener('scroll', schedulePurchaseLayout, { passive:true });
+  window.addEventListener('resize', schedulePurchaseLayout);
+  schedulePurchaseLayout();
   specViewport = matchMedia('(max-width:700px)');
   specViewport.addEventListener('change', syncSpecViewport);
   window.addEventListener('focus', refreshReviewsOnFocus);
@@ -303,6 +329,11 @@ onMounted(() => {
   void load();
 });
 onBeforeUnmount(() => {
+  purchaseLayoutActive = false;
+  purchaseHeaderObserver?.disconnect();
+  cancelAnimationFrame(purchaseFrame);
+  window.removeEventListener('scroll', schedulePurchaseLayout);
+  window.removeEventListener('resize', schedulePurchaseLayout);
   window.removeEventListener('focus', refreshReviewsOnFocus);
   if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', refreshReviewsOnFocus);
   specViewport?.removeEventListener('change', syncSpecViewport);
@@ -489,7 +520,7 @@ function share() {
 </script>
 
 <template>
-  <div class="detail-page shop-container" :aria-busy="loading">
+  <div class="detail-page shop-container" :aria-busy="loading" :style="{ '--purchase-panel-top':purchasePanelTop + 'px', '--purchase-panel-height':purchasePanelHeight }">
     <template v-if="product">
       <nav class="breadcrumb" aria-label="当前位置">
         <RouterLink to="/">首页</RouterLink><UmIcon name="chevron" />
@@ -498,7 +529,8 @@ function share() {
       </nav>
       <div class="product-detail">
         <V47DetailGallery :images="galleryImages" :title="product.title" :favoriting="favoriteBusy" :saved="favoriteState?.value" :favorite-error="favoriteState?.error" @favorite="favorite" @share="share" />
-        <section class="product-info" aria-label="商品信息与购买">
+        <aside ref="purchasePanel" class="purchase-panel" aria-label="商品选购面板">
+        <section class="product-info" aria-label="商品信息与规格" tabindex="0">
           <span class="eyebrow">{{ product.categoryPath }}</span>
           <h1>{{ product.title }}</h1>
           <p v-if="product.summary" class="subtitle">{{ product.summary }}</p>
@@ -526,16 +558,17 @@ function share() {
           </FocusScope>
           <div v-if="product.overseasCustoms" class="overseas-note"><UmIcon name="globe" /><span>海外直邮商品<small>过关后不可退货退款，请认真挑选。</small></span></div>
           <p v-if="isOwnProduct" class="status-banner">这是您本人出售的商品，不可购买或加入购物袋。</p>
-          <div class="buy-actions">
-            <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy || cart.mutating ? 0 : undefined"><button type="button" class="outline" :disabled="!canBuy || cart.mutating" @click="addToCart"><UmIcon :name="cart.mutating ? 'clock' : 'bag'" />{{ cart.mutating ? '正在同步' : '加入购物袋' }}</button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason || cart.mutating">{{ buyDisabledReason || '购物袋正在同步，请稍候' }}</TooltipContent></Tooltip></TooltipProvider>
-            <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy ? 0 : undefined"><button type="button" class="gold" :disabled="!canBuy" @click="buyNow">{{ product.stock ? '立即购买' : '暂时售罄' }}<UmIcon name="arrow" /></button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason">{{ buyDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
-          </div>
           <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" @click="router.push('/im')"><UmIcon name="headset" />咨询买手</button></div>
           <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small v-if="sellerScoreLoading || sellerScoreError">{{ sellerScoreLoading ? '正在加载买手评分…' : '买手评分加载失败' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
           <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新加载买手评分</button>
           <button v-if="sellerQualificationError" type="button" class="text-link seller-score-retry" @click="loadSellerQualification">重新核对买手资格</button>
         </section>
-      </div>
+          <div class="buy-actions">
+            <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy || cart.mutating ? 0 : undefined"><button type="button" class="outline" :disabled="!canBuy || cart.mutating" @click="addToCart"><UmIcon :name="cart.mutating ? 'clock' : 'bag'" />{{ cart.mutating ? '正在同步' : '加入购物袋' }}</button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason || cart.mutating">{{ buyDisabledReason || '购物袋正在同步，请稍候' }}</TooltipContent></Tooltip></TooltipProvider>
+            <TooltipProvider :delay-duration="250"><Tooltip><TooltipTrigger as-child><span class="action-wrap" :tabindex="!canBuy ? 0 : undefined"><button type="button" class="gold" :disabled="!canBuy" @click="buyNow">{{ product.stock ? '立即购买' : '暂时售罄' }}<UmIcon name="arrow" /></button></span></TooltipTrigger><TooltipContent v-if="buyDisabledReason">{{ buyDisabledReason }}</TooltipContent></Tooltip></TooltipProvider>
+          </div>
+        </aside>
+      <div class="product-browse-content">
       <ProductParameters :parameters="product.parameters || []" summary />
       <V47DetailContent @contextmenu="preventImageAction" @dragstart="preventImageAction" ref="content" :key="String(product.id)" :initial-review="route.query.tab === 'reviews'">
         <template #default="{ tab }">
@@ -549,6 +582,8 @@ function share() {
         </template>
         <template #reviews><V47DetailReviews :rows="reviews" :summary="reviewSummary" :summary-loading="reviewSummaryLoading" :summary-error="reviewSummaryError" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" :error="reviewError" :stars="reviewStars" :has-image="reviewHasImage" :keyword="reviewKeyword" :sort="reviewSort" :helpful-busy="helpfulBusy" @helpful="voteHelpful" @filter="filterReviews" @retry-summary="loadReviewSummary" @page="loadReviews" @photo="openPreview" /></template>
       </V47DetailContent>
+      </div>
+      </div>
       <section class="section related-section"><div class="section-heading"><h2>相关商品</h2><RouterLink to="/product/list">发现更多 →</RouterLink></div><div v-if="relatedLoading" class="product-grid related" role="status"><Skeleton v-for="index in 4" :key="index" class="h-72 w-full" /></div><div v-else-if="related.length" class="product-grid related"><ProductCard v-for="item in related" :key="item.id" :product="item" /></div><div v-else class="empty"><p>{{ relatedError ? '推荐商品读取失败' : '暂无推荐商品' }}</p><button v-if="relatedError" type="button" class="outline" @click="loadRelated">重新加载</button></div></section>
     </template>
     <div v-else-if="loading" class="detail-skeleton" role="status"><span class="sr-only">正在加载商品详情</span><Skeleton class="aspect-square w-full" /><div><Skeleton class="h-10 w-3/4" /><Skeleton class="mt-6 h-6 w-1/2" /><Skeleton class="mt-8 h-44 w-full" /><Skeleton class="mt-8 h-12 w-full" /></div></div>
@@ -560,6 +595,20 @@ function share() {
 
 <style scoped>
 .breadcrumb [aria-current] { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.purchase-panel,.product-browse-content { min-width:0; }
+.product-browse-content { grid-column:1 / -1; }
+@media (min-width:1001px) {
+  .product-detail { grid-template-columns:minmax(0,1.4fr) minmax(340px,1fr); gap:28px; }
+  .product-detail > :deep(.gallery) { position:static; }
+  .product-browse-content { grid-column:1; grid-row:2; }
+  .product-browse-content :deep(.detail-bottom) { margin-top:0; }
+  .purchase-panel { grid-column:2; grid-row:1 / span 2; position:sticky; top:var(--purchase-panel-top); display:flex; flex-direction:column; max-height:var(--purchase-panel-height); border:1px solid var(--line); border-radius:var(--radius); background:var(--paper); }
+  .purchase-panel > .product-info { min-height:0; overflow-y:auto; overscroll-behavior-y:auto; scrollbar-gutter:stable; padding:20px; scroll-padding-block:16px; }
+  .purchase-panel > .product-info:focus-visible { outline:2px solid var(--green); outline-offset:-3px; }
+  .purchase-panel .product-info h1 { font-size:clamp(22px,2vw,30px)!important; overflow-wrap:anywhere; }
+  .purchase-panel > .buy-actions { flex-shrink:0; margin:0; padding:16px 20px; border-top:1px solid var(--line); }
+  .purchase-panel > .buy-actions button { padding-inline:12px; white-space:nowrap; }
+}
 .detail-skeleton { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:54px; margin:20px 0 48px; }
 .buy-actions > .action-wrap { display:flex; flex:1; min-width:0; }
 .buy-actions > .action-wrap > button { width:100%; height:auto; }
@@ -573,6 +622,6 @@ function share() {
 @media (max-width:700px) {
   .detail-skeleton { grid-template-columns:1fr; }
   .spec-touch-mask { position:fixed; inset:0; z-index:79; background:transparent; }
-  .spec-options.sheet { overscroll-behavior:contain; }
+  .purchase-panel .product-info .spec-options.sheet { overscroll-behavior:contain; background:var(--paper)!important; color:var(--ink); }
 }
 </style>

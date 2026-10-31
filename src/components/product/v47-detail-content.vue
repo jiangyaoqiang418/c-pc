@@ -26,7 +26,8 @@ function sync() {
   const rect = anchor.value.getBoundingClientRect();
   const top = headerBottom();
   navHeight.value = nav.value.offsetHeight;
-  pinned.value = rect.top <= top + 1;
+  const contentBottom = anchor.value.parentElement?.getBoundingClientRect().bottom ?? Infinity;
+  pinned.value = rect.top <= top + 1 && contentBottom > top + navHeight.value;
   navStyle.value = pinned.value ? { top:top + 'px', left:rect.left + 'px', width:rect.width + 'px' } : {};
   activeTab.value = reviewsBlock.value && reviewsBlock.value.getBoundingClientRect().top <= top + navHeight.value + 32 ? '用户评价' : contentTab.value;
 }
@@ -52,7 +53,7 @@ onMounted(async () => {
   window.addEventListener('scroll', schedule, { passive:true });
   window.addEventListener('resize', schedule);
   resizeObserver = new ResizeObserver(schedule);
-  for (const element of [document.querySelector('.header'), anchor.value, nav.value, panel.value]) if (element) resizeObserver.observe(element);
+  for (const element of [document.querySelector('.header'), anchor.value?.parentElement, anchor.value, nav.value, panel.value]) if (element) resizeObserver.observe(element);
   if (props.initialReview) void showReviews();
 });
 watch(() => props.initialReview, value => { if (value) void showReviews(); });
