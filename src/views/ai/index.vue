@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { Icon } from '@iconify/vue';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AiImage from '@/components/ai/ai-image.vue';
 import { fetchAiWelcome, uploadAiImage } from '@/service/api/ai';
 import { useRouter } from 'vue-router';
@@ -94,18 +96,28 @@ function onKeydown(event: KeyboardEvent) {
           </article>
         </div>
         <p v-if="archived" class="conversation-notice">此会话已归档，可查看历史。请新建会话继续提问。</p>
-        <div class="ai-attachments"><div v-for="image in attachments" :key="image.id"><AiImage :file-id="image.id" /><button type="button" :disabled="locked || running" @click="attachments = attachments.filter(row => row.id !== image.id)">移除图片</button></div></div>
         <p v-if="uploadError" role="alert">{{ uploadError }}</p>
-        <div v-if="user.isLoggedIn" class="image-upload-row">
-          <input ref="imageInput" type="file" hidden accept=".jpg,.jpeg,.png,.webp" multiple @change="selectImages" />
-          <button type="button" class="outline" :disabled="locked || running || attachments.length >= 3" @click="imageInput?.click()">{{ uploading ? '正在上传…' : '添加图片' }}</button>
-          <span>最多 3 张 JPG、PNG 或 WebP，单张 5MB</span>
-        </div>
-        <button v-else type="button" class="text-link" @click="login">登录后发送图片</button>
         <form class="chat-compose ai-compose" @submit.prevent="send">
-          <textarea v-model="input" rows="2" maxlength="2000" aria-label="咨询问题" aria-describedby="ai-compose-hint" placeholder="输入你的问题…" @keydown="onKeydown" />
-          <button v-if="running" type="button" class="secondary stop-button" @click="stop">停止生成</button>
-          <button v-else type="submit" class="primary" :disabled="!canSend">发送<UmIcon name="arrow" /></button>
+          <div v-if="attachments.length" class="composer-attachments" aria-label="待发送图片">
+            <div v-for="(image, index) in attachments" :key="image.id" class="composer-attachment">
+              <AiImage :file-id="image.id" />
+              <button type="button" class="remove-attachment" :aria-label="`移除第 ${index + 1} 张图片`" title="移除图片" :disabled="locked || running" @click="attachments = attachments.filter(row => row.id !== image.id)"><Icon icon="lucide:x" aria-hidden="true" /></button>
+            </div>
+          </div>
+          <textarea v-model="input" rows="2" maxlength="2000" aria-label="咨询问题" aria-describedby="ai-compose-hint" :placeholder="user.isLoggedIn ? '输入问题，也可以添加图片咨询…' : '输入你的问题…'" @keydown="onKeydown" />
+          <div class="compose-toolbar">
+            <div class="compose-tools">
+              <input ref="imageInput" type="file" hidden accept=".jpg,.jpeg,.png,.webp" multiple @change="selectImages" />
+              <TooltipProvider :delay-duration="200"><Tooltip><TooltipTrigger as-child>
+                <button type="button" class="compose-image-button" :aria-label="uploading ? '正在上传图片' : user.isLoggedIn ? '添加图片' : '登录后添加图片'" :disabled="locked || running || attachments.length >= 3" @click="user.isLoggedIn ? imageInput?.click() : login()">
+                  <Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:image-plus'" :class="{ 'animate-spin motion-reduce:animate-none': uploading }" aria-hidden="true" />
+                </button>
+              </TooltipTrigger><TooltipContent side="top">{{ user.isLoggedIn ? '添加图片' : '登录后可添加图片' }} · 最多 3 张 JPG、PNG 或 WebP，单张 5MB</TooltipContent></Tooltip></TooltipProvider>
+              <span v-if="uploading || attachments.length" class="image-counter" role="status">{{ uploading ? '正在上传…' : `${attachments.length}/3 张图片` }}</span>
+            </div>
+            <button v-if="running" type="button" class="secondary stop-button compose-submit" @click="stop">停止生成</button>
+            <button v-else type="submit" class="primary compose-submit" :disabled="!canSend">发送<UmIcon name="arrow" /></button>
+          </div>
         </form>
         <div id="ai-compose-hint" class="compose-hint"><span>Enter 发送，Shift + Enter 换行 · 查询结果以业务记录为准</span><span>{{ input.length }}/2000</span></div>
       </div>
@@ -114,7 +126,6 @@ function onKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.image-upload-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; font-size:12px; color:var(--muted); }
 .ai-attachments { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
 .ai-page { width:100%; max-width:1240px; min-width:0; margin:12px auto; padding:20px 22px; }
 .ai-page .section-heading { gap:12px; padding-bottom:12px; }
@@ -135,10 +146,25 @@ function onKeydown(event: KeyboardEvent) {
 .user .ai-message-text { background:var(--green); color:var(--paper); border-color:var(--green); }
 .message-progress,.message-error { font-size:12px; color:var(--muted); margin:0; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
 .message-error:not(.stopped) { color:var(--danger,#b54737); }
-.ai-compose { display:flex; align-items:flex-end; gap:10px; margin-top:10px; }
-.ai-compose textarea { min-width:0; flex:1; resize:vertical; min-height:64px; max-height:160px; padding:11px 13px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:inherit; font:inherit; font-size:14px; line-height:1.6; }
-.ai-compose textarea:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+.ai-compose { display:flex; flex-direction:column; align-items:stretch; gap:0; margin-top:12px; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.ai-compose:focus-within { border-color:var(--green); box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent); }
+.ai-compose textarea { width:100%; min-width:0; resize:vertical; min-height:76px; max-height:160px; padding:14px 16px 8px; border:0; border-radius:12px; background:transparent; color:inherit; font:inherit; font-size:14px; line-height:1.6; box-shadow:none; }
+.ai-compose textarea:focus-visible { outline:0; box-shadow:none; }
+.compose-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 10px 10px; }
+.compose-tools { display:flex; align-items:center; gap:8px; min-width:0; }
 .ai-compose button { flex-shrink:0; min-height:42px; white-space:nowrap; }
+.ai-compose .compose-image-button { display:grid; place-items:center; width:42px; height:42px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
+.compose-image-button svg { width:23px; height:23px; }
+.ai-compose .compose-image-button:hover:not(:disabled) { background:var(--soft); color:var(--green); }
+.compose-image-button:focus-visible,.remove-attachment:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+.image-counter { font-size:12px; color:var(--muted); }
+.ai-compose .compose-submit { display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 16px; border-radius:8px; font-size:13px; }
+.compose-submit svg { width:18px; height:18px; }
+.composer-attachments { display:flex; flex-wrap:wrap; gap:14px; padding:14px 16px 0; }
+.composer-attachment { position:relative; max-width:180px; }
+.composer-attachment :deep(.ai-image img) { max-width:72px; max-height:72px; }
+.ai-compose .remove-attachment { position:absolute; top:-6px; right:-6px; display:grid; place-items:center; width:24px; height:24px; min-height:24px; padding:0; border:1px solid var(--line); border-radius:50%; background:var(--paper); color:var(--ink); }
+.remove-attachment svg { width:14px; height:14px; }
 .compose-hint { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:10px; margin-top:6px; line-height:1.5; }
 .compose-hint > span:last-child { flex-shrink:0; }
 @media(max-width:640px) {
@@ -151,9 +177,9 @@ function onKeydown(event: KeyboardEvent) {
   .ai-message-avatar svg { width:15px; height:15px; }
   .ai-message-content { max-width:calc(100% - 36px); }
   .ai-message-text { padding:10px 12px; font-size:12px; }
-  .ai-compose { gap:8px; }
-  .ai-compose textarea { min-height:60px; font-size:13px; padding:10px; }
-  .ai-compose button { padding:9px 12px; font-size:11px; }
+  .ai-compose textarea { min-height:72px; font-size:13px; padding:12px 12px 6px; }
+  .ai-compose .compose-image-button { width:44px; height:44px; }
+  .ai-compose .compose-submit { min-height:44px; padding:9px 14px; font-size:12px; }
   .message-progress,.message-error,.conversation-notice { font-size:11px; }
   .compose-hint { font-size:9px; }
 }
