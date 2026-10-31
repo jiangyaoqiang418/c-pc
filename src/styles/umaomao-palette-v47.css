@@ -4152,7 +4152,7 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .mobile-nav b{color:var(--ink)}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .review-stars>span{color:var(--muted)}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .review-topics button.active span{color:var(--muted)}
-:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .buyer-mark{color:var(--muted)}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .buyer-mark{color:var(--on-primary)}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .buyer-hero{color:var(--ink)}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .buyer-hero .eyebrow{color:var(--muted)}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette^="web3-"] .buyer-hero p{color:var(--muted)}
@@ -4781,4 +4781,6 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-focus-header,
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-focus-header b,
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-focus-header button{color:var(--ink)}
-:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-upload-grid .cover-label{background:var(--green);color:var(--on-primary)}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette] .buyer-upload-grid .cover-label{background:var(--green);color:var(--on-primary)}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-upload-grid .cell>:is(.cover-action,.remove){background:var(--green);color:var(--on-primary)}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette] .buyer-focus-header .workspace-account-trigger .mobile-account-avatar{background:var(--green);color:var(--on-primary);border-color:var(--green)}
