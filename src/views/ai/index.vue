@@ -67,13 +67,15 @@ function onKeydown(event: KeyboardEvent) {
         <button v-if="sessionMore" class="text-link" type="button" :disabled="locked" @click="loadSessions(true)">加载更多会话</button>
       </aside>
       <div class="ai-conversation">
-        <p v-if="notice" class="conversation-notice" role="status">{{ notice }}</p>
-        <p v-if="error" class="message-error" role="alert">{{ error }}</p>
-        <div v-if="user.isLoggedIn && conversationId" class="history-actions">
-          <button v-if="historyMore" class="text-link" type="button" :disabled="locked || running" @click="loadHistory(true)">加载更早消息</button>
-          <button class="text-link" type="button" :disabled="locked || running" @click="loadHistory()">{{ pending ? '刷新消息状态' : '刷新消息' }}</button>
+        <div v-if="historyLoading || notice || error || (user.isLoggedIn && conversationId)" class="history-actions">
+          <button v-if="user.isLoggedIn && conversationId && historyMore" class="text-link" type="button" :disabled="locked || running" @click="loadHistory(true)">加载更早消息</button>
+          <p v-if="notice && !historyLoading" class="conversation-notice" role="status">{{ notice }}</p>
+          <p v-if="historyLoading" class="conversation-notice" role="status">消息加载中</p>
+          <p v-else-if="error" class="message-error" role="alert">{{ error }}</p>
+          <template v-if="user.isLoggedIn && conversationId">
+            <Tooltip><TooltipTrigger as-child><button class="history-refresh" type="button" :aria-label="historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新消息'" :aria-busy="historyLoading" :disabled="locked || running" @click="loadHistory()"><Icon :icon="historyLoading ? 'lucide:loader-circle' : 'lucide:refresh-cw'" :class="{ 'animate-spin motion-reduce:animate-none': historyLoading }" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新消息' }}</TooltipContent></Tooltip>
+          </template>
         </div>
-        <p v-if="historyLoading" role="status">正在读取历史消息…</p>
         <div ref="scrollRef" class="chat-messages chat-scroll" role="log" aria-label="客服对话" aria-live="polite" aria-relevant="additions text" :aria-busy="running || historyLoading">
           <EmptyState v-if="!messages.length && ready && !historyLoading && !error" icon="lucide:sparkles" :title="welcome || 'AI 客服'" />
           <p v-if="welcomeError && !messages.length" role="alert">{{ welcomeError }} <button type="button" @click="loadWelcome">重试</button></p>
@@ -134,6 +136,13 @@ function onKeydown(event: KeyboardEvent) {
 .new-conversation { display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap; font-size:12px; }
 .new-conversation svg { width:15px; height:15px; }
 .conversation-notice { color:var(--muted); font-size:12px; margin:0 0 8px; }
+.history-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:2px; min-height:32px; margin-bottom:4px; text-align:center; }
+.history-actions > p { min-width:0; max-width:100%; margin:0; font-size:12px; overflow-wrap:anywhere; }
+.history-refresh { display:grid; place-items:center; flex-shrink:0; width:32px; height:32px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--green); }
+.history-refresh svg { width:16px; height:16px; }
+.history-refresh:hover:not(:disabled) { background:var(--soft); }
+.history-refresh:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+.history-refresh:disabled { opacity:.5; }
 .ai-page .chat-messages { display:flex; flex-direction:column; gap:14px; min-height:360px; max-height:66dvh; padding:12px 2px 16px; overflow-y:auto; }
 .chat-messages > .empty-state { flex:1; margin:auto; }
 .ai-message { display:flex; align-items:flex-start; gap:10px; width:100%; min-width:0; }
@@ -188,7 +197,7 @@ function onKeydown(event: KeyboardEvent) {
 .ai-workspace { display:flex; gap:14px; min-width:0; }
 .ai-conversation { flex:1; min-width:0; }
 .session-list { width:200px; flex-shrink:0; max-height:72dvh; overflow-y:auto; border-right:1px solid var(--line); padding-right:12px; font-size:12px; }
-.session-heading,.history-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
+.session-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
 .session-refresh { display:inline-flex; align-items:center; gap:6px; }
 .session-loading { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; flex-shrink:0; color:var(--green); }
 .session-spinner { width:12px; height:12px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:session-spin .8s linear infinite; }

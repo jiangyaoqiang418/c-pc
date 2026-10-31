@@ -35,7 +35,7 @@ export async function fetchAiMessages(query: Api.Ai.MessageQuery, signal?: Abort
     && (row.structuredData == null || (isObject(row.structuredData)
       && (row.structuredData.cards == null || (Array.isArray(row.structuredData.cards)
         && row.structuredData.cards.every(card => isObject(card) && typeof card.tool === 'string' && isObject(card.data)))))))) {
-    throw new RequestError('历史消息格式异常，请重新加载', { code: 'INVALID_AI_PAGE' });
+    throw new RequestError('消息加载异常', { code: 'INVALID_AI_PAGE' });
   }
   return page;
 }

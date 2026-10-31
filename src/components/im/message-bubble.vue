@@ -104,7 +104,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
       <img v-if="orderCard.productImage" :src="orderCard.productImage" alt="订单商品" class="order-cover" />
       <div class="order-card-body">
         <div class="order-title" :title="orderCard.productTitle || '订单卡片'">{{ orderCard.productTitle || '订单卡片' }}</div>
-        <div class="order-meta">订单号 {{ orderCard.orderNo || '—' }}</div>
+        <div class="im-order-meta">订单号 {{ orderCard.orderNo || '—' }}</div>
         <div class="order-footer"><span>{{ orderCard.statusText || '查看订单' }}</span><strong v-if="orderCard.amount !== undefined">{{ orderCard.currency || 'USDT' }} {{ orderCard.amount }}</strong><Icon icon="lucide:arrow-up-right" width="15" /></div>
       </div>
     </button>
@@ -160,7 +160,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .order-cover { width:92px; min-height:92px; object-fit:cover; flex-shrink:0; }
 .order-card-body { min-width:0; flex:1; padding:14px; }
 .order-title { color:var(--ink); font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.order-meta { margin-top:5px; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.im-order-meta { margin-top:5px; background:transparent; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
 .order-footer { display:flex; align-items:center; gap:12px; margin-top:10px; font-size:12px; color:var(--muted); }
 .order-footer strong { margin-left:auto; color:var(--green); font-family:var(--font-mono); }
 </style>
