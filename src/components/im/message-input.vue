@@ -3,7 +3,7 @@ import { Icon } from '@iconify/vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
 import brandCat from '@/assets/images/brand/umaomao-cat-logo.svg';
 import { useMediaQuery } from '@vueuse/core';
 import { Message, Modal } from '@/lib/feedback';
@@ -20,7 +20,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   disabledText: '当前会话已禁用发送',
-  placeholder: '输入消息，Enter 发送 / Shift+Enter 换行'
+  placeholder: '输入消息…'
 });
 
 type OutgoingMessage = {
@@ -38,6 +38,7 @@ const emit = defineEmits<{
 }>();
 
 const text = ref('');
+const hintId = useId();
 const emojiOpen = ref(false);
 const composer = ref<{ focus: () => void; selectRange: (start: number, end: number) => void }>();
 let selection = { start: 0, end: 0 };
@@ -369,50 +370,64 @@ onBeforeUnmount(() => {
 <template>
 
   <div class="message-input">
-    <div class="chat-quick media-toolbar">
-      <button type="button" aria-label="选择聊天表情" :disabled="inputDisabled || mediaBusy" class="text-link" @click="emojiOpen = true"><Icon icon="lucide:smile" width="17" />表情</button>
+    <div class="chat-compose">
+      <Textarea ref="composer" v-model="text" @select="rememberSelection" @click="rememberSelection" @keyup="rememberSelection" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" :aria-describedby="hintId" @keydown="onKeydown" />
+      <div class="compose-toolbar">
+        <div class="chat-quick media-toolbar">
+      <Tooltip><TooltipTrigger as-child><button type="button" aria-label="选择聊天表情" :disabled="inputDisabled || mediaBusy" class="compose-tool" @click="emojiOpen = true"><Icon icon="lucide:smile" aria-hidden="true" /></button></TooltipTrigger><TooltipContent>选择聊天表情</TooltipContent></Tooltip>
       <input ref="fileInputRef" class="file-input" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="onImageSelected" />
       <input ref="videoInputRef" class="file-input" type="file" accept="video/mp4,video/webm,video/quicktime" @change="onVideoSelected" />
-      <button type="button" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage" class="text-link"><Icon icon="lucide:image-plus" width="17" />图片</button>
-      <button type="button" aria-label="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo" class="text-link"><Icon icon="lucide:video" width="17" />视频</button>
+      <Tooltip><TooltipTrigger as-child><button type="button" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage" class="compose-tool"><Icon icon="lucide:image-plus" aria-hidden="true" /></button></TooltipTrigger><TooltipContent>上传图片</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger as-child><button type="button" aria-label="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo" class="compose-tool"><Icon icon="lucide:video" aria-hidden="true" /></button></TooltipTrigger><TooltipContent>上传视频</TooltipContent></Tooltip>
       <Tooltip>
         <TooltipTrigger as-child><span class="voice-trigger" tabindex="0">
-          <button type="button" :class="{ 'is-recording': recording }" :aria-label="recording ? '结束录音并发送' : '录制语音'" :disabled="disabled || submitting || uploading || preparingVideo || startingRecording || !canRecord" @click="recording ? stopRecording() : startRecording()" class="text-link">
-            <Icon :icon="recording ? 'lucide:square' : 'lucide:mic'" width="17" />{{ recording ? '结束录音 ' + recordingSeconds + 's' : startingRecording ? '正在开启麦克风' : '语音' }}
+          <button type="button" :class="{ 'is-recording': recording }" :aria-label="recording ? '结束录音并发送' : '录制语音'" :disabled="disabled || submitting || uploading || preparingVideo || startingRecording || !canRecord" @click="recording ? stopRecording() : startRecording()" class="compose-tool">
+            <Icon :icon="recording ? 'lucide:square' : 'lucide:mic'" aria-hidden="true" />
           </button>
         </span></TooltipTrigger>
         <TooltipContent>{{ disabled ? disabledText : submitting ? '上一条消息正在发送，请稍候' : uploading || preparingVideo ? '媒体正在处理，请稍候' : !canRecord ? '当前浏览器不支持语音录制，请使用支持麦克风录音的浏览器' : startingRecording ? '正在等待麦克风权限' : recording ? '结束录音后发送语音' : '需要允许浏览器使用麦克风' }}</TooltipContent>
       </Tooltip>
       <span v-if="uploading || preparingVideo" class="media-state" role="status"><Icon icon="lucide:loader-circle" width="15" class="animate-spin" />{{ preparingVideo ? '正在读取视频…' : '媒体上传中…' }}</span>
-      <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音</span>
+      <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音 {{ recordingSeconds }}s</span>
+      <span v-else-if="startingRecording" class="media-state" role="status">正在开启麦克风…</span>
+        </div>
+        <button type="button" :disabled="disabled || submitting || mediaBusy || !text.trim()" @pointerdown="keepPhoneInputFocus" @click="send" class="primary compose-submit">{{ sending || submitting ? '发送中' : '发送' }}<Icon v-if="sending || submitting" icon="lucide:loader-circle" class="animate-spin" width="16" /><UmIcon v-else name="arrow" /></button>
+      </div>
     </div>
-    <div class="chat-compose"><Textarea ref="composer" v-model="text" @select="rememberSelection" @click="rememberSelection" @keyup="rememberSelection" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
-
-      <button type="button" :disabled="disabled || submitting || mediaBusy || !text.trim()" @pointerdown="keepPhoneInputFocus" @click="send" class="primary"><Icon v-if="sending || submitting" icon="lucide:loader-circle" class="animate-spin" width="16" /><UmIcon v-else name="arrow" />{{ sending || submitting ? '发送中' : '发送' }}</button>
-    </div><p class="message-input-hint">Enter 发送 · Shift+Enter 换行</p>
+    <p :id="hintId" class="message-input-hint"><span>Enter 发送，Shift+Enter 换行</span><span :aria-label="`已输入 ${text.length} 字`">{{ text.length }} 字</span></p>
   </div>
   <a-modal v-model:visible="emojiOpen" title="聊天表情" :footer="false"><div class="emoji-grid"><button v-for="emoji in ['😀', '😊', '👍', '❤️', '🙏', '🎉', '🤝', '👌', '😍', '👏', '🤔', '🌹']" :key="emoji" type="button" :aria-label="'插入表情 ' + emoji" :disabled="inputDisabled" @click="insertEmoji(emoji)">{{ emoji }}</button></div><h3>Umaomao 表情</h3><div class="brand-stickers"><button v-for="label in ['收到', '谢谢', '赞']" :key="label" type="button" :disabled="disabled || submitting || mediaBusy" @click="sendSticker(label)"><img :src="brandCat" alt="" />{{ label }}</button></div></a-modal>
 </template>
 
 <style scoped>
 .emoji-grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; margin-bottom:24px; }.emoji-grid button { min-height:44px; font-size:26px; border-radius:6px; }.emoji-grid button:hover { background:var(--soft); }.brand-stickers { display:flex; gap:16px; margin-top:12px; }.brand-stickers button { display:grid; gap:8px; padding:8px; border:1px solid var(--line); border-radius:8px; }.brand-stickers img { width:64px; height:64px; }
-.message-input { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:8px 12px; flex-shrink:0; margin-top:8px; border-top:1px solid var(--line); padding-top:10px; }
-.media-toolbar { grid-column:1; grid-row:2; display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; margin:0; }
-.media-toolbar button { min-height:32px; max-width:100%; padding:5px 8px; gap:6px; font-size:12px; line-height:1.4; }
+.message-input { display:flex; flex-direction:column; gap:6px; flex-shrink:0; min-width:0; margin-top:8px; border-top:1px solid var(--line); padding-top:10px; }
+.media-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:4px; min-width:0; margin:0; }
+.media-toolbar .compose-tool { display:grid; place-items:center; width:42px; height:42px; min-height:42px; max-width:100%; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
+.media-toolbar .compose-tool :deep(svg) { width:23px; height:23px; }
+.media-toolbar .compose-tool:hover:not(:disabled) { background:var(--soft); color:var(--green); }
+.media-toolbar .compose-tool:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+.compose-tool:disabled { opacity:.5; cursor:not-allowed; }
 .file-input { display:none; }
 .voice-trigger { display:inline-flex; min-width:0; max-width:100%; }
-.chat-compose { display:contents; }
-.chat-compose .textarea { grid-column:1/-1; grid-row:1; width:100%; min-width:0; height:56px; min-height:56px; max-height:96px; resize:vertical; padding:8px 12px; border:1px solid var(--line); border-radius:6px; background:var(--paper); box-shadow:none; font-size:14px; line-height:1.5; }
-.chat-compose>.primary { grid-column:2; grid-row:2; justify-self:end; min-height:34px; padding:7px 14px; gap:7px; font-size:12px; line-height:1.4; }
-.message-input-hint { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.chat-compose { display:flex; flex-direction:column; align-items:stretch; gap:0; min-width:0; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.chat-compose:focus-within { border-color:var(--green); box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent); }
+.chat-compose .textarea { width:100%; min-width:0; height:76px; min-height:76px; max-height:160px; resize:vertical; padding:14px 16px 8px; border:0; border-radius:12px; background:transparent; box-shadow:none; font-size:14px; line-height:1.6; }
+.chat-compose .textarea:focus-visible { outline:0; box-shadow:none; }
+.compose-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 10px 10px; }
+.chat-compose .compose-submit { display:flex; align-items:center; justify-content:center; flex-shrink:0; min-height:42px; padding:9px 16px; gap:8px; border-radius:8px; font-size:13px; line-height:1.6; }
+.compose-submit :deep(svg) { width:18px; height:18px; }
+.message-input-hint { display:flex; justify-content:space-between; gap:12px; margin:0; color:var(--muted); font-size:10px; line-height:1.5; }
+.message-input-hint > span:last-child { flex-shrink:0; }
 .media-state { display:inline-flex; flex-basis:100%; align-items:center; gap:6px; min-width:0; margin:0; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
-.is-recording,.recording-state { color:var(--yb-danger); }.recording-dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
+.media-toolbar .compose-tool.is-recording,.media-toolbar .compose-tool.is-recording:hover,.recording-state { color:var(--yb-danger); }.recording-dot { width:6px; height:6px; border-radius:50%; background:currentColor; }
 @media(max-width:700px) {
-  .message-input { gap:6px 8px; margin-top:6px; padding-top:8px; }
-  .media-toolbar { gap:4px; }
-  .media-toolbar button { min-height:30px; padding:5px 6px; gap:4px; font-size:11px; }
-  .media-toolbar button :deep(svg) { width:15px; height:15px; }
-  .chat-compose .textarea { height:48px; min-height:48px; font-size:13px; padding:8px 10px; }
-  .chat-compose>.primary { min-height:32px; padding:6px 11px; gap:5px; }
+  .message-input { margin-top:6px; padding-top:8px; }
+  .media-toolbar { gap:2px; }
+  .media-toolbar .compose-tool { width:44px; height:44px; min-height:44px; }
+  .chat-compose .textarea { height:72px; min-height:72px; font-size:13px; padding:12px 12px 6px; }
+  .compose-toolbar { padding:0 6px 6px; gap:6px; }
+  .chat-compose .compose-submit { min-height:44px; padding:9px 12px; gap:6px; font-size:12px; }
+  .message-input-hint { font-size:9px; }
 }
 </style>
