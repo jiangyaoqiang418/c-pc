@@ -150,8 +150,20 @@ expectProperties(requestSchema(order, operation(order, '/storefront/search/image
 // id 的必填采用服务端更新校验组，OpenAPI 未标为全局 required。
 expectProperties(requestSchema(order, operation(order, '/demands/update', 'put')), ['id', 'addressId'], '驳回求购重新提交');
 for (const [path, method] of [['/products/create', 'post'], ['/products/update', 'put']]) {
-  expectProperties(requestSchema(order, operation(order, path, method)), ['categoryId', 'categoryIds', 'parameters'], '商品分类与参数');
+  const input = requestSchema(order, operation(order, path, method));
+  expectProperties(input, ['categoryId', 'categoryIds', 'parameters'], '商品分类与参数');
+  expectRequired(input, ['categoryId'], '商品主分类');
+  expectFieldType(input, 'categoryId', 'integer', '商品主分类', 'int64');
+  expectFieldType(input, 'categoryIds', 'array', '商品多分类');
+  const ids = input.properties.categoryIds;
+  if (ids.maxItems !== 20 || ids.items?.type !== 'integer' || ids.items?.format !== 'int64') throw new Error('商品多分类上限或ID类型变化');
 }
+for (const [document, label] of [[order, '顾客/买手商品详情'], [admin, '后台商品详情']]) {
+  const detail = responseDataSchema(document, operation(document, '/products/detail', 'get'));
+  expectProperties(detail, ['categoryId', 'categories'], label);
+  expectFieldType(detail, 'categories', 'array', label);
+}
+expectProperties(admin.components?.schemas?.ProductSnapshotDTO, ['categoryId', 'categories'], '商品审核快照');
 if (aiInput.properties.message.maxLength !== 2000 || !aiStream.responses?.['200']?.content?.['text/event-stream']) throw new Error('AI 客服流式契约变化');
 for (const path of ['/sessions/list', '/messages/list']) {
   const op = operation(user, `/ai/customer-service${path}`, 'post');

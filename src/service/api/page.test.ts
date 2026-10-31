@@ -37,6 +37,7 @@ import InterestPreview from '@/components/finance/interest-preview.vue';
 import BusinessDialog from '@/components/common/business-dialog.vue';
 import CatalogView from '@/views/product/list.vue';
 import CategoryView from '@/views/category/index.vue';
+import CategoryPicker from '@/components/common/category-picker.vue';
 import * as categoryApi from './category';
 import { categoryNavigationKey } from '@/composables/use-category-navigation';
 import type { AddressVisualFixture, CatalogVisualFixture, EvidenceVisualFixture } from '@/visual/types';
@@ -138,6 +139,85 @@ describe('v47前端本地边界', () => {
     const state = (app as unknown as { _instance:{ subTree:{ component:{ setupState:T } } } })._instance.subTree.component.setupState;
     return { app, state, properties };
   }
+
+  it('商品分类多选保留Long原值，支持取消主分类、上限及清空', async () => {
+    const options = Array.from({ length:21 }, (_, index) => ({ value:`9007199254740993${String(index).padStart(2, '0')}`, label:`分类${index}` }));
+    let properties: Record<string, unknown>;
+    const fixture = mountSubject<{ select:(node:typeof options[number]) => void; clear:() => void; open:boolean; visibleChosen:string[]; showAllChosen:boolean }>(CategoryPicker, {
+      options, multiple:true, max:20, modelValue:options[0].value, modelValues:[options[0].value],
+      'onUpdate:modelValue':(value:unknown) => { properties.modelValue = value; },
+      'onUpdate:modelValues':(value:unknown) => { properties.modelValues = value; }
+    });
+    properties = fixture.properties;
+    try {
+      fixture.state.open = true;
+      fixture.state.select(options[1]);
+      await nextTick();
+      expect(properties.modelValues).toEqual([options[0].value, options[1].value]);
+      expect(properties.modelValue).toBe(options[0].value);
+      expect(fixture.state.open).toBe(true);
+      fixture.state.select(options[0]);
+      await nextTick();
+      expect(properties.modelValue).toBe(options[1].value);
+      fixture.state.clear();
+      await nextTick();
+      for (const option of options.slice(0, 20)) { fixture.state.select(option); await nextTick(); }
+      expect(properties.modelValues).toHaveLength(20);
+      const last = options[20];
+      expect(properties.modelValues).not.toContain(last.value);
+      fixture.state.select(last);
+      await nextTick();
+      expect(properties.modelValues).toHaveLength(20);
+      expect(properties.modelValues).not.toContain(last.value);
+      expect(fixture.state.visibleChosen).toHaveLength(3);
+      fixture.state.showAllChosen = true;
+      expect(fixture.state.visibleChosen).toHaveLength(20);
+      fixture.state.showAllChosen = false;
+      expect(properties.modelValues).toHaveLength(20);
+      fixture.state.clear();
+      await nextTick();
+      expect(properties.modelValues).toEqual([]);
+      expect(properties.modelValue).toBeUndefined();
+    } finally { fixture.app.unmount(); }
+  });
+
+  it('未开启多选的分类框仍单选并关闭，禁用时不修改分类', () => {
+    const changed = vi.fn();
+    const fixture = mountSubject<{ select:(node:{ value:string; label:string }) => void; clear:() => void; open:boolean }>(CategoryPicker, {
+      options:[{ value:'90071992547409931', label:'分类' }], 'onUpdate:modelValue':changed
+    });
+    try {
+      fixture.state.open = true;
+      fixture.state.select({ value:'90071992547409931', label:'分类' });
+      expect(changed).toHaveBeenCalledWith('90071992547409931');
+      expect(fixture.state.open).toBe(false);
+    } finally { fixture.app.unmount(); }
+    const disabled = mountSubject<{ select:(node:{ value:string; label:string }) => void; clear:() => void }>(CategoryPicker, {
+      options:[{ value:'90071992547409931', label:'分类' }], disabled:true, 'onUpdate:modelValue':changed
+    });
+    try {
+      changed.mockClear();
+      disabled.state.select({ value:'90071992547409931', label:'分类' });
+      disabled.state.clear();
+      expect(changed).not.toHaveBeenCalled();
+    } finally { disabled.app.unmount(); }
+  });
+
+  it('多分类在创建和编辑请求中同时保留主分类与全部Long原值', async () => {
+    const categoryIds = ['2107332840677527553', '2107332840677527554'];
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('2107332840677527555');
+    await productApi.createProduct({ title:'多分类商品', categoryId:categoryIds[0], categoryIds,
+      price:'1', shippingFee:'0', tax:'0', stock:0, aftersaleType:'none', overseasCustoms:false,
+      summary:'', description:'详情', images:[] });
+    expect(post.mock.calls[0][0]).toBe('/products/create');
+    expect(post.mock.calls[0][1]).toMatchObject({ categoryId:categoryIds[0], categoryIds });
+    const put = vi.spyOn(realOrderRequest, 'put').mockResolvedValue('2107332840677527555');
+    await productApi.updateProduct({ id:'2107332840677527555', title:'多分类商品', categoryId:categoryIds[0], categoryIds,
+      price:'1', shippingFee:'0', taxFee:'0', stock:0, afterSaleType:'NONE', overseasClearance:false,
+      brief:'', description:'详情', images:[] });
+    expect(put.mock.calls[0][0]).toBe('/products/update');
+    expect(put.mock.calls[0][1]).toMatchObject({ categoryId:categoryIds[0], categoryIds });
+  });
   interface AddressState {
     reloadRegions:() => Promise<void>; onCountryChange:(code: string) => Promise<void>; submit:() => void;
     form:Api.RealAddress.AddressSaveParams; provinces:Api.RealAddress.RegionVO[]; canSubmit:boolean; loadError:string;
