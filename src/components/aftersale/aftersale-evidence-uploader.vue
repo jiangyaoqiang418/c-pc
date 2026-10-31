@@ -120,6 +120,15 @@ function setCover(index: number) {
   updateImages(next);
 }
 
+function moveImage(index: number, direction: number) {
+  if (!props.coverMode || props.disabled || uploading.value || index < 0 || index >= props.modelValue.length) return;
+  const target = index + direction;
+  if (target < 0 || target >= props.modelValue.length) return;
+  const next = [...props.modelValue];
+  [next[index], next[target]] = [next[target], next[index]];
+  updateImages(next);
+}
+
 
 const previewOpen = ref(false);
 const previewIndex = ref(0);
@@ -133,7 +142,8 @@ watch(() => props.modelValue, () => { previewOpen.value = false; });
       <button type="button" class="preview" :aria-label="`预览凭证 ${i + 1}`" @click="previewIndex = i; previewOpen = true"><img :src="u" :alt="`凭证 ${i + 1}`" @error="setImageFallback" /></button>
       <button class="remove" type="button" :disabled="disabled" :aria-label="`删除凭证 ${i + 1}`" :title="`删除凭证 ${i + 1}`" @click="remove(i)"><Icon icon="lucide:x" width="14" /></button>
       <small v-if="coverMode && i === 0" class="cover-label">封面</small>
-      <button v-else-if="coverMode" type="button" class="set-cover cover-action" :disabled="disabled || uploading" :aria-label="`设第 ${i + 1} 张图片为封面`" @click="setCover(i)">设为封面</button>
+      <div v-if="coverMode" class="sort-actions"><button type="button" :disabled="disabled || uploading || i === 0" :aria-label="`将第 ${i + 1} 张图片前移`" @click="moveImage(i, -1)">前移</button><button type="button" :disabled="disabled || uploading || i === modelValue.length - 1" :aria-label="`将第 ${i + 1} 张图片后移`" @click="moveImage(i, 1)">后移</button></div>
+      <button v-if="coverMode && i > 0" type="button" class="set-cover cover-action" :disabled="disabled || uploading" :aria-label="`设第 ${i + 1} 张图片为封面`" @click="setCover(i)">设为封面</button>
     </div>
     <button v-if="modelValue.length < max" class="add" type="button" aria-label="添加凭证图片" :disabled="disabled || uploading" @click="pickFile"><Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:plus'" width="22" :class="{ 'animate-spin': uploading }" /><span>{{ uploading ? '上传中…' : '添加图片' }}</span></button>
     <Alert v-if="failedFiles.length" class="failure"><AlertDescription>{{ failedFiles.length }} 张图片上传失败，成功图片已保留。</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="disabled || modelValue.length >= max || uploading" @click="uploadFiles([...failedFiles])">重试失败图片</Button></Alert>
@@ -143,6 +153,7 @@ watch(() => props.modelValue, () => { previewOpen.value = false; });
 </template>
 
 <style scoped>
+.cell:has(.sort-actions) { margin-bottom:30px; overflow:visible; }.sort-actions { position:absolute; top:100%; left:0; right:0; display:flex; gap:4px; padding-top:4px; }.sort-actions button { flex:1; min-height:26px; border:1px solid var(--line); border-radius:4px; color:var(--ink); background:var(--paper); font-size:11px; }.sort-actions button:disabled { opacity:.4; }.sort-actions button:focus-visible { outline:2px solid var(--green); }
 .cover-label,.cover-action { position:absolute; bottom:4px; left:4px; padding:2px 5px; border:0; border-radius:4px; font-size:10px; background:var(--paper); color:var(--ink); }
 .cover-label { background:var(--yb-primary-soft); color:var(--yb-brand-primary); }
 .cover-action { cursor:pointer; }

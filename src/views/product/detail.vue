@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ProductParameters from '@/components/product/product-parameters.vue';
+import ProductDescription from '@/components/product/product-description.vue';
 function preventImageAction(event: Event) { if (event.target instanceof HTMLImageElement) event.preventDefault(); }
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { FocusScope } from 'reka-ui';
@@ -17,7 +18,6 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import InfoTooltip from '@/components/common/info-tooltip.vue';
-import RichTextContent from '@/components/common/rich-text-content.vue';
 import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
 import { useCartStore, useUserStore } from '@/stores';
@@ -540,8 +540,8 @@ function share() {
       <V47DetailContent @contextmenu="preventImageAction" @dragstart="preventImageAction" ref="content" :key="String(product.id)" :initial-review="route.query.tab === 'reviews'">
         <template #default="{ tab }">
           <template v-if="tab === '商品详情'">
-            <p v-if="product.summary" class="product-summary">{{ product.summary }}</p>
-            <div class="info-columns"><div><h3>商品详情</h3><RichTextContent :content="product.description" /></div><div><h3>购买提示</h3><p>请核对当前商品资料、包装清单、配送与售后信息后购买。</p></div></div>
+            <ProductDescription :summary="product.summary" :description="product.description" />
+            <p class="purchase-hint">请核对当前商品资料、包装清单、配送与售后信息后购买。</p>
           </template>
           <div v-else-if="tab === '规格参数'"><ProductParameters :parameters="product.parameters || []" /><dl class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl></div>
           <template v-else-if="tab === '配送与售后'"><h2>配送与售后</h2><p>运费 {{ money(product.shippingFee) }} USDT，税费 {{ money(product.tax) }} USDT。{{ product.overseasCustoms ? '此商品为海外直邮，过关后不可退货退款。' : '' }}售后类型：{{ aftersaleMeta?.label || '待确认' }}。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>

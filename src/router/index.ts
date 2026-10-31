@@ -2,6 +2,7 @@ import { Message } from '@/lib/feedback';
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useUserStore } from '@/stores';
 import { waitForScrollPosition } from '@/utils/scroll';
+import { conversationReturnPath } from '@/utils/notification';
 
 export type LayoutName = 'default' | 'checkout' | 'auth';
 
@@ -269,7 +270,7 @@ export const router = createRouter({
   }
 });
 
-router.beforeEach(async to => {
+router.beforeEach(async (to, from) => {
   scrollController.abort();
   scrollController = new AbortController();
   const userStore = useUserStore();
@@ -287,6 +288,9 @@ router.beforeEach(async to => {
     if (!userStore.isBuyerActive) {
       userStore.setAudience('buyer');
     }
+  }
+  if (to.name === 'im-order-group' && !conversationReturnPath(to.query.returnTo) && conversationReturnPath(from.fullPath)) {
+    return { path: to.path, query: { ...to.query, returnTo: from.fullPath }, hash: to.hash };
   }
   return true;
 });

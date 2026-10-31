@@ -146,7 +146,7 @@ async function onSubmit(form: {
             description: form.description, images: form.images
           }) : await productApi.createProduct({
             title: form.title.trim(),
-            summary: form.summary.trim() || form.title.trim(),
+            summary: form.summary.trim(),
             description: form.description.trim() || '—',
             categoryId, categoryIds:form.categoryIds, parameters:form.parameters,
             brandId:form.brandId,

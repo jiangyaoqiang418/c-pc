@@ -3,7 +3,8 @@ import { Icon } from '@iconify/vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import brandCat from '@/assets/images/brand/umaomao-cat-logo.svg';
 import { useMediaQuery } from '@vueuse/core';
 import { Message, Modal } from '@/lib/feedback';
 import { uploadImFile } from '@/service/api/notify';
@@ -37,6 +38,43 @@ const emit = defineEmits<{
 }>();
 
 const text = ref('');
+const emojiOpen = ref(false);
+const composer = ref<{ focus: () => void; selectRange: (start: number, end: number) => void }>();
+let selection = { start: 0, end: 0 };
+function rememberSelection(event: Event) {
+  if (event.target instanceof HTMLTextAreaElement) selection = { start: event.target.selectionStart, end: event.target.selectionEnd };
+}
+async function insertEmoji(emoji: string) {
+  if (inputDisabled.value) return;
+  const start = Math.min(selection.start, text.value.length);
+  const end = Math.min(selection.end, text.value.length);
+  text.value = text.value.slice(0, start) + emoji + text.value.slice(end);
+  selection = { start: start + emoji.length, end: start + emoji.length };
+  emojiOpen.value = false;
+  await nextTick(); composer.value?.focus(); composer.value?.selectRange(selection.start, selection.end);
+}
+async function sendSticker(label: string) {
+  if (props.disabled || props.submitting || mediaBusy.value) return;
+  const operation = ++uploadVersion;
+  uploading.value = true; emojiOpen.value = false;
+  try {
+    const image = new window.Image();
+    image.src = brandCat;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 240; canvas.height = 280;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('当前浏览器暂不支持表情图片');
+    context.fillStyle = '#ffffff'; context.fillRect(0, 0, 240, 280);
+    context.drawImage(image, 24, 12, 192, 192);
+    context.fillStyle = '#20352b'; context.font = 'bold 30px sans-serif'; context.textAlign = 'center'; context.fillText(label, 120, 247);
+    const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('表情图片生成失败')), 'image/png'));
+    if (operation !== uploadVersion || props.disabled) return;
+    const uploaded = await uploadImFile(new File([blob], 'umaomao-sticker.png', { type: 'image/png' }), 'IM_IMAGE');
+    if (operation === uploadVersion && !props.disabled) emit('send', { type: 'image', mediaFileId: uploaded.id });
+  } catch (error) { if (operation === uploadVersion) Message.error(error instanceof Error ? error.message : '表情发送失败'); }
+  finally { if (operation === uploadVersion) uploading.value = false; }
+}
 const isPhone = useMediaQuery('(max-width:700px)');
 const inputDisabled = computed(() => props.disabled || (props.submitting && !isPhone.value));
 const sending = ref(false);
@@ -300,6 +338,7 @@ async function startRecording() {
 }
 
 function cancelMedia() {
+  emojiOpen.value = false;
   uploadVersion += 1;
   cancelVideoRead?.();
   videoConfirmation?.close();
@@ -331,6 +370,7 @@ onBeforeUnmount(() => {
 
   <div class="message-input">
     <div class="chat-quick media-toolbar">
+      <button type="button" aria-label="选择聊天表情" :disabled="inputDisabled || mediaBusy" class="text-link" @click="emojiOpen = true"><Icon icon="lucide:smile" width="17" />表情</button>
       <input ref="fileInputRef" class="file-input" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="onImageSelected" />
       <input ref="videoInputRef" class="file-input" type="file" accept="video/mp4,video/webm,video/quicktime" @change="onVideoSelected" />
       <button type="button" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage" class="text-link"><Icon icon="lucide:image-plus" width="17" />图片</button>
@@ -346,14 +386,16 @@ onBeforeUnmount(() => {
       <span v-if="uploading || preparingVideo" class="media-state" role="status"><Icon icon="lucide:loader-circle" width="15" class="animate-spin" />{{ preparingVideo ? '正在读取视频…' : '媒体上传中…' }}</span>
       <span v-else-if="recording" class="media-state recording-state" role="status"><span class="recording-dot" />正在录音</span>
     </div>
-    <div class="chat-compose"><Textarea v-model="text" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
+    <div class="chat-compose"><Textarea ref="composer" v-model="text" @select="rememberSelection" @click="rememberSelection" @keyup="rememberSelection" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" @keydown="onKeydown" />
 
       <button type="button" :disabled="disabled || submitting || mediaBusy || !text.trim()" @pointerdown="keepPhoneInputFocus" @click="send" class="primary"><Icon v-if="sending || submitting" icon="lucide:loader-circle" class="animate-spin" width="16" /><UmIcon v-else name="arrow" />{{ sending || submitting ? '发送中' : '发送' }}</button>
     </div><p class="message-input-hint">Enter 发送 · Shift+Enter 换行</p>
   </div>
+  <a-modal v-model:visible="emojiOpen" title="聊天表情" :footer="false"><div class="emoji-grid"><button v-for="emoji in ['😀', '😊', '👍', '❤️', '🙏', '🎉', '🤝', '👌', '😍', '👏', '🤔', '🌹']" :key="emoji" type="button" :aria-label="'插入表情 ' + emoji" :disabled="inputDisabled" @click="insertEmoji(emoji)">{{ emoji }}</button></div><h3>Umaomao 表情</h3><div class="brand-stickers"><button v-for="label in ['收到', '谢谢', '赞']" :key="label" type="button" :disabled="disabled || submitting || mediaBusy" @click="sendSticker(label)"><img :src="brandCat" alt="" />{{ label }}</button></div></a-modal>
 </template>
 
 <style scoped>
+.emoji-grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; margin-bottom:24px; }.emoji-grid button { min-height:44px; font-size:26px; border-radius:6px; }.emoji-grid button:hover { background:var(--soft); }.brand-stickers { display:flex; gap:16px; margin-top:12px; }.brand-stickers button { display:grid; gap:8px; padding:8px; border:1px solid var(--line); border-radius:8px; }.brand-stickers img { width:64px; height:64px; }
 .message-input { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:8px 12px; flex-shrink:0; margin-top:8px; border-top:1px solid var(--line); padding-top:10px; }
 .media-toolbar { grid-column:1; grid-row:2; display:flex; align-items:center; flex-wrap:wrap; gap:6px; min-width:0; margin:0; }
 .media-toolbar button { min-height:32px; max-width:100%; padding:5px 8px; gap:6px; font-size:12px; line-height:1.4; }

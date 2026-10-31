@@ -49,7 +49,9 @@ import DetailReviews from '@/components/product/v47-detail-reviews.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
 import { provideSSRWidth } from '@vueuse/core';
 import * as addressApi from './address';
-import { Message, confirmations } from '@/lib/feedback';
+import { Message, Modal, confirmations } from '@/lib/feedback';
+import BuyerProductCreate from '@/views/buyer/product-create.vue';
+import * as buyerApi from './buyer';
 import BuyerApply from '@/views/buyer/apply.vue';
 import { clearBuyerApplicationDraft, clearPrerequisiteDrafts, saveBuyerApplicationDraft, takeBuyerApplicationDraft, saveWithdrawDraft, takeWithdrawDraft } from '@/utils/prerequisite-navigation';
 import { clearAccessToken, setAccessToken } from '@/service/request/token';
@@ -57,6 +59,10 @@ import { normalizeSearchHistory, searchHistoryKey, fetchSearchSuggestions } from
 import { fetchReviewComments, createReviewComment, createReviewReport, deleteReviewComment } from './review';
 import SearchBar from '@/components/layout/search-bar.vue';
 import ReviewDiscussion from '@/components/review/review-discussion-dialog.vue';
+import DateTimeInput from '@/components/common/date-time-input.vue';
+import ConversationOrderBar from '@/components/im/conversation-order-bar.vue';
+import * as orderApi from './order';
+import { conversationReturnPath } from '@/utils/notification';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -136,6 +142,77 @@ describe('v47前端本地边界', () => {
     reloadRegions:() => Promise<void>; onCountryChange:(code: string) => Promise<void>; submit:() => void;
     form:Api.RealAddress.AddressSaveParams; provinces:Api.RealAddress.RegionVO[]; canSubmit:boolean; loadError:string;
   }
+  it('订单会话返回只接受本站业务路径，拒绝外链与自身循环', () => {
+    expect(conversationReturnPath('/buyer/orders?status=pending')).toBe('/buyer/orders?status=pending');
+    expect(conversationReturnPath('/im?conversationId=9007199254740993')).toBe('/im?conversationId=9007199254740993');
+    for (const path of ['//example.com', 'https://example.com', '/im/order-group/1', '/buyer\\evil', '/buyer\n/orders', ['/order']]) expect(conversationReturnPath(path)).toBeUndefined();
+  });
+  it('创建商品清空简介后保持为空，不用长标题覆盖而触发简介超限', async () => {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    const pinia = createPinia(); setActivePinia(pinia);
+    const user = useUserStore(); user.currentUser = { id:'seller', isBuyer:true } as Api.RealSession.UserRecord; user.currentAudience = 'buyer';
+    vi.spyOn(categoryApi, 'fetchCreateCategoryOptions').mockResolvedValue([{ value:'category', label:'分类' }]);
+    vi.spyOn(buyerApi, 'fetchBuyerDepositSummary').mockResolvedValue({ listable:true } as Api.RealBuyer.DepositSummary);
+    const create = vi.spyOn(productApi, 'createProduct').mockResolvedValue('9007199254740993');
+    const confirm = vi.spyOn(Modal, 'confirm');
+    const fixture = mountSubject<{ onSubmit:(form:Record<string, unknown>) => Promise<void> }>(BuyerProductCreate, {}, undefined, app => {
+      app.use(pinia); app.provide(routeLocationKey, { name:'buyer-product-create', params:{}, fullPath:'/buyer/products/create' } as unknown as RouteLocationNormalizedLoaded); app.provide(routerKey, { push:vi.fn() } as unknown as Router);
+    });
+    try {
+      await fixture.state.onSubmit({ title:'很长的商品标题'.repeat(8), summary:'', categoryId:'category', categoryIds:['category'], parameters:[], specGroups:[], skus:[], price:'1', shippingFee:'0', tax:'0', stock:1, aftersaleType:'none', overseasCustoms:false, description:'详情', images:[] });
+      await confirm.mock.calls[0][0].onOk?.();
+      expect(create).toHaveBeenCalledOnce();
+      expect(create.mock.calls[0][0].summary).toBe('');
+    } finally { fixture.app.unmount(); confirmations.splice(0); }
+  });
+  it('发货小时选择提交整点时间，清空日期同步清空值', async () => {
+    const changed = vi.fn();
+    const fixture = mountSubject<{ updateHourPart:(part:'date'|'hour', value:string) => void }>(DateTimeInput, { modelValue:String(new Date(2026, 9, 31, 12, 35, 47).getTime()), hourOnly:true, 'onUpdate:modelValue':changed });
+    try {
+      fixture.state.updateHourPart('hour', '18');
+      const date = new Date(Number(changed.mock.calls[0][0]));
+      expect([date.getHours(), date.getMinutes(), date.getSeconds()]).toEqual([18, 0, 0]);
+      fixture.state.updateHourPart('date', '');
+      expect(changed).toHaveBeenLastCalledWith('');
+    } finally { fixture.app.unmount(); }
+  });
+  it('群内改价核对当前订单和卖家；非待付款状态不发改价请求', async () => {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    const pinia = createPinia(); setActivePinia(pinia);
+    const user = useUserStore(); user.currentUser = { id:'seller' } as Api.RealSession.UserRecord;
+    const record = { id:'9007199254740993', shopperId:'seller', customerId:'customer', status:'CANCELLED', totalAmount:'14' } as unknown as Api.RealOrder.Record;
+    const read = vi.spyOn(orderApi, 'fetchOrderDetail').mockResolvedValue(record);
+    const write = vi.spyOn(orderApi, 'changeOrderPrice').mockResolvedValue({ ok:true });
+    const fixture = mountSubject<{ load:() => Promise<void>; edit:() => Promise<void>; submit:() => Promise<boolean | undefined>; canEdit:boolean; amount:number; open:boolean }>(ConversationOrderBar, { orderId:record.id }, undefined, app => { app.use(pinia); app.provide(routerKey, { push:vi.fn() } as unknown as Router); });
+    try {
+      await fixture.state.load();
+      expect(fixture.state.canEdit).toBe(false);
+      await fixture.state.edit();
+      expect(fixture.state.open).toBe(false);
+      fixture.state.amount = 15;
+      await fixture.state.submit();
+      expect(write).not.toHaveBeenCalled();
+      read.mockResolvedValue({ ...record, status:'PENDING_PAYMENT', shopperId:'other-seller' });
+      await fixture.state.load();
+      expect(fixture.state.canEdit).toBe(false);
+      await fixture.state.submit();
+      expect(write).not.toHaveBeenCalled();
+      read.mockResolvedValue({ ...record, status:'PENDING_PAYMENT' });
+      await fixture.state.edit();
+      expect(fixture.state.open).toBe(true);
+      fixture.state.amount = 15;
+      read.mockResolvedValue({ ...record, status:'CANCELLED' });
+      await fixture.state.submit();
+      expect(write).not.toHaveBeenCalled();
+      read.mockResolvedValue({ ...record, status:'PENDING_PAYMENT' });
+      await fixture.state.edit();
+      fixture.state.amount = 15;
+      await fixture.state.submit();
+      expect(write).toHaveBeenCalledWith({ id:'9007199254740993', amount:15 });
+      expect(write).toHaveBeenCalledOnce();
+      expect(fixture.state.open).toBe(false);
+    } finally { fixture.app.unmount(); }
+  });
   interface DiscussionState {
     requestDelete:(row: Api.RealReview.Comment) => void; load:(page?:number) => Promise<void>;
     rows:Api.RealReview.Comment[]; sending:boolean; page:number; error:string; notice:string;
@@ -220,6 +297,23 @@ describe('v47前端本地边界', () => {
     } finally { fixture.app.unmount(); vi.useRealTimers(); }
   });
   interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
+  it('商品图片排序更新数组与封面顺序，禁用及上传中不重排', async () => {
+    const changed = vi.fn();
+    const mounted = mountSubject<{ moveImage:(index:number, step:number) => void; uploading:boolean }>(EvidenceUploader, { modelValue:['cover','second','third'], coverMode:true, 'onUpdate:modelValue':changed });
+    try {
+      mounted.state.moveImage(2, -1);
+      expect(changed).toHaveBeenLastCalledWith(['cover','third','second']);
+      mounted.state.moveImage(1, -1);
+      expect(changed).toHaveBeenLastCalledWith(['second','cover','third']);
+      const count = changed.mock.calls.length;
+      mounted.state.uploading = true;
+      mounted.state.moveImage(1, 1);
+      mounted.state.uploading = false;
+      mounted.properties.disabled = true; await nextTick();
+      mounted.state.moveImage(1, 1);
+      expect(changed).toHaveBeenCalledTimes(count);
+    } finally { mounted.app.unmount(); }
+  });
   const file = () => new File(['local-only'], 'evidence.png', { type:'image/png' });
   const uploaded: Api.RealProduct.FileUploadResult = { id:'local-only', bucket:'local-only', filePath:'local-only', url:'https://example.com/local-only.png' };
 

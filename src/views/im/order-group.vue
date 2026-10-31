@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
+import ConversationOrderBar from '@/components/im/conversation-order-bar.vue';
 import RealtimeConnectionStatus from '@/components/im/realtime-connection-status.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useNotifyStore, useUserStore } from '@/stores';
@@ -32,7 +33,7 @@ import {
   markUnconfirmedMessageFailed,
   sameBusinessId
 } from '@/utils/im';
-import { conversationListQuery } from '@/utils/notification';
+import { conversationListQuery, conversationReturnPath } from '@/utils/notification';
 import { createCoalescedRefresh, createLatestRequestGuard } from '@/utils/latest-request';
 
 const route = useRoute();
@@ -42,6 +43,9 @@ const notifyStore = useNotifyStore();
 
 const orderCode = computed(() => String(route.params.orderCode));
 const conversation = ref<Api.RealNotify.ImConversationVO>();
+const conversationOrders = ref<Api.RealNotify.ImConversationOrder[]>([]);
+const currentOrder = computed(() => conversationOrders.value.find(item => String(item.orderId) === orderCode.value));
+const returnPath = computed(() => conversationReturnPath(route.query.returnTo));
 const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
 const loading = ref(false);
 const loadError = ref('');
@@ -103,6 +107,7 @@ async function refreshConversationMetadata() {
   if (!isCurrent() || !sameBusinessId(next.id, currentId) || !sameBusinessId(conversation.value?.id, currentId)) return;
   const orders = await notifyApi.fetchConversationOrders(currentId, true, { signal: isCurrent.signal });
   if (!isCurrent() || !sameBusinessId(conversation.value?.id, currentId)) return;
+  conversationOrders.value = orders;
   const readId = conversation.value?.lastReadMessageId;
   const updated = orderConversationMetadata(next, requestedOrder, orders);
   // 页面上报已读期间的旧摘要响应不能回退本人水位。
@@ -139,6 +144,7 @@ function isCurrentRecallContext(
 }
 
 async function load() {
+  conversationOrders.value = [];
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
   readCountsGuard.invalidate();
@@ -452,7 +458,8 @@ function openOrder(orderId: string | number) {
 }
 
 function closeToConversationList() {
-  router.push({ name: 'im', query: conversationListQuery(conversation.value?.id) });
+  if (returnPath.value) void router.push(returnPath.value);
+  else void router.push({ name: 'im', query: conversationListQuery(conversation.value?.id) });
 }
 
 notifyStore.subscribe(async event => {
@@ -530,11 +537,12 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => user
 <template>
 
   <div class="im-group-page">
-    <header class="page-heading compact"><h1>订单会话</h1><button type="button" @click="closeToConversationList" class="text-link"><Icon icon="lucide:arrow-left" width="16" />返回消息中心</button></header>
+    <header class="page-heading compact"><h1>订单会话</h1><button type="button" @click="closeToConversationList" class="text-link"><Icon icon="lucide:arrow-left" width="16" />{{ returnPath ? '返回上一页' : '返回消息中心' }}</button></header>
     <section class="paper chat-panel chat-pane" :aria-busy="loading">
       <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载订单会话</span></div>
       <div v-if="conversation" class="conversation">
-        <header class="conversation-header section-heading"><div class="conversation-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><button type="button" aria-label="关闭独立会话并返回消息中心" @click="closeToConversationList" class="icon-btn"><Icon icon="lucide:x" width="18" /></button></div></header>
+        <header class="conversation-header section-heading"><div class="conversation-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><button type="button" :aria-label="returnPath ? '关闭独立会话并返回上一页' : '关闭独立会话并返回消息中心'" @click="closeToConversationList" class="icon-btn"><Icon icon="lucide:x" width="18" /></button></div></header>
+        <ConversationOrderBar :order-id="orderCode" :revision="String(currentOrder?.orderStatus) + String(currentOrder?.amount)" @changed="metadataRefresh.schedule()" />
         <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button></div>
         <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="syncingMessages" @click="syncIncremental" class="text-link">继续同步</button></div>
         <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">

@@ -25,11 +25,11 @@ onBeforeUnmount(closeRemoval);
 watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], closeRemoval);
 
 const items = computed(() => cart.enrichedItems);
-const selection = computed(() => cart.allSelected ? true : items.value.some(item => item.selected) ? 'indeterminate' as const : false);
-const hasUnconfirmedSelection = computed(() => items.value.some(item => item.selected && !item.available));
+const selection = computed(() => cart.allSelected ? true : items.value.some(item => item.selected && !item.confirmedInvalid) ? 'indeterminate' as const : false);
+const hasUnconfirmedSelection = computed(() => items.value.some(item => item.selected && !item.available && !item.confirmedInvalid));
 const checkoutDisabledReason = computed(() => {
   if (cart.mutating) return '购物袋正在同步，请稍候再结算';
-  if (items.value.some(item => item.selected && !item.available)) return '已选商品尚未全部确认可购，请重试读取或调整数量和勾选';
+  if (items.value.some(item => item.selected && !item.available && !item.confirmedInvalid)) return '已选商品尚未全部确认可购，请重试读取或调整数量和勾选';
   if (cart.selectedQty === 0) return '请先勾选至少一件可购商品';
   return '';
 });
@@ -75,7 +75,7 @@ function goCheckout() {
     Message.warning('购物袋正在同步，请稍候再结算');
     return;
   }
-  if (items.value.some(item => item.selected && !item.available)) {
+  if (items.value.some(item => item.selected && !item.available && !item.confirmedInvalid)) {
     Message.warning('已选商品尚未全部确认可购，请重试读取或调整数量和勾选');
     return;
   }
@@ -110,11 +110,11 @@ onMounted(() => {
           <span>{{ cart.selectedQty }} 件已选</span>
         </div>
         <article v-for="item in items" :key="JSON.stringify([String(item.productId),item.skuId === undefined ? null : String(item.skuId)])" class="cart-item" :class="{ invalid: item.confirmedInvalid }">
-          <input type="checkbox" :checked="item.selected" :disabled="cart.mutating || (!item.available && !item.selected)" :aria-label="`选择 ${item.product?.title || '商品'} ${item.specText}`" @change="cart.setSelected(item.productId, ($event.target as HTMLInputElement).checked, item.skuId)" />
+          <input type="checkbox" :checked="item.selected && !item.confirmedInvalid" :disabled="cart.mutating || item.confirmedInvalid || (!item.available && !item.selected)" :aria-label="`选择 ${item.product?.title || '商品'} ${item.specText}`" @change="cart.setSelected(item.productId, ($event.target as HTMLInputElement).checked, item.skuId)" />
           <img :src="item.image || PRODUCT_IMAGE_PLACEHOLDER" :alt="item.product?.title || '商品图片'" :tabindex="item.product ? 0 : undefined" :role="item.product ? 'link' : undefined" @error="setImageFallback" @click="item.product && router.push(`/product/${item.productId}`)" @keydown.enter="item.product && router.push(`/product/${item.productId}`)" />
           <div class="cart-product">
             <RouterLink v-if="item.product" :to="`/product/${item.productId}`" class="item-name">{{ item.product.title }}</RouterLink>
-            <span v-else class="item-name">{{ item.loadState === 'error' ? '商品读取失败' : '商品加载中' }}</span>
+            <span v-else class="item-name">{{ item.confirmedInvalid ? '商品已失效' : item.loadState === 'error' ? '商品读取失败' : '商品加载中' }}</span>
             <p v-if="item.product">{{ getAftersaleMeta(item.product.aftersaleType).label }}<template v-if="item.product.sellerName"> · 买手 {{ item.product.sellerName }}</template></p>
             <p v-if="item.specText">{{ item.specText }}</p>
             <span v-if="item.product?.overseasCustoms" class="tag inline">海外直邮</span>
@@ -151,6 +151,7 @@ onMounted(() => {
 .cart-product { min-width:0; }
 .item-name { overflow-wrap:anywhere; }
 .cart-item.invalid > img { opacity:.55; }
+.cart-item.invalid .cart-product { color:var(--muted); opacity:.65; }.cart-item.invalid .cart-item-notice { opacity:1; }
 .cart-item > img:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }
 .cart-item-notice { color:var(--muted); }
 .cart-item-notice.danger { color:var(--yb-danger); }

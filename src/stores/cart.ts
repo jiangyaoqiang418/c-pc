@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { defineStore } from 'pinia';
 import { Message } from '@/lib/feedback';
 import { STORAGE_KEY } from '@shared';
+import { RequestError } from '@/service/request';
 import * as productApi from '@/service/api/product';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { multiplyPaymentAmount, sumPaymentAmounts } from '@/utils/checkout';
@@ -26,7 +27,7 @@ export interface EnrichedCartItem extends CartItem {
   image?: string;
   skuSelectionRequired: boolean;
   available: boolean;
-  loadState: 'loading' | 'error' | 'ready';
+  loadState: 'loading' | 'error' | 'ready' | 'missing';
   confirmedInvalid: boolean;
   subtotal: string;
   shippingFee: string;
@@ -164,7 +165,7 @@ export const useCartStore = defineStore('bw-cart', () => {
     const product = products.value[String(item.productId)];
     const loadState = productStates.value[String(item.productId)] || 'loading';
     const purchase = product ? resolveProductPurchase(product, item.skuId) : undefined;
-    const confirmedInvalid = loadState === 'ready' && !!product
+    const confirmedInvalid = loadState === 'missing' || loadState === 'ready' && !!product
       && (product.status !== 'NORMAL' || product.shelfStatus !== 'on-shelf' || product.stock === 0
         || (item.skuId !== undefined && (!purchase?.sku || !purchase.sku.enabled || purchase.stock === 0)));
     const qty = finiteQuantity(item.qty);
@@ -215,8 +216,8 @@ export const useCartStore = defineStore('bw-cart', () => {
       try {
         const product = await productApi.fetchProductDetail(productId, { showError: false, signal });
         if (isCurrent() && !options.signal?.aborted) upsertProduct(product);
-      } catch {
-        if (isCurrent() && !options.signal?.aborted) productStates.value[String(productId)] = 'error';
+      } catch (error) {
+        if (isCurrent() && !options.signal?.aborted) productStates.value[String(productId)] = error instanceof RequestError && error.status === 404 ? 'missing' : 'error';
       }
     }));
   }

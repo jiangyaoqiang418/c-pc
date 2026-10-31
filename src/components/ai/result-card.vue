@@ -61,10 +61,9 @@ function balanceFields(row: Record<string, unknown>) {
   return buckets.map(([type, field, label]) => ({ label, value: text(distribution.find(item => item.type === type)?.amount ?? row[field]) }));
 }
 function fields(row: Record<string, unknown>) {
-  const id = ['记录编号', text(row.id)];
-  if (isProduct.value) return [id, ['运费', text(row.shipping_fee)], ['税费', text(row.tax_fee)], ['售后类型', label(row.after_sale_type, displayAftersaleTypes, '售后信息暂不可用')], ['更新时间', timestamp(row.updated_at)]];
-  if (props.card.kind === 'order') return [id, ['订单号', text(row.order_no)], ['数量', count(row.quantity)], ['成交单价', text(row.unit_price)], ['成交总额', text(row.total_amount)], ['订单状态', label(row.status, displayOrderStatuses)], ['物流状态', label(row.logistics_status, logisticsStatuses)], ['更新时间', timestamp(row.updated_at)]];
-  return [id, ['资产', text(row.asset ?? row.currency)], ['网络', text(row.chain)], ['金额', text(row.amount)], ['状态', recordStatus(row.status)], ['交易哈希', text(row.tx_hash)], ['更新时间', timestamp(row.updated_at)]];
+  if (isProduct.value) return [['运费', text(row.shipping_fee)], ['税费', text(row.tax_fee)], ['售后类型', label(row.after_sale_type, displayAftersaleTypes, '售后信息暂不可用')], ['更新时间', timestamp(row.updated_at)]];
+  if (props.card.kind === 'order') return [['订单号', text(row.order_no)], ['数量', count(row.quantity)], ['成交单价', text(row.unit_price)], ['成交总额', text(row.total_amount)], ['订单状态', label(row.status, displayOrderStatuses)], ['物流状态', label(row.logistics_status, logisticsStatuses)], ['更新时间', timestamp(row.updated_at)]];
+  return [['资产', text(row.asset ?? row.currency)], ['网络', text(row.chain)], ['金额', text(row.amount)], ['状态', recordStatus(row.status)], ['交易哈希', text(row.tx_hash)], ['更新时间', timestamp(row.updated_at)]];
 }
 function recordTitle(row: Record<string, unknown>, index: number) {
   if (isProduct.value) return text(row.title);
@@ -83,7 +82,7 @@ function recordTitle(row: Record<string, unknown>, index: number) {
     <template v-else>
       <p v-if="!rows.length" class="card-note">暂无可展示的记录。</p>
       <article v-for="(row, index) in rows" :key="index" class="result-record">
-        <h3>{{ recordTitle(row, index) }}</h3>
+        <h3><RouterLink v-if="isProduct && typeof row.id === 'string' && row.id.trim()" :to="{ name: 'product-detail', params: { id: row.id } }">{{ recordTitle(row, index) }} →</RouterLink><template v-else>{{ recordTitle(row, index) }}</template></h3>
         <template v-if="card.kind === 'balance'">
           <p class="balance-total">总余额 <strong>{{ text(row.total) }}</strong> {{ text(row.currency) }}</p>
           <dl><template v-for="field in balanceFields(row)" :key="field.label"><dt>{{ field.label }}</dt><dd>{{ field.value }}</dd></template></dl>
@@ -95,7 +94,7 @@ function recordTitle(row: Record<string, unknown>, index: number) {
             <template v-else-if="row.has_sku === true">
               <p v-if="!skus(row).length" class="card-note">规格信息暂不可用。</p>
               <div v-for="(sku, skuIndex) in skus(row)" :key="skuIndex" class="sku-result">
-                <b>{{ specs(sku.specs) }}</b><dl><dt>规格编号</dt><dd>{{ text(sku.id) }}</dd><dt>价格</dt><dd>{{ text(sku.price) }}</dd><dt>库存</dt><dd>{{ count(sku.stock) }}</dd></dl>
+                <b>{{ specs(sku.specs) }}</b><dl><dt>价格</dt><dd>{{ text(sku.price) }}</dd><dt>库存</dt><dd>{{ count(sku.stock) }}</dd></dl>
               </div>
               <p v-if="row.sku_has_more === true || (Array.isArray(row.skus) && row.skus.length > 100)" class="card-note">还有更多规格，可继续提问缩小范围。</p>
             </template>

@@ -18,12 +18,27 @@ const fileInput = ref<HTMLInputElement>();
 const uploading = ref(false);
 const linkOpen = ref(false);
 const linkDraft = ref('');
+const sizedImage = Image.extend({
+  addAttributes() {
+    return { ...this.parent?.(), style: { default: null, parseHTML: element => element.getAttribute('style'), renderHTML: attributes => attributes.style ? { style: attributes.style } : {} } };
+  }
+});
+function imageLayout(width: number, align: 'left' | 'center' | 'right') {
+  if (props.disabled || !editor.isActive('image')) return;
+  const size = Math.min(100, Math.max(10, Math.round(width)));
+  if (!Number.isFinite(size)) return;
+  const margin = align === 'left' ? '12px auto 12px 0' : align === 'right' ? '12px 0 12px auto' : '12px auto';
+  editor.chain().focus().updateAttributes('image', { style: `width:${size}%;height:auto;display:block;margin:${margin}` }).run();
+}
+function imageWidth() {
+  return Number(String(editor.getAttributes('image').style || '').match(/width:\s*(\d+)%/)?.[1] || 100);
+}
 let uploadVersion = 0;
 
 const editor = new Editor({
   content: sanitizeRichText(props.modelValue),
   editable: !props.disabled,
-  extensions: [StarterKit.configure({ link: false, underline: false }), Underline, Image.configure({ inline: false, allowBase64: false }), Link.configure({ openOnClick: false }), TableKit],
+  extensions: [StarterKit.configure({ link: false, underline: false }), Underline, sizedImage.configure({ inline: false, allowBase64: false }), Link.configure({ openOnClick: false }), TableKit],
   onUpdate: ({ editor: current }) => emit('update:modelValue', sanitizeRichText(current.getHTML()))
 });
 
@@ -105,6 +120,7 @@ async function uploadImage(event: Event) {
       <button type="button" :disabled="uploading" @click="fileInput?.click()">{{ uploading ? '上传中' : '图片' }}</button>
       <button type="button" @click="editor.chain().focus().undo().run()">撤销</button>
       <button type="button" @click="editor.chain().focus().redo().run()">重做</button>
+      <span v-if="editor.isActive('image')" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" :value="imageWidth()" @change="imageLayout(Number(($event.target as HTMLInputElement).value), 'center')" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
       <input ref="fileInput" hidden type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="uploadImage">
     </fieldset>
     <EditorContent :editor="editor" class="editor-content" />
@@ -114,6 +130,7 @@ async function uploadImage(event: Event) {
 </template>
 
 <style scoped>
+.image-controls { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }.image-controls label { font-size:12px; }.image-controls input { width:64px; padding:4px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); }
 .rich-editor { width:100%; border:1px solid var(--yb-hairline-2); border-radius:8px; background:var(--yb-surface); overflow:hidden; }.toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:10px; min-width:0; border:0; border-bottom:1px solid var(--yb-hairline); background:var(--yb-fill); }.toolbar button { padding:6px 9px; border:1px solid transparent; border-radius:5px; background:var(--yb-surface); color:var(--yb-ink); cursor:pointer; font-size:12px; transition:background 150ms var(--um-ease),color 150ms var(--um-ease); }.toolbar button:hover,.toolbar button.active { border-color:var(--yb-primary); color:var(--yb-primary); background:var(--yb-primary-soft); }.toolbar button:disabled { opacity:.5; cursor:not-allowed; }.editor-content :deep(.tiptap) { min-height:200px; padding:18px; line-height:1.8; }.editor-content :deep(.tiptap:focus-visible) { outline:2px solid var(--yb-primary); outline-offset:-2px; }.editor-content :deep(.tiptap p) { margin:0 0 12px; }.editor-content :deep(.tiptap img) { max-width:100%; height:auto; border-radius:7px; }.editor-content :deep(table) { width:100%; border-collapse:collapse; margin:14px 0; }.editor-content :deep(th),.editor-content :deep(td) { min-width:70px; padding:8px; border:1px solid var(--yb-hairline-2); vertical-align:top; }.editor-tip { padding:0 18px 13px; color:var(--yb-muted); font-size:12px; }.link-field { display:grid; gap:12px; }.link-field p { font-size:12px; color:var(--yb-muted); margin:0; }@media(prefers-reduced-motion:reduce) { .toolbar button { transition:none; } }
 @media(max-width:700px) {
   .editor-content { min-width:0; }

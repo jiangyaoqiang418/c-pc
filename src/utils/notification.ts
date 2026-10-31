@@ -51,3 +51,9 @@ export function notificationRoute(notification: Pick<Api.RealNotify.Notification
 export function conversationListQuery(conversationId?: string | number) {
   return conversationId === undefined || conversationId === null ? undefined : { conversationId: String(conversationId) };
 }
+
+/** 只接受本站业务入口，拒绝外链、会话自循环及控制字符。 */
+export function conversationReturnPath(value: unknown): string | undefined {
+  if (typeof value !== 'string' || /[\\\u0000-\u0020]/.test(value)) return undefined;
+  return /^\/(?:buyer(?:\/|\?|$)|order(?:\/|\?|$)|purchase(?:\/|\?|$)|im(?:\?|$)|profile(?:\/|\?|$))/.test(value) ? value : undefined;
+}

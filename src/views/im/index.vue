@@ -8,6 +8,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
+import ConversationOrderBar from '@/components/im/conversation-order-bar.vue';
 import RealtimeConnectionStatus from '@/components/im/realtime-connection-status.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useNotifyStore, useUserStore } from '@/stores';
@@ -963,6 +964,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
               <Tooltip><TooltipTrigger as-child><button type="button" class="text-link delete-action" aria-label="删除会话" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation"><Icon icon="lucide:trash-2" width="14" /><span class="action-text">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</span></button></TooltipTrigger><TooltipContent>{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</TooltipContent></Tooltip>
             </div>
           </header>
+          <ConversationOrderBar v-if="selectedConversation.type === 'ORDER_GROUP' && selectedConversation.orderId" :order-id="selectedConversation.orderId" :revision="selectedConversation.orderStatus" @changed="ordersRefresh.schedule()" />
           <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="order-strip" :aria-busy="ordersLoading"><Icon v-if="ordersLoading" icon="lucide:loader-circle" class="animate-spin" width="16" /><button v-for="item in conversationOrders" :key="item.orderId" type="button" class="outline order-chip" @click="openOrder(item.orderId)">{{ item.orderNo || item.orderId }} · {{ item.orderStatusText || item.orderStatus }}</button><button type="button" @click="toggleHistoryOrders" class="text-link">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</button></div>
           <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button><button type="button" :disabled="restSyncing" @click="refreshRestData" class="text-link">刷新数据</button></div>
           <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="restSyncing" @click="refreshRestData" class="text-link">继续同步</button></div>

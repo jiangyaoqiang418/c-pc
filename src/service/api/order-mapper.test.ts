@@ -746,6 +746,24 @@ describe('购物车读取和数量边界', () => {
   }
   const product = { id: '9007199254740993', status: 'NORMAL', shelfStatus: 'on-shelf', stock: 3, price: '10', shippingFee: '1', tax: '1' } as Api.RealProduct.DisplayRecord;
 
+  it('购物袋明确404置为失效，网络失败保留重试；恢复后重新核对可购', async () => {
+    const cart = createCart();
+    cart.init();
+    await cart.add(product.id, 1, product);
+    const fetch = vi.spyOn(productApi, 'fetchProductDetail').mockRejectedValueOnce(new RequestError('不存在', { status: 404 }));
+    await cart.refresh();
+    expect(cart.enrichedItems[0].confirmedInvalid).toBe(true);
+    expect(cart.selectedItems).toEqual([]);
+    expect(cart.items).toHaveLength(1);
+    fetch.mockRejectedValueOnce(new Error('offline'));
+    await cart.refresh();
+    expect(cart.enrichedItems[0].confirmedInvalid).toBe(false);
+    expect(cart.enrichedItems[0].loadState).toBe('error');
+    fetch.mockResolvedValueOnce(product);
+    await cart.refresh();
+    expect(cart.enrichedItems[0].available).toBe(true);
+  });
+
   it('缓存损坏不显示为正常空车、不覆盖原记录，修复后可重新读取', async () => {
     const cart = createCart();
     for (const raw of ['{broken', 'null', '{}', '', JSON.stringify([{ productId: '1', qty: -1, addedAt: '' }]),
