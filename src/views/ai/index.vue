@@ -115,7 +115,7 @@ function onKeydown(event: KeyboardEvent) {
               </TooltipTrigger><TooltipContent side="top">{{ user.isLoggedIn ? '添加图片' : '登录后可添加图片' }} · 最多 3 张 JPG、PNG 或 WebP，单张 5MB</TooltipContent></Tooltip></TooltipProvider>
               <span v-if="uploading || attachments.length" class="image-counter" role="status">{{ uploading ? '正在上传…' : `${attachments.length}/3 张图片` }}</span>
             </div>
-            <button v-if="running" type="button" class="secondary stop-button compose-submit" @click="stop">停止生成</button>
+            <button v-if="running" type="button" class="secondary stop-button compose-submit" @click="stop"><Icon icon="lucide:square" aria-hidden="true" />停止生成</button>
             <button v-else type="submit" class="primary compose-submit" :disabled="!canSend">发送<UmIcon name="arrow" /></button>
           </div>
         </form>
