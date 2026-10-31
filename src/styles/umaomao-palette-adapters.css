@@ -723,6 +723,11 @@
   color:var(--ink)!important;
   border-color:var(--line)!important;
 }
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor .toolbar button[aria-pressed="true"] {
+  background:var(--green)!important;
+  color:var(--on-primary)!important;
+  border-color:var(--green)!important;
+}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-rich-editor :is(.tiptap,.editor-tip) {
   background:var(--paper)!important;
   color:var(--ink)!important;

@@ -110,10 +110,10 @@ function logout() {
             </div>
             <footer class="menu-account-footer um-dialog-footer" :class="{ 'is-signed-in': userStore.isLoggedIn }">
               <span class="menu-support-links">
-                <button type="button" :aria-label="notify.imUnreadCount ? `联系支持，${notify.imUnreadCount} 条未读消息` : '联系支持'" @click="go('/im')"><span class="menu-footer-icon"><UmIcon name="chat" /><small v-if="notify.imUnreadCount" class="unread" aria-hidden="true">{{ notify.imUnreadCount > 99 ? '99+' : notify.imUnreadCount }}</small></span><span>联系支持</span></button>
+                <button type="button" :aria-label="notify.imUnreadCount ? `联系支持，${notify.imUnreadCount} 条未读消息` : '联系支持'" @click="go('/im')"><span class="menu-footer-icon"><UmIcon name="chat" /><span v-if="notify.imUnreadCount" class="unread" aria-hidden="true">{{ notify.imUnreadCount > 99 ? '99+' : notify.imUnreadCount }}</span></span><span>联系支持</span></button>
                 <button v-if="!userStore.isLoggedIn" type="button" @click="go('/help')"><UmIcon name="headset" />帮助中心</button>
               </span>
-              <button v-if="userStore.isLoggedIn" type="button" :aria-label="notify.notificationUnreadCount ? `查看平台通知，${notify.notificationUnreadCount} 条未读通知` : '查看平台通知'" @click="go('/notifications')"><span class="menu-footer-icon"><UmIcon name="bell" /><small v-if="notify.notificationUnreadCount" class="unread" aria-hidden="true">{{ notify.notificationUnreadCount > 99 ? '99+' : notify.notificationUnreadCount }}</small></span><span>通知</span></button>
+              <button v-if="userStore.isLoggedIn" type="button" :aria-label="notify.notificationUnreadCount ? `查看平台通知，${notify.notificationUnreadCount} 条未读通知` : '查看平台通知'" @click="go('/notifications')"><span class="menu-footer-icon"><UmIcon name="bell" /><span v-if="notify.notificationUnreadCount" class="unread" aria-hidden="true">{{ notify.notificationUnreadCount > 99 ? '99+' : notify.notificationUnreadCount }}</span></span><span>通知</span></button>
               <button v-if="userStore.isLoggedIn" type="button" @click="logout"><span class="menu-footer-icon"><UmIcon name="logout" /></span><span>退出登录</span></button>
 
             </footer>
@@ -142,7 +142,7 @@ function logout() {
 .menu-account-footer.is-signed-in button:hover { color:var(--ink); background:var(--soft); }
 .menu-footer-icon { position:relative; display:inline-flex; align-items:center; justify-content:center; flex:none; width:24px; height:22px; }
 .menu-account-footer .menu-footer-icon svg { width:18px; height:18px; }
-.menu-account-footer .menu-footer-icon .unread { position:absolute; top:-5px; right:-10px; display:grid; place-items:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:var(--green); color:var(--on-primary,#fff); box-shadow:0 0 0 2px var(--paper); font-size:10px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.menu-account-footer .menu-footer-icon .unread { position:absolute; top:-6px; left:calc(100% + 1px); right:auto; display:grid; place-items:center; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:var(--green); color:var(--on-primary,#fff); box-shadow:0 0 0 2px var(--paper); font-size:10px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; white-space:nowrap; }
 @media (max-width:700px) {
   .header .header-actions > .mobile-account-trigger { display:flex; }
   :root:not([data-ui-theme="web3-meme"]) .account-menu-dialog { top:92px; bottom:auto; left:auto; right:14px; transform:none; width:360px; max-width:calc(100vw - 28px); }

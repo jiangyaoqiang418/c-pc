@@ -14,6 +14,7 @@ import BrandLogo from '@/components/layout/brand-logo.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
 import SideNav from '@/components/layout/side-nav.vue';
 import BuyerWorkspace from '@/components/buyer/buyer-workspace.vue';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const route = useRoute();
 const router = useRouter();
@@ -101,16 +102,18 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
     <footer v-if="!isMessaging" class="footer"><div class="footer-callout"><div class="footer-callout-content wrap um-wrap"><UmIcon name="globe" /><span>USDT 支付说明</span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div></div><div class="wrap um-wrap"><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>用 USDT，连接你与全球好物。</p></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button><button v-if="isDevelopment" type="button" @click="router.push('/design')">页面总览 ↗</button></div></div></div></footer>
     <nav class="mobile-nav" :aria-label="isBuyerWorkspace ? '买手工作台导航' : '手机主导航'"><button v-for="link in mobileLinks" :key="link.to" type="button" :class="{ active: route.path === link.to }" :aria-current="route.path === link.to ? 'page' : undefined" @click="router.push(link.to)"><span><UmIcon :name="link.icon" /><b v-if="link.to === '/cart' && cart.count">{{ cart.count }}</b></span>{{ link.label }}</button></nav>
     <div v-if="!isMessaging" class="floating-tools" :class="{ 'above-product-actions': ['buyer-product-create', 'buyer-product-edit'].includes(String(route.name)) }">
-      <button class="ai-guide-entry" type="button" aria-label="AI 导购" title="AI 导购" @click="router.push('/ai-guide')"><UmIcon name="ai" /></button>
-      <button type="button" aria-label="联系客服" title="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button><button v-if="isDevelopment" type="button" aria-label="页面总览" title="页面总览" @click="router.push('/design')"><UmIcon name="grid" /></button><button type="button" aria-label="回到顶部" title="回到顶部" @click="scrollTop"><UmIcon name="arrow" class="back-top-icon" /></button>
+      <Tooltip><TooltipTrigger as-child><button class="ai-guide-entry" type="button" aria-label="AI 导购" @click="router.push('/ai-guide')"><UmIcon name="ai" /></button></TooltipTrigger><TooltipContent side="left" :side-offset="10">AI 导购</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger as-child><button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /></button></TooltipTrigger><TooltipContent side="left" :side-offset="10">联系客服</TooltipContent></Tooltip>
+      <Tooltip v-if="isDevelopment"><TooltipTrigger as-child><button type="button" aria-label="页面总览" @click="router.push('/design')"><UmIcon name="grid" /></button></TooltipTrigger><TooltipContent side="left" :side-offset="10">页面总览</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger as-child><button type="button" aria-label="回到顶部" @click="scrollTop"><UmIcon name="arrow" class="back-top-icon" /></button></TooltipTrigger><TooltipContent side="left" :side-offset="10">回到顶部</TooltipContent></Tooltip>
     </div>
   </div></template>
 
 <style scoped>
-.floating-tools { top:50% !important; bottom:auto !important; transform:translateY(-50%); right:12px; display:flex; flex-direction:column; gap:6px; padding:8px; border:1px solid var(--line); border-radius:999px; box-shadow:0 4px 20px #00000008; }
-.floating-tools > button { width:52px; height:52px; min-height:52px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background-color .18s,color .18s; }
+.floating-tools { top:50% !important; bottom:auto !important; transform:translateY(-50%); right:12px; display:flex; flex-direction:column; gap:4px; padding:6px; border:1px solid var(--line); border-radius:999px; box-shadow:0 4px 20px #00000008; }
+.floating-tools > button { width:44px; height:44px; min-height:44px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background-color .18s,color .18s; }
 .floating-tools > button:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
-.floating-tools :deep(svg) { width:30px; height:30px; }
+.floating-tools :deep(svg) { width:24px; height:24px; }
 .floating-tools :deep(.back-top-icon) { transform:rotate(-90deg); }
 .layout-default { min-height:100vh; display:flex; flex-direction:column; }
 .main-container { flex:1; outline:0; }

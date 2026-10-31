@@ -262,7 +262,7 @@ function selectExpectedDays(value: unknown) {
         <div class="field"><label for="demand-category">分类</label><CategoryPicker id="demand-category" v-model="categoryId" :options="categoryOptions" placeholder="不限分类" /><p v-if="categoryError" role="alert">{{ categoryError }}</p></div>
         <div class="field keyword"><label for="demand-keyword">关键词</label><Input id="demand-keyword" v-model="keyword" placeholder="搜索商品标题" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }" /></div>
         <div class="field budget-field"><span id="demand-budget-label">预算区间 · USDT</span><div class="range" aria-labelledby="demand-budget-label"><AmountInput v-model="minBudgetField" :min="0" :precision="8" aria-label="最低预算" placeholder="最低" /><span>—</span><AmountInput v-model="maxBudgetField" :min="0" :precision="8" aria-label="最高预算" placeholder="最高" /></div></div>
-        <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days" class="h-11 text-[15px]"><SelectValue placeholder="请选择期望交付天数" /></SelectTrigger><SelectContent><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>
+        <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days" class="app-select-trigger demand-days-trigger h-11 text-[15px]"><SelectValue placeholder="请选择期望交付天数" /></SelectTrigger><SelectContent class="demand-days-options"><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>
         <div class="button-row"><button type="submit" class="h-11 text-[15px] primary"><Icon icon="lucide:search" width="16" />查询</button><button type="button"  class="h-11 text-[15px] outline" @click="reset">重置</button></div>
       </form>
     </section>
@@ -286,6 +286,9 @@ function selectExpectedDays(value: unknown) {
 <style scoped>
 .demand-filters form { display:grid; grid-template-columns:1.2fr 1.4fr .8fr auto; gap:20px; align-items:end; }
 .demand-filters .field { margin:0; min-width:0; }.range { display:flex; gap:10px; align-items:center; }.range > :not(span) { min-width:0; width:100%; }
+.demand-filters .days { min-width:128px; }.demand-filters :deep(.demand-days-trigger) { gap:12px; }
+:global(.demand-days-options) { border-color:var(--line); border-radius:10px; background:var(--paper); color:var(--ink); box-shadow:0 8px 24px #00000014; }
+:global(.demand-days-options [data-reka-select-viewport]) { padding:6px; }
 .status-banner p { flex:1; }.status-banner p span { display:block; font-size:13px; }
 .market-summary { display:flex; gap:32px; margin:20px 0; flex-wrap:wrap; }.market-summary div { display:grid; gap:4px; }.market-summary strong { font-size:24px; font-family:var(--yb-font-mono); }.market-summary strong span { font-size:13px; color:var(--muted); }.request-skeleton { height:300px; border-radius:10px; }
 @media (max-width:1100px) { .demand-filters form { grid-template-columns:1fr 1fr; } }

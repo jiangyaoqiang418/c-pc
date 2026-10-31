@@ -76,6 +76,19 @@
 
 /* Tailwind utilities work: bg-yb-primary, rounded-card, shadow-glow, font-mono, etc. */
 
+:root {
+  --um-scrollbar-size: 4px;
+  --um-scrollbar-thumb: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+:where(*) { scrollbar-width: thin; scrollbar-color: var(--um-scrollbar-thumb) transparent; }
+:where(*)::-webkit-scrollbar { width: var(--um-scrollbar-size); height: var(--um-scrollbar-size); }
+:where(*)::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--um-scrollbar-thumb); }
+:where(*)::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+:where(*)::-webkit-scrollbar-track,:where(*)::-webkit-scrollbar-corner { background: transparent; }
+@supports selector(::-webkit-scrollbar) {
+  :where(*) { scrollbar-width: auto; scrollbar-color: auto; }
+}
+
 /* 原生 select 迁移后的按钮保留与表单输入一致的主题边框和留白。 */
 .app-select-trigger {
   border: 1px solid var(--line);

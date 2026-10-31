@@ -116,7 +116,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
       <Icon icon="lucide:file-warning" width="20" /><span>{{ isImage ? '图片' : isVoice ? '语音' : '视频' }}{{ msg.mediaUrl ? '加载失败，链接可能已失效或格式不受支持' : '暂不可用' }}</span>
       <button v-if="msg.mediaUrl" type="button" @click="retryMedia" class="outline">重新加载</button>
     </div>
-    <div v-else-if="isImage && msg.mediaUrl" class="bubble media" :class="side">
+    <div v-else-if="isImage && msg.mediaUrl" class="bubble media image-media" :class="side">
       <button type="button" class="media-image-button" :aria-label="'预览图片：' + (msg.content || '聊天图片')" @click="emit('preview-image', msg.mediaUrl)"><img :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl" alt="图片消息" class="media-img" @error="onMediaError" /></button>
     </div>
     <div v-else-if="isVoice" class="bubble media voice" :class="side"><audio :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl || undefined" aria-label="语音消息" controls preload="metadata" @error="onMediaError" /><span v-if="msg.duration">{{ msg.duration }} 秒</span></div>
@@ -143,8 +143,10 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .message.me .bubble.text { color:var(--on-primary,var(--paper)); }
 .bubble.system { display:inline-flex; align-items:center; gap:6px; text-align:center; background:var(--soft); color:var(--muted); font-size:12px; padding:6px 12px; border:1px solid var(--line); border-radius:6px; }
 .bubble.media { padding:5px; background:var(--soft); border:1px solid var(--line); border-radius:10px; overflow:hidden; max-width:100%; }
+.bubble.media.image-media { width:fit-content; }
+.message.me .bubble.image-media { margin-left:auto; }
 .media-image-button { display:block; padding:0; border:0; border-radius:6px; cursor:zoom-in; }
-.media-img { max-width:260px; max-height:260px; border-radius:6px; object-fit:contain; }
+.media-img { display:block; width:auto; height:auto; max-width:min(200px,55vw); max-height:200px; border-radius:6px; object-fit:contain; }
 .voice { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }.voice audio { max-width:min(260px,55vw); height:36px; }.voice>span { font-size:12px; color:var(--muted); padding:0 5px; }
 .video video { width:300px; max-width:55vw; aspect-ratio:16/9; border-radius:6px; background:var(--soft); }
 .video-duration { display:block; padding:3px 6px; color:var(--muted); font-size:12px; }

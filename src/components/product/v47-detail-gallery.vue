@@ -32,7 +32,7 @@ watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.va
   <section class="gallery" @contextmenu="preventImageAction" @dragstart="preventImageAction">
     <button type="button" class="main-image" :disabled="!canZoom" :aria-label="canZoom ? '放大商品图片' : '暂无商品图片'" @click="zoom = true">
       <img :src="source(current?.url)" :alt="title" @error="imageError(current?.url)" />
-      <span v-if="canZoom"><UmIcon name="search" />点击查看大图</span>
+      <span v-if="canZoom" class="gallery-zoom-hint"><UmIcon name="search" />放大</span>
     </button>
     <div class="thumbnails">
       <button v-for="(image, index) in images" :key="`${image.url}-${index}`" type="button" :class="{ active: photo === index }" :aria-label="(failed.has(image.url) ? '重试商品图片 ' : '商品图片 ') + (index + 1)" :title="failed.has(image.url) ? '图片加载失败，点击重试' : undefined" :aria-pressed="photo === index" @click="selectPhoto(index)">
@@ -51,5 +51,7 @@ watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.va
 .thumbnails { overflow-x:auto; }
 .thumbnails button { flex-shrink:0; }
 .main-image:disabled { opacity:1; cursor:default; }
+.main-image > .gallery-zoom-hint { display:inline-flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap; line-height:1; }
+.gallery-zoom-hint :deep(svg) { flex-shrink:0; width:16px; height:16px; }
 @media (prefers-reduced-motion:reduce) { .main-image:hover > img { transform:none; } }
 </style>

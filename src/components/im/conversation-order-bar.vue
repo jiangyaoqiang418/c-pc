@@ -9,7 +9,7 @@ import { formatUsdt } from '@shared/utils/currency';
 import { Message } from '@/lib/feedback';
 import AmountInput from '@/components/common/amount-input.vue';
 
-const props = defineProps<{ orderId: string | number; revision?: string }>();
+const props = defineProps<{ orderId: string | number; revision?: string; compact?: boolean }>();
 const emit = defineEmits<{ changed: [] }>();
 const user = useUserStore();
 const router = useRouter();
@@ -65,8 +65,8 @@ onBeforeUnmount(() => { active = false; guard.invalidate(); });
 </script>
 
 <template>
-  <section class="conversation-order-bar" aria-label="当前订单" :aria-busy="loading">
-    <button type="button" class="order-entry" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })"><strong>{{ order?.productTitle || '查看当前订单' }}</strong><span v-if="order">{{ order.code }} · {{ formatUsdt(order.totalAmount) }}</span></button>
+  <section class="conversation-order-bar" :class="{ compact }" aria-label="当前订单" :aria-busy="loading">
+    <button type="button" class="order-entry" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })"><strong :title="order?.productTitle">{{ order?.productTitle || '查看当前订单' }}</strong><span v-if="order" :title="order.code + ' · ' + formatUsdt(order.totalAmount)">{{ order.code }} · {{ formatUsdt(order.totalAmount) }}</span></button>
     <button v-if="canEdit" type="button" class="outline" :disabled="loading || submitting" @click="edit">修改价格</button>
     <button v-if="error" type="button" class="text-link" @click="load">{{ error }}，重试</button>
     <span v-else-if="loading" role="status">正在核对订单</span>
@@ -76,4 +76,16 @@ onBeforeUnmount(() => { active = false; guard.invalidate(); });
 
 <style scoped>
 .conversation-order-bar { display:flex; flex-shrink:0; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--paper); }.order-entry { display:grid; gap:4px; flex:1; min-width:0; text-align:left; }.order-entry strong,.order-entry span { overflow-wrap:anywhere; }.order-entry span { font-size:12px; color:var(--muted); }.order-entry:focus-visible { outline:2px solid var(--green); outline-offset:4px; }
+.conversation-order-bar.compact { flex:1; min-width:0; padding:0; border:0; background:transparent; gap:8px; }
+.compact .order-entry { display:flex; align-items:center; gap:12px; }
+.compact .order-entry strong { min-width:0; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:20px; }
+.compact .order-entry span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; line-height:18px; }
+.compact > .outline,.compact > .text-link { min-height:30px; padding:4px 8px; font-size:11px; }
+.compact > [role="status"] { font-size:11px; color:var(--muted); }
+@media(max-width:1100px) {
+  .compact .order-entry { display:grid; gap:1px; }
+  .compact .order-entry strong { max-width:100%; }
+  .compact .order-entry span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+}
+@media(max-width:700px) { .compact .order-entry strong { font-size:12px; }.compact .order-entry span { font-size:10px; } }
 </style>

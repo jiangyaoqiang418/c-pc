@@ -2,8 +2,10 @@
 import { Icon } from '@iconify/vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { PopoverClose, PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui';
 import ImagePreview from '@/components/common/image-preview.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useResizeObserver } from '@vueuse/core';
 import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
 import MessageBubble from '@/components/im/message-bubble.vue';
@@ -54,6 +56,7 @@ const selectedConversationId = ref<string | number>();
 const conversationOrders = ref<Api.RealNotify.ImConversationOrder[]>([]);
 const includeHistoryOrders = ref(false);
 const ordersLoading = ref(false);
+const ordersLoadError = ref(false);
 const interventionLoading = ref(false);
 const supportLoading = ref(false);
 const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
@@ -76,6 +79,15 @@ const syncIncomplete = ref(false);
 const messageSyncError = ref('');
 const newMessagesAvailable = ref(false);
 const scrollRef = ref<HTMLDivElement>();
+const showJumpToBottom = ref(false);
+function updateJumpToBottom() {
+  const container = scrollRef.value;
+  showJumpToBottom.value = !!container && container.clientHeight > 0
+    && container.scrollHeight - container.scrollTop - container.clientHeight > 8;
+}
+useResizeObserver(scrollRef, updateJumpToBottom);
+watch(messages, updateJumpToBottom, { flush: 'post' });
+watch(scrollRef, () => { showJumpToBottom.value = false; }, { flush: 'sync' });
 let historyAnchor: ReturnType<typeof captureMessageAnchor>;
 let followingLatest = true;
 const readerWatermarks = ref<Record<string, string | number>>({});
@@ -289,6 +301,7 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO,
   if (showOnMobile) void nextTick(() => { if (mobileBack.value?.getClientRects().length) mobileBack.value.focus({ preventScroll:true }); });
   conversationOrders.value = [];
   includeHistoryOrders.value = false;
+  ordersLoadError.value = false;
   if (route.query.conversationId !== String(conversationId)) {
     void router.replace({ query: { ...route.query, conversationId: String(conversationId) } });
   }
@@ -334,10 +347,13 @@ async function loadConversationOrders() {
   const id = conversation.id;
   const isCurrent = conversationOrdersGuard.begin();
   ordersLoading.value = true;
+  ordersLoadError.value = false;
   try {
     const rows = await notifyApi.fetchConversationOrders(id, includeHistoryOrders.value, { signal: isCurrent.signal });
     if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) conversationOrders.value = rows;
-  } catch { /* 请求层已提示读取失败，保留当前列表供显式重试。 */ }
+  } catch {
+    if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) ordersLoadError.value = true;
+  }
   finally {
     if (isCurrent() && sameBusinessId(selectedConversationId.value, id)) ordersLoading.value = false;
   }
@@ -345,6 +361,9 @@ async function loadConversationOrders() {
 async function toggleHistoryOrders() {
   includeHistoryOrders.value = !includeHistoryOrders.value;
   await loadConversationOrders();
+}
+function showOrderRecords(open: boolean) {
+  if (open && !includeHistoryOrders.value) void toggleHistoryOrders();
 }
 async function openSupportConversation() {
   if (disposed || supportLoading.value) return;
@@ -484,19 +503,22 @@ async function syncCurrentConversation() {
 
 async function scrollToBottom() {
   newMessagesAvailable.value = false;
+  showJumpToBottom.value = false;
   followingLatest = true;
   historyAnchor = undefined;
   await nextTick();
   const container = scrollRef.value;
   if (!container) return;
   container.scrollTop = container.scrollHeight;
+  updateJumpToBottom();
   void reportRead();
   requestAnimationFrame(() => {
-    if (scrollRef.value === container) container.scrollTop = container.scrollHeight;
+    if (scrollRef.value === container) { container.scrollTop = container.scrollHeight; updateJumpToBottom(); }
   });
 }
 
 function onMessageScroll() {
+  updateJumpToBottom();
   followingLatest = isNearMessageBottom(scrollRef.value);
   historyAnchor = followingLatest ? undefined : captureMessageAnchor(scrollRef.value);
   if (followingLatest) { newMessagesAvailable.value = false; void reportRead(); }
@@ -505,7 +527,7 @@ function onMessageScroll() {
 
 function onMessageMediaLoad() {
   if (followingLatest) void scrollToBottom();
-  else restoreMessageAnchor(scrollRef.value, historyAnchor);
+  else { restoreMessageAnchor(scrollRef.value, historyAnchor); updateJumpToBottom(); }
 }
 
 function previewImage(url: string) {
@@ -964,16 +986,36 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
               <Tooltip><TooltipTrigger as-child><button type="button" class="text-link delete-action" aria-label="删除会话" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation"><Icon icon="lucide:trash-2" width="14" /><span class="action-text">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</span></button></TooltipTrigger><TooltipContent>{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</TooltipContent></Tooltip>
             </div>
           </header>
-          <ConversationOrderBar v-if="selectedConversation.type === 'ORDER_GROUP' && selectedConversation.orderId" :order-id="selectedConversation.orderId" :revision="selectedConversation.orderStatus" @changed="ordersRefresh.schedule()" />
-          <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="order-strip" :aria-busy="ordersLoading"><Icon v-if="ordersLoading" icon="lucide:loader-circle" class="animate-spin" width="16" /><button v-for="item in conversationOrders" :key="item.orderId" type="button" class="outline order-chip" @click="openOrder(item.orderId)">{{ item.orderNo || item.orderId }} · {{ item.orderStatusText || item.orderStatus }}</button><button type="button" @click="toggleHistoryOrders" class="text-link">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</button></div>
+          <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="conversation-order-context">
+            <ConversationOrderBar v-if="selectedConversation.orderId" compact :order-id="selectedConversation.orderId" :revision="selectedConversation.orderStatus" @changed="ordersRefresh.schedule()" />
+            <span v-else class="order-context-empty">暂无当前订单</span>
+            <PopoverRoot :key="String(selectedConversationId)" @update:open="showOrderRecords">
+              <PopoverTrigger as-child><button type="button" class="order-records-trigger" aria-label="查看会话订单记录"><Icon icon="lucide:history" width="14" /><span>订单记录</span><span v-if="conversationOrders.length" class="order-records-count">{{ conversationOrders.length }}</span><Icon icon="lucide:chevron-down" width="13" /></button></PopoverTrigger>
+              <PopoverPortal>
+                <PopoverContent class="im-order-records-panel" side="bottom" align="end" :side-offset="8" :collision-padding="12" aria-label="会话订单记录">
+                  <header class="order-records-header"><h3>会话订单</h3><button type="button" @click="toggleHistoryOrders" class="text-link">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</button><PopoverClose as-child><button type="button" class="order-records-close" aria-label="关闭订单记录"><Icon icon="lucide:x" width="16" /></button></PopoverClose></header>
+                  <div class="order-records-list" :aria-busy="ordersLoading">
+                    <p v-if="ordersLoading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="14" />正在读取订单</p>
+                    <button v-for="item in conversationOrders" :key="item.orderId" type="button" class="order-record" @click="openOrder(item.orderId)"><span>{{ item.orderNo || item.orderId }}</span><span class="order-record-status">{{ item.orderStatusText || item.orderStatus }}</span><Icon icon="lucide:chevron-right" width="14" /></button>
+                    <p v-if="ordersLoadError" role="alert">订单记录加载失败<button type="button" class="text-link" @click="loadConversationOrders">重试</button></p>
+                    <p v-else-if="!ordersLoading && !conversationOrders.length">{{ includeHistoryOrders ? '暂无订单记录' : '暂无进行中订单，可查看历史订单' }}</p>
+                  </div>
+                </PopoverContent>
+              </PopoverPortal>
+            </PopoverRoot>
+          </div>
           <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button><button type="button" :disabled="restSyncing" @click="refreshRestData" class="text-link">刷新数据</button></div>
           <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="restSyncing" @click="refreshRestData" class="text-link">继续同步</button></div>
-          <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
-            <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
-            <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
-            <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" /><div v-else-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
+          <div class="message-viewport">
+            <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
+              <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
+              <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
+              <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" /><div v-else-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
+            </div>
+            <div v-if="!loading && (showJumpToBottom || newMessagesAvailable)" class="jump-to-bottom">
+              <Tooltip><TooltipTrigger as-child><button type="button" :aria-label="newMessagesAvailable ? '有新消息，跳到底部' : '跳到底部'" @click="scrollToBottom"><Icon icon="lucide:arrow-down-to-line" width="18" /><span v-if="newMessagesAvailable" class="new-message-dot" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ newMessagesAvailable ? '有新消息，查看最新消息' : '跳到底部' }}</TooltipContent></Tooltip>
+            </div>
           </div>
-          <div v-if="newMessagesAvailable" class="new-message-bar"><button type="button" @click="scrollToBottom" class="outline"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</button></div>
           <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
           <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
         </div>

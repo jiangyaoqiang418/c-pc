@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import ImagePreview from '@/components/common/image-preview.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useResizeObserver } from '@vueuse/core';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import MessageBubble from '@/components/im/message-bubble.vue';
@@ -61,6 +63,15 @@ const messageSending = ref(false);
 const mediaBusy = ref(false);
 const recallingMessageIds = ref(new Set<string>());
 const scrollRef = ref<HTMLDivElement>();
+const showJumpToBottom = ref(false);
+function updateJumpToBottom() {
+  const container = scrollRef.value;
+  showJumpToBottom.value = !!container && container.clientHeight > 0
+    && container.scrollHeight - container.scrollTop - container.clientHeight > 8;
+}
+useResizeObserver(scrollRef, updateJumpToBottom);
+watch(messages, updateJumpToBottom, { flush: 'post' });
+watch(scrollRef, () => { showJumpToBottom.value = false; }, { flush: 'sync' });
 let historyAnchor: ReturnType<typeof captureMessageAnchor>;
 let followingLatest = true;
 const readerWatermarks = ref<Record<string, string | number>>({});
@@ -302,19 +313,22 @@ async function syncIncremental() {
 
 async function scrollToBottom() {
   newMessagesAvailable.value = false;
+  showJumpToBottom.value = false;
   followingLatest = true;
   historyAnchor = undefined;
   await nextTick();
   const container = scrollRef.value;
   if (!container) return;
   container.scrollTop = container.scrollHeight;
+  updateJumpToBottom();
   void reportRead();
   requestAnimationFrame(() => {
-    if (scrollRef.value === container) container.scrollTop = container.scrollHeight;
+    if (scrollRef.value === container) { container.scrollTop = container.scrollHeight; updateJumpToBottom(); }
   });
 }
 
 function onMessageScroll() {
+  updateJumpToBottom();
   followingLatest = isNearMessageBottom(scrollRef.value);
   historyAnchor = followingLatest ? undefined : captureMessageAnchor(scrollRef.value);
   if (followingLatest) { newMessagesAvailable.value = false; void reportRead(); }
@@ -323,7 +337,7 @@ function onMessageScroll() {
 
 function onMessageMediaLoad() {
   if (followingLatest) void scrollToBottom();
-  else restoreMessageAnchor(scrollRef.value, historyAnchor);
+  else { restoreMessageAnchor(scrollRef.value, historyAnchor); updateJumpToBottom(); }
 }
 
 function previewImage(url: string) {
@@ -545,12 +559,16 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => user
         <ConversationOrderBar :order-id="orderCode" :revision="String(currentOrder?.orderStatus) + String(currentOrder?.amount)" @changed="metadataRefresh.schedule()" />
         <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button></div>
         <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="syncingMessages" @click="syncIncremental" class="text-link">继续同步</button></div>
-        <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
-          <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
-          <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
-          <div v-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
+        <div class="message-viewport">
+          <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
+            <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
+            <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
+            <div v-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
+          </div>
+          <div v-if="!loading && (showJumpToBottom || newMessagesAvailable)" class="jump-to-bottom">
+            <Tooltip><TooltipTrigger as-child><button type="button" :aria-label="newMessagesAvailable ? '有新消息，跳到底部' : '跳到底部'" @click="scrollToBottom"><Icon icon="lucide:arrow-down-to-line" width="18" /><span v-if="newMessagesAvailable" class="new-message-dot" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ newMessagesAvailable ? '有新消息，查看最新消息' : '跳到底部' }}</TooltipContent></Tooltip>
+          </div>
         </div>
-        <div v-if="newMessagesAvailable" class="new-message-bar"><button type="button" @click="scrollToBottom" class="outline"><Icon icon="lucide:arrow-down" width="15" />有新消息，查看最新消息</button></div>
         <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(orderCode || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
         <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
       </div>

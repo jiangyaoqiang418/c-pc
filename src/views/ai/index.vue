@@ -163,8 +163,9 @@ function onKeydown(event: KeyboardEvent) {
 .composer-attachments { display:flex; flex-wrap:wrap; gap:14px; padding:14px 16px 0; }
 .composer-attachment { position:relative; max-width:180px; }
 .composer-attachment :deep(.ai-image img) { max-width:72px; max-height:72px; }
-.ai-compose .remove-attachment { position:absolute; top:-6px; right:-6px; display:grid; place-items:center; width:24px; height:24px; min-height:24px; padding:0; border:1px solid var(--line); border-radius:50%; background:var(--paper); color:var(--ink); }
-.remove-attachment svg { width:14px; height:14px; }
+.ai-compose .remove-attachment { position:absolute; z-index:2; top:-6px; right:-6px; display:grid; place-items:center; width:24px; height:24px; min-height:24px; padding:0; border:2px solid var(--paper); border-radius:50%; background:var(--ink); color:var(--paper); box-shadow:0 2px 6px #0004; }
+.ai-compose .remove-attachment:hover:not(:disabled) { background:var(--green); color:var(--on-primary); }
+.remove-attachment svg { width:14px; height:14px; stroke-width:2.5; }
 .compose-hint { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:10px; margin-top:6px; line-height:1.5; }
 .compose-hint > span:last-child { flex-shrink:0; }
 @media(max-width:640px) {

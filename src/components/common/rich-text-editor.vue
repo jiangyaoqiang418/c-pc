@@ -18,6 +18,14 @@ const fileInput = ref<HTMLInputElement>();
 const uploading = ref(false);
 const linkOpen = ref(false);
 const linkDraft = ref('');
+const activeFormats = ref({ bold: false, italic: false, underline: false, heading: false, bulletList: false, blockquote: false, link: false, table: false, image: false });
+function syncActiveFormats(current: Pick<Editor, 'isActive'>) {
+  activeFormats.value = {
+    bold: current.isActive('bold'), italic: current.isActive('italic'), underline: current.isActive('underline'),
+    heading: current.isActive('heading', { level: 2 }), bulletList: current.isActive('bulletList'), blockquote: current.isActive('blockquote'),
+    link: current.isActive('link'), table: current.isActive('table'), image: current.isActive('image')
+  };
+}
 const sizedImage = Image.extend({
   addAttributes() {
     return { ...this.parent?.(), style: { default: null, parseHTML: element => element.getAttribute('style'), renderHTML: attributes => attributes.style ? { style: attributes.style } : {} } };
@@ -45,6 +53,8 @@ const editor = new Editor({
   content: sanitizeRichText(props.modelValue),
   editable: !props.disabled,
   extensions: [StarterKit.configure({ link: false, underline: false }), Underline, sizedImage.configure({ inline: false, allowBase64: false }), Link.configure({ openOnClick: false }), TableKit],
+  onCreate: ({ editor: current }) => syncActiveFormats(current),
+  onTransaction: ({ editor: current }) => syncActiveFormats(current),
   onUpdate: ({ editor: current }) => emit('update:modelValue', sanitizeRichText(current.getHTML()))
 });
 
@@ -112,21 +122,21 @@ async function uploadImage(event: Event) {
 <template>
   <div class="rich-editor" :class="{ disabled }">
     <fieldset class="toolbar" :disabled="disabled" aria-label="富文本工具栏">
-      <button type="button" :class="{ active: editor.isActive('bold') }" @click="editor.chain().focus().toggleBold().run()">加粗</button>
-      <button type="button" :class="{ active: editor.isActive('italic') }" @click="editor.chain().focus().toggleItalic().run()">斜体</button>
-      <button type="button" :class="{ active: editor.isActive('underline') }" @click="editor.chain().focus().toggleUnderline().run()">下划线</button>
-      <button type="button" :class="{ active: editor.isActive('heading', { level: 2 }) }" @click="editor.chain().focus().toggleHeading({ level: 2 }).run()">标题</button>
-      <button type="button" :class="{ active: editor.isActive('bulletList') }" @click="editor.chain().focus().toggleBulletList().run()">列表</button>
-      <button type="button" :class="{ active: editor.isActive('blockquote') }" @click="editor.chain().focus().toggleBlockquote().run()">引用</button>
-      <button type="button" @click="setLink">链接</button>
-      <button type="button" @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()">表格</button>
-      <button v-if="editor.isActive('table')" type="button" @click="editor.chain().focus().addRowAfter().run()">加行</button>
-      <button v-if="editor.isActive('table')" type="button" @click="editor.chain().focus().addColumnAfter().run()">加列</button>
-      <button v-if="editor.isActive('table')" type="button" @click="editor.chain().focus().deleteTable().run()">删表</button>
+      <button type="button" :class="{ active: activeFormats.bold }" :aria-pressed="activeFormats.bold" @click="editor.chain().focus().toggleBold().run()">加粗</button>
+      <button type="button" :class="{ active: activeFormats.italic }" :aria-pressed="activeFormats.italic" @click="editor.chain().focus().toggleItalic().run()">斜体</button>
+      <button type="button" :class="{ active: activeFormats.underline }" :aria-pressed="activeFormats.underline" @click="editor.chain().focus().toggleUnderline().run()">下划线</button>
+      <button type="button" :class="{ active: activeFormats.heading }" :aria-pressed="activeFormats.heading" @click="editor.chain().focus().toggleHeading({ level: 2 }).run()">标题</button>
+      <button type="button" :class="{ active: activeFormats.bulletList }" :aria-pressed="activeFormats.bulletList" @click="editor.chain().focus().toggleBulletList().run()">列表</button>
+      <button type="button" :class="{ active: activeFormats.blockquote }" :aria-pressed="activeFormats.blockquote" @click="editor.chain().focus().toggleBlockquote().run()">引用</button>
+      <button type="button" :class="{ active: activeFormats.link }" :aria-pressed="activeFormats.link" @click="setLink">链接</button>
+      <button type="button" :class="{ active: activeFormats.table }" :aria-pressed="activeFormats.table" @click="editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()">表格</button>
+      <button v-if="activeFormats.table" type="button" @click="editor.chain().focus().addRowAfter().run()">加行</button>
+      <button v-if="activeFormats.table" type="button" @click="editor.chain().focus().addColumnAfter().run()">加列</button>
+      <button v-if="activeFormats.table" type="button" @click="editor.chain().focus().deleteTable().run()">删表</button>
       <button type="button" :disabled="uploading" @click="fileInput?.click()">{{ uploading ? '上传中' : '图片' }}</button>
       <button type="button" @click="editor.chain().focus().undo().run()">撤销</button>
       <button type="button" @click="editor.chain().focus().redo().run()">重做</button>
-      <span v-if="editor.isActive('image')" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" :value="imageWidth()" @input="resizeImage" @change="($event.target as HTMLInputElement).value = String(imageWidth())" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
+      <span v-if="activeFormats.image" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" :value="imageWidth()" @input="resizeImage" @change="($event.target as HTMLInputElement).value = String(imageWidth())" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
       <input ref="fileInput" hidden type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="uploadImage">
     </fieldset>
     <EditorContent :editor="editor" class="editor-content" />
@@ -136,6 +146,7 @@ async function uploadImage(event: Event) {
 </template>
 
 <style scoped>
+.rich-editor .toolbar button.active[aria-pressed="true"] { border-color:var(--green); background:var(--green); color:var(--on-primary,#fff); box-shadow:inset 0 0 0 1px var(--green); }
 .editor-content :deep(.tiptap em),.editor-content :deep(.tiptap i) { font-style:italic; }
 .editor-content :deep(.tiptap ul),.editor-content :deep(.tiptap ol) { margin:0 0 12px; padding-left:24px; }
 .editor-content :deep(.tiptap ul) { list-style:disc outside; }
@@ -146,7 +157,7 @@ async function uploadImage(event: Event) {
 .editor-content :deep(.tiptap blockquote) { margin:0 0 12px; padding-left:12px; border-left:3px solid var(--yb-hairline-2); color:var(--yb-ink-2); }
 .editor-content :deep(.tiptap blockquote p) { color:inherit; }
 .image-controls { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }.image-controls label { font-size:12px; }.image-controls input { width:64px; padding:4px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); }
-.rich-editor { width:100%; border:1px solid var(--yb-hairline-2); border-radius:8px; background:var(--yb-surface); overflow:hidden; }.toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:10px; min-width:0; border:0; border-bottom:1px solid var(--yb-hairline); background:var(--yb-fill); }.toolbar button { padding:6px 9px; border:1px solid transparent; border-radius:5px; background:var(--yb-surface); color:var(--yb-ink); cursor:pointer; font-size:12px; transition:background 150ms var(--um-ease),color 150ms var(--um-ease); }.toolbar button:hover,.toolbar button.active { border-color:var(--yb-primary); color:var(--yb-primary); background:var(--yb-primary-soft); }.toolbar button:disabled { opacity:.5; cursor:not-allowed; }.editor-content :deep(.tiptap) { min-height:200px; padding:18px; line-height:1.8; }.editor-content :deep(.tiptap:focus-visible) { outline:2px solid var(--yb-primary); outline-offset:-2px; }.editor-content :deep(.tiptap p) { margin:0 0 12px; }.editor-content :deep(.tiptap img) { max-width:100%; height:auto; border-radius:7px; }.editor-content :deep(table) { width:100%; border-collapse:collapse; margin:14px 0; }.editor-content :deep(th),.editor-content :deep(td) { min-width:70px; padding:8px; border:1px solid var(--yb-hairline-2); vertical-align:top; }.editor-tip { padding:0 18px 13px; color:var(--yb-muted); font-size:12px; }.link-field { display:grid; gap:12px; }.link-field p { font-size:12px; color:var(--yb-muted); margin:0; }@media(prefers-reduced-motion:reduce) { .toolbar button { transition:none; } }
+.rich-editor { width:100%; border:1px solid var(--yb-hairline-2); border-radius:8px; background:var(--yb-surface); overflow:hidden; }.toolbar { display:flex; flex-wrap:wrap; gap:6px; margin:0; padding:10px; min-width:0; border:0; border-bottom:1px solid var(--yb-hairline); background:var(--yb-fill); }.toolbar button { padding:6px 9px; border:1px solid transparent; border-radius:5px; background:var(--yb-surface); color:var(--yb-ink); cursor:pointer; font-size:12px; transition:background 150ms var(--um-ease),color 150ms var(--um-ease); }.toolbar button:hover { border-color:var(--yb-primary); color:var(--yb-primary); background:var(--yb-primary-soft); }.toolbar button:disabled { opacity:.5; cursor:not-allowed; }.editor-content :deep(.tiptap) { min-height:200px; padding:18px; line-height:1.8; }.editor-content :deep(.tiptap:focus-visible) { outline:2px solid var(--yb-primary); outline-offset:-2px; }.editor-content :deep(.tiptap p) { margin:0 0 12px; }.editor-content :deep(.tiptap img) { max-width:100%; height:auto; border-radius:7px; }.editor-content :deep(table) { width:100%; border-collapse:collapse; margin:14px 0; }.editor-content :deep(th),.editor-content :deep(td) { min-width:70px; padding:8px; border:1px solid var(--yb-hairline-2); vertical-align:top; }.editor-tip { padding:0 18px 13px; color:var(--yb-muted); font-size:12px; }.link-field { display:grid; gap:12px; }.link-field p { font-size:12px; color:var(--yb-muted); margin:0; }@media(prefers-reduced-motion:reduce) { .toolbar button { transition:none; } }
 @media(max-width:700px) {
   .editor-content { min-width:0; }
   .editor-content :deep(.tableWrapper) { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
