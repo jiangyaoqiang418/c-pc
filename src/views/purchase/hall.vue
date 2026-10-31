@@ -3,6 +3,8 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AmountInput from '@/components/common/amount-input.vue';
+import CategoryPicker from '@/components/common/category-picker.vue';
+import { fetchCreateCategoryOptions, type CategoryOption } from '@/service/api/category';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -27,6 +29,9 @@ const current = ref(1);
 const size = ref(15);
 const loading = ref(false);
 const keyword = ref('');
+const categoryId = ref<string | number>();
+const categoryOptions = ref<CategoryOption[]>([]);
+const categoryError = ref('');
 const minBudget = ref<number>();
 const maxBudget = ref<number>();
 const expDaysFilter = ref<number | undefined>();
@@ -48,6 +53,7 @@ function positiveNumber(value: string | null | undefined) {
 
 function syncFromQuery() {
   keyword.value = queryValue('keyword') || '';
+  categoryId.value = queryValue('categoryId') || undefined;
   const rawMinBudget = Array.isArray(route.query.minBudget) ? route.query.minBudget[0] : route.query.minBudget;
   const rawMaxBudget = Array.isArray(route.query.maxBudget) ? route.query.maxBudget[0] : route.query.maxBudget;
   const parsedMinBudget = typeof rawMinBudget === 'string' ? positiveNumber(rawMinBudget) : undefined;
@@ -70,6 +76,7 @@ function syncFromQuery() {
 
 function currentQuery() {
   return {
+    ...(categoryId.value ? { categoryId:String(categoryId.value) } : {}),
     ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
     ...(minBudget.value !== undefined ? { minBudget: String(minBudget.value) } : {}),
     ...(maxBudget.value !== undefined ? { maxBudget: String(maxBudget.value) } : {}),
@@ -91,6 +98,7 @@ const canClaim = computed(() => {
 });
 
 async function load() {
+  if (!userStore.canSwitchToBuyer) return;
   const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
@@ -99,6 +107,7 @@ async function load() {
       current: current.value,
       size: size.value,
       keyword: keyword.value || undefined,
+      categoryId: categoryId.value,
       minBudget: minBudget.value,
       maxBudget: maxBudget.value,
       maxDeliveryDays: expDaysFilter.value,
@@ -124,6 +133,7 @@ async function load() {
   }
 }
 onMounted(() => {
+  void fetchCreateCategoryOptions().then(rows => { categoryOptions.value = rows; }).catch(() => { categoryError.value = '分类加载失败，请刷新页面重试'; });
   if (syncFromQuery()) {
     void router.replace({ query: currentQuery() });
     return;
@@ -208,6 +218,7 @@ const avgBudget = computed<string | undefined>(() => {
 });
 
 function reset() {
+  categoryId.value = undefined;
   keyword.value = '';
   minBudget.value = undefined;
   maxBudget.value = undefined;
@@ -248,6 +259,7 @@ function selectExpectedDays(value: unknown) {
     <div class="tabs"><button type="button" class="active" @click="router.push('/purchase/hall')">求购大厅</button><button type="button" @click="router.push('/purchase')">我的求购</button></div>
     <section class="paper demand-filters">
       <form @submit.prevent="queryRecords">
+        <div class="field"><label for="demand-category">分类</label><CategoryPicker id="demand-category" v-model="categoryId" :options="categoryOptions" placeholder="不限分类" /><p v-if="categoryError" role="alert">{{ categoryError }}</p></div>
         <div class="field keyword"><label for="demand-keyword">关键词</label><Input id="demand-keyword" v-model="keyword" placeholder="搜索商品标题" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }" /></div>
         <div class="field budget-field"><span id="demand-budget-label">预算区间 · USDT</span><div class="range" aria-labelledby="demand-budget-label"><AmountInput v-model="minBudgetField" :min="0" :precision="8" aria-label="最低预算" placeholder="最低" /><span>—</span><AmountInput v-model="maxBudgetField" :min="0" :precision="8" aria-label="最高预算" placeholder="最高" /></div></div>
         <div class="field days"><label for="demand-days">期望天数</label><Select :model-value="expDaysFilter === undefined ? 'all' : String(expDaysFilter)" @update:model-value="selectExpectedDays"><SelectTrigger id="demand-days" class="h-11 text-[15px]"><SelectValue placeholder="请选择期望交付天数" /></SelectTrigger><SelectContent><SelectItem value="all">不限</SelectItem><SelectItem value="7">≤ 7 天</SelectItem><SelectItem value="15">≤ 15 天</SelectItem><SelectItem value="30">≤ 30 天</SelectItem></SelectContent></Select></div>

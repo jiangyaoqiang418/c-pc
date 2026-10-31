@@ -5,12 +5,28 @@ import UmIcon from '@/components/common/um-icon.vue';
 import { useUserStore } from '@/stores/user';
 import { fetchSearchPromotions, fetchSearchHot, fetchSearchSuggestions, trackSearch, normalizeSearchHistory, searchHistoryKey } from '@/service/api/search';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { uploadAiImage } from '@/service/api/ai';
+import { Message } from '@/lib/feedback';
 
 const router = useRouter();
 const route = useRoute();
 const kw = ref('');
+const imageInput = ref<HTMLInputElement>();
+const imageUploading = ref(false);
+let imageVersion = 0; let imageAbort = new AbortController();
+async function imageSearch(event: Event) {
+  const target = event.target as HTMLInputElement; const file = target.files?.[0]; target.value = '';
+  if (!file || imageUploading.value) return;
+  if (!user.isLoggedIn) { void router.push({path:'/auth/login',query:{redirect:route.fullPath}}); return; }
+  const version = ++imageVersion; imageUploading.value = true;
+  try { const image = await uploadAiImage(file, imageAbort.signal); if (version === imageVersion) { close(); void router.push({name:'product-list',query:{imageFileId:image.id,hint:kw.value.trim() || undefined}}); } }
+  catch(e) { if (version === imageVersion) Message.error(e instanceof Error ? e.message : '识图上传失败，请重试'); }
+  finally { if (version === imageVersion) imageUploading.value = false; }
+}
+
 const composing = ref(false);
 const user = useUserStore();
+watch(() => user.sessionVersion, () => { imageVersion++; imageAbort.abort(); imageAbort = new AbortController(); imageUploading.value = false; });
 const panelId = useId();
 const wrap = ref<HTMLElement>();
 const opened = ref(false);
@@ -77,7 +93,7 @@ function focusout(event: FocusEvent) { if (!wrap.value?.contains(event.relatedTa
 async function focusFirst() {
   focus(); await nextTick(); wrap.value?.querySelector<HTMLButtonElement>('[data-search-choice]')?.focus();
 }
-onBeforeUnmount(() => { cancelSuggestions(); publicGuard.invalidate(); });
+onBeforeUnmount(() => { imageVersion++; imageAbort.abort(); cancelSuggestions(); publicGuard.invalidate(); });
 onMounted(() => { void loadPublic(); });
 watch([() => route.name, () => route.query.keyword], ([name, value], previous) => {
   close();
@@ -123,6 +139,8 @@ function onSearchKeydown(event: KeyboardEvent) {
         @compositionend="composing = false"
         @keydown.enter="onSearchKeydown"
       />
+      <input ref="imageInput" type="file" hidden accept="image/jpeg,image/png,image/webp" @change="imageSearch" />
+      <button type="button" class="image-search-button" :disabled="imageUploading" aria-label="上传图片搜索商品" @click="user.isLoggedIn ? imageInput?.click() : router.push({path:'/auth/login',query:{redirect:route.fullPath}})">{{ imageUploading ? '上传中…' : '识图' }}</button>
       <button type="submit" class="search-btn" aria-label="搜索">
         <span>搜索</span>
         <UmIcon name="search" />

@@ -39,8 +39,8 @@ async function upload(event: Event) {
   input.value = '';
   if (props.disabled || uploading.value || !chosen.length) return;
   error.value = '';
-  const supported = chosen.filter(file => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 10 * 1024 * 1024);
-  if (supported.length !== chosen.length) Message.warning('仅支持 10MB 以内的 JPG、PNG、WebP 图片，不符合要求的文件未上传');
+  const supported = chosen.filter(file => ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'].includes(file.type) && file.size <= 5 * 1024 * 1024);
+  if (supported.length !== chosen.length) Message.warning('仅支持 5MB 以内的 JPG、PNG、WebP、GIF、AVIF、BMP 图片，不符合要求的文件未上传');
   const selected = supported.slice(0, Math.max(0, 30 - images.value.length));
   if (selected.length < supported.length) Message.warning('商品详情最多插入 30 张图片，超出的文件未上传');
   if (!selected.length) return;
@@ -84,7 +84,7 @@ async function upload(event: Event) {
 <template>
   <details class="buyer-detail-images">
     <summary>添加详情图片</summary><p>详情图片支持 JPG / PNG / WebP，最多 30 张。</p>
-    <input type="file" accept="image/png,image/jpeg,image/webp" multiple :disabled="disabled || uploading || images.length >= 30" aria-label="上传商品详情图片" @change="upload" />
+    <input type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" multiple :disabled="disabled || uploading || images.length >= 30" aria-label="上传商品详情图片" @change="upload" />
     <p v-if="uploading" role="status">正在上传详情图片…</p><p v-if="error" class="error-text" role="alert">{{ error }}</p>
     <div class="buyer-upload-grid"><div v-for="(image,index) in images" :key="`${image}:${index}`"><img :src="image" alt="商品详情图片" @error="setImageFallback" /><button type="button" :disabled="disabled || uploading" :aria-label="'移除第 ' + (index + 1) + ' 张商品详情图片'" @click="remove(index)">×</button></div></div>
   </details>

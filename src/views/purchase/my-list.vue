@@ -219,7 +219,7 @@ function selectTab(value: string | number) {
 
   <div class="my-purchase-page">
     <div class="page-heading compact"><h1>我的求购</h1><button type="button" class="primary" @click="router.push('/purchase/create')">发起求购 <UmIcon name="plus" /></button></div>
-    <div class="tabs"><button type="button" @click="router.push('/purchase/hall')">求购大厅</button><button type="button" class="active" @click="router.push('/purchase')">我的求购</button></div>
+    <div class="tabs"><button v-if="userStore.canSwitchToBuyer" type="button" @click="router.push('/purchase/hall')">求购大厅</button><button type="button" class="active" @click="router.push('/purchase')">我的求购</button></div>
     <div v-if="countError" class="status-banner" role="alert"><Icon icon="lucide:info" width="18" /><span>{{ countError }}</span><button type="button" class="outline" :disabled="loading" @click="load">重新加载</button></div>
     <div class="tabs" role="tablist" aria-label="求购状态"><button v-for="t in TABS" :key="t.key" type="button" role="tab" :aria-selected="activeKey === t.key" :class="{ active:activeKey === t.key }" @click="selectTab(t.key)">{{ t.label }}<span v-if="(counts[t.key] ?? 0) > 0" class="tab-count">{{ counts[t.key] }}</span></button></div>
     <section class="result-panel">

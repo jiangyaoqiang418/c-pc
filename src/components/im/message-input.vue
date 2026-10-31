@@ -204,8 +204,8 @@ async function onImageSelected(event: Event) {
   const file = input.files?.[0];
   input.value = '';
   if (!file || props.disabled || props.submitting || mediaBusy.value) return;
-  if (!file.type.startsWith('image/')) {
-    Message.warning('请选择图片文件');
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'].includes(file.type)) {
+    Message.warning('请选择 JPG、PNG、WebP、GIF、AVIF 或 BMP 图片');
     return;
   }
 
@@ -331,7 +331,7 @@ onBeforeUnmount(() => {
 
   <div class="message-input">
     <div class="chat-quick media-toolbar">
-      <input ref="fileInputRef" class="file-input" type="file" accept="image/*" @change="onImageSelected" />
+      <input ref="fileInputRef" class="file-input" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="onImageSelected" />
       <input ref="videoInputRef" class="file-input" type="file" accept="video/mp4,video/webm,video/quicktime" @change="onVideoSelected" />
       <button type="button" aria-label="上传聊天图片" :disabled="disabled || submitting || mediaBusy" @click="chooseImage" class="text-link"><Icon icon="lucide:image-plus" width="17" />图片</button>
       <button type="button" aria-label="上传聊天视频" :disabled="disabled || submitting || mediaBusy" @click="chooseVideo" class="text-link"><Icon icon="lucide:video" width="17" />视频</button>

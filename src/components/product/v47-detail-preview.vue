@@ -23,7 +23,7 @@ const source = computed(() => props.images[Math.max(0, Math.min(props.images.len
             </header>
             <DialogDescription class="sr-only">{{ review ? '点击关闭按钮或按 Escape 关闭评价配图。' : '点击图片、关闭按钮或按 Escape 关闭大图。' }}</DialogDescription>
             <div :class="review ? 'um-dialog-body' : 'zoom-image-wrap'">
-            <img v-if="source" :class="{ 'review-photo-full':review }" :src="source" :alt="title" @error="setImageFallback" />
+            <img v-if="source" :class="{ 'review-photo-full':review }" :src="source" :alt="title" :draggable="review ? undefined : false" @contextmenu="!review && $event.preventDefault()" @dragstart="!review && $event.preventDefault()" @error="setImageFallback" />
             <p v-if="review" class="demo-note">顾客上传的评价配图</p>
             </div>
           </DialogContent>

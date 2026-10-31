@@ -82,6 +82,16 @@ AI 会话增量以 2026-10-27 新文档和实时 user/admin OpenAPI 为准：C-P
 | AI 选购客服 | POST /ai/customer-service/chat/stream，message/conversationId、SSE start/status/delta/card/done/error；以 10-20 文档为准 | 分块解析、请求/序号校验、120 秒期限、会话/Token 隔离；身份只用当前 token，显式 omit Cookie；非成功卡片允许缺 kind/rows，畸形成功卡片拒绝，无自动重放 | /ai-guide 按事件顺序交错展示文本及多卡片；支持 products/旧 product、order/balance/recharge/withdraw/order_pay；done/error/断流/停止独立处理；404 清会话并保留原问题或新草稿 | 类型、生产构建、实时 Swagger、358 项现有测试通过；Chrome 两名真实用户 USDT AI 六桶及 total 各自与钱包一致，退出/在途退出清私人内容，换号无旧卡片；Cookie 修正后二人复验及游客登录引导通过。受控响应已验增量、顺序、纯文本/规格、error/EOF/停止/404/429，桌面及手机可见宽360无溢出；真实 USDC 非空卡片及实机系统行为待验 |
 | 多资产提现 | /withdraw/chains、/withdraw/fee-preview 及 create/detail/page/by-key 资产字段已确认 | 动态精度/限额、字符串金额、只读网络费、原键原资产恢复、提交前复核网络 | 桌面/同仓手机选择币种及网络、报价失效/过期、原单独立资产详情 | 自动回归覆盖精度/限额/报价资产/原单保护；Chrome 已验 6 位精度/拒绝第 7 位非零小数、BNB 网络费预览及原精度确认；真实创建、审核退回和链上到账尚未验 |
 
+## 10-31 图片、商品与求购增量
+
+| 能力 | 契约确认 | API与页面 | 真实验证与边界 |
+| --- | --- | --- | --- |
+| AI图片与欢迎语 | user welcome、images/upload、images/access；历史 images；chat imageFileIds/question 已确认 | 上传限制、续签合并/到期/重试、纯图片发送、快捷追问及欢迎语接入 | Chrome登录、真实欢迎语与一轮文本问答通过；图片上传受浏览器扩展权限限制，发送/历史图片真实回读未验。product_cards新协议暂缓 |
+| 识图商品分页 | order POST /storefront/search/images/page，fileId/hint及普通筛选 | 顶部上传入口、结果页、60秒期限及独立失败态已接 | 现有测试覆盖路径/参数/分页；真实上传、识别结果及深分页未验 |
+| 求购权限与重提 | BUYER大厅、categoryId、PUT /demands/update已确认 | 入口/路由限制、启用分类、本人驳回表单回填、原ID及字符串预算、姓名映射 | 现有测试覆盖原ID/金额/地址/图片全量；真实顾客越权、重提到审核闭环待验 |
+| 商品多分类与参数 | create/update及DTO的categoryIds/categories/parameters已确认 | 表单/草稿/快照/提交、分组/问号/摘要展示已接 | Chrome参数添加/输入/删除通过；真实送审、公开回读及分类交叉命中未验 |
+| 普通图片/物流/详情图 | 六格式白名单；原carrier/ship/logistics接口保留 | 上传控件适配、空轨迹提示、图片右键拖拽限制 | 类型/构建及417测试通过；AVIF/BMP真实上传、长按和真实运单自动回读待验 |
+
 ## 本轮修复四层核对
 
 | 范围 | 实时契约 | 前端实现与页面 | 验证边界 |

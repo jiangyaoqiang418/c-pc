@@ -126,6 +126,8 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     sellerName: dto.sellerName || '商品买手',
     categoryId,
     categoryPath: dto.categoryName || '',
+    categories: dto.categories || [],
+    parameters: dto.parameters || [],
     price: requireProductPrice(dto.price),
     stock: toFiniteNumber(dto.stock || 0),
     shippingFee: readProductFee(dto.shippingFee),
@@ -163,6 +165,8 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
     sellerName: dto.sellerName || '商品买手',
     categoryId: dto.categoryId || '',
     categoryPath: dto.categoryName || '',
+    categories: dto.categories || [],
+    parameters: dto.parameters || [],
     price: requireProductPrice(dto.price),
     stock: toFiniteNumber(dto.stock ?? 0),
     shippingFee: undefined,
@@ -225,11 +229,14 @@ export async function fetchStorefrontProducts(q: {
   maxPrice?: number;
   sort?: StorefrontSort | LegacyStorefrontSort;
   signal?: AbortSignal;
+  imageFileId?: string;
+  hint?: string;
 }) {
   const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.StorefrontProductVO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.StorefrontProductPageQuery
-  >('/storefront/products/page', {
+  > (q.imageFileId ? '/storefront/search/images/page' : '/storefront/products/page', {
+    fileId:q.imageFileId, hint:q.hint,
     pageNo: q.current || 1,
     pageSize: q.size || 20,
     keyword: q.keyword,
@@ -240,7 +247,7 @@ export async function fetchStorefrontProducts(q: {
     afterSaleType: q.aftersaleType ? fromAfterSaleType(q.aftersaleType) : undefined,
     overseasClearance: q.overseasCustoms,
     sortBy: normalizeStorefrontSort(q.sort)
-  }, { signal: q.signal, preserveDecimals: true });
+  }, { signal: q.signal, preserveDecimals: true, timeoutMs:q.imageFileId ? 60_000 : undefined });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,
@@ -438,6 +445,8 @@ export async function createProduct(p: {
   brandId?: Api.RealProduct.Id | null;
   title: string;
   categoryId: string | number;
+  categoryIds?: Api.RealProduct.Id[];
+  parameters?: Api.RealProduct.ProductParameter[];
   price: string | number;
   shippingFee: string | number;
   tax: string | number;
@@ -464,6 +473,8 @@ export async function createProduct(p: {
     brandId: p.brandId,
     title: p.title,
     categoryId: p.categoryId,
+    categoryIds: p.categoryIds,
+    parameters: p.parameters,
     price: price.value,
     shippingFee: shippingFee.value,
     taxFee: taxFee.value,

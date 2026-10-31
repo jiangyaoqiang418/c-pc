@@ -46,6 +46,7 @@ function goDetail() {
     <div class="button-row actions" @click.stop>
       <button class="outline" type="button"  @click="goDetail">查看求购详情<Icon icon="lucide:arrow-right" width="15" /></button>
       <button class="primary" v-if="mode === 'hall' && canClaim && request.status === 'pushing'" type="button" :disabled="claiming" @click="$emit('claim', request)"><Icon v-if="claiming" icon="lucide:loader-circle" class="animate-spin" width="15" />{{ claiming ? '接单中…' : '我接此单' }}</button>
+      <RouterLink v-if="mode === 'mine' && request.status === 'rejected'" class="outline" :to="{ path: '/purchase/create', query: { edit: String(request.id) } }">修改后重新提交</RouterLink>
       <button v-if="mode === 'mine' && ['pending_audit', 'pushing'].includes(request.status)" type="button"  class="danger outline" :disabled="canceling" @click="$emit('cancel', request)">{{ canceling ? '撤销中…' : '撤销求购' }}</button>
     </div>
   </div>

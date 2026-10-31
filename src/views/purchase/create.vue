@@ -16,7 +16,7 @@ import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption }
 import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { compareDecimalAmount } from '@/components/wallet/decimal-amount';
+import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { sumPaymentAmounts } from '@/utils/checkout';
 
 const route = useRoute();
@@ -48,13 +48,36 @@ const form = reactive<{
 });
 
 const submitting = ref(false);
+const editId = computed(() => typeof route.query.edit === 'string' && route.query.edit ? route.query.edit : undefined);
+const editLoading = ref(false);
+const editError = ref('');
+const editReady = ref(false);
+const editGuard = createLatestRequestGuard();
+async function loadEdit() {
+  const current = editGuard.begin();
+  editReady.value = false; editError.value = ''; editLoading.value = !!editId.value;
+  if (!editId.value) { editReady.value = true; return; }
+  try {
+    const item = await purchaseApi.fetchPurchaseDetail(editId.value, { signal: current.signal });
+    if (!current()) return;
+    if (item.status !== 'rejected' || String(item.customerId) !== String(userStore.currentUser?.id)) throw new Error('仅可修改本人已驳回的求购');
+    if (item.aftersaleType === 'unknown') throw new Error('该求购的售后类型暂不可识别，请核对后再修改');
+    Object.assign(form, { productTitle:item.productTitle, productDescription:item.productDescription, categoryId:item.categoryId,
+      addressId:item.addressId, budgetAmount:String(item.budgetAmount), expectedDays:item.expectedDays, overseasCustoms:item.overseasCustoms,
+      aftersaleType:item.aftersaleType, appeal:item.appeal, evidenceUrls:[...(item.evidenceUrls || [])] });
+    editReady.value = true; markSaved();
+  } catch(e) { if (current()) editError.value = e instanceof Error ? e.message : '求购详情加载失败，请重试'; }
+  finally { if (current()) editLoading.value = false; }
+}
+watch(() => route.query.edit, loadEdit);
+
 const { markInteracted, markSaved, acceptAutomaticField } = useUnsavedForm(() => form,
   () => `${String(userStore.currentUser?.id)}:${userStore.currentAudience}:${userStore.sessionVersion}`);
 
 function cancelCreate() {
   const back = router.options.history.state.back;
   if (typeof back === 'string' && ['/purchase', '/purchase/hall'].includes(back.split(/[?#]/)[0])) router.back();
-  else void router.replace('/purchase/hall');
+  else void router.replace('/purchase');
 }
 const confirmationOpen = ref(false);
 const addressValid = ref(false);
@@ -66,7 +89,7 @@ let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const cascaderOptions = ref<CategoryOption[]>([]);
-onMounted(reloadCategories);
+onMounted(() => { void reloadCategories(); void loadEdit(); });
 
 async function reloadCategories() {
   const isCurrent = categoryGuard.begin();
@@ -88,6 +111,7 @@ onBeforeUnmount(() => {
   writeVersion += 1;
   confirmationModal?.close();
   categoryGuard.invalidate();
+  editGuard.invalidate();
 });
 
 watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], ([nextUserId, nextAudience, nextSession], [previousUserId, previousAudience, previousSession]) => {
@@ -97,6 +121,11 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => u
   submitting.value = false;
   confirmationOpen.value = false;
   if (String(nextUserId) !== String(previousUserId) || nextSession !== previousSession) {
+    editGuard.invalidate();
+    editReady.value = !editId.value;
+    editLoading.value = false;
+    editError.value = '';
+    if (editId.value && userStore.isLoggedIn) void loadEdit();
     form.addressId = undefined;
     addressValid.value = false;
     form.productTitle = '';
@@ -115,8 +144,7 @@ const budgetCny = computed(() => formatCny(form.budgetAmount).replace(/^¥/, '')
 const referenceRate = computed(getUsdtCnyRate);
 const budgetError = computed(() => {
   const text = form.budgetAmount.trim();
-  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) return '请输入有效预算，最多支持 2 位小数';
-  if (compareDecimalAmount(text, '10') === -1) return '求购预算不得低于 10 USDT';
+  if (exactTransactionAmount(text).value === undefined) return '预算须大于 0，最多 28 位整数、8 位小数';
   return '';
 });
 
@@ -130,7 +158,7 @@ function preventImplicitSubmit(event: KeyboardEvent) {
 }
 
 async function submit() {
-  if (submitting.value || confirmationOpen.value || uploading.value) return;
+  if (submitting.value || confirmationOpen.value || uploading.value || !editReady.value || editLoading.value) return;
   if (!form.productTitle.trim()) {
     Message.warning('请填写商品标题');
     return;
@@ -148,8 +176,8 @@ async function submit() {
     Message.warning(budgetError.value);
     return;
   }
-  if (!Number.isFinite(form.expectedDays) || form.expectedDays < 1 || form.expectedDays > 60) {
-    Message.warning('期望发货天数需为 1-60 天');
+  if (!Number.isSafeInteger(form.expectedDays) || form.expectedDays < 1 || form.expectedDays > 2147483647) {
+    Message.warning('期望发货天数需为大于 0 的整数');
     return;
   }
   const addressId = form.addressId;
@@ -161,6 +189,7 @@ async function submit() {
 
   const requestedUserId = userStore.currentUser.id;
   const params = {
+    id: editId.value,
     productTitle: form.productTitle.trim(),
     productDescription: form.productDescription.trim(),
     categoryId,
@@ -179,7 +208,7 @@ async function submit() {
 
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
-    title: '确认发起求购？',
+    title: editId.value ? '确认修改并重新提交审核？' : '确认发起求购？',
     content: `预算 U ${form.budgetAmount} · 期望 ${form.expectedDays} 天内发货`,
     onCancel() {
       if (!isCurrentWrite()) return;
@@ -210,7 +239,7 @@ async function submit() {
           const r = await purchaseApi.createPurchase(params);
           if (r && isCurrentWrite()) {
             markSaved();
-            Message.success('求购已发起');
+            Message.success(editId.value ? '求购已重新提交审核' : '求购已发起');
             router.push({ name: 'purchase-detail', params: { id: String(r) } });
           }
         } catch {
@@ -236,18 +265,20 @@ function selectAftersale(value: unknown) {
 <template>
 
   <div class="purchase-create-page paper narrow">
-    <h1>发起求购</h1>
+    <h1>{{ editId ? '修改求购' : '发起求购' }}</h1>
+    <p v-if="editLoading" role="status">正在加载求购资料…</p>
+    <p v-if="editError" role="alert">{{ editError }} <button type="button" @click="loadEdit">重新加载</button></p>
     <form @submit.prevent @keydown.enter.capture="preventImplicitSubmit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
-      <fieldset :disabled="submitting || confirmationOpen" class="form-fields">
+      <fieldset :disabled="submitting || confirmationOpen || !editReady || editLoading" class="form-fields">
         <section class="request-fields">
-          <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen" /></div>
+          <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input maxlength="128" id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen" /></div>
           <div class="field"><label for="request-category">商品分类 <em>*</em></label><CategoryPicker id="request-category" v-model="form.categoryId" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting || confirmationOpen" placeholder="选择分类（支持一至五级）" /><p v-if="categoryLoadError" class="error" role="alert">{{ categoryLoadError }}<button class="text-link" type="button" :disabled="categoryLoading" @click="reloadCategories">重新加载</button></p></div>
           <div class="field"><span class="field-label">收货地址 <em>*</em></span><AddressSelector :key="`${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-if="userStore.currentUser" v-model="form.addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @initialized="acceptAutomaticField('addressId', $event)" /></div>
           <div class="field"><label for="request-description">商品描述 <small>可选</small></label><Textarea id="request-description" v-model="form.productDescription" :rows="3" placeholder="详细描述商品规格、版本、颜色等" /></div>
         </section>
         <section class="request-fields"><div class="form-grid">
-          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" v-model:raw-value="form.budgetAmount" preserve-input :precision="2" :aria-invalid="!!budgetError" aria-describedby="request-budget-error" placeholder="请输入预算金额" /><p v-if="budgetError" id="request-budget-error" class="error" role="alert">{{ budgetError }}</p><p class="hint" :title="usdtCnyRateLabel()">≈ ¥{{ budgetCny }} · {{ referenceRate === undefined ? '参考汇率暂不可用' : '1 USDT = ¥' + referenceRate.toFixed(4) }}<br>参考估算 · 获取时间见页顶，以 USDT 结算</p></div>
-          <div class="field"><label for="request-expected-days">期望发货天数 <em>*</em></label><AmountInput id="request-expected-days" :model-value="form.expectedDays" :min="1" :max="60" :precision="0" placeholder="期望发货天数" @update:model-value="form.expectedDays = $event ?? NaN" /><p class="hint">可填写 1–60 天。</p></div>
+          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" v-model:raw-value="form.budgetAmount" preserve-input :precision="8" :aria-invalid="!!budgetError" aria-describedby="request-budget-error" placeholder="请输入预算金额" /><p v-if="budgetError" id="request-budget-error" class="error" role="alert">{{ budgetError }}</p><p class="hint" :title="usdtCnyRateLabel()">≈ ¥{{ budgetCny }} · {{ referenceRate === undefined ? '参考汇率暂不可用' : '1 USDT = ¥' + referenceRate.toFixed(4) }}<br>参考估算 · 获取时间见页顶，以 USDT 结算</p></div>
+          <div class="field"><label for="request-expected-days">期望发货天数 <em>*</em></label><AmountInput id="request-expected-days" :model-value="form.expectedDays" :min="1" :max="2147483647" :precision="0" placeholder="期望发货天数" @update:model-value="form.expectedDays = $event ?? NaN" /><p class="hint">请填写大于 0 的整数天数。</p></div>
         </div></section>
         <section class="request-fields">
           <div class="field"><label for="request-aftersale">售后类型 <em>*</em></label><Select :model-value="form.aftersaleType" :disabled="submitting || confirmationOpen" @update:model-value="selectAftersale"><SelectTrigger id="request-aftersale"><SelectValue placeholder="请选择售后要求" /></SelectTrigger><SelectContent><SelectItem value="none">无售后</SelectItem><SelectItem value="7day-no-reason">7 天无理由</SelectItem><SelectItem value="shop-warranty">店铺保修</SelectItem><SelectItem value="national-warranty">全国联保</SelectItem></SelectContent></Select></div>
@@ -256,7 +287,7 @@ function selectAftersale(value: unknown) {
           <div class="field"><span class="field-label">参考图片 <small>可选，最多 4 张</small></span><AftersaleEvidenceUploader :key="`${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></div>
         </section>
       </fieldset>
-      <div class="button-row actions"><button class="outline" type="button"  :disabled="submitting || confirmationOpen || uploading" @click="cancelCreate">取消</button><button class="gold full" type="button" :disabled="submitting || confirmationOpen || uploading || !addressValid" @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting || confirmationOpen ? '提交中…' : '提交求购' }}<Icon v-if="!submitting && !confirmationOpen" icon="lucide:arrow-right" width="16" /></button></div>
+      <div class="button-row actions"><button class="outline" type="button"  :disabled="submitting || confirmationOpen || uploading" @click="cancelCreate">取消</button><button class="gold full" type="button" :disabled="submitting || confirmationOpen || uploading || !addressValid || !editReady || editLoading" @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting || confirmationOpen ? '提交中…' : editId ? '修改后重新提交' : '提交求购' }}<Icon v-if="!submitting && !confirmationOpen" icon="lucide:arrow-right" width="16" /></button></div>
     </form>
   </div>
 

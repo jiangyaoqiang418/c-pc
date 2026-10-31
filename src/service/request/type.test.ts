@@ -1605,6 +1605,38 @@ describe('AI 客服 POST 流与身份隔离', () => {
     expect(JSON.parse(options.body)).toEqual({ message: '查询商品', conversationId: null });
   });
 
+  it('纯图片消息保留文件 Long ID，question 选项可交付，暂未接入的商品事件不打断后续回答', async () => {
+    setup('qa-ai-image');
+    const events: Api.Ai.ChatEvent[] = [];
+    const text = start
+      + 'event: product_cards\ndata: {"request_id":"r1","seq":2,"unknown_schema":true}\n\n'
+      + 'event: question\ndata: {"request_id":"r1","seq":3,"text":"选择预算","options":["100以下","100以上"]}\n\n' + done;
+    const fetch = vi.fn().mockResolvedValue(response(text));
+    vi.stubGlobal('fetch', fetch);
+    await streamCustomerChat({ message:'', imageFileIds:['9007199254740993123'], conversationId:conversation }, new AbortController().signal, event => events.push(event));
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({message:'', imageFileIds:['9007199254740993123']});
+    expect(events.map(event => event.event)).toEqual(['start','question','done']);
+    expect(events[1].data).toMatchObject({text:'选择预算',options:['100以下','100以上']});
+  });
+
+  it('图片访问地址按文件合并在途请求，强制刷新续签，切换身份不复用签名', async () => {
+    setup('qa-image-owner');
+    const id = '9007199254740993123';
+    const get = vi.spyOn(realUserRequest, 'get').mockResolvedValue({fileId:id,url:'https://images.example.test/signed?a=1&b=2',expireAt:Date.now()+600_000});
+    const results = await Promise.all([aiApi.fetchAiImageAccess(id), aiApi.fetchAiImageAccess(id)]);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(results[0].url).toBe('https://images.example.test/signed?a=1&b=2');
+    await aiApi.fetchAiImageAccess(id);
+    expect(get).toHaveBeenCalledTimes(1);
+    await aiApi.fetchAiImageAccess(id,true);
+    expect(get).toHaveBeenCalledTimes(2);
+    setAccessToken('qa-next-image-owner');
+    await aiApi.fetchAiImageAccess(id);
+    expect(get).toHaveBeenCalledTimes(3);
+    setAccessToken('');
+    await expect(aiApi.fetchAiImageAccess(id)).rejects.toThrow('登录');
+  });
+
   it('卡片金额和 Long ID 保持字符串，SSE 时间保持数值，终态 error 无需 done', async () => {
     setup('qa-ai-session');
     const events: Api.Ai.ChatEvent[] = [];

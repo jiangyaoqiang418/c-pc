@@ -11,6 +11,8 @@ export interface AiDisplayMessage {
   temporary?: boolean;
   role: 'user' | 'assistant';
   text: string;
+  images?: Api.Ai.ImageReference[];
+  questions?: string[];
   parts: ({ type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData })[];
   state: Api.Ai.MessageStatus;
   progress?: string;
@@ -21,7 +23,7 @@ export interface AiDisplayMessage {
 
 export function historyMessage(row: Api.Ai.Message): AiDisplayMessage {
   return { id: row.messageId, requestId: row.requestId, clientMessageId: row.clientMessageId,
-    role: row.role === 'USER' ? 'user' : 'assistant', text: row.content, state: row.status,
+    role: row.role === 'USER' ? 'user' : 'assistant', text: row.content, images:row.images || [], state: row.status,
     parts: (row.structuredData?.cards ?? []).map(card => ({ type: 'card', card: card.data })),
     truncated: row.structuredData?.truncated === true, snapshot: !!row.structuredData?.cards?.length,
     error: row.status === 'FAILED' ? '回答失败' : row.status === 'INTERRUPTED' ? '回答中断' : undefined };
@@ -52,6 +54,8 @@ export function useAiConversations() {
   const messages = ref<AiDisplayMessage[]>([]);
   const conversationId = ref<string | null>(null);
   const input = ref('');
+  const attachments = ref<Api.Ai.UploadedImage[]>([]);
+  const uploading = ref(false);
   const running = ref(false);
   const busy = ref(false);
   const listLoading = ref(false);
@@ -78,7 +82,7 @@ export function useAiConversations() {
   const visibleSessions = computed(() => sessions.value.filter(row => row.messageCount !== 0));
   const archived = computed(() => sessions.value.find(row => row.conversationId === conversationId.value)?.status === 'ARCHIVED');
   const canSend = computed(() => ready.value && !running.value && !busy.value && !historyLoading.value
-    && !archived.value && !!input.value.trim() && input.value.length <= 2000 && !user.initializing);
+    && !archived.value && !uploading.value && (!!input.value.trim() || attachments.value.length > 0) && input.value.length <= 2000 && !user.initializing);
   const pending = computed(() => messages.value.some(row => row.state === 'PENDING' && !row.temporary));
   const current = (version: number, token: string) => !disposed && version === scope && token === getAccessToken();
   const problem = (e: unknown) => e instanceof Error ? e.message : '客服读取失败，请重试';
@@ -168,7 +172,7 @@ export function useAiConversations() {
     const version = scope, token = getAccessToken(), operation = ++mutationVersion;
     if (!id) {
       conversationId.value = null;
-      messages.value = []; input.value = ''; historyCursor = null; historyMore.value = false; historyLoaded = false;
+      messages.value = []; input.value = ''; attachments.value = []; historyCursor = null; historyMore.value = false; historyLoaded = false;
       error.value = ''; notice.value = '';
       return;
     }
@@ -179,7 +183,7 @@ export function useAiConversations() {
       if (!/^[0-9a-f]{32}$/.test(state?.conversationId) || state.current !== true
         || (id && state.conversationId !== id)) throw new Error('当前会话确认失败，请刷新会话列表核对');
       conversationId.value = state.conversationId;
-      messages.value = []; input.value = ''; historyCursor = null; historyMore.value = false; historyLoaded = false;
+      messages.value = []; input.value = ''; attachments.value = []; historyCursor = null; historyMore.value = false; historyLoaded = false;
       ready.value = true;
       await loadHistory();
       await loadSessions();
@@ -193,7 +197,7 @@ export function useAiConversations() {
 
   async function send() {
     if (!canSend.value) return;
-    const question = input.value.trim(), version = scope, token = getAccessToken(), requestTurn = ++turn;
+    const question = input.value.trim(), images = attachments.value.map(row => ({...row})), version = scope, token = getAccessToken(), requestTurn = ++turn;
     const key = `web-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
     const aborter = new AbortController(); stream = aborter;
     const active = () => current(version, token) && requestTurn === turn;
@@ -219,13 +223,14 @@ export function useAiConversations() {
       }
       notice.value = '';
     }
-    const fromUser: AiDisplayMessage = { id: `user-${key}`, clientMessageId: key, temporary: true, role: 'user', text: question, parts: [], state: 'COMPLETED' };
+    const fromUser: AiDisplayMessage = { id: `user-${key}`, clientMessageId: key, temporary: true, role: 'user', text: question, images:images.map(row => ({fileId:row.id})), parts: [], state: 'COMPLETED' };
     messages.value.push(fromUser, { id: `answer-${key}`, clientMessageId: key, temporary: true, role: 'assistant', text: '', parts: [], state: 'PENDING', progress: '正在连接客服…' });
     const answer = messages.value[messages.value.length - 1];
     if (input.value.trim() === question) input.value = '';
+    attachments.value = [];
     scrollBottom();
     try {
-      await streamCustomerChat({ message: question, conversationId: conversationId.value, clientMessageId: key }, aborter.signal, event => {
+      await streamCustomerChat({ message: question, imageFileIds:images.map(row => row.id), conversationId: conversationId.value, clientMessageId: key }, aborter.signal, event => {
         if (!active()) return;
         if (event.event === 'start') {
           conversationId.value = event.data.conversation_id;
@@ -240,6 +245,7 @@ export function useAiConversations() {
           else answer.parts.push({ type: 'text', text: event.data.text });
         } else if (event.event === 'card') answer.parts.push({ type: 'card', card: event.data.data });
         else if (event.event === 'done') { answer.state = 'COMPLETED'; answer.progress = ''; }
+        else if (event.event === 'question') { answer.questions = event.data.options; if (event.data.text) answer.parts.push({type:'text', text:event.data.text}); }
         else if (event.event === 'error') { answer.state = 'FAILED'; answer.progress = ''; answer.error = event.data.message; }
         scrollBottom();
       });
@@ -269,7 +275,7 @@ export function useAiConversations() {
   watch([() => user.sessionVersion, () => user.currentUser?.id, () => user.initializing], () => {
     scope++; listVersion++; historyVersion++; mutationVersion++;
     invalidateStream(); reads.abort(); reads = new AbortController();
-    sessions.value = []; messages.value = []; conversationId.value = null; input.value = '';
+    sessions.value = []; messages.value = []; conversationId.value = null; input.value = ''; attachments.value = []; uploading.value = false;
     historyCursor = null; sessionCursor = null; historyMore.value = false; sessionMore.value = false; historyLoaded = false;
     listLoading.value = false; historyLoading.value = false; busy.value = false;
     error.value = ''; listError.value = ''; notice.value = '';
@@ -278,6 +284,6 @@ export function useAiConversations() {
   }, { immediate: true, flush: 'sync' });
 
   onBeforeUnmount(() => { disposed = true; scope++; invalidateStream(); reads.abort(); });
-  return { sessions, visibleSessions, messages, conversationId, input, running, busy, listLoading, historyLoading, ready, error, listError,
+  return { sessions, visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
     notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send };
 }

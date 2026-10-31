@@ -16,12 +16,14 @@ declare namespace Api.RealPurchase {
     reviewComment?: string;
     reviewedAt?: string;
     assignedBy?: Id;
+    addressId?: Id;
   };
 
   type DisplayRecord = Api.PurchaseRequest.PurchaseRequest | Record;
 
   type DemandStatus = string;
   interface Progress {
+    takenBy?: Id; takenByName?: string;
     demandId: Id; status: string; statusText?: string; reviewComment?: string | null; reviewedAt?: number | null;
     pushBatchCount: number; reachedBuyerCount: number; lastPushedAt?: number | null; expireAt?: number | null;
     takenAt?: number | null; orderId?: Id | null;
@@ -34,6 +36,10 @@ declare namespace Api.RealPurchase {
     categoryId: string;
     description?: string;
     buyerId?: string;
+    buyerName?: string;
+    takenByName?: string;
+    categoryName?: string;
+    addressId?: Id;
     budget?: string | number;
     expectDeliveryDays?: number;
     overseasClearance?: boolean;
@@ -58,7 +64,8 @@ declare namespace Api.RealPurchase {
     categoryId: string | number;
     addressId: string | number;
     description?: string;
-    budget: number;
+    id?: Id;
+    budget: string;
     expectDeliveryDays: number;
     overseasClearance?: boolean;
     afterSaleType: Api.RealProduct.AfterSaleType;

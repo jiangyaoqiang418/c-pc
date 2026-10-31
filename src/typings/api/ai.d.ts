@@ -1,6 +1,7 @@
 declare namespace Api.Ai {
   interface ChatParams {
     message: string;
+    imageFileIds?: string[];
     conversationId: string | null;
     clientMessageId?: string;
   }
@@ -24,6 +25,7 @@ declare namespace Api.Ai {
   interface MessageQuery extends PageQuery { conversationId: string; }
   type MessageStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'INTERRUPTED';
   interface Message {
+    images?: ImageReference[];
     messageId: string;
     requestId: string | null;
     clientMessageId: string | null;
@@ -57,6 +59,10 @@ declare namespace Api.Ai {
     | { event: 'start'; data: EventBase & { conversation_id: string } }
     | { event: 'status' | 'delta'; data: EventBase & { text: string } }
     | { event: 'card'; data: EventBase & { tool: string; data: CardData } }
+    | { event: 'question'; data: EventBase & { text: string; options: string[] } }
     | { event: 'done'; data: EventBase & { status: 'completed' } }
     | { event: 'error'; data: EventBase & { code: string; message: string; retryable: boolean } };
+
+  interface ImageReference { fileId: string; imageUrl?: string; expireAt?: string | number | null }
+  interface UploadedImage { id: string; url: string; expireAt: string | number | null }
 }

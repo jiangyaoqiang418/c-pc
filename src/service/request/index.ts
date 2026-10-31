@@ -100,7 +100,7 @@ class RealRequest {
     let responseText: string;
     let traceId: string | undefined;
     const deadline = new AbortController();
-    const timer = setTimeout(() => deadline.abort(), isFormData ? 120_000 : 30_000);
+    const timer = setTimeout(() => deadline.abort(), options.timeoutMs ?? (isFormData ? 120_000 : 30_000));
     const signal = options.signal ? AbortSignal.any([options.signal, deadline.signal]) : deadline.signal;
     try {
       response = await fetch(url, {

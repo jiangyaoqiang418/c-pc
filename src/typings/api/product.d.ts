@@ -1,5 +1,7 @@
 declare namespace Api.RealProduct {
   type Id = string | number;
+  interface ProductCategory { id: Id; name: string }
+  interface ProductParameter { groupName?: string; name: string; value: string; explanation?: string; highlighted?: boolean }
 
   interface ProductSpecGroup { name: string; options: string[] }
   interface ProductSkuOption { name: string; value: string }
@@ -37,6 +39,9 @@ declare namespace Api.RealProduct {
     shippingFee?: string;
     tax?: string;
     rawAfterSaleType?: string;
+    categories?: ProductCategory[];
+    categoryIds?: Id[];
+    parameters?: ProductParameter[];
     rawStatus?: ProductStatus;
     imageFiles?: ProductImageDTO[];
   } & ProductSkuFields;
@@ -58,6 +63,9 @@ declare namespace Api.RealProduct {
     title: string;
     categoryId: string;
     categoryName?: string;
+    categories?: ProductCategory[];
+    categoryIds?: Id[];
+    parameters?: ProductParameter[];
     price: string | number;
     shippingFee?: string | number;
     taxFee?: string | number;
@@ -92,6 +100,9 @@ declare namespace Api.RealProduct {
     stock?: number;
     categoryId?: string;
     categoryName?: string;
+    categories?: ProductCategory[];
+    categoryIds?: Id[];
+    parameters?: ProductParameter[];
     afterSaleType?: AfterSaleType;
     afterSaleTypeText?: string;
     overseasClearance?: boolean;
@@ -100,6 +111,8 @@ declare namespace Api.RealProduct {
   }
 
   interface StorefrontProductPageQuery {
+    fileId?: string;
+    hint?: string;
     brandId?: Id;
     pageNo?: number;
     pageSize?: number;
@@ -134,6 +147,9 @@ declare namespace Api.RealProduct {
     skus?: ProductSkuSaveParams[];
     title: string;
     categoryId: string | number;
+    categories?: ProductCategory[];
+    categoryIds?: Id[];
+    parameters?: ProductParameter[];
     price: string | number;
     shippingFee?: string | number;
     taxFee?: string | number;

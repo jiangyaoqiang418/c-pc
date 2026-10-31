@@ -61,6 +61,8 @@ watch([() => route.params.id, editing, () => userStore.currentUser?.id, () => us
 async function onSubmit(form: {
   title: string;
   categoryId?: string | number;
+  categoryIds: Api.RealProduct.Id[];
+  parameters: Api.RealProduct.ProductParameter[];
   brandId?: Api.RealProduct.Id | null;
   price: string;
   shippingFee: string;
@@ -135,7 +137,7 @@ async function onSubmit(form: {
             if (!brand.enabled) { Message.warning('品牌已停用，请重新选择'); return; }
           }
           const productId = editProduct ? await productApi.updateProduct({
-            id: editProduct.id, title: form.title.trim(), categoryId, brandId:form.brandId,
+            id: editProduct.id, title: form.title.trim(), categoryId, categoryIds:form.categoryIds, parameters:form.parameters, brandId:form.brandId,
             price: form.price, shippingFee: form.shippingFee, taxFee: form.tax,
             stock: form.stock,
             specGroups: form.specGroups, skus: form.skus,
@@ -146,7 +148,7 @@ async function onSubmit(form: {
             title: form.title.trim(),
             summary: form.summary.trim() || form.title.trim(),
             description: form.description.trim() || '—',
-            categoryId,
+            categoryId, categoryIds:form.categoryIds, parameters:form.parameters,
             brandId:form.brandId,
             price: form.price,
             shippingFee: form.shippingFee,

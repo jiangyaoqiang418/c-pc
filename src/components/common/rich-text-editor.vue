@@ -69,7 +69,7 @@ async function uploadImage(event: Event) {
   const file = input.files?.[0];
   input.value = '';
   if (!file || props.disabled || uploading.value) return;
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return Message.warning('仅支持 JPG、PNG、WebP 图片');
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'].includes(file.type)) return Message.warning('仅支持 JPG、PNG、WebP、GIF、AVIF、BMP 图片');
   if (file.size > 10 * 1024 * 1024) return Message.warning('图片不能超过 10MB');
   if ((props.modelValue.match(/<img\b/gi) || []).length >= 30) return Message.warning('详情最多插入 30 张图片');
   const operation = ++uploadVersion;
@@ -105,7 +105,7 @@ async function uploadImage(event: Event) {
       <button type="button" :disabled="uploading" @click="fileInput?.click()">{{ uploading ? '上传中' : '图片' }}</button>
       <button type="button" @click="editor.chain().focus().undo().run()">撤销</button>
       <button type="button" @click="editor.chain().focus().redo().run()">重做</button>
-      <input ref="fileInput" hidden type="file" accept="image/jpeg,image/png,image/webp" @change="uploadImage">
+      <input ref="fileInput" hidden type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="uploadImage">
     </fieldset>
     <EditorContent :editor="editor" class="editor-content" />
     <div class="editor-tip">支持标题、列表、链接和图片；图片会先上传后插入，最多 30 张。</div>

@@ -72,11 +72,11 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     id,
     code: `PUR-${dto.id}`,
     customerId: dto.buyerId || '',
-    customerName: '',
+    customerName: dto.buyerName || '暂无姓名',
     productTitle: dto.title,
     productDescription: dto.description || '',
     categoryId,
-    categoryPath: await getCategoryPath(dto.categoryId),
+    categoryPath: dto.categoryName || await getCategoryPath(dto.categoryId),
     budgetAmount: budget,
     expectedDays,
     overseasCustoms: !!dto.overseasClearance,
@@ -88,10 +88,11 @@ async function toPurchaseRequest(dto: Api.RealPurchase.PurchaseDemandVO): Promis
     reviewComment: dto.reviewComment,
     reviewedAt: toIsoDate(dto.reviewedAt),
     assignedBy: dto.assignedBy,
+    addressId: dto.addressId,
     claimExpiresAt: toIsoDate(dto.expireAt),
     pushedToBuyerIds: claimedBuyerId ? [claimedBuyerId] : [],
     claimedBy: claimedBuyerId,
-    claimedByName: claimedBuyerId ? `买手 ${claimedBuyerId}` : undefined,
+    claimedByName: claimedBuyerId ? dto.takenByName || '暂无姓名' : undefined,
     claimedAt: toIsoDate(dto.takenAt),
     relatedOrderId: dto.orderId,
     relatedOrderCode: dto.orderId ? String(dto.orderId) : undefined,
@@ -157,6 +158,7 @@ export async function fetchPurchaseDetail(id: string | number, options: { signal
 }
 
 export async function createPurchase(p: {
+  id?: string | number;
   productTitle: string;
   productDescription: string;
   categoryId: string | number;
@@ -168,12 +170,13 @@ export async function createPurchase(p: {
   appeal: string;
   evidenceUrls?: string[];
 }) {
-  const id = await realOrderRequest.post<string, Api.RealPurchase.PurchaseDemandCreateParams>('/demands/create', {
+  const id = await realOrderRequest[p.id === undefined ? 'post' : 'put']<string, Api.RealPurchase.PurchaseDemandCreateParams>(p.id === undefined ? '/demands/create' : '/demands/update', {
+    id: p.id,
     title: p.productTitle,
     categoryId: p.categoryId,
     addressId: p.addressId,
     description: p.productDescription,
-    budget: Number(p.budgetAmount),
+    budget: String(p.budgetAmount),
     expectDeliveryDays: p.expectedDays,
     overseasClearance: p.overseasCustoms,
     afterSaleType: fromAfterSaleType(p.aftersaleType),

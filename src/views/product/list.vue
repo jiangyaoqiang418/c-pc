@@ -3,6 +3,8 @@ import { resolvePageSize } from '@/service/api/page';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { FocusScope } from 'reka-ui';
 import { useRoute, useRouter } from 'vue-router';
+import { useUserStore } from '@/stores';
+import AiImage from '@/components/ai/ai-image.vue';
 import { Message } from '@/lib/feedback';
 import * as productApi from '@/service/api/product';
 import * as categoryApi from '@/service/api/category';
@@ -19,6 +21,11 @@ import type { CatalogVisualFixture } from '@/visual/types';
 const props = defineProps<{ visualFixture?: CatalogVisualFixture }>();
 const router = useRouter();
 const route = useRoute();
+const user = useUserStore();
+const imageFileId = computed(() => typeof route.query.imageFileId === 'string' ? route.query.imageFileId : undefined);
+const imageHint = computed(() => typeof route.query.hint === 'string' ? route.query.hint : undefined);
+watch(() => user.sessionVersion, () => { if (imageFileId.value) { requestGuard.invalidate(); list.value = []; void router.replace({name:'product-list'}); } });
+
 
 const filter = reactive({
   keyword: '',
@@ -215,6 +222,7 @@ function syncFromQuery() {
 
 async function load(append = false) {
   if (append && (loading.value || !hasMoreFeed.value)) return;
+  if (imageFileId.value && !user.isLoggedIn) { void router.replace({path:'/auth/login',query:{redirect:route.fullPath}}); return; }
   const page = append ? loadedPage.value + 1 : current.value;
   const shown = visibleProducts.value.length;
   if (priceError.value || filter.minPrice !== undefined && filter.maxPrice !== undefined && filter.minPrice > filter.maxPrice) {
@@ -234,6 +242,7 @@ async function load(append = false) {
   try {
     const r = await (props.visualFixture?.load || productApi.fetchStorefrontProducts)({
       current: page,
+      imageFileId:imageFileId.value, hint:imageHint.value,
       size: size.value,
       keyword: filter.keyword || undefined,
       categoryId: filter.categoryId || undefined,
@@ -279,7 +288,7 @@ async function load(append = false) {
     }
     list.value = [];
     total.value = 0;
-    loadError.value = '商品列表加载失败，请检查网络后重试。';
+    loadError.value = imageFileId.value ? '识图搜索失败，请重试或重新上传图片。' : '商品列表加载失败，请检查网络后重试。';
   } finally {
     if (isCurrent()) { loading.value = false; appending.value = false; }
   }
@@ -301,6 +310,7 @@ function updateUrl(replace: boolean) {
   const location = {
     name: 'product-list',
     query: {
+      imageFileId:imageFileId.value, hint:imageHint.value,
       keyword: filter.keyword || undefined,
       categoryId: filter.categoryId ? String(filter.categoryId) : undefined,
       brandId: filter.brandId,
@@ -409,6 +419,7 @@ function ignoreVisualFavorite() {}
     <nav class="breadcrumb" aria-label="当前位置"><RouterLink to="/">首页</RouterLink><UmIcon name="chevron" /><template v-if="filter.categoryId"><RouterLink :to="categoryLocation()">精选商品</RouterLink><template v-for="(node, index) in categoryPath" :key="node.id"><UmIcon name="chevron" /><RouterLink v-if="index < categoryPath.length - 1" :to="categoryLocation(node.id)">{{ node.name }}</RouterLink><span v-else aria-current="page">{{ node.name }}</span></template><template v-if="!categoryPath.length"><UmIcon name="chevron" /><span aria-current="page">{{ categoryLabel }}</span></template></template><span v-else aria-current="page">精选商品</span></nav>
     <h1 class="catalog-sr-only">{{ title }}</h1><p v-if="filter.keyword" class="catalog-search-caption">“{{ filter.keyword }}” 的搜索结果</p>
     <div class="catalog-layout">
+    <section v-if="imageFileId" class="paper"><h2>识图搜索结果</h2><AiImage :file-id="imageFileId" /><p>展示可能相关的在售商品，结果不代表精确同款。</p><button type="button" class="outline" @click="router.push({name:'product-list'})">退出识图搜索</button></section>
       <div v-if="filterOpen" class="catalog-filter-touch-mask" aria-hidden="true" @pointerdown.prevent @touchmove.prevent @click.stop="closeFilterPanel()" />
       <FocusScope as-child :trapped="filterOpen" :loop="filterOpen" :present="filterOpen" @mount-auto-focus="$event.preventDefault()" @unmount-auto-focus="$event.preventDefault()">
       <aside class="filters" :class="{ open: filterOpen }" :role="filterOpen ? 'dialog' : undefined" :aria-modal="filterOpen || undefined" aria-labelledby="catalog-filter-title">
@@ -427,7 +438,7 @@ function ignoreVisualFavorite() {}
           <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
           <div v-if="loading && !list.length" class="product-grid feed-grid" aria-hidden="true"><div v-for="index in 8" :key="index" class="product-skeleton"><Skeleton class="aspect-square w-full rounded-[9px]" /><div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div></div></div>
           <div v-else-if="list.length" class="product-grid feed-grid" :class="{ 'is-updating': loading && !appending }"><ProductCard v-for="product in visibleProducts" :key="product.id" :product="product" variant="catalog" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div>
-          <div v-else class="empty"><UmIcon name="search" /><h2>{{ loadError || '暂时没有找到匹配商品' }}</h2><p>{{ loadError ? '请稍后重试。' : '不妨换一个方向，发现新的喜欢。' }}</p><button type="button" class="primary" @click="loadError ? load() : resetFilters()">{{ loadError ? '重新加载' : '重置筛选' }}</button></div>
+          <div v-else class="empty"><UmIcon name="search" /><h2>{{ loadError || (imageFileId ? '没有找到相关在售商品' : '暂时没有找到匹配商品') }}</h2><p>{{ loadError ? '请稍后重试。' : imageFileId ? '可以换一张更清晰的商品图片，或调整筛选条件。' : '不妨换一个方向，发现新的喜欢。' }}</p><button type="button" class="primary" @click="loadError ? load() : resetFilters()">{{ loadError ? '重新加载' : '重置筛选' }}</button></div>
           <div v-if="list.length && !loadError" ref="feedSentinel" class="feed-status"><template v-if="hasMoreFeed || feedError"><span aria-live="polite">已展示 {{ visibleProducts.length }} / {{ total }} 件</span><button type="button" :disabled="loading" @click="loadMoreFeed">{{ feedError ? '重新加载' : loading ? '正在加载…' : '继续浏览' }}<UmIcon name="chevron" /></button></template><span v-else role="status">已展示全部 {{ visibleProducts.length }} 件好物</span></div>
         </section>
       </div>

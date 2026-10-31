@@ -94,10 +94,20 @@ export function productSkuEditorWrite(state: ProductSkuEditorState, originalSkus
 /** 编辑提交前回读；任一商品资料、规格或库存变化都要求用户重新核对。 */
 export function productEditSnapshot(product: Api.RealProduct.Record) {
   return JSON.stringify({ id: product.id, sellerId: product.sellerId, rawStatus: product.rawStatus, updatedAt: product.updatedAt,
-    title: product.title, categoryId: product.categoryId, brandId: product.brandId, price: product.price, stock: product.stock,
+    title: product.title, categoryId: product.categoryId, categories:product.categories, parameters:product.parameters, brandId: product.brandId, price: product.price, stock: product.stock,
     shippingFee: product.shippingFee, tax: product.tax, aftersaleType: product.aftersaleType, overseasCustoms: product.overseasCustoms,
     summary: product.summary, description: product.description, imageFiles: product.imageFiles,
     hasSku: product.hasSku, specGroups: product.specGroups, skus: product.skus });
+}
+
+/** 展示参数与 SKU 分开校验；编辑时完整回传，避免漏字段清空。 */
+export function validateProductDetails(categoryIds: Api.RealProduct.Id[], parameters: Api.RealProduct.ProductParameter[]) {
+  if (new Set(categoryIds.map(String)).size > 20) throw new Error('关联分类含主分类最多 20 个');
+  if (parameters.length > 200) throw new Error('商品参数最多 200 项');
+  for (const row of parameters) {
+    if (!row.name.trim() || !row.value.trim()) throw new Error('请填写每项参数的名称和值');
+    if (row.name.length > 64 || row.value.length > 1000 || (row.groupName?.length || 0) > 64 || (row.explanation?.length || 0) > 500) throw new Error('商品参数超出长度限制');
+  }
 }
 
 export function sameSkuId(left?: Api.RealProduct.Id, right?: Api.RealProduct.Id) {

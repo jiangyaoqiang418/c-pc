@@ -71,8 +71,8 @@ async function uploadFiles(files: File[]) {
   if (!files.length || props.disabled || uploading.value) return;
 
   const available = Math.max(0, props.max - props.modelValue.length);
-  const supported = files.filter(file => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
-  if (supported.length !== files.length) Message.warning('仅支持 JPG、PNG 或 WebP 图片，其他文件未上传');
+  const supported = files.filter(file => ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'].includes(file.type));
+  if (supported.length !== files.length) Message.warning('仅支持 JPG、PNG、WebP、GIF、AVIF、BMP 图片，其他文件未上传');
   if (supported.length > available) Message.warning(`最多还能添加 ${available} 张图片，超出的文件未上传`);
   const picked = supported.slice(0, available);
   if (!picked.length) return;
@@ -128,7 +128,7 @@ watch(() => props.modelValue, () => { previewOpen.value = false; });
 
 <template>
   <div class="evidence" :aria-busy="uploading">
-    <input ref="inputRef" class="file-input" type="file" accept="image/jpeg,image/png,image/webp" multiple :disabled="disabled || uploading" @change="onFileChange" />
+    <input ref="inputRef" class="file-input" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" multiple :disabled="disabled || uploading" @change="onFileChange" />
     <div v-for="(u, i) in modelValue" :key="`${u}:${i}`" class="cell">
       <button type="button" class="preview" :aria-label="`预览凭证 ${i + 1}`" @click="previewIndex = i; previewOpen = true"><img :src="u" :alt="`凭证 ${i + 1}`" @error="setImageFallback" /></button>
       <button class="remove" type="button" :disabled="disabled" :aria-label="`删除凭证 ${i + 1}`" :title="`删除凭证 ${i + 1}`" @click="remove(i)"><Icon icon="lucide:x" width="14" /></button>
@@ -137,7 +137,7 @@ watch(() => props.modelValue, () => { previewOpen.value = false; });
     </div>
     <button v-if="modelValue.length < max" class="add" type="button" aria-label="添加凭证图片" :disabled="disabled || uploading" @click="pickFile"><Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:plus'" width="22" :class="{ 'animate-spin': uploading }" /><span>{{ uploading ? '上传中…' : '添加图片' }}</span></button>
     <Alert v-if="failedFiles.length" class="failure"><AlertDescription>{{ failedFiles.length }} 张图片上传失败，成功图片已保留。</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="disabled || modelValue.length >= max || uploading" @click="uploadFiles([...failedFiles])">重试失败图片</Button></Alert>
-    <small class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP</small>
+    <small class="hint">最多 {{ max }} 张 · 支持 JPG / PNG / WebP / GIF / AVIF / BMP</small>
     <ImagePreview v-model="previewOpen" :images="modelValue" :start-index="previewIndex" title="凭证图片" />
   </div>
 </template>

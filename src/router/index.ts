@@ -202,7 +202,7 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '售后详情', requiresAuth: true } },
   // 求购 — 注意：hall / my / create 必须在 :id 前
   { path: '/purchase/hall', name: 'purchase-hall', component: () => import('@/views/purchase/hall.vue'),
-    meta: { layout: 'default', title: '求购大厅' } },
+    meta: { layout: 'default', title: '求购大厅', requiresAuth: true, requiresBuyer: true } },
   { path: '/purchase', name: 'purchase-my', component: () => import('@/views/purchase/my-list.vue'),
     meta: { layout: 'default', title: '我的求购', requiresAuth: true } },
   { path: '/purchase/create', name: 'purchase-create', component: () => import('@/views/purchase/create.vue'),

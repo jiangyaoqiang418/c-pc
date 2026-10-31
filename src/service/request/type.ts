@@ -17,6 +17,7 @@ export interface RequestOptions<TData = unknown> {
   data?: TData;
   headers?: HeadersInit;
   signal?: AbortSignal;
+  timeoutMs?: number;
   showError?: boolean;
   /** 仅金额敏感接口启用，保留 JSON 小数原文供十进制计算。 */
   preserveDecimals?: boolean;

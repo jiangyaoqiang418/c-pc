@@ -5,7 +5,7 @@ import { sendConversationMessage } from './notify';
 import { findReviewableOrderIds, submitReview, replyReview, createReviewAppeal } from './review';
 import { fetchMyOrders, payOrder, withOrderPayment, fetchCarriers } from './order';
 import { fetchRechargePage, fetchWalletLedger, fetchWithdrawPage, fetchWalletOverview, prepareWithdrawal } from './wallet';
-import { fetchHall, fetchMyPurchases } from './purchase';
+import { fetchHall, fetchMyPurchases, createPurchase } from './purchase';
 import { fetchMyPointLogs, fetchPointRules } from './point';
 import { fetchBuyerDepositLedger } from './buyer';
 import { fetchCurrentUser, updateProfile, prepareRegistration } from './auth';
@@ -28,7 +28,7 @@ import * as productApi from './product';
 import { fetchBrandsPage, fetchBrandDetail } from './brand';
 import { fetchHelpPage, fetchHelpDetail, fetchAgreementCurrent, fetchAnnouncementsPage, contentReadMessage } from './content';
 import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpfulState } from './review';
-import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite } from '@/utils/product-sku';
+import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite, validateProductDetails } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
 import { createRenderer, h, nextTick, reactive, readonly, ref, ssrContextKey, type App, type Component } from 'vue';
@@ -792,6 +792,23 @@ describe('v47 新接入契约与恢复边界', () => {
   const groups = [{ name:'颜色', options:['黑', '白'] }];
   const sku = { id:skuId, specs:[{ name:'颜色', value:'黑' }], price:'9007199254740993.12345678', stock:2, enabled:true };
 
+  it('驳回重提更新原求购，预算与业务ID保持原文，图片全量覆盖', async () => {
+    const id = '9007199254740993123';
+    const budget = '9999999999999999999999999999.12345678';
+    const put = vi.spyOn(realOrderRequest, 'put').mockResolvedValue(id);
+    const post = vi.spyOn(realOrderRequest, 'post');
+    await createPurchase({id,productTitle:'求购手机',productDescription:'描述',categoryId:productId,addressId:skuId,budgetAmount:budget,expectedDays:1,overseasCustoms:false,aftersaleType:'none',appeal:'需要全新正品并提供发货照片',evidenceUrls:[]});
+    expect(put).toHaveBeenCalledWith('/demands/update',expect.objectContaining({id,budget,addressId:skuId,images:[],expectDeliveryDays:1,afterSaleType:'NONE'}));
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('识图分页走独立接口、60秒期限，保留文件引用和服务端分页', async () => {
+    const query = vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({pageNo:2,pageSize:12,total:'30',records:[]});
+    const result = await productApi.fetchStorefrontProducts({imageFileId:'9007199254740993123',hint:'手机',current:2,size:12,categoryId:productId});
+    expect(query).toHaveBeenCalledWith('/storefront/search/images/page',expect.objectContaining({fileId:'9007199254740993123',hint:'手机',pageNo:2,pageSize:12,categoryId:productId}),expect.objectContaining({timeoutMs:60_000}));
+    expect(result).toMatchObject({current:2,size:12,total:30,records:[]});
+  });
+
   it('收藏态按200个分批并保留Long，漏项/重复/未知ID/无效状态拒绝', async () => {
     const request = vi.spyOn(realOrderRequest, 'postQuery').mockImplementation(async (_url, payload) =>
       (payload as { productIds: string[] }).productIds.map(id => ({ productId:id, favorited:false })) as never);
@@ -1042,12 +1059,23 @@ describe('v47 新接入契约与恢复边界', () => {
   });
 
   it('编辑快照识别库存/SKU变化；归属草稿保留原SKU、停用行与精准输入', () => {
-    const product = productApi.toProductRecord({ id:productId, title:'商品', price:'1', stock:1 } as Api.RealProduct.ProductDTO);
+    const parameters = [{groupName:'主体',name:'型号',value:'A3721',explanation:'工业型号',highlighted:true}];
+    const categories = [{id:productId,name:'手机'},{id:skuId,name:'拍照手机'}];
+    const product = productApi.toProductRecord({ id:productId, title:'商品', price:'1', stock:1, categories, parameters } as Api.RealProduct.ProductDTO);
+    expect(product.categories).toEqual(categories);
+    expect(product.parameters).toEqual(parameters);
+    expect(productEditSnapshot(product)).not.toBe(productEditSnapshot({...product, parameters:[]}));
+    expect(productEditSnapshot(product)).not.toBe(productEditSnapshot({...product, categories:categories.slice(0,1)}));
+    expect(validateProductDetails([productId,skuId],parameters)).toBeUndefined();
+    expect(() => validateProductDetails([productId], [{name:'',value:'值'}])).toThrow('名称');
+
     expect(productEditSnapshot(product)).not.toBe(productEditSnapshot({ ...product, stock:2 }));
     expect(productEditSnapshot(product)).not.toBe(productEditSnapshot({ ...product, hasSku:true, specGroups:groups, skus:[sku] }));
-    const draft = { version:1, ownerId:productId, productId:skuId, productSnapshot:'original', savedAt:Date.now(), imageFiles:[], form:{ title:'草稿', categoryId:productId, brandId:skuId, price:null, shippingFee:0, tax:0, stock:2, aftersaleType:'none', overseasCustoms:false, summary:'', description:'', images:[], amountTexts:{ price:sku.price, shippingFee:'0', tax:'0' }, skuEditor:{ enabled:true, groups, skus:[{ ...sku, price:sku.price, stock:'2', enabled:false, image:'https://example.com/sku.png' }] } } };
+    const draft = { version:1, ownerId:productId, productId:skuId, productSnapshot:'original', savedAt:Date.now(), imageFiles:[], form:{ title:'草稿', categoryId:productId, categoryIds:[productId,skuId], parameters, brandId:skuId, price:null, shippingFee:0, tax:0, stock:2, aftersaleType:'none', overseasCustoms:false, summary:'', description:'', images:[], amountTexts:{ price:sku.price, shippingFee:'0', tax:'0' }, skuEditor:{ enabled:true, groups, skus:[{ ...sku, price:sku.price, stock:'2', enabled:false, image:'https://example.com/sku.png' }] } } };
     const restored = readBuyerProductDraft(JSON.stringify(draft), productId, skuId);
     expect(restored.productSnapshot).toBe('original');
+    expect(restored.form.categoryIds).toEqual([productId,skuId]);
+    expect(restored.form.parameters).toEqual(parameters);
     expect(restored.form.amountTexts?.price).toBe(sku.price);
     expect(restored.form.skuEditor?.skus[0]).toMatchObject({ id:skuId, price:sku.price, enabled:false, image:'https://example.com/sku.png' });
     expect(() => readBuyerProductDraft(JSON.stringify(draft), 'other', skuId)).toThrow('归属');

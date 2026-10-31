@@ -4,6 +4,8 @@ import { withSubmissionLock } from '@/utils/financial-submission';
 export interface BuyerProductDraftForm {
   title: string;
   categoryId?: string | number;
+  categoryIds?: Api.RealProduct.Id[];
+  parameters?: Api.RealProduct.ProductParameter[];
   brandId?: Api.RealProduct.Id | null;
   price: number | null;
   shippingFee: number | null;
@@ -62,6 +64,12 @@ export function readBuyerProductDraft(raw: string, ownerId: string | number, pro
     || !Number.isFinite(draft.savedAt) || !form || typeof form !== 'object'
     || !['title', 'summary', 'description'].every(key => typeof form[key as 'title'] === 'string')
     || (form.categoryId !== undefined && !validId(form.categoryId))
+    || (form.categoryIds !== undefined && (!Array.isArray(form.categoryIds) || form.categoryIds.length > 20 || !form.categoryIds.every(validId)))
+    || (form.parameters !== undefined && (!Array.isArray(form.parameters) || form.parameters.length > 200 || form.parameters.some(row => !row
+      || typeof row.name !== 'string' || row.name.length > 64 || typeof row.value !== 'string' || row.value.length > 1000
+      || (row.groupName !== undefined && (typeof row.groupName !== 'string' || row.groupName.length > 64))
+      || (row.explanation !== undefined && (typeof row.explanation !== 'string' || row.explanation.length > 500))
+      || (row.highlighted !== undefined && typeof row.highlighted !== 'boolean'))))
     || (form.brandId !== undefined && form.brandId !== null && !validId(form.brandId))
     || (draft.productSnapshot !== undefined && typeof draft.productSnapshot !== 'string')
     || (form.skuEditor !== undefined && !validSkuEditor(form.skuEditor))
@@ -82,7 +90,7 @@ export function readBuyerProductDraft(raw: string, ownerId: string | number, pro
   return {
     version: 1, ownerId: draft.ownerId, productId: draft.productId, savedAt: draft.savedAt, productSnapshot: draft.productSnapshot,
     form: {
-      title: form.title, categoryId: form.categoryId, brandId: form.brandId, price: form.price, shippingFee: form.shippingFee,
+      title: form.title, categoryId: form.categoryId, categoryIds:form.categoryIds && [...form.categoryIds], parameters:form.parameters?.map(row => ({ groupName:row.groupName, name:row.name, value:row.value, explanation:row.explanation, highlighted:row.highlighted })), brandId: form.brandId, price: form.price, shippingFee: form.shippingFee,
       tax: form.tax, stock: form.stock, aftersaleType: form.aftersaleType, overseasCustoms: form.overseasCustoms,
       summary: form.summary, description: form.description, images: [...form.images],
       amountTexts: form.amountTexts && { price:form.amountTexts.price, shippingFee:form.amountTexts.shippingFee, tax:form.amountTexts.tax },

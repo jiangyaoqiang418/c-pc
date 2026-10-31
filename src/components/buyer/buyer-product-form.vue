@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import DialogActions from '@/components/common/dialog-actions.vue';
+import BuyerProductDetails from './buyer-product-details.vue';
 import { computed } from 'vue';
 import { formatAmount } from '@shared';
 import UmIcon from '@/components/common/um-icon.vue';
@@ -24,12 +25,14 @@ import { richTextError, sanitizeRichText } from '@/utils/rich-text';
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores';
 import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
-import { productEditSnapshot, productSkuEditorState, productSkuEditorWrite } from '@/utils/product-sku';
+import { validateProductDetails, productEditSnapshot, productSkuEditorState, productSkuEditorWrite } from '@/utils/product-sku';
 import { fetchBrandsPage } from '@/service/api/brand';
 
 interface FormState {
   title: string;
   categoryId?: string | number;
+  categoryIds: Api.RealProduct.Id[];
+  parameters: Api.RealProduct.ProductParameter[];
   brandId?: Api.RealProduct.Id | null;
   price: number;
   shippingFee: number;
@@ -101,6 +104,7 @@ const skuEditor = ref(productSkuEditorState(props.initialProduct));
 const form = reactive<FormState>({
   title: '',
   categoryId: undefined,
+  categoryIds: [], parameters: [],
   price: 100,
   shippingFee: 0,
   tax: 0,
@@ -116,7 +120,7 @@ if (props.initialProduct) {
   const p = props.initialProduct;
   Object.assign(amountTexts, { price:String(p.price), shippingFee:p.shippingFee === undefined ? '' : String(p.shippingFee), tax:p.tax === undefined ? '' : String(p.tax) });
   Object.assign(form, {
-    title: p.title, categoryId: p.categoryId, brandId: p.brandId ?? undefined, price: NaN,
+    title: p.title, categoryId: p.categoryId, categoryIds:p.categories?.map(row => row.id) || [p.categoryId], parameters:p.parameters?.map(row => ({...row})) || [], brandId: p.brandId ?? undefined, price: NaN,
     shippingFee: NaN,
     tax: NaN, stock: p.stock,
     aftersaleType: p.aftersaleType === 'unknown' ? undefined : p.aftersaleType,
@@ -158,7 +162,7 @@ async function saveDraft() {
     const imageUrls = new Set([...form.images, ...skuEditor.value.skus.map(sku => sku.image), ...Array.from(detail.querySelectorAll('img'), image => image.getAttribute('src') || '')]);
     const draft: BuyerProductDraft = {
       version:1, ownerId:draftOwnerId!, productId:draftProductId, savedAt:Date.now(), productSnapshot:props.initialProduct && productEditSnapshot(props.initialProduct),
-      form:{ title:form.title, categoryId:form.categoryId, brandId:form.brandId, price:Number.isFinite(form.price) ? form.price : null,
+      form:{ title:form.title, categoryId:form.categoryId, categoryIds:[...form.categoryIds], parameters:form.parameters.map(row => ({...row})), brandId:form.brandId, price:Number.isFinite(form.price) ? form.price : null,
         shippingFee:Number.isFinite(form.shippingFee) ? form.shippingFee : null, tax:Number.isFinite(form.tax) ? form.tax : null,
         stock:Number.isFinite(form.stock) ? form.stock : null, aftersaleType:form.aftersaleType, overseasCustoms:form.overseasCustoms,
         summary:form.summary, description, images:[...form.images], amountTexts:{...amountTexts}, skuEditor:JSON.parse(JSON.stringify(skuEditor.value)) },
@@ -208,7 +212,7 @@ function restoreDraft() {
   markInteracted();
   uploadedImageMap.clear();
   draft.imageFiles.forEach(image => uploadedImageMap.set(image.url, { bucket:image.bucket, filePath:image.filePath }));
-  Object.assign(form, { ...draft.form, price:draft.form.price ?? NaN, shippingFee:draft.form.shippingFee ?? NaN,
+  Object.assign(form, { ...draft.form, categoryIds:draft.form.categoryIds || props.initialProduct?.categories?.map(row => row.id) || [], parameters:draft.form.parameters || props.initialProduct?.parameters?.map(row => ({...row})) || [], price:draft.form.price ?? NaN, shippingFee:draft.form.shippingFee ?? NaN,
     tax:draft.form.tax ?? NaN, stock:draft.form.stock ?? NaN, description, images:[...draft.form.images] });
   Object.assign(amountTexts, draft.form.amountTexts || { price:draft.form.price === null ? '' : String(draft.form.price),
     shippingFee:draft.form.shippingFee === null ? '' : String(draft.form.shippingFee), tax:draft.form.tax === null ? '' : String(draft.form.tax) });
@@ -339,6 +343,12 @@ function submit() {
     Message.warning('请选择商品分类');
     return;
   }
+  const selectedCategories = [...new Map([form.categoryId!, ...form.categoryIds].map(id => [String(id), id])).values()];
+  try {
+    validateProductDetails(selectedCategories, form.parameters);
+    if (selectedCategories.some(id => !isSelectableCategory(cascaderOptions.value, id))) throw new Error('关联分类已不可用，请移除或重新选择');
+    form.categoryIds = selectedCategories;
+  } catch(e) { Message.warning((e as Error).message); return; }
   let skuWrite: ReturnType<typeof productSkuEditorWrite>;
   try { skuWrite = productSkuEditorWrite(skuEditor.value, props.initialProduct?.skus); }
   catch (error) { Message.warning((error as Error).message); return; }
@@ -414,6 +424,7 @@ const previewCategory = computed(() => {
       <div class="buyer-field"><Label for="product-summary">商品简介</Label><Input id="product-summary" v-model="form.summary" :disabled="submitting" maxlength="30" placeholder="一行简介，30 字以内" /><small>{{ form.summary.length }} / 30</small></div>
       <div class="buyer-field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader :key="draftRevision" class="buyer-upload-grid" :model-value="form.images" @update:model-value="updateProductImages" :cover-mode="true" scene="PRODUCT" :max="6" :disabled="submitting || uploadStates.description || uploadStates.details || uploadStates.skus || !currentContext" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
     </section>
+    <BuyerProductDetails v-model:category-ids="form.categoryIds" v-model:parameters="form.parameters" :category-id="form.categoryId" :options="cascaderOptions" :disabled="draftBlocked" />
     <section class="paper"><header class="buyer-number-heading"><span>02</span><div><h2>价格与配送</h2><p>按 USDT 结算，运费与税费单独展示。</p></div></header>
       <BuyerProductSkus :key="draftRevision" v-model="skuEditor" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || uploadStates.product || uploadStates.description || uploadStates.details || !currentContext" @uploading="uploadStates.skus = $event" @uploaded="onUploaded" />
       <div class="buyer-two-cols"><div v-if="!skuEditor.enabled" class="buyer-field"><Label for="product-price">售价（USDT）<span>*</span></Label><Input id="product-price" v-model="amountTexts.price" inputmode="decimal" autocomplete="off" :disabled="submitting" placeholder="请输入商品售价，最多 8 位小数" /></div><div v-if="!skuEditor.enabled" class="buyer-field"><Label for="product-stock">库存 <span>*</span></Label><AmountInput id="product-stock" :model-value="form.stock" :disabled="submitting" :min="0" :max="2147483647" :precision="0" placeholder="请输入库存数量" @update:model-value="form.stock = $event ?? NaN" /></div><div class="buyer-field"><Label for="product-shipping">运费（USDT）</Label><Input id="product-shipping" v-model="amountTexts.shippingFee" inputmode="decimal" autocomplete="off" :disabled="submitting" placeholder="免运费填 0" /></div><div class="buyer-field"><Label for="product-tax">税费（USDT）</Label><Input id="product-tax" v-model="amountTexts.tax" inputmode="decimal" autocomplete="off" :disabled="submitting" placeholder="无税费填 0" /></div></div>

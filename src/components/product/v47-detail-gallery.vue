@@ -1,4 +1,5 @@
 <script setup lang="ts">
+function preventImageAction(event: Event) { if (event.target instanceof HTMLImageElement) event.preventDefault(); }
 import { computed, ref, watch } from 'vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47DetailPreview from './v47-detail-preview.vue';
@@ -28,7 +29,7 @@ watch(() => props.images, () => { photo.value = 0; zoom.value = false; failed.va
 </script>
 
 <template>
-  <section class="gallery">
+  <section class="gallery" @contextmenu="preventImageAction" @dragstart="preventImageAction">
     <button type="button" class="main-image" :disabled="!canZoom" :aria-label="canZoom ? '放大商品图片' : '暂无商品图片'" @click="zoom = true">
       <img :src="source(current?.url)" :alt="title" @error="imageError(current?.url)" />
       <span v-if="canZoom"><UmIcon name="search" />点击查看大图</span>

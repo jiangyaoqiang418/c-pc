@@ -64,6 +64,11 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
       if ((card.code === 'OK' && (typeof card.kind !== 'string' || !Array.isArray(card.rows)))
         || (card.kind !== undefined && typeof card.kind !== 'string')
         || (card.rows !== undefined && (!Array.isArray(card.rows) || !card.rows.every(isObject)))) throw invalidEvent();
+    } else if (frame.event === 'question') {
+      if (typeof data.text !== 'string' || !Array.isArray(data.options) || !data.options.every(value => typeof value === 'string')) throw invalidEvent();
+    } else if (frame.event === 'product_cards') {
+      // 暂缺商品卡片协议，仅跳过此事件；保持流序列与后续正文正常。
+      requestId = data.request_id; sequence = data.seq as number; return false;
     } else if (frame.event === 'done') {
       if (data.status !== 'completed') throw invalidEvent();
     } else if (frame.event === 'error') {
@@ -80,7 +85,7 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
   const token = getAcceptedAccessToken();
   const sameIdentity = () => token === getAccessToken() && token === getAcceptedAccessToken();
   if (!sameIdentity()) throw new RequestError('登录会话已在其他页面切换，请等待身份核对后重试', { code: 'SESSION_CHANGED' });
-  if (!input.message.trim() || input.message.length > 2000) throw new RequestError('请输入 1 至 2000 字的问题', { code: 'INVALID_MESSAGE' });
+  if ((!input.message.trim() && !input.imageFileIds?.length) || input.message.length > 2000 || (input.imageFileIds?.length || 0) > 3) throw new RequestError('请输入 1 至 2000 字的问题', { code: 'INVALID_MESSAGE' });
   if (input.clientMessageId !== undefined && (input.clientMessageId.length < 8 || input.clientMessageId.length > 64)) {
     throw new RequestError('消息去重键格式异常', { code: 'INVALID_MESSAGE_KEY' });
   }
@@ -106,7 +111,7 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
       // 身份只由当前 X-Access-Token 决定，游客请求不沿用浏览器遗留 Cookie。
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(token ? { 'X-Access-Token': token } : {}) },
-      body: JSON.stringify({ message: input.message, conversationId: input.conversationId, clientMessageId: input.clientMessageId }),
+      body: JSON.stringify({ message: input.message, imageFileIds:input.imageFileIds, conversationId: input.conversationId, clientMessageId: input.clientMessageId }),
       signal: combinedSignal
     });
     if (!sameIdentity()) throw new RequestError('账号已切换，请重新提问', { code: 'SESSION_CHANGED' });
@@ -132,4 +137,40 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
     clearTimeout(timer);
     window.removeEventListener?.('storage', onStorage);
   }
+}
+
+export async function fetchAiWelcome(signal?: AbortSignal) {
+  return realUserRequest.get<{ message: string }>(prefix + '/welcome', { signal, showError:false, skipAuthRedirect:true });
+}
+export async function uploadAiImage(file: File, signal?: AbortSignal) {
+  const owner = getAcceptedAccessToken();
+  if (!owner) throw new Error('请先登录后上传图片');
+  if (!['image/jpeg','image/png','image/webp'].includes(file.type) || !file.size || file.size > 5 * 1024 * 1024) throw new Error('请选择 5MB 以内的 JPG、PNG 或 WebP 图片');
+  const image = await createImageBitmap(file).catch(() => { throw new Error('图片无法解码，请重新选择'); });
+  const pixels = image.width * image.height; image.close();
+  if (pixels > 20_000_000) throw new Error('图片不能超过 2000 万像素');
+  const form = new FormData(); form.append('file', file);
+  const result = await realUserRequest.post<Api.Ai.UploadedImage>(prefix + '/images/upload', form, { signal, showError:false });
+  if (owner !== getAcceptedAccessToken()) throw new Error('登录状态已变化，请重新上传');
+  if (!result?.id || !result.url || !Number.isFinite(Number(result.expireAt))) throw new Error('图片上传结果不完整，请重试');
+  if (imageOwner !== owner) { imageOwner = owner; imageAccess.clear(); imageRequests.clear(); }
+  imageAccess.set(result.id, {url:result.url,expireAt:Number(result.expireAt)});
+  return result;
+}
+let imageOwner = '';
+const imageAccess = new Map<string, { url:string; expireAt:number }>();
+const imageRequests = new Map<string, Promise<{ url:string; expireAt:number }>>();
+export function fetchAiImageAccess(fileId: string, force = false) {
+  const owner = getAcceptedAccessToken();
+  if (owner !== imageOwner) { imageOwner = owner; imageAccess.clear(); imageRequests.clear(); }
+  if (!owner) return Promise.reject(new Error('请登录后查看图片'));
+  const saved = imageAccess.get(fileId);
+  if (!force && saved && saved.expireAt - Date.now() > 30_000) return Promise.resolve(saved);
+  const pending = imageRequests.get(fileId); if (pending) return pending;
+  const request = realUserRequest.get<{ fileId:string; url:string; expireAt:string | number }>(prefix + '/images/access', { params:{fileId}, showError:false }).then(data => {
+    if (owner !== getAcceptedAccessToken() || String(data.fileId) !== fileId) throw new Error('图片归属或登录状态已变化');
+    if (!data.url || !Number.isFinite(Number(data.expireAt))) throw new Error('图片地址暂不可用');
+    const result = { url:data.url, expireAt:Number(data.expireAt) }; imageAccess.set(fileId,result); return result;
+  }).finally(() => { if (imageRequests.get(fileId) === request) imageRequests.delete(fileId); });
+  imageRequests.set(fileId,request); return request;
 }

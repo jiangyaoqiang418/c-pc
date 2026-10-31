@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import AiImage from '@/components/ai/ai-image.vue';
+import { fetchAiWelcome, uploadAiImage } from '@/service/api/ai';
 import { useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
 import UmIcon from '@/components/common/um-icon.vue';
@@ -9,9 +11,27 @@ import { useUserStore } from '@/stores/user';
 
 const router = useRouter();
 const user = useUserStore();
-const { visibleSessions, messages, conversationId, input, running, busy, listLoading, historyLoading, ready, error, listError,
+const { visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
   notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
-const locked = computed(() => busy.value || listLoading.value || historyLoading.value);
+const locked = computed(() => busy.value || uploading.value || listLoading.value || historyLoading.value);
+const imageInput = ref<HTMLInputElement>();
+const welcome = ref(''); const welcomeError = ref(''); const uploadError = ref('');
+let uploadVersion = 0; let uploadController = new AbortController();
+async function loadWelcome() { welcomeError.value = ''; try { const data = await fetchAiWelcome(); welcome.value = data.message; } catch { welcomeError.value = '欢迎语加载失败'; } }
+onMounted(loadWelcome);
+async function selectImages(event: Event) {
+  const target = event.target as HTMLInputElement; const files = [...(target.files || [])]; target.value = '';
+  if (!user.isLoggedIn) return login();
+  if (locked.value || running.value) return;
+  if (files.length + attachments.value.length > 3) { uploadError.value = '每轮最多 3 张图片'; return; }
+  const operation = ++uploadVersion; uploading.value = true; uploadError.value = '';
+  try { for (const file of files) { const image = await uploadAiImage(file, uploadController.signal); if (operation !== uploadVersion) return; attachments.value.push(image); } }
+  catch(e) { if (operation === uploadVersion) uploadError.value = e instanceof Error ? e.message : '上传失败，请重试'; }
+  finally { if (operation === uploadVersion) uploading.value = false; }
+}
+watch([() => user.currentUser?.id, () => user.sessionVersion, conversationId], () => { uploadVersion++; uploadController.abort(); uploadController = new AbortController(); uploading.value = false; uploadError.value = ''; });
+onBeforeUnmount(() => { uploadVersion++; uploadController.abort(); });
+
 function login() { void router.push({ path: '/auth/login', query: { redirect: '/ai-guide' } }); }
 function newConversation() { if (user.isLoggedIn) void changeSession(); else login(); }
 function onKeydown(event: KeyboardEvent) {
@@ -53,10 +73,13 @@ function onKeydown(event: KeyboardEvent) {
         </div>
         <p v-if="historyLoading" role="status">正在读取历史消息…</p>
         <div ref="scrollRef" class="chat-messages chat-scroll" role="log" aria-label="客服对话" aria-live="polite" aria-relevant="additions text" :aria-busy="running || historyLoading">
-          <EmptyState v-if="!messages.length && ready && !historyLoading && !error" icon="lucide:sparkles" title="有什么可以帮你？" description="可以咨询商品，或查询本人的订单、余额、充值、转出与钱包直付记录。" />
+          <EmptyState v-if="!messages.length && ready && !historyLoading && !error" icon="lucide:sparkles" :title="welcome || 'AI 客服'" />
+          <p v-if="welcomeError && !messages.length" role="alert">{{ welcomeError }} <button type="button" @click="loadWelcome">重试</button></p>
           <article v-for="message in messages" :key="message.id" class="ai-message" :class="message.role" :aria-label="message.role === 'user' ? '我的问题' : '客服回答'">
             <div class="ai-message-avatar" aria-hidden="true"><UmIcon :name="message.role === 'user' ? 'user' : 'headset'" /></div>
             <div class="ai-message-content">
+              <div v-if="message.images?.length" class="ai-attachments"><AiImage v-for="image in message.images" :key="image.fileId" :file-id="image.fileId" /></div>
+              <div v-if="message.questions?.length" class="button-row"><button v-for="question in message.questions" :key="question" type="button" class="outline" :disabled="locked || running" @click="input = question; send()">{{ question }}</button></div>
               <p v-if="message.text" class="ai-message-text">{{ message.text }}</p>
               <template v-for="(part, partIndex) in message.parts" :key="partIndex">
                 <p v-if="part.type === 'text'" class="ai-message-text">{{ part.text }}</p>
@@ -71,6 +94,14 @@ function onKeydown(event: KeyboardEvent) {
           </article>
         </div>
         <p v-if="archived" class="conversation-notice">此会话已归档，可查看历史。请新建会话继续提问。</p>
+        <div class="ai-attachments"><div v-for="image in attachments" :key="image.id"><AiImage :file-id="image.id" /><button type="button" :disabled="locked || running" @click="attachments = attachments.filter(row => row.id !== image.id)">移除图片</button></div></div>
+        <p v-if="uploadError" role="alert">{{ uploadError }}</p>
+        <div v-if="user.isLoggedIn" class="image-upload-row">
+          <input ref="imageInput" type="file" hidden accept=".jpg,.jpeg,.png,.webp" multiple @change="selectImages" />
+          <button type="button" class="outline" :disabled="locked || running || attachments.length >= 3" @click="imageInput?.click()">{{ uploading ? '正在上传…' : '添加图片' }}</button>
+          <span>最多 3 张 JPG、PNG 或 WebP，单张 5MB</span>
+        </div>
+        <button v-else type="button" class="text-link" @click="login">登录后发送图片</button>
         <form class="chat-compose ai-compose" @submit.prevent="send">
           <textarea v-model="input" rows="2" maxlength="2000" aria-label="咨询问题" aria-describedby="ai-compose-hint" placeholder="输入你的问题…" @keydown="onKeydown" />
           <button v-if="running" type="button" class="secondary stop-button" @click="stop">停止生成</button>
@@ -83,6 +114,8 @@ function onKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
+.image-upload-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 0; font-size:12px; color:var(--muted); }
+.ai-attachments { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
 .ai-page { width:100%; max-width:1240px; min-width:0; margin:12px auto; padding:20px 22px; }
 .ai-page .section-heading { gap:12px; padding-bottom:12px; }
 .section-heading > div { min-width:0; }

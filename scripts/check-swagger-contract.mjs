@@ -139,8 +139,19 @@ expectProperties(responseDataSchema(user, withdrawFee), ['chain', 'tokenSymbol',
 for (const path of ['/withdraw/create', '/withdraw/page']) expectProperties(requestSchema(user, operation(user, path, 'post')), ['asset'], path);
 const aiStream = operation(user, '/ai/customer-service/chat/stream', 'post');
 const aiInput = requestSchema(user, aiStream);
-expectRequired(aiInput, ['message'], 'AI 客服');
-expectProperties(aiInput, ['message', 'conversationId', 'clientMessageId'], 'AI 客服会话');
+if (aiInput.required?.includes('message')) throw new Error('AI 纯图片消息不应强制 message 必填');
+expectProperties(aiInput, ['message', 'imageFileIds', 'conversationId', 'clientMessageId'], 'AI 客服会话');
+if (aiInput.properties.imageFileIds.maxItems !== 3) throw new Error('AI 图片上限变化');
+expectProperties(responseDataSchema(user, operation(user, '/ai/customer-service/welcome', 'get')), ['message'], 'AI 欢迎语');
+operation(user, '/ai/customer-service/images/upload', 'post');
+expectParameters(operation(user, '/ai/customer-service/images/access', 'get'), ['fileId'], 'AI 图片续签');
+expectParameters(operation(admin, '/ai/customer-service/images/access', 'get'), ['fileId', 'reason'], '后台 AI 图片续签');
+expectProperties(requestSchema(order, operation(order, '/storefront/search/images/page', 'post')), ['fileId', 'hint', 'pageNo', 'pageSize'], '识图分页');
+// id 的必填采用服务端更新校验组，OpenAPI 未标为全局 required。
+expectProperties(requestSchema(order, operation(order, '/demands/update', 'put')), ['id', 'addressId'], '驳回求购重新提交');
+for (const [path, method] of [['/products/create', 'post'], ['/products/update', 'put']]) {
+  expectProperties(requestSchema(order, operation(order, path, method)), ['categoryId', 'categoryIds', 'parameters'], '商品分类与参数');
+}
 if (aiInput.properties.message.maxLength !== 2000 || !aiStream.responses?.['200']?.content?.['text/event-stream']) throw new Error('AI 客服流式契约变化');
 for (const path of ['/sessions/list', '/messages/list']) {
   const op = operation(user, `/ai/customer-service${path}`, 'post');
@@ -152,7 +163,7 @@ for (const path of ['/sessions/list', '/messages/list']) {
 const aiMessages = operation(user, '/ai/customer-service/messages/list', 'post');
 expectRequired(requestSchema(user, aiMessages), ['conversationId'], 'AI 历史消息');
 expectProperties(resolveSchema(user, responseDataSchema(user, aiMessages).properties.rows.items),
-  ['messageId', 'requestId', 'clientMessageId', 'role', 'content', 'structuredData', 'status'], 'AI 消息');
+  ['messageId', 'requestId', 'clientMessageId', 'role', 'content', 'structuredData', 'status', 'images'], 'AI 消息');
 const aiActivate = operation(user, '/ai/customer-service/sessions/activate', 'put');
 expectRequired(requestSchema(user, aiActivate), ['conversationId'], 'AI 切换会话');
 for (const op of [aiActivate, operation(user, '/ai/customer-service/sessions/create', 'post')]) {

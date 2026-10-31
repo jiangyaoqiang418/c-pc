@@ -190,14 +190,14 @@ watch([id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () 
 <template>
 
   <div class="purchase-detail-page paper narrow">
-    <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/purchase/hall">求购大厅</RouterLink><span>/</span><span>{{ request?.code || '求购详情' }}</span></nav>
+    <nav class="breadcrumb" aria-label="面包屑"><RouterLink :to="userStore.canSwitchToBuyer ? '/purchase/hall' : '/purchase'">{{ userStore.canSwitchToBuyer ? '求购大厅' : '我的求购' }}</RouterLink><span>/</span><span>{{ request?.code || '求购详情' }}</span></nav>
     <div v-if="loading" class="loading" aria-busy="true" aria-label="正在读取求购详情"><Skeleton class="hero-skeleton" /><Skeleton class="detail-skeleton" /></div>
     <template v-else-if="request">
       <section class="hero-card">
         <div class="hero-row"><div><span v-if="statusMeta" class="pill" :data-status="request.status">{{ statusMeta.label }}</span><h1>{{ request.productTitle }}</h1><p class="category">{{ request.categoryPath || '—' }}</p><small class="code">{{ request.code }}</small></div><div class="budget-block"><small>求购预算</small><strong>{{ formatAmount(request.budgetAmount) }} <span>USDT</span></strong></div></div>
         <div v-if="canClaim || canCancel" class="button-row"><button type="button" class="primary" v-if="canClaim" :disabled="claiming" @click="claim"><Icon v-if="claiming" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ claiming ? '接单中…' : '我接此单' }}</button><button type="button" v-if="canCancel"  class="danger outline" :disabled="canceling || cancellationPending" @click="cancel">{{ canceling || cancellationPending ? '正在撤销…' : '撤销求购' }}</button></div>
       </section>
-      <div v-if="request.status === 'rejected'" class="status-banner review-alert" role="alert"><Icon icon="lucide:circle-alert" width="20" /><div><strong>{{ request.reviewComment || '求购审核未通过' }}</strong><p>审核时间：{{ formatDateValue(request.reviewedAt) }}</p></div></div>
+      <div v-if="request.status === 'rejected'" class="status-banner review-alert" role="alert"><Icon icon="lucide:circle-alert" width="20" /><div><strong>{{ request.reviewComment || '求购审核未通过' }}</strong><RouterLink v-if="isMyRequest" class="outline" :to="{ path:'/purchase/create', query:{ edit:String(request.id) } }">修改后重新提交</RouterLink><p>审核时间：{{ formatDateValue(request.reviewedAt) }}</p></div></div>
       <section class="request-section"><h2>求购信息</h2><DescriptionList :columns="2" :items="[
         { label: '期望发货', value: request.expectedDays + ' 天内' },
         { label: '接单截止', value: formatDateValue(request.claimExpiresAt) },
