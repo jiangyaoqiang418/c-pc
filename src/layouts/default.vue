@@ -100,7 +100,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
     </main>
     <footer v-if="!isMessaging" class="footer"><div class="footer-callout"><div class="footer-callout-content wrap um-wrap"><UmIcon name="globe" /><span>USDT 支付说明</span><button type="button" @click="router.push({ path:'/help', query:{ topic:'pay' } })">了解支付流程<UmIcon name="arrow" /></button></div></div><div class="wrap um-wrap"><div class="footer-links"><div class="footer-brand"><BrandLogo /><p>用 USDT，连接你与全球好物。</p></div><div v-for="group in footerGroups" :key="group.title"><h4>{{ group.title }}</h4><button v-for="link in group.links" :key="link.label" type="button" @click="router.push(link.to)">{{ link.label }}</button></div></div><div class="footer-bottom"><span>{{ BRAND.copyright }}</span><div><button type="button" @click="router.push({ path:'/help', query:{ agreement:'user' } })">用户协议</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'privacy' } })">隐私政策</button><button type="button" @click="router.push({ path:'/help', query:{ agreement:'aml' } })">AML 政策</button><button v-if="isDevelopment" type="button" @click="router.push('/design')">页面总览 ↗</button></div></div></div></footer>
     <nav class="mobile-nav" :aria-label="isBuyerWorkspace ? '买手工作台导航' : '手机主导航'"><button v-for="link in mobileLinks" :key="link.to" type="button" :class="{ active: route.path === link.to }" :aria-current="route.path === link.to ? 'page' : undefined" @click="router.push(link.to)"><span><UmIcon :name="link.icon" /><b v-if="link.to === '/cart' && cart.count">{{ cart.count }}</b></span>{{ link.label }}</button></nav>
-    <div v-if="!isMessaging" class="floating-tools">
+    <div v-if="!isMessaging" class="floating-tools" :class="{ 'above-product-actions': ['buyer-product-create', 'buyer-product-edit'].includes(String(route.name)) }">
       <button class="ai-guide-entry" type="button" aria-label="AI 导购" title="AI 导购" @click="router.push('/ai-guide')"><UmIcon name="ai" /><span>AI 导购</span></button>
       <button type="button" aria-label="联系客服" @click="router.push('/im')"><UmIcon name="headset" /><span>客服</span></button><button v-if="isDevelopment" type="button" aria-label="页面总览" @click="router.push('/design')"><UmIcon name="grid" /></button><button type="button" aria-label="回到顶部" @click="scrollTop">↑<span>顶部</span></button>
     </div>
@@ -110,6 +110,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
 .floating-tools { top:50% !important; bottom:auto !important; transform:translateY(-50%); right:12px; display:flex; flex-direction:column; gap:8px; }.floating-tools > button { width:58px; min-height:56px; height:auto; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; }.floating-tools span { font-size:11px; line-height:1.3; }
 .layout-default { min-height:100vh; display:flex; flex-direction:column; }
 .main-container { flex:1; outline:0; }
+@media (min-width:701px) and (max-width:1640px) { .layout-default:not(.is-messaging) > .main-container { padding-right:76px; } }
 .footer > .footer-callout { display:block; width:100%; max-width:none; margin:0; padding:24px 0; border-radius:0; }
 .footer-callout-content { display:flex; align-items:center; gap:19px; }
 .footer-callout-content > svg { width:30px; height:30px; color:var(--ui-a28a49,#a28a49); stroke-width:1.2; }
@@ -119,6 +120,8 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
 @media (max-width:700px) { .footer-callout-content { flex-wrap:wrap; gap:14px; } .footer-callout-content > span { font-size:14px; } .footer-callout-content > svg { width:25px; height:25px; } .footer-callout-content > button { font-size:10px; gap:7px; margin-left:0; } }
 :root[data-ui-theme="web3-meme"][data-ui-theme] .footer > .footer-callout { border-radius:0; }
 @media(max-width:700px) { .floating-tools { top:auto !important; bottom:80px !important; transform:none; right:8px; }.floating-tools > button { width:44px; min-height:44px; }.floating-tools span,.floating-tools > .ai-guide-entry { display:none; } }
+@media(max-width:700px) { .floating-tools.above-product-actions { bottom:calc(192px + env(safe-area-inset-bottom)) !important; } }
+@media(max-width:360px) { .floating-tools.above-product-actions { bottom:calc(236px + env(safe-area-inset-bottom)) !important; } }
 .layout-default.is-messaging { height:100dvh; min-height:0; overflow:hidden; }
 .is-messaging > .header,.is-messaging > :deep(.utility-bar) { flex-shrink:0; }
 .is-messaging .main-container { display:flex; flex-direction:column; min-height:0; padding-block:12px; }

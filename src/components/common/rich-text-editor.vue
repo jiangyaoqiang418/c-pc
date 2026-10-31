@@ -23,15 +23,21 @@ const sizedImage = Image.extend({
     return { ...this.parent?.(), style: { default: null, parseHTML: element => element.getAttribute('style'), renderHTML: attributes => attributes.style ? { style: attributes.style } : {} } };
   }
 });
-function imageLayout(width: number, align: 'left' | 'center' | 'right') {
+function imageLayout(width: number, align: 'left' | 'center' | 'right', focus = true) {
   if (props.disabled || !editor.isActive('image')) return;
   const size = Math.min(100, Math.max(10, Math.round(width)));
   if (!Number.isFinite(size)) return;
   const margin = align === 'left' ? '12px auto 12px 0' : align === 'right' ? '12px 0 12px auto' : '12px auto';
-  editor.chain().focus().updateAttributes('image', { style: `width:${size}%;height:auto;display:block;margin:${margin}` }).run();
+  const command = editor.chain();
+  if (focus) command.focus();
+  command.updateAttributes('image', { style: `width:${size}%;height:auto;display:block;margin:${margin}` }).run();
 }
 function imageWidth() {
   return Number(String(editor.getAttributes('image').style || '').match(/width:\s*(\d+)%/)?.[1] || 100);
+}
+function resizeImage(event: Event) {
+  const width = Number((event.target as HTMLInputElement).value);
+  if (Number.isFinite(width) && width >= 10 && width <= 100) imageLayout(width, 'center', false);
 }
 let uploadVersion = 0;
 
@@ -120,7 +126,7 @@ async function uploadImage(event: Event) {
       <button type="button" :disabled="uploading" @click="fileInput?.click()">{{ uploading ? '上传中' : '图片' }}</button>
       <button type="button" @click="editor.chain().focus().undo().run()">撤销</button>
       <button type="button" @click="editor.chain().focus().redo().run()">重做</button>
-      <span v-if="editor.isActive('image')" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" :value="imageWidth()" @change="imageLayout(Number(($event.target as HTMLInputElement).value), 'center')" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
+      <span v-if="editor.isActive('image')" class="image-controls"><label>图片宽度（%）<input type="number" min="10" max="100" step="5" :value="imageWidth()" @input="resizeImage" @change="($event.target as HTMLInputElement).value = String(imageWidth())" /></label><button type="button" @click="imageLayout(imageWidth(), 'left')">图片居左</button><button type="button" @click="imageLayout(imageWidth(), 'center')">图片居中</button><button type="button" @click="imageLayout(imageWidth(), 'right')">图片居右</button></span>
       <input ref="fileInput" hidden type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.avif,.bmp" @change="uploadImage">
     </fieldset>
     <EditorContent :editor="editor" class="editor-content" />

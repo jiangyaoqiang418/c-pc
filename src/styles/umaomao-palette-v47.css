@@ -4778,3 +4778,7 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root{--meme-lime:#b6f36b;--meme-purple:#be9eff;--meme-yellow:#f5d576;--meme-negative:#ff8d9c}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette][data-ui-palette] .product-meta p{color:var(--muted)}
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette][data-ui-palette] .theme-panel-footer button{color:var(--on-primary,#fff)}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-focus-header,
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-focus-header b,
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-focus-header button{color:var(--ink)}
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-upload-grid .cover-label{background:var(--green);color:var(--on-primary)}

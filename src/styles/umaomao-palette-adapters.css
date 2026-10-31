@@ -683,7 +683,7 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(label,span) {
   color:inherit;
 }
-:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(small,.helper) {
+:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(small:not(.cover-label),.helper) {
   color:var(--muted)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .buyer-editor .buyer-field :is(input,select,textarea),
