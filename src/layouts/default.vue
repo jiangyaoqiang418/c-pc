@@ -124,6 +124,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
 @media (max-width:700px) { .footer-callout-content { flex-wrap:wrap; gap:14px; } .footer-callout-content > span { font-size:14px; } .footer-callout-content > svg { width:25px; height:25px; } .footer-callout-content > button { font-size:10px; gap:7px; margin-left:0; } }
 :root[data-ui-theme="web3-meme"][data-ui-theme] .footer > .footer-callout { border-radius:0; }
 @media(max-width:700px) { .floating-tools { top:auto !important; bottom:80px !important; transform:none; right:8px; padding:6px; gap:4px; }.floating-tools > button { width:44px; height:44px; min-height:44px; }.floating-tools :deep(svg) { width:26px; height:26px; }.floating-tools > .ai-guide-entry { display:none; } }
+@media(max-width:700px) { .layout-default:has(> .floating-tools.above-product-actions) > .main-container { --product-tools-space:66px; padding-right:var(--product-tools-space); } }
 @media(max-width:700px) { .floating-tools.above-product-actions { bottom:calc(192px + env(safe-area-inset-bottom)) !important; } }
 @media(max-width:360px) { .floating-tools.above-product-actions { bottom:calc(236px + env(safe-area-inset-bottom)) !important; } }
 .layout-default.is-messaging { height:100dvh; min-height:0; overflow:hidden; }

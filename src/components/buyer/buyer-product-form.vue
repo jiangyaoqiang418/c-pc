@@ -469,5 +469,5 @@ const previewCategory = computed(() => {
 @media (max-width:900px) { .buyer-two-cols:has(.category-row) { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:700px) { .buyer-editor :deep(.buyer-upload-grid .cell),.buyer-editor :deep(.buyer-upload-grid .add) { width:76px; height:76px; } }
 @media(max-width:700px) { .category-row { grid-template-columns:minmax(0,1fr); } }
-@media(max-width:700px) { .buyer-form-footer { bottom:calc(76px + env(safe-area-inset-bottom)); } }
+@media(max-width:700px) { .buyer-form-footer { width:calc(100% + var(--product-tools-space,0px)); bottom:calc(76px + env(safe-area-inset-bottom)); } }
 </style>
