@@ -8,7 +8,9 @@ import { formatDateValue, parseDateValue } from '@/utils/date-range';
 const props = defineProps<{
   order: Api.RealOrder.Record;
   logistics?: Api.RealOrder.LogisticsDTO;
+  previewLimit?: number;
 }>();
+const emit = defineEmits<{ 'view-all': [] }>();
 const previewOpen = ref(false);
 const previewImages = ref<string[]>([]);
 const previewIndex = ref(0);
@@ -204,21 +206,23 @@ const rows = computed(() => {
     };
   });
 });
+const visibleRows = computed(() => props.previewLimit ? rows.value.slice(0, props.previewLimit) : rows.value);
 </script>
 
 <template>
   <div class="logistics-layout">
     <aside class="logistics-package"><div class="logistics-carrier"><span>承运商</span><strong>{{ carrierName || '待确认' }}</strong></div><div class="logistics-number"><span>运单号</span><div><code>{{ trackingNumber || '暂无运单号' }}</code></div></div><div class="logistics-recipient"><div>{{ order.receiverName }} {{ order.receiverPhone }}<small>{{ order.shippingAddress }}</small></div></div></aside>
     <section aria-label="订单与物流动态"><p v-if="trackingNumber && logistics && String(logistics.orderId) === String(order.id) && !logistics.tracks?.length" role="status">暂未查询到物流信息</p><ol class="logistics-events">
-      <li v-for="(event,index) in rows" :key="event.key" :class="{ latest:index === 0,warning:event.exceptional }">
+      <li v-for="(event,index) in visibleRows" :key="event.key" :class="{ latest:index === 0,warning:event.exceptional }">
         <time :datetime="event.datetime"><span v-if="event.date">{{ event.date }}<br /></span>{{ event.time }}</time><span class="logistics-event-dot" aria-hidden="true" />
         <div><b class="event-title" :class="{ 'event-title--major':event.major }">{{ event.title }}</b><p v-if="event.detail">{{ event.detail }}</p><p v-if="event.location || event.source || event.shippingInfo" class="event-meta">{{ [event.location,event.source,event.shippingInfo].filter(Boolean).join(' · ') }}</p><p v-if="event.trackTrackingNo || event.registeredAt" class="event-meta">{{ [event.trackTrackingNo,event.registeredAt].filter(Boolean).join(' · ') }}</p><p v-if="event.shippingFees" class="event-meta">{{ event.shippingFees }}</p><p v-if="event.shippedRemark">发货备注：{{ event.shippedRemark }}</p><p v-if="event.eta" class="event-meta">预计送达：{{ event.eta }}</p><p v-if="event.exceptionSummary" class="warning">物流异常：{{ event.exceptionSummary }}</p><div v-if="event.shipVouchers?.length" class="event-vouchers"><span class="event-meta">发货凭证</span><button v-for="(url,voucherIndex) in event.shipVouchers" :key="url" type="button" class="voucher-button" :aria-label="`查看发货凭证 ${voucherIndex + 1}`" @click="previewImages = event.shipVouchers || []; previewIndex = voucherIndex; previewOpen = true"><img :src="url" alt="发货凭证" @error="setImageFallback" /></button></div></div>
       </li>
-    </ol></section>
+    </ol><button v-if="previewLimit && rows.length > previewLimit" type="button" class="outline logistics-view-all" aria-haspopup="dialog" @click="emit('view-all')">查看全部物流（{{ rows.length }} 条）</button></section>
   </div>
   <ImagePreview v-model="previewOpen" :images="previewImages" :start-index="previewIndex" title="发货凭证" />
 </template>
 
 <style scoped>
+.logistics-view-all { margin-top:16px; min-height:44px; }
 .event-title { overflow-wrap:anywhere; }.event-title:not(.event-title--major) { font-weight:400; }.event-meta { color:var(--muted); }.event-vouchers { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }.voucher-button { width:72px; height:72px; border:1px solid var(--line); border-radius:6px; overflow:hidden; }.voucher-button img { width:100%; height:100%; object-fit:cover; }
 </style>

@@ -39,5 +39,6 @@ function updateHourPart(part: 'date' | 'hour', value: string) {
 </template>
 
 <style scoped>
-.hour-input { display:flex; gap:8px; min-width:0; }.hour-input > :first-child { min-width:0; flex:1; }.hour-input select { border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink); padding:0 10px; min-height:44px; }
+.hour-input { display:grid; grid-template-columns:minmax(0,1fr) 104px; gap:8px; min-width:0; }.hour-input > :first-child { min-width:0; width:100%; }.hour-input select { width:100%; min-width:0; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink); padding:0 10px; min-height:44px; }
+@media (max-width:400px) { .hour-input { grid-template-columns:minmax(0,1fr) 88px; } }
 </style>

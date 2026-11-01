@@ -136,7 +136,7 @@ declare namespace Api.RealOrder {
     paymentBizNo?: string;
     refundId?: string;
     refundStatus?: string;
-    refundAmount?: string | number;
+    refundAmount?: string | number | null;
     paidAt?: string | number;
     shippedAt?: string | number;
     autoConfirmAt?: string | number | null;

@@ -136,7 +136,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     paymentBizNo: dto.paymentBizNo,
     refundId: dto.refundId as unknown as string | number | undefined,
     refundStatus: dto.refundStatus,
-    refundAmount: dto.refundAmount === undefined ? undefined : String(dto.refundAmount),
+    refundAmount: dto.refundAmount == null ? undefined : String(dto.refundAmount),
     priceHistory: [],
     createdAt,
     paidAt: toIsoDate(dto.paidAt) || undefined,

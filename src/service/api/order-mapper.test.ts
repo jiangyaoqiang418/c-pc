@@ -22,6 +22,8 @@ import { useUserStore } from '@/stores/user';
 import { useProductFavoritesStore } from '@/stores/product-favorites';
 import * as reviewApi from './review';
 import ProductDetail from '@/views/product/detail.vue';
+import OrderReview from '@/components/order/order-review.vue';
+import OrderTimeline from '@/components/order/order-timeline.vue';
 import { Message } from '@/lib/feedback';
 
 afterEach(() => {
@@ -589,6 +591,11 @@ describe('toOrderRecord', () => {
     expect(getOrderCapabilities(order, order.customerId).confirm).toBe(true);
     expect(getOrderCapabilities(order, order.shopperId).confirm).toBe(false);
     expect(getOrderCapabilities(order, order.customerId).pay).toBe(false);
+  });
+  it('无退款的 null 金额保持缺失，有退款的合法零保留', () => {
+    const base: Api.RealOrder.OrderDTO = { orderId:'9007199254740993', status:'COMPLETED', totalAmount:'1' };
+    expect(toOrderRecord({ ...base, refundAmount:null }).refundAmount).toBeUndefined();
+    expect(toOrderRecord({ ...base, refundId:'9007199254740994', refundAmount:0 }).refundAmount).toBe('0');
   });
   it('保留退款完成状态、长 ID 与资金凭证', () => {
     const record = toOrderRecord({
@@ -1198,5 +1205,95 @@ describe('商品售价读取边界', () => {
     vi.stubGlobal('localStorage', { getItem: () => null });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"code":1,"data":{"id":9007199254740993,"price":0.123456789012345678,"stock":1,"status":"ON_SALE"}}')));
     expect(await productApi.fetchProductDetail('9007199254740993')).toMatchObject({ id: '9007199254740993', price: '0.123456789012345678' });
+  });
+});
+
+// 订单详情只展示本单评价，切换订单时丢弃迟到回包。
+describe('SHOP-64 订单详情展示', () => {
+  function mountState(component: object, props: Record<string, unknown>) {
+    const renderer = createRenderer<object, object>({
+      insert: () => undefined, remove: () => undefined, createElement: () => ({}), createText: () => ({}), createComment: () => ({}),
+      setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
+    });
+    const app = renderer.createApp({ ...component, render: () => null }, props);
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    return { app, state:(app as unknown as { _instance:{ setupState:Record<string, any> } })._instance.setupState };
+  }
+  function setup() {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id:'9007199254740991' } as Api.RealSession.UserRecord;
+    return user;
+  }
+  const flush = async () => { await Promise.resolve(); await Promise.resolve(); await nextTick(); };
+  const reviewPayload = (overrides: Partial<Api.RealReview.ReviewDTO> = {}) => ({
+    reviewId:'9007199254740995', orderId:'9007199254740993' as string | number,
+    productScore:5, sellerScore:4, commentCount:'0', commentPreviews:[], status:'PUBLISHED' as Api.RealReview.ReviewStatus, ...overrides
+  });
+
+  it('只读取关联评价，核对评价及订单的 Long ID，换单后忽略旧响应', async () => {
+    setup();
+    const order = reactive(toOrderRecord({ orderId:'9007199254740993', customerId:'9007199254740991', status:'COMPLETED', totalAmount:'1', reviewEligibility:{ orderId:'9007199254740993', reviewable:false, reviewId:'9007199254740995' } }));
+    let resolve!: (value: Awaited<ReturnType<typeof reviewApi.fetchReviewDetail>>) => void;
+    const read = vi.spyOn(reviewApi, 'fetchReviewDetail').mockReturnValue(new Promise(done => { resolve = done; }));
+    const { app, state } = mountState(OrderReview, { order });
+    try {
+      expect(read).toHaveBeenCalledWith('9007199254740995', expect.objectContaining({ showError:false }));
+      order.id = '9007199254740997';
+      order.reviewEligibility = undefined;
+      await nextTick();
+      resolve(reviewPayload());
+      await flush();
+      expect(state.review).toBeUndefined();
+      expect(state.loading).toBe(false);
+    } finally { app.unmount(); }
+  });
+
+  it('订单买手可读取关联评价，错单响应不展示，隐藏评价不展示正文', async () => {
+    setup();
+    const order = toOrderRecord({ orderId:'9007199254740993', customerId:'other', sellerId:'9007199254740991', status:'COMPLETED', totalAmount:'1', reviewEligibility:{ orderId:'9007199254740993', reviewable:false, reviewId:'9007199254740995' } });
+    const read = vi.spyOn(reviewApi, 'fetchReviewDetail').mockResolvedValue(reviewPayload({ orderId:'other' }));
+    const { app, state } = mountState(OrderReview, { order });
+    try {
+      await flush();
+      expect(state.review).toBeUndefined();
+      expect(state.error).toBeTruthy();
+      read.mockResolvedValue(reviewPayload({ orderId:order.id, status:'HIDDEN', content:'隐藏内容' }));
+      await state.load();
+      expect(state.review.sellerScore).toBe(4);
+      expect(state.contentVisible).toBe(false);
+    } finally { app.unmount(); }
+  });
+
+  it('买手资格没有评价 ID 时从收到评价分页匹配原订单，不使用别单评价', async () => {
+    setup();
+    const order = toOrderRecord({ orderId:'9007199254740993', customerId:'other', sellerId:'9007199254740991', status:'COMPLETED', totalAmount:'1' });
+    const review = reviewPayload({ orderId:order.id });
+    const list = vi.spyOn(reviewApi, 'fetchReceivedReviews')
+      .mockResolvedValueOnce({ records:[{ ...review, reviewId:'9007199254740999', orderId:'other' }], total:2 })
+      .mockResolvedValueOnce({ records:[review], total:2 });
+    const read = vi.spyOn(reviewApi, 'fetchReviewDetail').mockResolvedValue(review);
+    const { app, state } = mountState(OrderReview, { order });
+    try {
+      await flush(); await flush();
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(read).toHaveBeenCalledWith(review.reviewId, expect.objectContaining({ showError:false }));
+      expect(state.review.orderId).toBe(order.id);
+      expect(state.visible).toBe(true);
+    } finally { app.unmount(); }
+  });
+
+  it('物流默认按最新时间取三条，全部模式保留完整轨迹', () => {
+    const order = reactive(toOrderRecord({ orderId:'9007199254740993', status:'SHIPPED', totalAmount:'1' }));
+    const logistics = reactive({ orderId:order.id, tracks:Array.from({ length:8 }, (_,i) => ({ trackId:String(i), status:'IN_TRANSIT', occurredAt:1700000000000 + i * 60000, description:`轨迹${i}` })) } as Api.RealOrder.LogisticsDTO);
+    const { app, state } = mountState(OrderTimeline, { order, logistics, previewLimit:3 });
+    try {
+      expect(state.visibleRows).toHaveLength(3);
+      expect(state.rows.filter((row: { key:string }) => row.key.startsWith('track-'))).toHaveLength(8);
+      expect(state.visibleRows).toEqual(state.rows.slice(0, 3));
+      expect(state.rows.filter((row: { key:string }) => row.key.startsWith('track-'))[0].key).toBe('track-7');
+    } finally { app.unmount(); }
   });
 });

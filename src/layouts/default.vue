@@ -10,6 +10,7 @@ import UmIcon from '@/components/common/um-icon.vue';
 import SearchBar from '@/components/layout/search-bar.vue';
 import UtilityBar from '@/components/layout/utility-bar.vue';
 import UserAvatarButton from '@/components/layout/user-avatar-button.vue';
+import HeaderNotificationButton from '@/components/layout/header-notification-button.vue';
 import BrandLogo from '@/components/layout/brand-logo.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
 import SideNav from '@/components/layout/side-nav.vue';
@@ -79,10 +80,10 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
 <template>
   <div class="layout-default" :class="{ 'is-messaging': isMessaging, 'is-meme': isMeme, 'category-focus-mode': route.name === 'category', 'buyer-workspace-mode': isBuyerWorkspace }">
     <UtilityBar v-if="!isMessaging" />
-    <header v-if="isMessaging" class="messaging-header"><RouterLink to="/" class="messaging-return" aria-label="返回商城"><UmIcon name="chevron" /><span>返回商城</span></RouterLink><BrandLogo /><div class="messaging-account-actions"><UserAvatarButton /><ThemePicker /></div></header>
-    <header v-if="isBuyerWorkspace" class="buyer-focus-header"><button type="button" aria-label="退出工作台，返回商城" @click="router.push('/')"><UmIcon name="chevron" /><span>返回商城</span></button><div><b>买手工作台</b></div><div class="buyer-focus-actions"><ThemePicker /><button type="button" aria-label="买手消息" @click="router.push('/im')"><UmIcon name="chat" /></button><UserAvatarButton workspace /></div></header>
+    <header v-if="isMessaging" class="messaging-header"><RouterLink to="/" class="messaging-return" aria-label="返回商城"><UmIcon name="chevron" /><span>返回商城</span></RouterLink><BrandLogo /><div class="messaging-account-actions"><HeaderNotificationButton /><UserAvatarButton /><ThemePicker /></div></header>
+    <header v-if="isBuyerWorkspace" class="buyer-focus-header"><button type="button" aria-label="退出工作台，返回商城" @click="router.push('/')"><UmIcon name="chevron" /><span>返回商城</span></button><div><b>买手工作台</b></div><div class="buyer-focus-actions"><HeaderNotificationButton /><ThemePicker /><button type="button" aria-label="买手消息" @click="router.push('/im')"><UmIcon name="chat" /></button><UserAvatarButton workspace /></div></header>
     <header v-if="!isMessaging" class="header">
-      <div class="header-main wrap um-wrap"><BrandLogo /><SearchBar class="header-search" /><div class="header-actions"><UserAvatarButton /><ThemePicker /></div></div>
+      <div class="header-main wrap um-wrap"><BrandLogo /><SearchBar class="header-search" /><div class="header-actions"><UserAvatarButton /><HeaderNotificationButton /><ThemePicker /></div></div>
       <nav class="desktop-nav wrap um-wrap" aria-label="主导航">
         <SideNav mode="nav" />
         <div class="nav-rail-host">
