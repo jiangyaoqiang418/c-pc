@@ -4,8 +4,54 @@ import { waitForScrollPosition } from './scroll';
 import { reactive } from 'vue';
 import { createUnsavedFormState } from '@/composables/use-unsaved-form';
 import { installMobileViewport } from './mobile-viewport';
+import { finishNavigationLoading, navigationLoading, startNavigationLoading } from '@/composables/use-navigation-loading';
 
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+describe('路由加载反馈', () => {
+  it('快速完成不闪烁，慢导航结束后不遗留提示', () => {
+    vi.useFakeTimers();
+    const fast = {};
+    startNavigationLoading(fast);
+    vi.advanceTimersByTime(100);
+    finishNavigationLoading(fast);
+    vi.advanceTimersByTime(100);
+    expect(navigationLoading.value).toBe(false);
+    const slow = {};
+    startNavigationLoading(slow);
+    vi.advanceTimersByTime(150);
+    expect(navigationLoading.value).toBe(true);
+    finishNavigationLoading(slow);
+    expect(navigationLoading.value).toBe(false);
+  });
+
+  it('旧导航取消或报错不会关闭新导航的加载提示', () => {
+    vi.useFakeTimers();
+    const old = {};
+    const current = {};
+    startNavigationLoading(old);
+    vi.advanceTimersByTime(150);
+    startNavigationLoading(current);
+    finishNavigationLoading(old);
+    expect(navigationLoading.value).toBe(true);
+    vi.advanceTimersByTime(150);
+    finishNavigationLoading(current);
+    expect(navigationLoading.value).toBe(false);
+  });
+
+  it('重定向后的新导航可正常结束，旧计时器不会重新显示', () => {
+    vi.useFakeTimers();
+    const redirected = {};
+    const target = {};
+    startNavigationLoading(redirected);
+    vi.advanceTimersByTime(100);
+    startNavigationLoading(target);
+    finishNavigationLoading(redirected);
+    finishNavigationLoading(target);
+    vi.advanceTimersByTime(500);
+    expect(navigationLoading.value).toBe(false);
+  });
+});
 
 describe('手机软键盘视口', () => {
   function setup(width = 393) {

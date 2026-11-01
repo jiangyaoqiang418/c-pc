@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -313,7 +314,8 @@ function changeTab(value: string | number) {
     <section class="orders" :aria-busy="loading">
       <Alert v-if="reviewableError" class="review-notice"><AlertDescription>{{ reviewableError }}</AlertDescription><button type="button" class="outline" :disabled="reviewableLoading" @click="loadReviewableOrders"><Icon v-if="reviewableLoading" icon="lucide:loader-circle" width="14" class="animate-spin" />重新核对</button></Alert>
       <p v-else-if="reviewableLoading" class="review-loading" role="status"><Icon icon="lucide:loader-circle" width="14" class="animate-spin" />正在核对评价资格…</p>
-      <div v-if="loading && !orders.length" class="order-skeletons" aria-label="正在读取订单"><Skeleton v-for="i in 3" :key="i" class="order-skeleton" /></div>
+      <LoadingStatus v-if="loading" block label="正在更新订单…" />
+    <div v-if="loading && !orders.length" class="order-skeletons" aria-label="正在读取订单"><Skeleton v-for="i in 3" :key="i" class="order-skeleton" /></div>
       <div v-else-if="orders.length" :class="{ reading: loading }"><div class="order-table-labels" aria-hidden="true"><span>商品信息</span><span>订单金额</span><span>操作</span></div><OrderCard v-for="order in orders" :key="order.id" :order="order" :reviewable="reviewableOrderIds.has(String(order.id))" @changed="onChanged" /></div>
       <div v-else class="empty paper" :role="loadError ? 'alert' : 'status'"><UmIcon name="box" /><h2>{{ loadError || emptyTitle }}</h2><p v-if="loadError">请稍后重试。</p><button type="button" class="primary" @click="handleEmptyAction">{{ loadError ? '重新加载' : hasFilters ? '查看全部订单' : orderView === 'sell' ? '管理商品' : '去逛逛' }}</button></div>
     </section>

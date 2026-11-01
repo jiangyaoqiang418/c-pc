@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -26,6 +27,8 @@ const pageNo = ref(1);
 const pageSize = ref(20);
 const total = ref(0);
 const readingAll = ref(false);
+const readingIds = ref(new Set<string>());
+const openingId = ref<string | number>();
 const clearing = ref(false);
 const clearConfirmationOpen = ref(false);
 const deletingId = ref<string | number>();
@@ -132,41 +135,49 @@ function categoryFor(notification: Api.RealNotify.NotificationVO) {
 }
 
 async function markNotificationRead(notification: Api.RealNotify.NotificationVO, refreshList = true) {
-  if (disposed || notification.readFlag) return;
+  const key = String(notification.id);
+  if (disposed || notification.readFlag || readingIds.value.has(key)) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedSession = userStore.sessionVersion;
-  const read = await notifyStore.readNotification(notification.id);
-  if (!read || disposed || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-  notification.readFlag = true;
-  const current = records.value.find(item => sameBusinessId(item.id, notification.id));
-  if (current) current.readFlag = true;
-  if (refreshList && unreadOnly.value) void load();
+  const pendingReads = readingIds.value;
+  pendingReads.add(key);
+  try {
+    const read = await notifyStore.readNotification(notification.id);
+    if (!read || disposed || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
+    notification.readFlag = true;
+    const current = records.value.find(item => sameBusinessId(item.id, notification.id));
+    if (current) current.readFlag = true;
+    if (refreshList && unreadOnly.value) void load();
+  } finally { pendingReads.delete(key); }
 }
 
 async function openNotification(notification: Api.RealNotify.NotificationVO) {
-  if (disposed) return;
+  if (disposed || openingId.value !== undefined) return;
   const navigation = ++navigationVersion;
   const requestedUserId = userStore.currentUser?.id;
   const requestedSession = userStore.sessionVersion;
   const isCurrentNavigation = () => !disposed && navigation === navigationVersion
     && userStore.sessionVersion === requestedSession && String(userStore.currentUser?.id) === String(requestedUserId);
-  let target = notificationRoute(notification);
-  if (notification.templateCode === 'demand_taken' && notification.bizId != null) {
-    try {
-      const demand = await fetchPurchaseProgress(notification.bizId);
-      if (disposed || userStore.sessionVersion !== requestedSession || String(userStore.currentUser?.id) !== String(requestedUserId)) return;
-      target = demand.orderId
-        ? { name: 'order-detail' as const, params: { id: String(demand.orderId) } }
-        : target;
-    } catch {
-      // 成交结果暂时无法读取时仍进入求购详情，绝不把求购 ID 当订单 ID。
+  openingId.value = notification.id;
+  try {
+    let target = notificationRoute(notification);
+    if (notification.templateCode === 'demand_taken' && notification.bizId != null) {
+      try {
+        const demand = await fetchPurchaseProgress(notification.bizId);
+        if (!isCurrentNavigation()) return;
+        target = demand.orderId
+          ? { name: 'order-detail' as const, params: { id: String(demand.orderId) } }
+          : target;
+      } catch {
+        // 成交结果暂时无法读取时仍进入求购详情，绝不把求购 ID 当订单 ID。
+      }
     }
-  }
-  if (!isCurrentNavigation()) return;
-  // 先确定本次跳转；标读触发的未读末页校正不能取消用户刚点击的详情。
-  if (!notification.readFlag) void markNotificationRead(notification, !target);
-  if (target) void router.push(target);
-  else Message.info('该通知暂无详情');
+    if (!isCurrentNavigation()) return;
+    // 先确定本次跳转；标读触发的未读末页校正不能取消用户刚点击的详情。
+    if (!notification.readFlag) void markNotificationRead(notification, !target);
+    if (target) await router.push(target);
+    else Message.info('该通知暂无详情');
+  } finally { if (navigation === navigationVersion) openingId.value = undefined; }
 }
 
 async function readAll() {
@@ -276,6 +287,7 @@ onBeforeUnmount(() => {
 watch(() => route.fullPath, () => {
   if (disposed) return;
   navigationVersion += 1;
+  openingId.value = undefined;
   if (syncFromQuery()) {
     void router.replace({ query: { ...route.query, unread: undefined } });
     return;
@@ -295,6 +307,8 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], (next, 
   total.value = 0;
   pageNo.value = 1;
   readingAll.value = false;
+  readingIds.value = new Set();
+  openingId.value = undefined;
   clearing.value = false;
   clearConfirmationOpen.value = false;
   deletingId.value = undefined;
@@ -326,9 +340,10 @@ const notificationFilter = computed({
   <div class="notification-page">
     <div class="page-heading compact"><h1>站内通知</h1><span v-if="!loading && !loadError" class="heading-meta">共 {{ total }} 条</span><div class="notification-actions"><button class="outline" :disabled="!hasUnread || readingAll || clearing" @click="readAll"><UmIcon name="check" />{{ readingAll ? '正在标记…' : '全部已读' }}</button><button class="outline notification-danger" :disabled="!records.length || clearing || clearConfirmationOpen" @click="clearAll"><UmIcon name="trash" />{{ clearing ? '正在清空…' : '清空通知' }}</button></div></div>
     <nav class="tabs" aria-label="通知筛选"><button :class="{ active: notificationFilter === 'all' }" :aria-pressed="notificationFilter === 'all'" @click="notificationFilter = 'all'">全部通知</button><button :class="{ active: notificationFilter === 'unread' }" :aria-pressed="notificationFilter === 'unread'" @click="notificationFilter = 'unread'">仅未读</button></nav>
+    <LoadingStatus v-if="loading" block label="正在更新通知…" />
     <section class="paper" :aria-busy="loading">
       <div v-if="loading && !records.length" class="notification-skeletons"><Skeleton v-for="n in 4" :key="n" class="h-28" /></div>
-      <div v-else-if="records.length" :class="{ 'notification-refreshing': loading }"><article v-for="notification in records" :key="notification.id" class="notice-item" :class="{ unread: !notification.readFlag }"><UmIcon :name="iconFor(notification)" /><div class="notification-copy"><button class="notification-main" @click="openNotification(notification)"><h3>{{ notification.title || '平台通知' }}<span v-if="!notification.readFlag" class="notification-unread" aria-label="未读" /></h3><p>{{ notification.content || '—' }}</p><small>{{ formatTime(notification.createdAt) }}</small></button><span class="notification-category">{{ categoryFor(notification).label }}</span></div><div class="notification-item-actions"><button v-if="!notification.readFlag" class="text-link" @click="markNotificationRead(notification)">标记已读</button><button class="text-link notification-danger" :disabled="deletingId !== undefined || clearing" @click="remove(notification)">{{ sameBusinessId(deletingId, notification.id) ? '删除中…' : '删除' }}</button></div></article></div>
+      <div v-else-if="records.length" :class="{ 'notification-refreshing': loading }"><article v-for="notification in records" :key="notification.id" class="notice-item" :class="{ unread: !notification.readFlag }"><UmIcon :name="iconFor(notification)" /><div class="notification-copy"><button class="notification-main" :disabled="openingId !== undefined" @click="openNotification(notification)"><LoadingStatus v-if="sameBusinessId(openingId, notification.id)" label="正在打开通知详情…" /><h3>{{ notification.title || '平台通知' }}<span v-if="!notification.readFlag" class="notification-unread" aria-label="未读" /></h3><p>{{ notification.content || '—' }}</p><small>{{ formatTime(notification.createdAt) }}</small></button><span class="notification-category">{{ categoryFor(notification).label }}</span></div><div class="notification-item-actions"><button v-if="!notification.readFlag" class="text-link" :disabled="readingIds.has(String(notification.id)) || readingAll || clearing" @click="markNotificationRead(notification)"><LoadingStatus v-if="readingIds.has(String(notification.id))" label="正在标记…" /><template v-else>标记已读</template></button><button class="text-link notification-danger" :disabled="deletingId !== undefined || clearing" @click="remove(notification)">{{ sameBusinessId(deletingId, notification.id) ? '删除中…' : '删除' }}</button></div></article></div>
       <EmptyState v-else :title="loadError || '暂无站内通知'" :description="loadError ? '请稍后重试。' : '订单和退款状态变化后会在这里提醒你。'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
       <BusinessPagination v-if="total > pageSize" :current="pageNo" :total="total" :page-size="pageSize" :loading="loading" @change="changePage" />
     </section>

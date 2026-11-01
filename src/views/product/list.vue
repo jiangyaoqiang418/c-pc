@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { resolvePageSize } from '@/service/api/page';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { FocusScope } from 'reka-ui';
@@ -433,7 +434,7 @@ function ignoreVisualFavorite() {}
       <div class="catalog-content">
         <section v-if="imageFileId" class="paper image-search-summary" aria-label="识图搜索">
           <div class="image-search-preview"><AiImage :file-id="imageFileId" /></div>
-          <div class="image-search-copy"><h2>识图搜索结果</h2><p>展示可能相关的在售商品，结果不代表精确同款。</p></div>
+          <div class="image-search-copy"><h2>识图搜索结果</h2><LoadingStatus v-if="loading" label="正在识别图片并搜索商品…" /><p v-else>展示可能相关的在售商品，结果不代表精确同款。</p></div>
           <button type="button" class="outline image-search-exit" @click="router.push({name:'product-list'})">退出识图搜索</button>
         </section>
         <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />

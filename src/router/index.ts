@@ -3,6 +3,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores';
 import { waitForScrollPosition } from '@/utils/scroll';
 import { conversationReturnPath } from '@/utils/notification';
+import { startNavigationLoading, finishNavigationLoading } from '@/composables/use-navigation-loading';
 
 export type LayoutName = 'default' | 'checkout' | 'auth';
 
@@ -271,6 +272,7 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to, from) => {
+  startNavigationLoading(to);
   scrollController.abort();
   scrollController = new AbortController();
   const userStore = useUserStore();
@@ -296,7 +298,13 @@ router.beforeEach(async (to, from) => {
 });
 
 router.afterEach((to, _from, failure) => {
+  finishNavigationLoading(to);
   if (!failure && to.meta.title) {
     document.title = `${to.meta.title} · Umaomao`;
   }
+});
+
+router.onError((_error, to) => {
+  finishNavigationLoading(to);
+  Message.error('页面加载失败，请检查网络后重试');
 });

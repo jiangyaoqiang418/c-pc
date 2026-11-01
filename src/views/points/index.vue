@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { Icon } from '@iconify/vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,7 @@ const rulesLoadError = ref('');
 const rulesLoading = ref(false);
 const rulesReadComplete = ref(false);
 const vipStatus = ref<Api.RealVip.Status>();
+const vipLoading = ref(false);
 const appeals = ref<Api.RealPoint.PointAppealDTO[]>([]);
 const appealTotal = ref(0);
 const appealCurrent = ref(1);
@@ -230,10 +232,12 @@ async function loadInitial() {
   const uid = userStore.currentUser?.id;
   if (!uid) {
     vipGuard.invalidate();
+    vipLoading.value = false;
     vipStatus.value = undefined;
     return;
   }
   const isCurrent = vipGuard.begin();
+  vipLoading.value = true;
   try {
     const nextVipStatus = await vipApi.fetchMyVipStatus(uid, { signal: isCurrent.signal, audience: userStore.currentAudience });
     if (!isCurrent() || String(userStore.currentUser?.id) !== String(uid)) return;
@@ -241,7 +245,7 @@ async function loadInitial() {
   } catch {
     if (!isCurrent()) return;
     vipStatus.value = undefined;
-  }
+  } finally { if (isCurrent()) vipLoading.value = false; }
   if (disposed || !isCurrent()) return;
   await loadLogs();
   if (disposed || !isCurrent()) return;
@@ -403,7 +407,7 @@ const toDate = computed({
 <template>
   <div class="points-page v47-membership">
     <div class="page-heading compact"><h1>我的积分</h1><span class="heading-meta">{{ vipStatus ? '当前积分 ' + formatPoints(vipStatus.points) : '积分待确认' }}</span><button class="outline" @click="router.push('/vip')">查看 VIP 权益 →</button></div>
-    <section class="paper membership-overview"><h2>积分明细</h2><div v-if="user && vipStatus" class="membership-current-head"><div><h3>{{ user.nickname }} · {{ vipStatus.vipLevel }}</h3><p>当前积分 {{ formatPoints(vipStatus.points) }}</p></div><div v-if="vipStatus.nextThreshold !== undefined" class="membership-progress"><p>距离下一等级还差 {{ formatPoints(vipStatus.pointsToNext, '—') }} 积分</p><div v-if="progressPct !== undefined" class="membership-progress-track" role="progressbar" aria-label="积分升级进度" :aria-valuenow="Math.round(progressPct)" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: progressPct + '%' }" /></div></div></div><div v-else class="membership-account-unavailable"><p>当前积分与等级尚未取得。</p><button class="outline" @click="loadInitial">重新加载账户</button></div></section>
+    <section class="paper membership-overview"><h2>积分明细</h2><LoadingStatus v-if="vipLoading" block label="正在读取积分与等级…" /><div v-else-if="user && vipStatus" class="membership-current-head"><div><h3>{{ user.nickname }} · {{ vipStatus.vipLevel }}</h3><p>当前积分 {{ formatPoints(vipStatus.points) }}</p></div><div v-if="vipStatus.nextThreshold !== undefined" class="membership-progress"><p>距离下一等级还差 {{ formatPoints(vipStatus.pointsToNext, '—') }} 积分</p><div v-if="progressPct !== undefined" class="membership-progress-track" role="progressbar" aria-label="积分升级进度" :aria-valuenow="Math.round(progressPct)" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: progressPct + '%' }" /></div></div></div><div v-else class="membership-account-unavailable"><p>当前积分与等级尚未取得。</p><button class="outline" @click="loadInitial">重新加载账户</button></div></section>
     <nav class="tabs" aria-label="积分记录"><button v-for="item in [{ key: 'logs', label: '积分流水' }, { key: 'appeals', label: '申诉记录' }, { key: 'rules', label: '积分规则' }] as const" :key="item.key" :class="{ active: activeTab === item.key }" :aria-pressed="activeTab === item.key" @click="activeTab = item.key">{{ item.label }}</button></nav>
     <template v-if="activeTab === 'logs'">
       <form class="paper filter-panel" novalidate @submit.prevent="current = 1; syncQuery()" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
@@ -412,11 +416,13 @@ const toDate = computed({
         <div class="filter-actions"><button type="submit" :disabled="loading" class="primary">查询</button><button type="button" :disabled="loading" @click="reset" class="outline">重置</button></div>
       </form>
       <p v-if="!loading && !logLoadError" class="record-count">共 {{ total }} 条积分流水</p>
-      <section class="paper list-panel" :aria-busy="loading"><div v-if="loading && !logs.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-20" /></div><div v-else-if="logs.length" :class="{ refreshing: loading }"><PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="openAppeal" /></div><EmptyState v-else :title="logLoadError || '暂无匹配的积分流水'" :description="logLoadError ? '请稍后重试。' : '积分变动后可在此查看记录。'" :action-text="logLoadError ? '重新加载' : undefined" @action="loadLogs" /></section>
+      <LoadingStatus v-if="loading" block label="正在更新积分流水…" />
+    <section class="paper list-panel" :aria-busy="loading"><div v-if="loading && !logs.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-20" /></div><div v-else-if="logs.length" :class="{ refreshing: loading }"><PointLogRow v-for="l in logs" :key="l.id" :log="l" @appeal="openAppeal" /></div><EmptyState v-else :title="logLoadError || '暂无匹配的积分流水'" :description="logLoadError ? '请稍后重试。' : '积分变动后可在此查看记录。'" :action-text="logLoadError ? '重新加载' : undefined" @action="loadLogs" /></section>
       <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(p: number) => { current = p; syncQuery(); }" />
     </template>
     <template v-else-if="activeTab === 'appeals'">
       <form class="paper filter-panel appeals-filter" novalidate @submit.prevent="appealCurrent = 1; syncQuery()" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }"><div class="field"><Label for="point-appeal-keyword">关键词</Label><Input id="point-appeal-keyword" v-model="appealFilter.keyword" placeholder="行为或申诉原因" /></div><div class="field"><Label for="point-appeal-status">状态</Label><Select v-model="appealStatusFilter"><SelectTrigger id="point-appeal-status"><SelectValue placeholder="请选择申诉状态" /></SelectTrigger><SelectContent><SelectItem value="all">全部状态</SelectItem><SelectItem value="PENDING">待审核</SelectItem><SelectItem value="APPROVED">已通过</SelectItem><SelectItem value="REJECTED">已驳回</SelectItem></SelectContent></Select></div><div class="filter-actions"><button type="submit" :disabled="appealLoading" class="primary">查询</button><button type="button" :disabled="appealLoading" @click="resetAppeals" class="outline">重置</button></div></form>
+      <LoadingStatus v-if="appealLoading" block label="正在更新积分申诉…" />
       <section class="paper list-panel" :aria-busy="appealLoading"><div v-if="appealLoading && !appeals.length" class="skeletons"><Skeleton v-for="n in 4" :key="n" class="h-16" /></div><div v-else-if="appeals.length" class="table-scroll" :class="{ refreshing: appealLoading }"><table><thead><tr><th scope="col">行为</th><th scope="col">原积分</th><th scope="col">申诉原因</th><th scope="col">状态</th><th scope="col">审核意见</th><th scope="col">提交时间</th></tr></thead><tbody><tr v-for="record in appeals" :key="record.id"><td><PointBehaviorTag :behavior="record.behaviorCode || ''" :label="record.behaviorName" /></td><td>{{ record.originalScore }}</td><td class="long-text">{{ record.reason }}</td><td><span class="status" :class="appealStatusColor(record.status)">{{ appealStatusText(record.status) }}</span></td><td class="long-text">{{ record.reviewComment || record.decision || '—' }}</td><td>{{ record.createdAt }}</td></tr></tbody></table></div><EmptyState v-else :title="appealLoadError || '暂无申诉记录'" :description="appealLoadError ? '请稍后重试。' : undefined" :action-text="appealLoadError ? '重新加载' : undefined" @action="loadAppeals" /></section>
       <BusinessPagination v-if="appealTotal > appealSize" :total="appealTotal" :current="appealCurrent" :page-size="appealSize" :loading="appealLoading" @change="(p: number) => { appealCurrent = p; syncQuery(); }" />
     </template>

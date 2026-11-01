@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { enums } from '@shared';
@@ -138,13 +139,13 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
     <div v-if="loadError" class="status-banner wallet-status" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
     <div v-if="!visualFixture && partialData" class="status-banner wallet-status" role="status"><UmIcon name="clock" /><span>钱包总额或今日收支尚未取得，请重新加载。</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
     <section class="wallet-hero">
-      <div><span>可用余额 · {{ asset }}</span><h1>{{ money(account?.available) }}</h1><p>USDT、USDC 独立记账，余额不合并</p></div>
+      <div><span>可用余额 · {{ asset }}</span><h1><LoadingStatus v-if="!visualFixture && walletStore.loadingByAsset[asset]" class="inherit-color" label="正在读取余额…" /><template v-else>{{ money(account?.available) }}</template></h1><p>USDT、USDC 独立记账，余额不合并</p></div>
       <UmIcon name="wallet" />
       <div class="button-row"><button class="gold" @click="walletLink('/wallet/deposit')">转入 <UmIcon name="plus" /></button><button class="outline" @click="walletLink('/wallet/withdraw')">转出 <UmIcon name="arrow" /></button><button @click="walletLink('/wallet/history')">交易记录 ↗</button></div>
     </section>
     <div class="stats-grid" aria-label="钱包概况">
-      <section class="paper"><span>锁仓余额</span><h2>{{ money(account?.lockedFinance) }} <small>{{ asset }}</small></h2></section>
-      <section class="paper"><span title="北京时间今日链上转出，不含商品消费、退款、冻结或理财划转">今日链上转出</span><h2>{{ money(today?.withdrawOut) }} <small>{{ asset }}</small></h2></section>
+      <section class="paper"><span>锁仓余额</span><h2><LoadingStatus v-if="!visualFixture && walletStore.loadingByAsset[asset]" label="正在读取…" /><template v-else>{{ money(account?.lockedFinance) }} <small>{{ asset }}</small></template></h2></section>
+      <section class="paper"><span title="北京时间今日链上转出，不含商品消费、退款、冻结或理财划转">今日链上转出</span><h2><LoadingStatus v-if="!visualFixture && walletStore.loadingByAsset[asset]" label="正在读取…" /><template v-else>{{ money(today?.withdrawOut) }} <small>{{ asset }}</small></template></h2></section>
       <section class="paper"><span>资产币种</span><h2>{{ asset }} <small>稳定币</small></h2></section>
     </div>
     <section class="paper">

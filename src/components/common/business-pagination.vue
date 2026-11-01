@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import UmIcon from './um-icon.vue';
+import LoadingStatus from './loading-status.vue';
 
 const props = withDefaults(defineProps<{
   total: number;
@@ -28,7 +29,7 @@ function change(page: number) {
 </script>
 
 <template>
-  <nav class="business-pagination pagination" aria-label="分页">
+  <nav class="business-pagination pagination" aria-label="分页" :aria-busy="loading">
     <span class="pagination-total">共 {{ total }} 条</span>
     <button type="button" class="pagination-prev" aria-label="上一页" :disabled="loading || current <= 1" @click="change(current - 1)"><UmIcon name="chevron" /></button>
     <template v-for="page in pages" :key="page">
@@ -45,6 +46,7 @@ function change(page: number) {
       >{{ page }}</button>
     </template>
     <span class="pagination-count">{{ current }} / {{ pageCount }}</span>
+    <LoadingStatus v-if="loading" label="加载中…" />
     <button type="button" aria-label="下一页" :disabled="loading || current >= pageCount" @click="change(current + 1)"><UmIcon name="chevron" /></button>
   </nav>
 </template>

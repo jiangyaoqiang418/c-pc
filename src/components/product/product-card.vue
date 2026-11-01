@@ -6,6 +6,7 @@ import { Message } from '@/lib/feedback';
 import { getAftersaleMeta } from '@/service/api/product';
 import { useProductFavoritesStore } from '@/stores/product-favorites';
 import UmIcon from '@/components/common/um-icon.vue';
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 
 interface Props {
@@ -81,9 +82,9 @@ function goDetail() {
       </button>
       <span v-if="!product.stock" class="tag">已售罄</span>
       <span v-else-if="product.overseasCustoms" class="tag">海外直邮</span>
-      <button type="button" class="favorite icon-btn" :class="{ saved:savedState }" :disabled="busy || demo || favoriteDisabled"
+      <button type="button" class="favorite icon-btn" :class="{ saved:savedState }" :disabled="busy || demo || favoriteDisabled" :aria-busy="busy"
         :title="favoriteState?.error" :aria-label="(favoriteState?.error ? '重试读取收藏状态 ' : savedState ? '取消收藏 ' : '收藏 ') + product.title" :aria-pressed="savedState" @click="favorite">
-        <UmIcon name="heart" />
+        <LoadingStatus v-if="busy" compact :label="favoriteState?.writing ? '正在保存收藏…' : '正在读取收藏状态…'" /><UmIcon v-else name="heart" />
       </button>
       <button type="button" class="quick-view" @click="goDetail">探索商品 <UmIcon name="arrow" /></button>
     </div>
@@ -100,6 +101,7 @@ function goDetail() {
 </template>
 
 <style scoped>
+.product-card .favorite[aria-busy=true] { opacity:1; background:var(--paper); border:1px solid var(--line); }
 /* Production Long IDs retain their full value without changing the reference card width. */
 .meme-card-top > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meme-card-top > span { min-width: 0; }

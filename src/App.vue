@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import EmptyState from '@/components/common/empty-state.vue';
 import { installMobileViewport } from '@/utils/mobile-viewport';
+import LoadingStatus from '@/components/common/loading-status.vue';
+import { navigationLoading } from '@/composables/use-navigation-loading';
 
 const layouts = {
   default: defineAsyncComponent(() => import('@/layouts/default.vue')),
@@ -92,6 +94,7 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
 <template>
   <TooltipProvider :delay-duration="300" :skip-delay-duration="100">
   <FeedbackHost />
+  <div v-if="navigationLoading" class="navigation-progress"><div class="navigation-progress-track" aria-hidden="true"><span /></div><LoadingStatus class="navigation-progress-label" label="正在打开页面…" /></div>
   <div v-if="!routeReady" class="route-loading" role="status" aria-live="polite">
     <Icon icon="lucide:loader-circle" width="28" class="animate-spin" />
     <span>正在加载页面</span>
@@ -110,6 +113,12 @@ watch(() => userStore.canSwitchToBuyer, allowed => {
 </template>
 
 <style scoped>
+.navigation-progress { position:fixed; inset:0 0 auto; z-index:1200; pointer-events:none; }
+.navigation-progress-track { height:3px; overflow:hidden; background:color-mix(in srgb,var(--green) 15%,transparent); }
+.navigation-progress-track > span { display:block; width:35%; height:100%; background:var(--green); animation:navigation-progress-slide 1.2s ease-in-out infinite; }
+.navigation-progress-label { position:absolute; top:12px; right:16px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--paper); box-shadow:var(--shadow); }
+@keyframes navigation-progress-slide { from { transform:translateX(-100%); } to { transform:translateX(290%); } }
+@media (prefers-reduced-motion:reduce) { .navigation-progress-track > span { animation:none; width:100%; } }
 .route-loading {
   min-height: 100vh;
   display: flex;

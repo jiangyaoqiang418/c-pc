@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LoadingStatus from '@/components/common/loading-status.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import BusinessPagination from '@/components/common/business-pagination.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -196,7 +197,8 @@ function changeTab(value: string | number) {
     <header class="page-heading compact"><h1>我的售后</h1><button type="button" class="outline"  @click="router.push('/order')">查看订单</button></header>
     <div class="tabs" role="tablist" aria-label="售后状态"><button v-for="item in statusDefs" :key="item.key" type="button" role="tab" :class="{ active:activeKey === item.key }" :aria-selected="activeKey === item.key" @click="changeTab(item.key)">{{ item.label }}</button></div>
     <section class="case-list" :aria-busy="loading" aria-label="仅退款申请列表">
-      <div v-if="loading && !refunds.length" class="loading-list"><Skeleton v-for="n in 3" :key="n" class="case-skeleton" /></div>
+      <LoadingStatus v-if="loading" block label="正在更新售后记录…" />
+    <div v-if="loading && !refunds.length" class="loading-list"><Skeleton v-for="n in 3" :key="n" class="case-skeleton" /></div>
       <template v-else-if="refunds.length">
         <article v-for="row in refunds" :key="row.refundId" class="paper case-card" :class="{ refreshing: loading }" role="link" tabindex="0" :aria-label="`打开仅退款申请 ${row.orderNo || row.refundId}`" @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.enter.self="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.space.self.prevent="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">
           <header class="section-heading case-head"><h2>{{ row.productTitle || '仅退款申请' }}</h2><span class="pill status" :class="statusColor[String(row.status)]">{{ statusLabel(row) }}</span></header>

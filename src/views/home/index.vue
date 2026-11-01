@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRouter } from 'vue-router';
 import UmIcon from '@/components/common/um-icon.vue';
 import ProductCard from '@/components/product/product-card.vue';
+import LoadingStatus from '@/components/common/loading-status.vue';
 import SideNav from '@/components/layout/side-nav.vue';
 import V47Rail from '@/components/home/v47-rail.vue';
 import { useCategoryNavigation } from '@/composables/use-category-navigation';
@@ -180,6 +181,7 @@ const orderCounts = ref<Record<string, number>>({});
 const favoriteCount = ref<number>();
 const orderError = ref('');
 const walletError = ref(false);
+const accountLoading = reactive({ orders: false, favorites: false });
 async function loadAccount() {
   if (props.visualFixture) return;
   const isCurrent = accountGuard.begin();
@@ -188,7 +190,11 @@ async function loadAccount() {
   favoriteCount.value = undefined;
   orderError.value = '';
   walletError.value = false;
+  accountLoading.orders = false;
+  accountLoading.favorites = false;
   if (userId === undefined) return;
+  accountLoading.orders = !buyerActive.value;
+  accountLoading.favorites = !buyerActive.value;
   await Promise.allSettled([
     (async () => { try { await walletStore.fetchWallet(userId); } catch { if (isCurrent()) walletError.value = true; } })(),
     (async () => {
@@ -197,6 +203,7 @@ async function loadAccount() {
         const result = await orderApi.countMyOrdersByStatus({ signal: isCurrent.signal });
         if (isCurrent() && String(user.value?.id) === String(userId)) orderCounts.value = result;
       } catch { if (isCurrent()) orderError.value = '订单统计加载失败'; }
+      finally { if (isCurrent()) accountLoading.orders = false; }
     })(),
     (async () => {
       if (buyerActive.value) return;
@@ -204,6 +211,7 @@ async function loadAccount() {
         const result = await productApi.fetchMyFavorites({ size: 1, signal: isCurrent.signal });
         if (isCurrent() && String(user.value?.id) === String(userId)) favoriteCount.value = result.total;
       } catch { /* 未知收藏数保持空值，不以 0 替代加载失败。 */ }
+      finally { if (isCurrent()) accountLoading.favorites = false; }
     })()
   ]);
 }
@@ -339,7 +347,7 @@ onUnmounted(() => {
       <aside class="home-account" aria-label="账户与身份切换">
         <div class="account-welcome"><span class="account-avatar"><UmIcon name="user" /><i v-if="user" /></span><div><small v-if="user">很高兴又见到你</small><h3>{{ user ? userStore.displayName : '欢迎来到 Umaomao' }}</h3></div></div>
         <div class="role-switch" role="group" aria-label="切换账户身份"><span :class="{ buyer: buyerActive }" /><button :aria-pressed="!buyerActive" @click="switchRole('customer')">顾客</button><button :aria-pressed="buyerActive" @click="switchRole('buyer')">买手<UmIcon name="arrow" /></button></div>
-        <template v-if="user"><div class="account-balance"><span v-if="!buyerActive">我的可用余额<small>USDT</small></span><strong v-if="!buyerActive">{{ availableBalance }}</strong><button @click="go(buyerActive ? '/buyer/wallet' : '/wallet')">{{ buyerActive ? '查看买手钱包' : '查看钱包' }}<UmIcon :name="buyerActive ? 'arrow' : 'plus'" /></button></div><div v-if="!buyerActive" class="account-shortcuts"><button @click="go('/order?tab=pending')"><b>{{ orderCount('PENDING_PAYMENT') }}</b>待付款</button><button @click="go('/order?tab=receiving')"><b>{{ orderCount('IN_TRANSIT', 'AFTERSALE_CONFIRM') }}</b>待收货</button><button @click="go('/favorites')"><b>{{ favoriteCount ?? '—' }}</b>收藏夹</button></div><div v-else class="account-shortcuts"><button @click="go('/buyer/products')"><UmIcon name="bag" />商品</button><button @click="go('/buyer/orders')"><UmIcon name="box" />订单</button><button @click="go('/buyer/claimable')"><UmIcon name="search" />接单</button></div><button v-if="orderError" class="account-retry" @click="loadAccount">{{ orderError }}，重新加载</button><button class="primary full account-enter account-card-action" @click="go(buyerActive ? '/buyer/dashboard' : '/profile')">{{ buyerActive ? '进入买手中心' : '进入个人中心' }}<UmIcon name="arrow" /></button></template>
+        <template v-if="user"><div class="account-balance"><span v-if="!buyerActive">我的可用余额<small>USDT</small></span><strong v-if="!buyerActive"><LoadingStatus v-if="walletStore.loading" label="正在读取余额…" /><template v-else>{{ availableBalance }}</template></strong><button @click="go(buyerActive ? '/buyer/wallet' : '/wallet')">{{ buyerActive ? '查看买手钱包' : '查看钱包' }}<UmIcon :name="buyerActive ? 'arrow' : 'plus'" /></button></div><div v-if="!buyerActive" class="account-shortcuts"><button @click="go('/order?tab=pending')"><b><LoadingStatus v-if="accountLoading.orders" compact label="正在读取待付款数量…" /><template v-else>{{ orderCount('PENDING_PAYMENT') }}</template></b>待付款</button><button @click="go('/order?tab=receiving')"><b><LoadingStatus v-if="accountLoading.orders" compact label="正在读取待收货数量…" /><template v-else>{{ orderCount('IN_TRANSIT', 'AFTERSALE_CONFIRM') }}</template></b>待收货</button><button @click="go('/favorites')"><b><LoadingStatus v-if="accountLoading.favorites" compact label="正在读取收藏数量…" /><template v-else>{{ favoriteCount ?? '—' }}</template></b>收藏夹</button></div><div v-else class="account-shortcuts"><button @click="go('/buyer/products')"><UmIcon name="bag" />商品</button><button @click="go('/buyer/orders')"><UmIcon name="box" />订单</button><button @click="go('/buyer/claimable')"><UmIcon name="search" />接单</button></div><button v-if="orderError" class="account-retry" @click="loadAccount">{{ orderError }}，重新加载</button><button class="primary full account-enter account-card-action" @click="go(buyerActive ? '/buyer/dashboard' : '/profile')">{{ buyerActive ? '进入买手中心' : '进入个人中心' }}<UmIcon name="arrow" /></button></template>
         <template v-else><p class="account-intro">登录后查看订单、收藏和钱包</p><div class="account-auth"><button class="primary" @click="login">登录</button><button class="outline" @click="go('/auth/register')">注册</button></div><div class="account-shortcuts"><button @click="go('/order')"><UmIcon name="box" />我的订单</button><button @click="go('/favorites')"><UmIcon name="heart" />我的收藏</button><button @click="go('/help')"><UmIcon name="headset" />帮助中心</button></div></template>
         <button class="account-discover account-card-action" @click="go(buyerActive ? '/buyer/products/create' : '/purchase/create')">{{ buyerActive ? '发布商品' : '发布求购' }}<UmIcon name="arrow" /></button>
       </aside>

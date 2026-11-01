@@ -8,26 +8,37 @@ import { fetchSearchPromotions, fetchSearchHot, fetchSearchSuggestions, trackSea
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { uploadAiImage } from '@/service/api/ai';
 import { Message } from '@/lib/feedback';
+import LoadingStatus from '@/components/common/loading-status.vue';
 
 const router = useRouter();
 const route = useRoute();
 const kw = ref('');
 const imageInput = ref<HTMLInputElement>();
 const imageUploading = ref(false);
+const imageNavigating = ref(false);
 let imageVersion = 0; let imageAbort = new AbortController();
 async function imageSearch(event: Event) {
   const target = event.target as HTMLInputElement; const file = target.files?.[0]; target.value = '';
   if (!file || imageUploading.value) return;
   if (!user.isLoggedIn) { void router.push({path:'/auth/login',query:{redirect:route.fullPath}}); return; }
-  const version = ++imageVersion; imageUploading.value = true;
-  try { const image = await uploadAiImage(file, imageAbort.signal); if (version === imageVersion) { close(); void router.push({name:'product-list',query:{imageFileId:image.id,hint:kw.value.trim() || undefined}}); } }
-  catch(e) { if (version === imageVersion) Message.error(e instanceof Error ? e.message : '识图上传失败，请重试'); }
-  finally { if (version === imageVersion) imageUploading.value = false; }
+  const version = ++imageVersion; imageUploading.value = true; imageNavigating.value = false; close();
+  try {
+    const image = await uploadAiImage(file, imageAbort.signal);
+    if (version !== imageVersion) return;
+    imageNavigating.value = true;
+    await router.push({name:'product-list',query:{imageFileId:image.id,hint:kw.value.trim() || undefined}});
+  }
+  catch(e) { if (version === imageVersion) Message.error(e instanceof Error ? e.message : '识图搜索未完成，请重试'); }
+  finally { if (version === imageVersion) { imageUploading.value = false; imageNavigating.value = false; } }
 }
 
 const composing = ref(false);
 const user = useUserStore();
-watch(() => user.sessionVersion, () => { imageVersion++; imageAbort.abort(); imageAbort = new AbortController(); imageUploading.value = false; });
+watch(() => user.sessionVersion, () => { imageVersion++; imageAbort.abort(); imageAbort = new AbortController(); imageUploading.value = false; imageNavigating.value = false; });
+watch(() => route.fullPath, () => {
+  if (!imageUploading.value || imageNavigating.value) return;
+  imageVersion++; imageAbort.abort(); imageAbort = new AbortController(); imageUploading.value = false;
+});
 const panelId = useId();
 const wrap = ref<HTMLElement>();
 const opened = ref(false);
@@ -104,7 +115,7 @@ watch([() => route.name, () => route.query.keyword], ([name, value], previous) =
 }, { immediate: true });
 
 function submit(keyword?: string) {
-  if (composing.value) return;
+  if (composing.value || imageUploading.value) return;
   const query = (keyword ?? kw.value).trim() || defaultKeyword.value;
   if (!query || query.length > 50) return;
   kw.value = query;
@@ -128,6 +139,7 @@ function onSearchKeydown(event: KeyboardEvent) {
       <input
         v-model="kw"
         class="search-input"
+        :disabled="imageUploading"
         :placeholder="defaultKeyword || '搜索商品'"
         aria-label="搜索商品"
         maxlength="50"
@@ -142,11 +154,12 @@ function onSearchKeydown(event: KeyboardEvent) {
       />
       <input ref="imageInput" type="file" hidden accept="image/jpeg,image/png,image/webp" @change="imageSearch" />
       <button type="button" class="image-search-button" :disabled="imageUploading" :aria-busy="imageUploading" aria-label="上传图片搜索商品" :title="imageUploading ? '正在上传图片…' : '以图搜索商品'" @click="user.isLoggedIn ? imageInput?.click() : router.push({path:'/auth/login',query:{redirect:route.fullPath}})"><Icon :icon="imageUploading ? 'lucide:loader-circle' : 'lucide:camera'" :class="{ 'animate-spin motion-reduce:animate-none': imageUploading }" aria-hidden="true" /></button>
-      <button type="submit" class="search-btn" aria-label="搜索">
+      <button type="submit" class="search-btn" aria-label="搜索" :disabled="imageUploading">
         <span>搜索</span>
         <UmIcon name="search" />
       </button>
     </form>
+    <div v-if="imageUploading" class="image-search-progress"><LoadingStatus :label="imageNavigating ? '图片已上传，正在打开搜索结果…' : '正在上传图片，请稍候…'" /></div>
     <div v-if="opened" :id="panelId" class="search-panel" aria-label="搜索建议">
       <template v-if="kw.trim()">
         <p v-if="suggesting" role="status">正在读取联想…</p>
@@ -167,6 +180,7 @@ function onSearchKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .search-wrap { position:relative; width:100%; min-width:0; }
+.image-search-progress { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:60; padding:12px 16px; border:1px solid var(--line); border-radius:8px; background:var(--paper); box-shadow:var(--shadow); }
 .search-bar .image-search-button { display:grid; place-items:center; flex-shrink:0; width:42px; min-width:42px; padding:0; }
 .search-wrap .search-bar > .image-search-button { margin-right:16px !important; background:transparent !important; color:var(--muted) !important; border:0; box-shadow:none; transition:color .15s; }
 .search-wrap .search-bar > .image-search-button:hover:not(:disabled),.search-wrap .search-bar > .image-search-button:focus-visible { color:var(--green) !important; }
