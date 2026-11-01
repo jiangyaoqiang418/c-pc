@@ -24,7 +24,7 @@ const cart = useCartStore();
 const user = useUserStore();
 const { isMemeLayout: isMeme } = useUiTheme();
 const { categories } = useCategoryNavigation();
-const isMessaging = computed(() => ['im', 'im-order-group'].includes(String(route.name)));
+const isMessaging = computed(() => ['im', 'im-order-group', 'ai-guide'].includes(String(route.name)));
 const isBuyerWalletOperation = computed(() => user.isBuyerActive && ['wallet-deposit', 'wallet-withdraw'].includes(String(route.name)));
 const isBuyerWorkspace = computed(() => user.isBuyerActive && (route.path.startsWith('/buyer/') || isBuyerWalletOperation.value));
 const mobileLinks = computed(() => isBuyerWorkspace.value ? [
@@ -81,9 +81,9 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
   <div class="layout-default" :class="{ 'is-messaging': isMessaging, 'is-meme': isMeme, 'category-focus-mode': route.name === 'category', 'buyer-workspace-mode': isBuyerWorkspace }">
     <UtilityBar v-if="!isMessaging" />
     <header v-if="isMessaging" class="messaging-header"><RouterLink to="/" class="messaging-return" aria-label="返回商城"><UmIcon name="chevron" /><span>返回商城</span></RouterLink><BrandLogo /><div class="messaging-account-actions"><HeaderNotificationButton /><UserAvatarButton /><ThemePicker /></div></header>
-    <header v-if="isBuyerWorkspace" class="buyer-focus-header"><button type="button" aria-label="退出工作台，返回商城" @click="router.push('/')"><UmIcon name="chevron" /><span>返回商城</span></button><div><b>买手工作台</b></div><div class="buyer-focus-actions"><HeaderNotificationButton /><ThemePicker /><button type="button" aria-label="买手消息" @click="router.push('/im')"><UmIcon name="chat" /></button><UserAvatarButton workspace /></div></header>
+    <header v-if="isBuyerWorkspace" class="buyer-focus-header"><button type="button" aria-label="退出工作台，返回商城" @click="router.push('/')"><UmIcon name="chevron" /><span>返回商城</span></button><div><b>买手工作台</b></div><div class="buyer-focus-actions"><button type="button" aria-label="买手消息" @click="router.push('/im')"><UmIcon name="chat" /></button><HeaderNotificationButton /><UserAvatarButton workspace /><ThemePicker /></div></header>
     <header v-if="!isMessaging" class="header">
-      <div class="header-main wrap um-wrap"><BrandLogo /><SearchBar class="header-search" /><div class="header-actions"><UserAvatarButton /><HeaderNotificationButton /><ThemePicker /></div></div>
+      <div class="header-main wrap um-wrap"><BrandLogo /><SearchBar class="header-search" /><div class="header-account-tools"><HeaderNotificationButton /><div class="header-actions"><UserAvatarButton /><ThemePicker /></div></div></div>
       <nav class="desktop-nav wrap um-wrap" aria-label="主导航">
         <SideNav mode="nav" />
         <div class="nav-rail-host">
@@ -159,6 +159,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
   .is-messaging .main-container { width:calc(100% - 16px); padding-block:8px; }
 }
 .header-search { min-width:0; }
+.header-account-tools { display:flex; align-items:center; justify-content:flex-end; justify-self:end; gap:12px; min-width:0; margin-left:auto; }
 .nav-rail-host { min-width:0; position:relative; height:100%; }
 .nav-rail-host > .store-nav-links { height:100%; }
 .edge-scroll-layer { inset:0; }

@@ -52,7 +52,10 @@ function onKeydown(event: KeyboardEvent) {
   <section class="paper chat-panel ai-page" aria-label="AI 客服">
     <div class="section-heading">
       <div><h2 aria-level="1">好物选购助手</h2><small>{{ user.isLoggedIn ? '选购咨询 · 本人订单与钱包查询' : '选购咨询 · 登录后可查询本人订单与钱包' }}</small></div>
-      <button type="button" class="text-link new-conversation" :disabled="locked || !ready" @click="newConversation"><UmIcon name="plus" />新会话</button>
+      <div class="heading-actions">
+        <Tooltip v-if="user.isLoggedIn && conversationId"><TooltipTrigger as-child><button class="history-refresh" type="button" :aria-label="historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新当前会话'" :aria-busy="historyLoading" :disabled="locked || running" @click="loadHistory()"><Icon :icon="historyLoading ? 'lucide:loader-circle' : 'lucide:refresh-cw'" :class="{ 'animate-spin motion-reduce:animate-none': historyLoading }" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新当前会话' }}</TooltipContent></Tooltip>
+        <button type="button" class="text-link new-conversation" :disabled="locked || !ready" @click="newConversation"><UmIcon name="plus" />新会话</button>
+      </div>
     </div>
     <div class="ai-workspace" :class="{ 'has-history': user.isLoggedIn }">
       <aside v-if="user.isLoggedIn" class="session-list" aria-label="历史会话">
@@ -73,14 +76,11 @@ function onKeydown(event: KeyboardEvent) {
         <button v-if="sessionMore" class="text-link" type="button" :disabled="locked" @click="loadSessions(true)">加载更多会话</button>
       </aside>
       <div class="ai-conversation">
-        <div v-if="historyLoading || notice || error || (user.isLoggedIn && conversationId)" class="history-actions">
+        <div v-if="historyLoading || notice || error || (user.isLoggedIn && conversationId && historyMore)" class="history-actions">
           <button v-if="user.isLoggedIn && conversationId && historyMore" class="text-link" type="button" :disabled="locked || running" @click="loadHistory(true)">加载更早消息</button>
           <p v-if="notice && !historyLoading" class="conversation-notice" role="status">{{ notice }}</p>
           <p v-if="historyLoading" class="conversation-notice" role="status">消息加载中</p>
           <p v-else-if="error" class="message-error" role="alert">{{ error }}</p>
-          <template v-if="user.isLoggedIn && conversationId">
-            <Tooltip><TooltipTrigger as-child><button class="history-refresh" type="button" :aria-label="historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新消息'" :aria-busy="historyLoading" :disabled="locked || running" @click="loadHistory()"><Icon :icon="historyLoading ? 'lucide:loader-circle' : 'lucide:refresh-cw'" :class="{ 'animate-spin motion-reduce:animate-none': historyLoading }" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新消息' }}</TooltipContent></Tooltip>
-          </template>
         </div>
         <div ref="scrollRef" class="chat-messages chat-scroll" role="log" aria-label="客服对话" aria-live="polite" aria-relevant="additions text" :aria-busy="running || historyLoading">
           <EmptyState v-if="!messages.length && ready && !historyLoading && !error" icon="lucide:sparkles" :title="welcome || 'AI 客服'" />
@@ -136,21 +136,22 @@ function onKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .ai-attachments { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
-.ai-page { width:100%; max-width:1240px; min-width:0; margin:12px auto; padding:20px 22px; }
-.ai-page .section-heading { gap:12px; padding-bottom:12px; }
+.ai-page.chat-panel { display:flex; flex-direction:column; flex:1; width:100%; max-width:none; min-width:0; min-height:0; margin:0; padding:20px 22px; overflow:hidden; }
+.ai-page .section-heading { flex-shrink:0; gap:12px; padding-bottom:12px; }
 .section-heading > div { min-width:0; }
+.heading-actions { display:flex; align-items:center; gap:12px; flex-shrink:0; }
 .section-heading small { display:block; line-height:1.55; }
 .new-conversation { display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap; font-size:12px; }
 .new-conversation svg { width:15px; height:15px; }
 .conversation-notice { color:var(--muted); font-size:12px; margin:0 0 8px; }
-.history-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:2px; min-height:32px; margin-bottom:4px; text-align:center; }
+.history-actions { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; flex-shrink:0; gap:2px; min-height:32px; margin-bottom:4px; text-align:center; }
 .history-actions > p { min-width:0; max-width:100%; margin:0; font-size:12px; overflow-wrap:anywhere; }
 .history-refresh { display:grid; place-items:center; flex-shrink:0; width:32px; height:32px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--green); }
 .history-refresh svg { width:16px; height:16px; }
 .history-refresh:hover:not(:disabled) { background:var(--soft); }
 .history-refresh:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
 .history-refresh:disabled { opacity:.5; }
-.ai-page .chat-messages { display:flex; flex-direction:column; gap:14px; min-height:360px; max-height:66dvh; padding:12px 2px 16px; overflow-y:auto; }
+.ai-page .chat-messages { display:flex; flex-direction:column; flex:1; gap:14px; min-height:0; max-height:none; padding:12px 2px 16px; overflow-y:auto; overscroll-behavior:contain; }
 .chat-messages > .empty-state { flex:1; margin:auto; }
 .ai-message { display:flex; align-items:flex-start; gap:10px; width:100%; min-width:0; }
 .ai-message.user { flex-direction:row-reverse; }
@@ -162,7 +163,7 @@ function onKeydown(event: KeyboardEvent) {
 .user .ai-message-text { background:var(--green); color:var(--paper); border-color:var(--green); }
 .message-progress,.message-error { font-size:12px; color:var(--muted); margin:0; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
 .message-error:not(.stopped) { color:var(--danger,#b54737); }
-.ai-compose { display:flex; flex-direction:column; align-items:stretch; gap:0; margin-top:12px; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.ai-compose { display:flex; flex-direction:column; align-items:stretch; flex-shrink:0; gap:0; margin-top:12px; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
 .ai-compose:focus-within { border-color:var(--green); box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent); }
 .ai-compose textarea { width:100%; min-width:0; resize:vertical; min-height:76px; max-height:160px; padding:14px 16px 8px; border:0; border-radius:12px; background:transparent; color:inherit; font:inherit; font-size:14px; line-height:1.6; box-shadow:none; }
 .ai-compose textarea:focus-visible { outline:0; box-shadow:none; }
@@ -182,13 +183,13 @@ function onKeydown(event: KeyboardEvent) {
 .ai-compose .remove-attachment { position:absolute; z-index:2; top:-6px; right:-6px; display:grid; place-items:center; width:24px; height:24px; min-height:24px; padding:0; border:2px solid var(--paper); border-radius:50%; background:var(--ink); color:var(--paper); box-shadow:0 2px 6px #0004; }
 .ai-compose .remove-attachment:hover:not(:disabled) { background:var(--green); color:var(--on-primary); }
 .remove-attachment svg { width:14px; height:14px; stroke-width:2.5; }
-.compose-hint { display:flex; justify-content:space-between; gap:12px; color:var(--muted); font-size:10px; margin-top:6px; line-height:1.5; }
+.compose-hint { display:flex; justify-content:space-between; flex-shrink:0; gap:12px; color:var(--muted); font-size:10px; margin-top:6px; line-height:1.5; }
 .compose-hint > span:last-child { flex-shrink:0; }
 @media(max-width:640px) {
   .new-conversation { font-size:11px; }
-  .ai-page { margin:8px auto; padding:18px 16px; }
+  .ai-page.chat-panel { padding:14px 12px; }
   .ai-page .section-heading { padding-bottom:10px; }
-  .ai-page .chat-messages { min-height:320px; max-height:56dvh; gap:12px; padding:12px 0 16px; }
+  .ai-page .chat-messages { gap:12px; padding:12px 0 16px; }
   .ai-message { gap:8px; }
   .ai-message-avatar { width:28px; height:28px; }
   .ai-message-avatar svg { width:15px; height:15px; }
@@ -201,9 +202,9 @@ function onKeydown(event: KeyboardEvent) {
   .compose-hint { font-size:9px; }
 }
 
-.ai-workspace { display:flex; gap:14px; min-width:0; }
-.ai-conversation { flex:1; min-width:0; }
-.session-list { width:200px; flex-shrink:0; max-height:72dvh; overflow-y:auto; border-right:1px solid var(--line); padding-right:12px; font-size:12px; }
+.ai-workspace { display:flex; flex:1; gap:14px; min-width:0; min-height:0; overflow:hidden; }
+.ai-conversation { display:flex; flex-direction:column; flex:1; min-width:0; min-height:0; }
+.session-list { width:200px; flex-shrink:0; min-height:0; overflow-y:auto; border-right:1px solid var(--line); padding-right:12px; font-size:12px; }
 .session-heading { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
 .session-refresh { display:inline-flex; align-items:center; gap:6px; }
 .session-loading { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; flex-shrink:0; color:var(--green); }
@@ -215,5 +216,5 @@ function onKeydown(event: KeyboardEvent) {
 .session-row.selected { border-color:var(--green); }
 button:disabled { opacity:.55; cursor:not-allowed; }
 .session-row:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
-@media(max-width:760px) { .ai-workspace { flex-direction:column; } .session-list { width:100%; max-height:210px; border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; } }
+@media(max-width:760px) { .ai-workspace { flex-direction:column; } .session-list { width:100%; max-height:min(160px,24dvh); border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; } }
 </style>
