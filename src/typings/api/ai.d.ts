@@ -1,8 +1,26 @@
 declare namespace Api.Ai {
+  interface ProductSnapshot {
+    title: string;
+    brief: string | null;
+    image_ref: { bucket: string; file_path: string } | null;
+    price_label: string;
+    price_from: string;
+    sales_text: string | null;
+    seller_name: string | null;
+    after_sale: string;
+    action: { type: 'NAVIGATE'; target_type: 'commodity'; view: 'detail'; target_id: string; params: Record<string, never> };
+  }
+  interface ProductListCard { type: 'product_list'; items: ProductSnapshot[] }
+  type CurrentProduct = { id: string; available: false } | {
+    id: string; available: true; title: string; brief?: string; coverImage?: string;
+    hasSku: boolean; priceFrom: string; priceTo: string; priceLabel: string; stock: string;
+    salesCount?: string; sellerName?: string; afterSale?: string;
+  };
+  type HistoryCard = ProductListCard | { tool: string; data: CardData };
   interface ChatParams {
-    message: string;
+    message?: string;
     imageFileIds?: string[];
-    conversationId: string | null;
+    conversationId?: string | null;
     clientMessageId?: string;
   }
 
@@ -31,7 +49,7 @@ declare namespace Api.Ai {
     clientMessageId: string | null;
     role: 'USER' | 'ASSISTANT';
     content: string;
-    structuredData: { cards?: { tool: string; data: CardData }[]; truncated?: boolean } | null;
+    structuredData: { cards?: HistoryCard[] | null; truncated?: boolean | null } | null;
     status: MessageStatus;
     errorCode: string | null;
     createdAt: Timestamp;
@@ -59,6 +77,7 @@ declare namespace Api.Ai {
     | { event: 'start'; data: EventBase & { conversation_id: string } }
     | { event: 'status' | 'delta'; data: EventBase & { text: string } }
     | { event: 'card'; data: EventBase & { tool: string; data: CardData } }
+    | { event: 'product_cards'; data: EventBase & ProductListCard }
     | { event: 'question'; data: EventBase & { text: string; options: string[] } }
     | { event: 'done'; data: EventBase & { status: 'completed' } }
     | { event: 'error'; data: EventBase & { code: string; message: string; retryable: boolean } };

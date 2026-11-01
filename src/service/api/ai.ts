@@ -3,9 +3,12 @@ import { ACCESS_TOKEN_KEY, getAccessToken, getAcceptedAccessToken } from '@/serv
 import { readEventStream } from '@/service/request/stream';
 import { isAuthenticationFailure, RequestError, responseTraceId, type RealResponse } from '@/service/request/type';
 import { parseJsonPreservingLong } from '@/utils/json';
+import { isProductListCard } from '@/utils/ai-product';
 
 const invalidEvent = () => new RequestError('客服响应格式异常，回答已中断，请重新提问', { code: 'INVALID_STREAM' });
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+const safeAiMessage = (value: string) => value.trim() && !/(?:Exception|Traceback|StackTrace|\bSQL\b|java\.|org\.)/i.test(value)
+  ? value : '客服暂时不可用，请稍后重试';
 
 const prefix = '/ai/customer-service';
 export function requireAiPage<T>(page: { rows: T[]; hasMore: boolean; nextCursor: string | null }) {
@@ -17,7 +20,7 @@ export function requireAiPage<T>(page: { rows: T[]; hasMore: boolean; nextCursor
 }
 
 export async function fetchAiSessions(query: Api.Ai.PageQuery, signal?: AbortSignal) {
-  return requireAiPage(await realUserRequest.postQuery<Api.Ai.SessionPage>(`${prefix}/sessions/list`, query, { signal, showError: false }));
+  return requireAiPage(await realUserRequest.postQuery<Api.Ai.SessionPage>(`${prefix}/sessions/list`, { ...query, cursor: query.cursor ?? undefined }, { signal, showError: false }));
 }
 export function createAiSession() {
   // 写操作只发一次；结果未知时由页面回查当前会话。
@@ -27,14 +30,14 @@ export function activateAiSession(conversationId: string) {
   return realUserRequest.put<Api.Ai.SessionState>(`${prefix}/sessions/activate`, { conversationId }, { showError: false });
 }
 export async function fetchAiMessages(query: Api.Ai.MessageQuery, signal?: AbortSignal) {
-  const page = await realUserRequest.postQuery<Api.Ai.MessagePage>(`${prefix}/messages/list`, query, { signal, showError: false });
+  const page = await realUserRequest.postQuery<Api.Ai.MessagePage>(`${prefix}/messages/list`, { ...query, cursor: query.cursor ?? undefined }, { signal, showError: false });
   requireAiPage(page);
   if (page.conversationId !== query.conversationId) throw new RequestError('客服消息与当前会话不一致，请刷新', { code: 'INVALID_AI_PAGE' });
   if (!page.rows.every(row => typeof row.messageId === 'string' && typeof row.content === 'string'
     && ['USER', 'ASSISTANT'].includes(row.role) && ['PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED'].includes(row.status)
     && (row.structuredData == null || (isObject(row.structuredData)
       && (row.structuredData.cards == null || (Array.isArray(row.structuredData.cards)
-        && row.structuredData.cards.every(card => isObject(card) && typeof card.tool === 'string' && isObject(card.data)))))))) {
+        && row.structuredData.cards.every(card => isProductListCard(card) || (isObject(card) && !('type' in card && card.type === 'product_list') && typeof card.tool === 'string' && isObject(card.data))))))))) {
     throw new RequestError('消息加载异常', { code: 'INVALID_AI_PAGE' });
   }
   return page;
@@ -53,7 +56,7 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
     } catch { throw invalidEvent(); }
     if (typeof data.request_id !== 'string' || !data.request_id || !Number.isSafeInteger(data.seq)
       || (data.seq as number) <= sequence || (requestId !== undefined && data.request_id !== requestId)) throw invalidEvent();
-    if (requestId === undefined && frame.event !== 'start') throw invalidEvent();
+    if (requestId === undefined && (frame.event !== 'start' || data.seq !== 1)) throw invalidEvent();
     if (frame.event === 'start') {
       if (requestId !== undefined || typeof data.conversation_id !== 'string' || !/^[0-9a-f]{32}$/.test(data.conversation_id)) throw invalidEvent();
     } else if (frame.event === 'status' || frame.event === 'delta') {
@@ -67,12 +70,12 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
     } else if (frame.event === 'question') {
       if (typeof data.text !== 'string' || !Array.isArray(data.options) || !data.options.every(value => typeof value === 'string')) throw invalidEvent();
     } else if (frame.event === 'product_cards') {
-      // 暂缺商品卡片协议，仅跳过此事件；保持流序列与后续正文正常。
-      requestId = data.request_id; sequence = data.seq as number; return false;
+      if (!isProductListCard(data)) throw invalidEvent();
     } else if (frame.event === 'done') {
       if (data.status !== 'completed') throw invalidEvent();
     } else if (frame.event === 'error') {
       if (typeof data.code !== 'string' || typeof data.message !== 'string' || typeof data.retryable !== 'boolean') throw invalidEvent();
+      data.message = safeAiMessage(data.message);
     } else throw invalidEvent();
     requestId = data.request_id;
     sequence = data.seq as number;
@@ -85,7 +88,8 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
   const token = getAcceptedAccessToken();
   const sameIdentity = () => token === getAccessToken() && token === getAcceptedAccessToken();
   if (!sameIdentity()) throw new RequestError('登录会话已在其他页面切换，请等待身份核对后重试', { code: 'SESSION_CHANGED' });
-  if ((!input.message.trim() && !input.imageFileIds?.length) || input.message.length > 2000 || (input.imageFileIds?.length || 0) > 3) throw new RequestError('请输入 1 至 2000 字的问题', { code: 'INVALID_MESSAGE' });
+  if ((!(input.message ?? '').trim() && !input.imageFileIds?.length) || (input.message?.length || 0) > 2000 || (input.imageFileIds?.length || 0) > 3) throw new RequestError('请提供文字或图片，文字最多 2000 字、图片最多 3 张', { code: 'INVALID_MESSAGE' });
+  if (input.conversationId != null && !/^[0-9a-f]{32}$/.test(input.conversationId)) throw new RequestError('会话信息异常，请刷新后重试', { code: 'INVALID_CONVERSATION' });
   if (input.clientMessageId !== undefined && (input.clientMessageId.length < 8 || input.clientMessageId.length > 64)) {
     throw new RequestError('消息去重键格式异常', { code: 'INVALID_MESSAGE_KEY' });
   }
@@ -120,7 +124,7 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
       let body: RealResponse | undefined;
       try { body = parseJsonPreservingLong<RealResponse>(await response.text()); } catch { /* 网关 HTML 不作为可执行内容。 */ }
       const code = body?.code === undefined ? undefined : String(body.code);
-      const message = typeof body?.message === 'string' ? body.message : '客服暂时不可用，请稍后重新提问';
+      const message = typeof body?.message === 'string' ? safeAiMessage(body.message) : '客服暂时不可用，请稍后重新提问';
       if ((response.status === 401 || code === '-200' || code === '-201') && token && sameIdentity()) {
         handleLogoutMessage(message, code === '-201', token);
       }

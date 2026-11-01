@@ -1,6 +1,7 @@
 import { realOrderRequest } from '@/service/request';
 import { RequestError } from '@/service/request/type';
 import { requireArray } from './page';
+import { normalizeReviewComments } from '@/utils/review-comments';
 
 function normalizePage<T>(page: Api.RealReview.PageResult<T>) {
   const total = Number(page.total);
@@ -75,18 +76,20 @@ export async function submitReview(params: Api.RealReview.ReviewSubmitParams) {
   return id;
 }
 
-export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal; showError?: boolean } = {}) {
+export async function fetchMyReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal; showError?: boolean } = {}): Promise<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>> {
   const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/mine/page', params, options);
-  return normalizePage(page);
+  const result = normalizePage(page);
+  return { ...result, records: result.records.map(normalizeReviewComments) };
 }
 
-export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal } = {}) {
+export async function fetchReceivedReviews(params: Api.RealReview.ReviewPageQuery = {}, options: { signal?: AbortSignal } = {}): Promise<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>> {
   const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ReviewPageQuery>('/reviews/received/page', params, options);
-  return normalizePage(page);
+  const result = normalizePage(page);
+  return { ...result, records: result.records.map(normalizeReviewComments) };
 }
 
-export function fetchReviewDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}) {
-  return realOrderRequest.get<Api.RealReview.ReviewDTO>('/reviews/detail', { ...options, params: { id } });
+export async function fetchReviewDetail(id: string | number, options: { signal?: AbortSignal; showError?: boolean } = {}): Promise<Api.RealReview.ReviewDTO> {
+  return normalizeReviewComments(await realOrderRequest.get<Api.RealReview.ReviewDTO>('/reviews/detail', { ...options, params: { id } }));
 }
 
 export function deleteReview(id: string | number) {
@@ -110,9 +113,10 @@ export async function fetchMyReviewAppeals(params: Api.RealReview.PageQuery = {}
   return normalizePage(page);
 }
 
-export async function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery, options: { signal?: AbortSignal } = {}) {
+export async function fetchStorefrontReviews(params: Api.RealReview.ProductReviewPageQuery, options: { signal?: AbortSignal } = {}): Promise<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>> {
   const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.ReviewDTO>, Api.RealReview.ProductReviewPageQuery>('/storefront/reviews/page', params, options);
-  return normalizePage(page);
+  const result = normalizePage(page);
+  return { ...result, records: result.records.map(normalizeReviewComments) };
 }
 
 export function fetchReviewSummary(productId: string | number, options: { signal?: AbortSignal } = {}) {

@@ -64,10 +64,28 @@ import DateTimeInput from '@/components/common/date-time-input.vue';
 import ConversationOrderBar from '@/components/im/conversation-order-bar.vue';
 import * as orderApi from './order';
 import { conversationReturnPath } from '@/utils/notification';
+import { normalizeReviewComments, hasMoreReviewComments } from '@/utils/review-comments';
+import MessageBubble from '@/components/im/message-bubble.vue';
+import * as reviewApi from './review';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('搜索与评论对接边界', () => {
+  it('评论总数与最近预览独立保留，Long 数量无损比较，匿名正文按服务端快照传递', async () => {
+    const reviewId = '2090377523934879745';
+    const preview = { id: '2090377523934879750', reviewId, parentId: '2090377523934879749', authorName: '顾***', content: '<script>不可执行</script>', createdAt: '1793461800000', hidden: false, canDelete: false };
+    const row = { reviewId, orderId: '2090377523934879751', status: 'PUBLISHED' as const, productScore: 5, sellerScore: 5, commentCount: '9007199254740993123', commentPreviews: [preview] };
+    vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ records: [row], total: '1' });
+    const mine = (await fetchMyReviews()).records[0];
+    const storefront = (await fetchStorefrontReviews({ productId: '2090377523934879752' })).records[0];
+    expect(mine.commentCount).toBe('9007199254740993123');
+    expect(storefront.commentPreviews).toEqual([preview]);
+    expect(hasMoreReviewComments(mine.commentCount, mine.commentPreviews!.length)).toBe(true);
+    expect(normalizeReviewComments({ ...row, status: 'HIDDEN' })).toMatchObject({ commentCount: '0', commentPreviews: [] });
+    expect(normalizeReviewComments({ ...row, commentCount: 8 }).commentCount).toBe('8');
+    expect(() => normalizeReviewComments({ ...row, commentPreviews: [{ ...preview, hidden: true }] })).toThrow('评论预览格式异常');
+    expect(() => normalizeReviewComments({ ...row, commentCount: Number.MAX_SAFE_INTEGER + 1 })).toThrow('评论数量格式异常');
+  });
   it('历史只保留有效词，去重后最近优先且账号与游客隔离', () => {
     expect(normalizeSearchHistory([' 手机 ', '手机', '', null, 'x'.repeat(51), '平板'])).toEqual(['手机', '平板']);
     expect(normalizeSearchHistory(Array.from({ length: 25 }, (_, i) => `词${i}`))).toHaveLength(20);
@@ -139,6 +157,39 @@ describe('v47前端本地边界', () => {
     const state = (app as unknown as { _instance:{ subTree:{ component:{ setupState:T } } } })._instance.subTree.component.setupState;
     return { app, state, properties };
   }
+
+  it('评价发布系统消息保留正文，已完成状态不覆盖评分播报', () => {
+    const content = '买家已评价订单 2116539536067088384：商品 5 星，买手服务 5 星';
+    const fixture = mountSubject<{ systemContent: string }>(MessageBubble, { side: 'center', msg: { id: '2116539536067088389', msgType: 'SYSTEM', eventType: 'REVIEW_PUBLISHED', content, params: { orderId: '2116539536067088386', reviewId: '6001', statusText: '已完成' } } });
+    try { expect(fixture.state.systemContent).toBe(content); } finally { fixture.app.unmount(); }
+  });
+
+  it('公开评论变更回读当前筛选页，只更新数量和预览，迟到回包不污染新页', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal('window', new EventTarget());
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { querySelector: () => null }));
+    vi.stubGlobal('requestAnimationFrame', vi.fn().mockReturnValue(1)); vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    vi.stubGlobal('matchMedia', () => Object.assign(new EventTarget(), { matches: false }));
+    const fixture = mountSubject<{ product?: Api.RealProduct.Record; reviews: Api.RealReview.ReviewDTO[]; reviewPage: number; reviewStars: number; refreshCommentPreviews: (id: string) => Promise<void> }>(DetailView, {}, undefined, app => {
+      app.use(createPinia()); app.provide(routeLocationKey, { params: {}, query: {} } as RouteLocationNormalizedLoaded); app.provide(routerKey, {} as Router);
+    });
+    const reviewId = '2090377523934879745', productId = '2090377523934879755';
+    const review: Api.RealReview.ReviewDTO = { reviewId, orderId: '2090377523934879756', productScore: 5, sellerScore: 5, status: 'PUBLISHED', helpful: true, commentCount: '0', commentPreviews: [] };
+    const fresh = { ...review, helpful: false, commentCount: '8', commentPreviews: [{ id: '2090377523934879760', reviewId, authorName: '顾***', content: '最近评论', createdAt: '1793461800000', hidden: false, canDelete: false }] };
+    const read = vi.spyOn(reviewApi, 'fetchStorefrontReviews').mockResolvedValue({ records: [fresh], total: 1 });
+    try {
+      fixture.state.product = { id: productId } as Api.RealProduct.Record;
+      fixture.state.reviews = [review]; fixture.state.reviewPage = 2; fixture.state.reviewStars = 5;
+      await fixture.state.refreshCommentPreviews(reviewId);
+      expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ productId, pageNo: 2, productScore: 5 }), expect.anything());
+      expect(fixture.state.reviews[0]).toMatchObject({ helpful: true, commentCount: '8', commentPreviews: fresh.commentPreviews });
+      let resolve!: (value: Api.RealReview.PageResult<Api.RealReview.ReviewDTO>) => void;
+      read.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+      const pending = fixture.state.refreshCommentPreviews(reviewId); fixture.state.reviewPage = 3;
+      resolve({ records: [{ ...fresh, commentCount: '9' }], total: 1 }); await pending;
+      expect(fixture.state.reviews[0].commentCount).toBe('8');
+    } finally { fixture.app.unmount(); }
+  });
 
   it('商品分类多选保留Long原值，支持取消主分类、上限及清空', async () => {
     const options = Array.from({ length:21 }, (_, index) => ({ value:`9007199254740993${String(index).padStart(2, '0')}`, label:`分类${index}` }));
@@ -296,6 +347,7 @@ describe('v47前端本地边界', () => {
   interface DiscussionState {
     requestDelete:(row: Api.RealReview.Comment) => void; load:(page?:number) => Promise<void>;
     rows:Api.RealReview.Comment[]; sending:boolean; page:number; error:string; notice:string;
+    submit:() => Promise<void>; content:string; parent:Api.RealReview.Comment | undefined;
   }
   function discussionHarness() {
     vi.stubGlobal('localStorage', { getItem:() => null });
@@ -305,11 +357,12 @@ describe('v47前端本地边界', () => {
     const other = { ...own, id:'2090377523934879747', canDelete:false };
     const read = vi.spyOn(realOrderRequest, 'postQuery').mockResolvedValue({ total:'2', records:[own, other] });
     const remove = vi.spyOn(realOrderRequest, 'delete').mockResolvedValue(own.id);
-    const fixture = mountSubject<DiscussionState>(ReviewDiscussion, { review:{ reviewId:own.reviewId, content:'QA评价' }, mode:'comments' }, undefined, app => {
+    const changed = vi.fn();
+    const fixture = mountSubject<DiscussionState>(ReviewDiscussion, { review:{ reviewId:own.reviewId, content:'QA评价' }, mode:'comments', onChanged:changed }, undefined, app => {
       app.use(pinia); app.provide(routeLocationKey, { fullPath:'/review' } as RouteLocationNormalizedLoaded);
       app.provide(routerKey, { push:vi.fn() } as unknown as Router);
     });
-    return { ...fixture, user, own, other, read, remove };
+    return { ...fixture, user, own, other, read, remove, changed };
   }
   it('同名他人评论无删除确认，切账号后旧确认失效且不发请求', async () => {
     const fixture = discussionHarness();
@@ -321,6 +374,17 @@ describe('v47前端本地边界', () => {
       fixture.user.currentUser = { id:'qa-other' } as Api.RealSession.UserRecord;
       expect(confirmations).toHaveLength(0);
       await confirm(); expect(fixture.remove).not.toHaveBeenCalled();
+    } finally { fixture.app.unmount(); }
+  });
+  it('只读评价仍可读取评论，但不能通过提交和删除回调写入', async () => {
+    const fixture = discussionHarness();
+    const post = vi.spyOn(realOrderRequest, 'post');
+    try {
+      fixture.properties.readonly = true;
+      await nextTick(); await fixture.state.load();
+      fixture.state.content = '不应提交';
+      await fixture.state.submit(); fixture.state.requestDelete(fixture.own);
+      expect(post).not.toHaveBeenCalled(); expect(fixture.remove).not.toHaveBeenCalled(); expect(confirmations).toHaveLength(0);
     } finally { fixture.app.unmount(); }
   });
   it('删除确认期间防重复，末页删除后回退有效页并读取真实结果', async () => {
@@ -337,6 +401,24 @@ describe('v47前端本地边界', () => {
       done(fixture.own.id); await pending;
       expect(fixture.state.page).toBe(1); expect(fixture.state.rows.map(row => row.id)).toEqual([fixture.other.id]);
       expect(fixture.state.notice).toBe('评论已删除'); expect(fixture.state.sending).toBe(false);
+      expect(fixture.changed).toHaveBeenCalledExactlyOnceWith(fixture.own.reviewId);
+    } finally { fixture.app.unmount(); }
+  });
+  it('发表评论和回复成功后通知卡片回读，未知结果不伪造更新', async () => {
+    const fixture = discussionHarness();
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue('2090377523934879760');
+    try {
+      await fixture.state.load();
+      fixture.state.content = '新增评论';
+      await fixture.state.submit();
+      expect(fixture.changed).toHaveBeenCalledTimes(1);
+      fixture.state.parent = fixture.other; fixture.state.content = '回复评论';
+      await fixture.state.submit();
+      expect(post).toHaveBeenLastCalledWith('/reviews/comments/create', { reviewId: fixture.own.reviewId, parentId: fixture.other.id, content: '回复评论' }, expect.anything());
+      expect(fixture.changed).toHaveBeenCalledTimes(2);
+      post.mockRejectedValueOnce(new Error('offline')); fixture.state.content = '待核实';
+      await fixture.state.submit();
+      expect(fixture.changed).toHaveBeenCalledTimes(2);
     } finally { fixture.app.unmount(); }
   });
   it('删除网络结果不明不自动重发，原评论与核对提示保留', async () => {

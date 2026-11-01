@@ -60,6 +60,7 @@ const reviewTotal = ref(0);
 const reviewLoading = ref(false);
 const reviewError = ref('');
 const reviewsGuard = createLatestRequestGuard();
+const commentReads = createLatestRequestGuard(() => JSON.stringify([product.value?.id, userStore.sessionVersion, userStore.currentUser?.id, reviewPage.value, reviewStars.value, reviewHasImage.value, reviewKeyword.value, reviewSort.value]));
 const summaryGuard = createLatestRequestGuard();
 const sellerRatingGuard = createLatestRequestGuard();
 const qualificationGuard = createLatestRequestGuard();
@@ -273,6 +274,7 @@ async function loadSellerQualification() {
 }
 
 async function loadReviews(page: number) {
+  commentReads.invalidate();
   const productId = product.value?.id;
   if (productId === undefined) return;
   const isCurrent = reviewsGuard.begin();
@@ -310,6 +312,21 @@ function refreshReviewsOnFocus() {
   void loadReviews(reviewPage.value);
   void loadReviewSummary();
 }
+async function refreshCommentPreviews(reviewId: string | number) {
+  if (!product.value) return;
+  const isCurrent = commentReads.begin();
+  try {
+    const result = await reviewApi.fetchStorefrontReviews({ productId: product.value.id, pageNo: reviewPage.value, pageSize: reviewPageSize.value,
+      productScore: reviewStars.value || undefined, hasImage: reviewHasImage.value || undefined, keyword: reviewKeyword.value || undefined, sortBy: reviewSort.value }, { signal: isCurrent.signal });
+    if (!isCurrent()) return;
+    const fresh = result.records.find(row => String(row.reviewId) === String(reviewId));
+    const current = reviews.value.find(row => String(row.reviewId) === String(reviewId));
+    if (fresh && current) Object.assign(current, { commentCount: fresh.commentCount, commentPreviews: fresh.commentPreviews });
+    else await loadReviews(reviewPage.value);
+  } catch {
+    if (isCurrent()) Message.warning('评论已更新，评价卡片刷新失败，请重新加载评价');
+  }
+}
 watch(product, () => { void nextTick(schedulePurchaseLayout); });
 
 onMounted(() => {
@@ -329,6 +346,7 @@ onMounted(() => {
   void load();
 });
 onBeforeUnmount(() => {
+  commentReads.invalidate();
   purchaseLayoutActive = false;
   purchaseHeaderObserver?.disconnect();
   cancelAnimationFrame(purchaseFrame);
@@ -580,7 +598,7 @@ function share() {
           <template v-else-if="tab === '配送与售后'"><h2>配送与售后</h2><p>运费 {{ money(product.shippingFee) }} USDT，税费 {{ money(product.tax) }} USDT。{{ product.overseasCustoms ? '此商品为海外直邮，过关后不可退货退款。' : '' }}售后类型：{{ aftersaleMeta?.label || '待确认' }}。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
           <template v-else><h2>支付说明</h2><p>请在结算时选择可用支付方式和网络，并核对订单金额。链上转账后需等待到账确认，请勿重复付款。</p><button type="button" class="outline" @click="router.push('/help')">查看帮助中心 →</button></template>
         </template>
-        <template #reviews><V47DetailReviews :rows="reviews" :summary="reviewSummary" :summary-loading="reviewSummaryLoading" :summary-error="reviewSummaryError" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" :error="reviewError" :stars="reviewStars" :has-image="reviewHasImage" :keyword="reviewKeyword" :sort="reviewSort" :helpful-busy="helpfulBusy" @helpful="voteHelpful" @filter="filterReviews" @retry-summary="loadReviewSummary" @page="loadReviews" @photo="openPreview" /></template>
+        <template #reviews><V47DetailReviews :rows="reviews" :summary="reviewSummary" :summary-loading="reviewSummaryLoading" :summary-error="reviewSummaryError" :total="reviewTotal" :current="reviewPage" :page-size="reviewPageSize" :loading="reviewLoading" :error="reviewError" :stars="reviewStars" :has-image="reviewHasImage" :keyword="reviewKeyword" :sort="reviewSort" :helpful-busy="helpfulBusy" @comments-changed="refreshCommentPreviews" @helpful="voteHelpful" @filter="filterReviews" @retry-summary="loadReviewSummary" @page="loadReviews" @photo="openPreview" /></template>
       </V47DetailContent>
       </div>
       </div>

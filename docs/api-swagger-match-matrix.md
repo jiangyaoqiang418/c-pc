@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | 商城搜索 | storefront/search的promotions/hot/suggest/track及原products/page | 默认推广词、独立榜单、防抖联想/过期取消、中文搜索、失败独立；账号隔离本地20条历史 | Chrome真实公开搜索、键盘中文命中、后台新增词联想/停用消失、登录不继承游客历史及单条删除通过；小屏/横屏通过，慢响应为隔离测试 |
 | 评论与举报 | storefront/reviews/comments/page含canDelete:boolean；reviews/comments/create、reports/create、comments/delete | 商品/我的评价入口；纯文本、父评论占位、登录门禁；仅canDelete=true显示删除，二次确认/防重/成功回读/末页回退/账号隔离，未知不自动重发 | 真实发表/回复/举报及后台处理通过；本人true、游客false，实际本人删除后回复保留、取消不删除和最终清理通过，评分不变。仅评价入口受控，写接口真实；其他真实账号及服务端越权拒绝未单独实测，前端边界由413项现有测试覆盖；2条前批举报审计保留 |
+| 评论预览与评价群播报 | ReviewDTO.commentCount/commentPreviews；SYSTEM/REVIEW_PUBLISHED及params.orderId/reviewId | 私有/公开卡片数量、最近3条、查看全部；评论成功回读，纯文本/脱敏/canDelete；群播报展示content并复用IM | 新增自动回归通过；非空预览、真实增删后的刷新及新群事件实时/离线/去重未联调。群消息由后端发送，前端不改变订单状态 |
 | 文本及图片审核 | 新增评价/买手回复/评论由Java过滤，带图待人工审核 | 业务拒绝展示message并保留原输入；首轮明确拒绝允许编辑；带图提交提示待审 | 真实评论联系方式拒绝保留输入通过；结构化拒绝/网络未知结果为隔离测试；后台既有配图读取/放大通过，图片审核写入及买手回复过滤未完整验收 |
 | 地址地区 | countries及CN下children，71/81/82、leaf | 复用动态字典与默认CN；标签及末级不发多余市区编码；不改电话区号 | 登录态真实字典、三地区选中无市区且可保存、既有地址原值保存回读通过；三地区新增持久化未验，编码请求及LongID由现有测试覆盖 |
 
@@ -86,7 +87,8 @@ AI 会话增量以 2026-10-27 新文档和实时 user/admin OpenAPI 为准：C-P
 
 | 能力 | 契约确认 | API与页面 | 真实验证与边界 |
 | --- | --- | --- | --- |
-| AI图片与欢迎语 | user welcome、images/upload、images/access；历史 images；chat imageFileIds/question 已确认 | 上传限制、续签合并/到期/重试、纯图片发送、快捷追问及欢迎语接入 | Chrome登录、真实欢迎语与一轮文本问答通过；图片上传受浏览器扩展权限限制，发送/历史图片真实回读未验。product_cards新协议暂缓 |
+| AI图片与欢迎语 | user welcome、images/upload、images/access；历史 images；chat imageFileIds/question 已确认 | 上传限制、续签合并/到期/重试、纯图片发送、快捷追问及欢迎语接入 | Chrome登录、真实欢迎语与一轮文本问答通过；图片上传受浏览器扩展权限限制，发送/历史图片真实回读未验。商品新卡片见下一行，原图片验收边界不变 |
+| AI推荐商品卡片 | 11-01发布文档、SSE product_cards、历史type/items与公开products/cards；金额/计数实际为字符串 | 双协议、批量100个/原推荐顺序、当前值、缺图、不可售/查询失败区分、清旧状态重试、固定详情及账号隔离已接 | 两站点公开批量可售/不可售和空批拒绝已读验；相关63项与隔离类型/构建、Swagger通过。全量435中11项既有失败不变。登录流/历史/多规格/故障/中断真实链路、浏览器与部署未验 |
 | 识图商品分页 | order POST /storefront/search/images/page，fileId/hint及普通筛选 | 顶部上传入口、结果页、60秒期限及独立失败态已接 | 现有测试覆盖路径/参数/分页；真实上传、识别结果及深分页未验 |
 | 求购权限与重提 | BUYER大厅、categoryId、PUT /demands/update已确认 | 入口/路由限制、启用分类、本人驳回表单回填、原ID及字符串预算、姓名映射 | 现有测试覆盖原ID/金额/地址/图片全量；真实顾客越权、重提到审核闭环待验 |
 | 商品多分类与参数 | create/update及DTO的categoryIds/categories/parameters已确认 | 表单/草稿/快照/提交、分组/问号/摘要展示已接 | Chrome参数添加/输入/删除通过；真实送审、公开回读及分类交叉命中未验 |

@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router';
 import UmIcon from '@/components/common/um-icon.vue';
 import { formatDateValue } from '@/utils/date-range';
 import ReviewDiscussionDialog from './review-discussion-dialog.vue';
+import CommentPreviews from './comment-previews.vue';
 
 interface Props {
   review: Api.RealReview.ReviewDTO;
@@ -19,6 +20,7 @@ const emit = defineEmits<{
   (e: 'reply', review: Api.RealReview.ReviewDTO): void;
   (e: 'appeal', review: Api.RealReview.ReviewDTO): void;
   (e: 'delete', review: Api.RealReview.ReviewDTO): void;
+  (e: 'comments-changed', reviewId: string | number): void;
 }>();
 
 const router = useRouter();
@@ -62,8 +64,9 @@ watch(() => props.review.reviewId, () => { deleteVisible.value = false; previewO
     <div v-if="review.replyContent && replyOpen && !isHidden" class="review-reply"><b>买手回复</b><p>{{ review.replyContent }}</p></div>
     <footer v-if="!readonly && (audience === 'sent' || canReply || canAppeal)" class="button-row review-actions"><button v-if="audience === 'sent'" type="button" class="text-link danger" :disabled="!!actionLoading" @click="deleteVisible = true">删除评价</button><button v-if="canReply" type="button" class="outline" :disabled="!!actionLoading" @click="emit('reply',review)">回复评价</button><button v-if="canAppeal" type="button" class="outline" :disabled="!!actionLoading" @click="emit('appeal',review)">发起申诉</button></footer>
     <AModal v-model:visible="deleteVisible" title="删除评价？" :width="420" :ok-text="deleteMode === 'unknown' ? '核对删除结果' : deleteMode === 'ready' ? '确认重试删除' : '确认删除'" :ok-button-props="{ status:'danger',disabled:!!actionLoading }" @ok="emit('delete',review)"><p>{{ deleteMode === 'unknown' ? '原删除结果待核实，本次仅读取本人评价，不会直接重发删除。' : deleteMode === 'ready' ? '已核对原评价仍可见，确认重试删除这条评价吗？删除后无法恢复。' : '删除后无法恢复，确认删除这条评价吗？' }}</p></AModal>
-    <div v-if="!readonly && review.status === 'PUBLISHED'" class="discussion-actions"><button type="button" class="text-link" :disabled="!!actionLoading" @click="discussionMode = 'comments'; discussionOpen = true">评论</button><button type="button" class="text-link" :disabled="!!actionLoading" @click="discussionMode = 'report'; discussionOpen = true">举报</button></div>
-    <ReviewDiscussionDialog :review="discussionOpen && review.status === 'PUBLISHED' ? review : undefined" :mode="discussionMode" @close="discussionOpen = false" />
+    <div v-if="review.status === 'PUBLISHED'" class="discussion-actions"><button type="button" class="text-link" :disabled="!!actionLoading" @click="discussionMode = 'comments'; discussionOpen = true">评论（{{ review.commentCount ?? '—' }}）</button><button v-if="!readonly" type="button" class="text-link" :disabled="!!actionLoading" @click="discussionMode = 'report'; discussionOpen = true">举报</button></div>
+    <CommentPreviews :review="review" :disabled="!!actionLoading" @open="discussionMode = 'comments'; discussionOpen = true" />
+    <ReviewDiscussionDialog :review="discussionOpen && review.status === 'PUBLISHED' ? review : undefined" :mode="discussionMode" :readonly="readonly" @close="discussionOpen = false" @changed="emit('comments-changed', $event)" />
     <ImagePreview v-model="previewOpen" :images="review.images || []" :start-index="previewIndex" title="评价图片" />
   </article>
 </template>

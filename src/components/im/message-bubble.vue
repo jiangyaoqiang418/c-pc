@@ -73,6 +73,7 @@ const time = computed(() => {
 const systemContent = computed(() => {
   const params = props.msg.params || {};
   const eventType = String(props.msg.eventType || '').toUpperCase();
+  if (eventType === 'REVIEW_PUBLISHED') return props.msg.content || '买家已发布评价';
   const statusText = String(params.statusText || '');
   const templates: Record<string, string> = {
     CREATED: '订单已创建',

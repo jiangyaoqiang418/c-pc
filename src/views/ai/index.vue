@@ -8,6 +8,8 @@ import { useRouter } from 'vue-router';
 import EmptyState from '@/components/common/empty-state.vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import ResultCard from '@/components/ai/result-card.vue';
+import ProductCards from '@/components/ai/product-cards.vue';
+import { useAiProductCards } from '@/composables/use-ai-product-cards';
 import { useAiConversations } from '@/composables/use-ai-conversations';
 import { useUserStore } from '@/stores/user';
 
@@ -16,6 +18,10 @@ const user = useUserStore();
 const { visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
   notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
 const locked = computed(() => busy.value || uploading.value || listLoading.value || historyLoading.value);
+const currentCards = useAiProductCards(
+  () => messages.value.flatMap(message => message.parts.flatMap(part => part.type === 'products' ? part.card.items.map(item => item.action.target_id) : [])),
+  () => [conversationId.value, user.sessionVersion], () => !user.initializing
+);
 const imageInput = ref<HTMLInputElement>();
 const welcome = ref(''); const welcomeError = ref(''); const uploadError = ref('');
 let uploadVersion = 0; let uploadController = new AbortController();
@@ -87,7 +93,8 @@ function onKeydown(event: KeyboardEvent) {
               <p v-if="message.text" class="ai-message-text">{{ message.text }}</p>
               <template v-for="(part, partIndex) in message.parts" :key="partIndex">
                 <p v-if="part.type === 'text'" class="ai-message-text">{{ part.text }}</p>
-                <ResultCard v-else :card="part.card" @login="login" />
+                <ResultCard v-else-if="part.type === 'card'" :card="part.card" @login="login" />
+                <ProductCards v-else :card="part.card" :products="currentCards.products.value" :loading="currentCards.loading.value" :error="currentCards.error.value" @retry="currentCards.refresh" />
               </template>
               <p v-if="message.snapshot" class="message-progress">历史查询快照，请以当前业务记录为准。</p>
               <p v-if="message.truncated" class="message-progress">部分卡片未保存，可重新提问查询。</p>

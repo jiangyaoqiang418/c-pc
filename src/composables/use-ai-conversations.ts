@@ -13,7 +13,7 @@ export interface AiDisplayMessage {
   text: string;
   images?: Api.Ai.ImageReference[];
   questions?: string[];
-  parts: ({ type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData })[];
+  parts: ({ type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData } | { type: 'products'; card: Api.Ai.ProductListCard })[];
   state: Api.Ai.MessageStatus;
   progress?: string;
   error?: string;
@@ -24,8 +24,9 @@ export interface AiDisplayMessage {
 export function historyMessage(row: Api.Ai.Message): AiDisplayMessage {
   return { id: row.messageId, requestId: row.requestId, clientMessageId: row.clientMessageId,
     role: row.role === 'USER' ? 'user' : 'assistant', text: row.content, images:row.images || [], state: row.status,
-    parts: (row.structuredData?.cards ?? []).map(card => ({ type: 'card', card: card.data })),
-    truncated: row.structuredData?.truncated === true, snapshot: !!row.structuredData?.cards?.length,
+    parts: (row.structuredData?.cards ?? []).map(card => 'type' in card && card.type === 'product_list'
+      ? { type: 'products', card } : { type: 'card', card: (card as { data: Api.Ai.CardData }).data }),
+    truncated: row.structuredData?.truncated === true, snapshot: !!row.structuredData?.cards?.some(card => 'tool' in card),
     error: row.status === 'FAILED' ? '回答失败' : row.status === 'INTERRUPTED' ? '回答中断' : undefined };
 }
 
@@ -244,6 +245,7 @@ export function useAiConversations() {
           if (last?.type === 'text') last.text += event.data.text;
           else answer.parts.push({ type: 'text', text: event.data.text });
         } else if (event.event === 'card') answer.parts.push({ type: 'card', card: event.data.data });
+        else if (event.event === 'product_cards') answer.parts.push({ type: 'products', card: { type: event.data.type, items: event.data.items } });
         else if (event.event === 'done') { answer.state = 'COMPLETED'; answer.progress = ''; }
         else if (event.event === 'question') { answer.questions = event.data.options; if (event.data.text) answer.parts.push({type:'text', text:event.data.text}); }
         else if (event.event === 'error') { answer.state = 'FAILED'; answer.progress = ''; answer.error = event.data.message; }

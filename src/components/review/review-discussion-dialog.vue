@@ -9,8 +9,8 @@ import { Modal } from '@/lib/feedback';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
 
-const props = defineProps<{ review?: Api.RealReview.ReviewDTO; mode: 'comments' | 'report' }>();
-const emit = defineEmits<{ close: [] }>();
+const props = defineProps<{ review?: Api.RealReview.ReviewDTO; mode: 'comments' | 'report'; readonly?: boolean }>();
+const emit = defineEmits<{ close: []; changed: [reviewId: string | number] }>();
 const formId = useId();
 const user = useUserStore();
 const route = useRoute();
@@ -36,7 +36,7 @@ let deleteConfirmation: ReturnType<typeof Modal.confirm> | undefined;
 
 function closeDeleteConfirmation() { deleteConfirmation?.close(); deleteConfirmation = undefined; }
 function canDelete(row: Api.RealReview.Comment) {
-  return !!props.review && user.isLoggedIn && !user.initializing && !sending.value && !loading.value
+  return !props.readonly && !!props.review && user.isLoggedIn && !user.initializing && !sending.value && !loading.value
     && row.canDelete === true && rows.value.some(item => item.id === row.id && item.canDelete === true);
 }
 function requestDelete(row: Api.RealReview.Comment) {
@@ -62,6 +62,7 @@ function requestDelete(row: Api.RealReview.Comment) {
         if (valid() && !error.value && page.value > 1 && !rows.value.length) {
           await load(Math.max(1, Math.ceil(total.value / 20)));
         }
+        if (valid() && props.review) emit('changed', props.review.reviewId);
       } catch (e) {
         if (!valid()) return;
         error.value = e instanceof Error ? e.message : '删除失败';
@@ -84,11 +85,11 @@ async function load(next = page.value) {
   finally { if (current()) loading.value = false; }
 }
 function report(comment?: Api.RealReview.Comment) {
-  if (sending.value) return;
+  if (props.readonly || sending.value) return;
   target.value = comment; reason.value = ''; reporting.value = true; error.value = ''; notice.value = '';
 }
 async function submit() {
-  if (!props.review || sending.value || !user.isLoggedIn || user.initializing) return;
+  if (props.readonly || !props.review || sending.value || !user.isLoggedIn || user.initializing) return;
   const value = (reporting.value ? reason.value : content.value).trim();
   if (!value || value.length > (reporting.value ? 500 : 1000) || (!reporting.value && unknown.value)) return;
   const current = ++version, owner = context(), reviewId = props.review.reviewId, isReport = reporting.value;
@@ -102,6 +103,7 @@ async function submit() {
     if (isReport) { notice.value = '举报已提交'; reason.value = ''; reporting.value = false; }
     else { notice.value = '评论已提交'; content.value = ''; parent.value = undefined; }
     await load();
+    if (valid() && !isReport) emit('changed', reviewId);
   } catch (e) {
     if (!valid()) return;
     error.value = e instanceof Error ? e.message : '提交失败';
@@ -112,7 +114,7 @@ async function submit() {
     }
   } finally { if (valid()) sending.value = false; }
 }
-watch([() => props.review?.reviewId, () => props.mode], () => {
+watch([() => props.review?.reviewId, () => props.mode, () => props.readonly], () => {
   closeDeleteConfirmation();
   version++; reads.invalidate(); rows.value = []; total.value = 0; page.value = 1; content.value = ''; reason.value = '';
   parent.value = undefined; target.value = undefined; error.value = ''; notice.value = ''; sending.value = false;
@@ -130,16 +132,16 @@ onBeforeUnmount(() => { closeDeleteConfirmation(); version++; reads.invalidate()
   <BusinessDialog :visible="!!review" title="评价评论与举报" :width="680" :footer="false" :closable="!sending" :mask-closable="!sending" :esc-to-close="!sending" @update:visible="value => { if (!value) emit('close'); }">
     <div class="discussion">
       <p class="review-context">{{ review?.content }}</p>
-      <div class="discussion-actions"><button class="outline" type="button" :disabled="sending" @click="reporting = false">评论</button><button class="text-link" type="button" :disabled="sending" @click="report()">举报评价</button><button class="text-link" type="button" :disabled="loading || sending" @click="load()">刷新评论</button></div>
+      <div class="discussion-actions"><button class="outline" type="button" :disabled="sending" @click="reporting = false">评论</button><button v-if="!readonly" class="text-link" type="button" :disabled="sending" @click="report()">举报评价</button><button class="text-link" type="button" :disabled="loading || sending" @click="load()">刷新评论</button></div>
       <p v-if="notice" role="status">{{ notice }}</p><p v-if="error" role="alert">{{ error }}</p>
       <p v-if="loading" role="status">正在读取评论…</p>
       <ol v-else class="comment-list">
-        <li v-for="row in rows" :key="row.id"><div><strong>{{ row.authorName || '用户' }}</strong> <time>{{ formatDateValue(row.createdAt, true) }}</time></div><small v-if="row.parentId">{{ rows.some(item => item.id === row.parentId) ? '回复评论' : '回复评论（原评论不在当前页或已不可见）' }}</small><p>{{ row.content }}</p><div class="discussion-actions"><button type="button" class="text-link" :disabled="sending || unknown" @click="parent = row; reporting = false">回复</button><button type="button" class="text-link" :disabled="sending" @click="report(row)">举报评论</button><button v-if="user.isLoggedIn && row.canDelete === true" type="button" class="text-link" :disabled="sending || loading || user.initializing" @click="requestDelete(row)">删除评论</button></div></li>
+        <li v-for="row in rows" :key="row.id"><div><strong>{{ row.authorName || '用户' }}</strong> <time>{{ formatDateValue(row.createdAt, true) }}</time></div><small v-if="row.parentId">{{ rows.some(item => item.id === row.parentId) ? '回复评论' : '回复评论（原评论不在当前页或已不可见）' }}</small><p>{{ row.content }}</p><div v-if="!readonly" class="discussion-actions"><button type="button" class="text-link" :disabled="sending || unknown" @click="parent = row; reporting = false">回复</button><button type="button" class="text-link" :disabled="sending" @click="report(row)">举报评论</button><button v-if="user.isLoggedIn && row.canDelete === true" type="button" class="text-link" :disabled="sending || loading || user.initializing" @click="requestDelete(row)">删除评论</button></div></li>
       </ol>
       <p v-if="!loading && !error && !rows.length">暂无评论</p>
       <div class="discussion-actions"><button class="outline" type="button" :disabled="page <= 1 || loading || sending" @click="load(page - 1)">上一页</button><span>{{ page }} / {{ Math.max(1, Math.ceil(total / 20)) }}</span><button class="outline" type="button" :disabled="page * 20 >= total || loading || sending" @click="load(page + 1)">下一页</button></div>
-      <p v-if="!user.isLoggedIn"><button type="button" class="text-link" @click="login">登录后发表评论或举报</button></p>
-      <form v-else :id="formId" @submit.prevent="submit">
+      <p v-if="!readonly && !user.isLoggedIn"><button type="button" class="text-link" @click="login">登录后发表评论或举报</button></p>
+      <form v-else-if="!readonly" :id="formId" @submit.prevent="submit">
         <fieldset :disabled="sending || user.initializing">
           <template v-if="reporting"><label for="discussion-reason">{{ target ? '举报评论' : '举报评价' }}的原因（仅审核人员可见）</label><textarea placeholder="请填写举报原因" id="discussion-reason" v-model="reason" maxlength="500" rows="3" required /><small>{{ reason.length }}/500</small></template>
           <template v-else><label for="discussion-content">{{ parent ? '回复 ' + parent.authorName : '发表评论' }}</label><button v-if="parent" type="button" class="text-link" @click="parent = undefined">取消回复</button><textarea :placeholder="parent ? '请输入回复内容' : '请输入评论内容'" id="discussion-content" v-model="content" :disabled="unknown" maxlength="1000" rows="3" required /><small>{{ content.length }}/1000</small><p v-if="unknown">上次评论提交结果待核实。<button type="button" class="text-link" @click="uncertain.delete(String(review?.reviewId))">我已核对评论列表，继续编辑</button></p></template>

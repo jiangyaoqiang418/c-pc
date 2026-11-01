@@ -438,6 +438,7 @@ if (notifyResponse.status === 404) {
   expectProperties(conversationSchema, ['lastReadMessageId', 'peerName', 'orderNo', 'orderStatusText', 'productTitle', 'amount'], '会话响应');
   const messageSchema = notify.components?.schemas?.ImMessageVO;
   expectProperties(messageSchema, ['senderName', 'senderAvatar', 'eventType', 'params', 'clientMsgId', 'recalled'], '消息响应');
+  if (!messageSchema.properties.eventType.description?.includes('REVIEW_PUBLISHED')) throw new Error('IM 缺少评价发布事件说明');
   const notificationSchema = notify.components?.schemas?.NotificationVO;
   expectProperties(notificationSchema, ['bizType', 'bizId', 'templateCode', 'deptId', 'readFlag'], '站内通知响应');
   operation(notify, '/notifications/read-all', 'put');
@@ -451,6 +452,19 @@ expectRequired(requestSchema(admin, aiAdminList), ['reason'], '后台 AI 会话'
 expectProperties(requestSchema(admin, aiAdminList), ['userId', 'conversationId', 'status', 'startTime', 'endTime', 'cursor', 'limit'], '后台 AI 筛选');
 expectParameters(operation(admin, '/ai/customer-service/sessions/detail', 'get'), ['conversationId', 'reason', 'cursor', 'limit'], '后台 AI 详情');
 expectRequired(requestSchema(admin, operation(admin, '/ai/customer-service/messages/list', 'post')), ['conversationId', 'reason'], '后台 AI 历史消息');
+for (const document of [user, admin].filter(Boolean)) {
+  expectProperties(document.components?.schemas?.AiCardDTO, ['tool', 'data', 'type', 'items'], 'AI 历史双协议卡片');
+}
+const productCards = operation(order, '/storefront/products/cards', 'post');
+const productCardQuery = requestSchema(order, productCards);
+expectRequired(productCardQuery, ['ids'], '公开商品卡片');
+expectFieldType(productCardQuery, 'ids', 'array', '商品卡片批量查询');
+if (productCardQuery.properties.ids?.maxItems !== 100) throw new Error('商品卡片批量上限变更');
+expectProperties(order.components?.schemas?.ProductCardVO, ['id', 'available', 'title', 'coverImage', 'hasSku', 'priceFrom', 'priceTo', 'priceLabel', 'stock', 'salesCount', 'sellerName', 'afterSale'], '当前商品卡片');
+for (const document of [order, admin]) {
+  expectProperties(document.components?.schemas?.ReviewDTO, ['commentCount', 'commentPreviews'], '评价评论预览');
+  expectProperties(document.components?.schemas?.ReviewCommentDTO, ['id', 'reviewId', 'parentId', 'authorName', 'content', 'createdAt', 'hidden', 'canDelete'], '公开评论字段');
+}
 const aiPrompt = operation(admin, '/ai/customer-service/prompts/detail', 'get');
 expectParameters(aiPrompt, ['reason'], '后台 AI 提示词');
 expectProperties(responseDataSchema(admin, aiPrompt), ['configuredPrompt', 'defaultPrompt', 'effectivePrompt', 'source', 'version', 'history', 'enforcedCodeBoundaries'], '后台 AI 提示词详情');

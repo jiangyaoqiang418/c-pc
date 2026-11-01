@@ -133,6 +133,7 @@ function resetAndLoad() {
 }
 
 async function load() {
+  commentReads.invalidate();
   const isCurrent = requestGuard.begin();
   const userId = userStore.currentUser?.id;
   const session = userStore.sessionVersion;
@@ -236,6 +237,24 @@ function openAppeal(review: Api.RealReview.ReviewDTO) {
 function updateKnownReview(detail: Api.RealReview.ReviewDTO) {
   for (const row of [...reviews.value, notificationReview.value, replyTarget.value, appealTarget.value]) {
     if (row && sameBusinessId(row.reviewId, detail.reviewId)) Object.assign(row, detail);
+  }
+}
+
+const commentReads = createLatestRequestGuard(() => `${userStore.sessionVersion}:${userStore.currentUser?.id}:${route.fullPath}`);
+async function refreshCommentPreview(reviewId: string | number) {
+  const isCurrent = commentReads.begin();
+  try {
+    const detail = await reviewApi.fetchReviewDetail(reviewId, { signal: isCurrent.signal, showError: false });
+    if (!isCurrent()) return;
+    if (!sameBusinessId(detail.reviewId, reviewId)) throw new Error('关联评价不匹配');
+    for (const row of [...reviews.value, notificationReview.value]) {
+      if (row && sameBusinessId(row.reviewId, detail.reviewId)) {
+        if (row.status !== detail.status) Object.assign(row, detail);
+        else Object.assign(row, { commentCount: detail.commentCount, commentPreviews: detail.commentPreviews });
+      }
+    }
+  } catch {
+    if (isCurrent()) Message.warning('评论已更新，评价卡片刷新失败，请重新加载评价');
   }
 }
 
@@ -531,6 +550,7 @@ watch(() => route.fullPath, () => {
   void load();
 });
 onBeforeUnmount(() => {
+  commentReads.invalidate();
   writeVersion += 1;
   requestGuard.invalidate();
   notificationRequestGuard.invalidate();
@@ -575,9 +595,9 @@ watch([() => route.fullPath, () => userStore.currentUser?.id, () => userStore.se
     </div>
     <section class="list-wrap" :aria-busy="loading" aria-label="评价列表">
       <Alert v-if="notificationReviewError" variant="destructive" class="notice"><AlertDescription>{{ notificationReviewError }}</AlertDescription><button type="button" class="outline"  @click="route.query.id && loadNotificationReview(String(route.query.id))">重新加载</button></Alert>
-      <template v-else-if="notificationReview"><h2 class="notification-title">通知关联评价</h2><ReviewCard :review="notificationReview" :audience="notificationAudience || 'sent'" :readonly="notificationAudience !== 'received'" :action-loading="loading ? 'loading' : actionLoading" @reply="openReply" @appeal="openAppeal" /></template>
+      <template v-else-if="notificationReview"><h2 class="notification-title">通知关联评价</h2><ReviewCard :review="notificationReview" :audience="notificationAudience || 'sent'" :readonly="notificationAudience !== 'received'" :action-loading="loading ? 'loading' : actionLoading" @comments-changed="refreshCommentPreview" @reply="openReply" @appeal="openAppeal" /></template>
       <div v-if="loading && !(isAppealTab ? appeals.length : reviews.length)" class="skeletons"><Skeleton v-for="n in 3" :key="n" class="review-skeleton" /></div>
-      <div v-else-if="!isAppealTab && reviews.length" class="reviews-grid my-reviews" :class="{ refreshing: loading }"><ReviewCard v-for="review in reviews" :key="review.reviewId" :review="review" :audience="activeKey === 'sent' ? 'sent' : 'received'" :action-loading="loading ? 'loading' : actionLoading" :delete-mode="uncertainAction(review, 'delete')?.phase === 'ready' ? 'ready' : uncertainAction(review, 'delete') ? 'unknown' : undefined" @reply="openReply" @appeal="openAppeal" @delete="removeReview" /></div>
+      <div v-else-if="!isAppealTab && reviews.length" class="reviews-grid my-reviews" :class="{ refreshing: loading }"><ReviewCard v-for="review in reviews" :key="review.reviewId" :review="review" :audience="activeKey === 'sent' ? 'sent' : 'received'" :action-loading="loading ? 'loading' : actionLoading" :delete-mode="uncertainAction(review, 'delete')?.phase === 'ready' ? 'ready' : uncertainAction(review, 'delete') ? 'unknown' : undefined" @comments-changed="refreshCommentPreview" @reply="openReply" @appeal="openAppeal" @delete="removeReview" /></div>
       <div v-else-if="isAppealTab && appeals.length" :class="{ refreshing: loading }">
         <article v-for="appeal in appeals" :key="appeal.appealId" class="paper appeal-card"><header class="appeal-head"><div><h2>{{ appeal.productTitle || `评价申诉 #${appeal.reviewId}` }}</h2><small>提交于 {{ formatTime(appeal.appliedAt || appeal.createdAt) }}</small></div><span class="pill status" :class="appeal.status === 'APPROVED' ? 'green' : appeal.status === 'REJECTED' ? 'red' : 'orange'">{{ appeal.statusText || appeal.status }}</span></header><p class="appeal-reason">{{ appeal.reason }}</p><p v-if="appeal.reviewContent" class="appeal-review">原评价：{{ appeal.reviewContent }}</p><p v-if="appeal.handleRemark" class="appeal-result">处理说明：{{ appeal.handleRemark }}</p><div v-if="appeal.evidenceImages?.length" class="appeal-images"><button v-for="(url, index) in appeal.evidenceImages" :key="`${url}:${index}`" type="button" :aria-label="`预览申诉凭证 ${index + 1}`" @click="previewImages = [...(appeal.evidenceImages || [])]; previewIndex = index; previewOpen = true"><img :src="url" :alt="`申诉凭证 ${index + 1}`" @error="setImageFallback" /></button></div></article>
       </div>

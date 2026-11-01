@@ -5,6 +5,8 @@ declare namespace Api.RealReview {
   type ReviewSort = 'NEWEST' | 'MOST_HELPFUL' | 'SCORE_DESC' | 'SCORE_ASC';
 
   interface ReviewDTO {
+    commentCount?: string;
+    commentPreviews?: Comment[];
     reviewId: string | number;
     topic?: ReviewTopic | null;
     helpful?: boolean | null;

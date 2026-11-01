@@ -19,7 +19,11 @@ import { confirmReceipt as confirmReceiptApi, payOrder, withOrderPayment, type O
 import { streamCustomerChat } from '@/service/api/ai';
 import { readEventStream } from './stream';
 import * as aiApi from '@/service/api/ai';
-import { createRenderer } from 'vue';
+import { createRenderer, ref } from 'vue';
+import { fetchCurrentProductCards } from '@/service/api/product-cards';
+import * as productCardsApi from '@/service/api/product-cards';
+import { useAiProductCards } from '@/composables/use-ai-product-cards';
+import { isProductListCard, productCover } from '@/utils/ai-product';
 import { historyMessage, mergeAiMessages, useAiConversations, type AiDisplayMessage } from '@/composables/use-ai-conversations';
 
 function confirmOrderReceipt(id: string | number, userId: string | number) {
@@ -1564,6 +1568,9 @@ describe('AI 客服 POST 流与身份隔离', () => {
   const conversation = 'b5db4ca4d2874cd3bba7d024a31fcd45';
   const start = `event: start\r\ndata: {"request_id":"r1","seq":1,"conversation_id":"${conversation}"}\r\n\r\n`;
   const done = 'event: done\ndata: {"request_id":"r1","seq":4,"status":"completed"}\n\n';
+  const product: Api.Ai.ProductSnapshot = { title: '推荐手机', brief: null, image_ref: { bucket: 'public', file_path: 'not-a-url' },
+    price_label: '100 USDT', price_from: '100', sales_text: null, seller_name: null, after_sale: '以商品页说明为准',
+    action: { type: 'NAVIGATE', target_type: 'commodity', view: 'detail', target_id: '9007199254740993123', params: {} } };
   function setup(token = '') {
     const values = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
@@ -1605,18 +1612,85 @@ describe('AI 客服 POST 流与身份隔离', () => {
     expect(JSON.parse(options.body)).toEqual({ message: '查询商品', conversationId: null });
   });
 
-  it('纯图片消息保留文件 Long ID，question 选项可交付，暂未接入的商品事件不打断后续回答', async () => {
+  it('纯图片消息保留文件 Long ID，商品卡片与空选项追问按到达顺序交付', async () => {
     setup('qa-ai-image');
     const events: Api.Ai.ChatEvent[] = [];
     const text = start
-      + 'event: product_cards\ndata: {"request_id":"r1","seq":2,"unknown_schema":true}\n\n'
-      + 'event: question\ndata: {"request_id":"r1","seq":3,"text":"选择预算","options":["100以下","100以上"]}\n\n' + done;
+      + `event: product_cards\ndata: ${JSON.stringify({ request_id: 'r1', seq: 2, type: 'product_list', items: [product] })}\n\n`
+      + 'event: question\ndata: {"request_id":"r1","seq":3,"text":"选择预算","options":[]}\n\n' + done;
     const fetch = vi.fn().mockResolvedValue(response(text));
     vi.stubGlobal('fetch', fetch);
     await streamCustomerChat({ message:'', imageFileIds:['9007199254740993123'], conversationId:conversation }, new AbortController().signal, event => events.push(event));
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({message:'', imageFileIds:['9007199254740993123']});
-    expect(events.map(event => event.event)).toEqual(['start','question','done']);
-    expect(events[1].data).toMatchObject({text:'选择预算',options:['100以下','100以上']});
+    expect(events.map(event => event.event)).toEqual(['start','product_cards','question','done']);
+    expect(events[1].data).toMatchObject({ type: 'product_list', items: [product] });
+    expect(events[2].data).toMatchObject({text:'选择预算',options:[]});
+  });
+
+  it('历史兼容两种卡片及空结构，跨消息重复推荐保持独立，失败状态保留内容', async () => {
+    setup();
+    const cards: Api.Ai.HistoryCard[] = [{ type: 'product_list', items: [product] }, { tool: 'query', data: { code: 'NO_VISIBLE_RECORD' } }];
+    const row: Api.Ai.Message = { messageId: '1', requestId: 'r1', clientMessageId: null, role: 'ASSISTANT', content: '正文', structuredData: { cards, truncated: null }, status: 'INTERRUPTED', errorCode: null, createdAt: '1', completedAt: null };
+    const rows = [row, { ...row, messageId: '2', structuredData: { cards: null, truncated: true } }];
+    vi.spyOn(realUserRequest, 'postQuery').mockResolvedValue({ conversationId: conversation, rows, hasMore: false, nextCursor: null });
+    const saved = await aiApi.fetchAiMessages({ conversationId: conversation, limit: 20 });
+    expect(historyMessage(saved.rows[0])).toMatchObject({ text: '正文', parts: [{ type: 'products', card: cards[0] }, { type: 'card' }], state: 'INTERRUPTED' });
+    expect(historyMessage(saved.rows[1])).toMatchObject({ truncated: true, parts: [] });
+    expect(mergeAiMessages([historyMessage(row)], [{ ...row, messageId: '3' }]).map(item => item.id)).toEqual(['1', '3']);
+  });
+
+  it('商品动作只允许固定详情协议，不拼接图片引用，也不接受空批或任意跳转', () => {
+    expect(isProductListCard({ type: 'product_list', items: [product] })).toBe(true);
+    expect(isProductListCard({ type: 'product_list', items: [] })).toBe(false);
+    expect(isProductListCard({ type: 'product_list', items: [{ ...product, action: { ...product.action, target_id: 9007199254740993 } }] })).toBe(false);
+    expect(isProductListCard({ type: 'product_list', items: [{ ...product, action: { ...product.action, params: { url: 'https://example.com' } } }] })).toBe(false);
+    expect(productCover('javascript:alert(1)')).toBeUndefined();
+    expect(productCover('public/not-a-url')).toBeUndefined();
+  });
+
+  it('实时商品查询按100个拆批，去重请求并保持Long、金额和库存原文', async () => {
+    const ids = Array.from({ length: 101 }, (_, index) => `9007199254740993${index}`);
+    const post = vi.spyOn(realOrderRequest, 'postQuery').mockImplementation(async (_url, input) => (input as { ids: string[] }).ids.map(id => ({
+      id, available: true, title: '当前商品', hasSku: true, priceFrom: '12345678901234567890.12345678', priceTo: '22345678901234567890.12345678', priceLabel: '区间 USDT', stock: '9007199254740993123'
+    })));
+    const result = await fetchCurrentProductCards([...ids, ids[0]]);
+    expect(post).toHaveBeenCalledTimes(2);
+    expect((post.mock.calls[0][1] as { ids: string[] }).ids).toHaveLength(100);
+    expect(Object.keys(result)).toEqual(ids);
+    expect(result[ids[0]]).toMatchObject({ stock: '9007199254740993123', priceFrom: '12345678901234567890.12345678' });
+    post.mockResolvedValueOnce([{ id: ids[0], available: false }]);
+    expect((await fetchCurrentProductCards([ids[0]]))[ids[0]]).toEqual({ id: ids[0], available: false });
+    post.mockResolvedValueOnce([]);
+    await expect(fetchCurrentProductCards([ids[0]])).rejects.toThrow('商品信息暂时无法加载');
+    post.mockRejectedValueOnce(new Error('offline'));
+    await expect(fetchCurrentProductCards([ids[0]])).rejects.toThrow('offline');
+  });
+
+  it('商品刷新先关闭详情能力，切换会话后旧批次不得写回，查询失败可手动重试', async () => {
+    const id = product.action.target_id;
+    const ids = ref([id]), owner = ref('first');
+    let resolve!: (value: Record<string, Api.Ai.CurrentProduct>) => void;
+    const query = vi.spyOn(productCardsApi, 'fetchCurrentProductCards').mockImplementationOnce(() => new Promise(done => { resolve = done; }))
+      .mockResolvedValueOnce({ [id]: { id, available: false } });
+    let state!: ReturnType<typeof useAiProductCards>;
+    const renderer = createRenderer<object, object>({ createElement: () => ({}), patchProp() {}, insert() {}, remove() {}, setElementText() {}, createText: () => ({}), setText() {}, createComment: () => ({}), parentNode: () => null, nextSibling: () => null });
+    const app = renderer.createApp({ setup() { state = useAiProductCards(() => ids.value, () => owner.value); return () => null; } });
+    app.mount({});
+    try {
+      owner.value = 'second';
+      await vi.waitFor(() => expect(state.products.value[id]).toEqual({ id, available: false }));
+      resolve({ [id]: { id, available: true, title: '过期', hasSku: false, priceFrom: '1', priceTo: '1', priceLabel: '1 USDT', stock: '1' } });
+      await Promise.resolve();
+      expect(state.products.value[id]?.available).toBe(false);
+      query.mockRejectedValueOnce(new Error('offline'));
+      const refresh = state.refresh();
+      expect(state.products.value).toEqual({});
+      await refresh;
+      expect(state.error.value).toBe('商品信息暂时无法加载');
+      query.mockResolvedValueOnce({ [id]: { id, available: false } });
+      await state.refresh();
+      expect(state.error.value).toBe('');
+    } finally { app.unmount(); }
   });
 
   it('图片访问地址按文件合并在途请求，强制刷新续签，切换身份不复用签名', async () => {
