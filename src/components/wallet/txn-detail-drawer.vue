@@ -36,13 +36,15 @@ function copy(text?: string) {
     <template v-if="txn">
       <div class="head">
         <div class="type-badge">{{ typeLabel }}</div>
+        <div class="amount-label">变动金额</div>
         <div class="amount" :class="{ inbound: isIn, outbound: !isIn }">
           <span class="sign">{{ isIn ? '+' : '−' }}</span>
-          <span class="num-unit">{{ currency }}</span>
           <span class="num">{{ formatAmount(txn.amount) }}</span>
+          <span class="num-unit">{{ currency }}</span>
         </div>
+        <div v-if="txn.bucketFrom && txn.bucketTo" class="fund-flow">{{ enums.BUCKET_META[txn.bucketFrom]?.label || '未知账户' }} → {{ enums.BUCKET_META[txn.bucketTo]?.label || '未知账户' }}</div>
         <div class="balance">
-          余额变化后 <span class="yb-mono">{{ currency }} {{ formatAmount(txn.balanceAfter) }}</span>
+          变动后余额 <span class="yb-mono">{{ currency }} {{ formatAmount(txn.balanceAfter) }}</span>
         </div>
       </div>
 
@@ -91,11 +93,16 @@ function copy(text?: string) {
 :global(.transaction-sheet) { width:min(480px,calc(100vw - 32px)); background:var(--yb-paper); padding:28px; }
 
 .head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   padding: 24px 0 28px;
   border-bottom: 1px solid var(--yb-hairline);
   margin-bottom: 20px;
 }
+.amount-label { font-size:12px; color:var(--yb-muted); margin-bottom:4px; }
+.fund-flow { max-width:100%; font-size:12px; color:var(--yb-ink); margin:0 0 8px; overflow-wrap:anywhere; }
 .type-badge {
   display: inline-block;
   padding: 4px 12px;

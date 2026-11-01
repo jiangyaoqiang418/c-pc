@@ -121,6 +121,46 @@ async function sendSticker(label: string) {
   finally { if (operation === uploadVersion) uploading.value = false; }
 }
 const isPhone = useMediaQuery('(max-width:700px)');
+const composerId = useId();
+const resizedHeight = ref<number>();
+const minComposerHeight = computed(() => isPhone.value ? 56 : 52);
+const maxComposerHeight = 160;
+const composerHeight = computed(() => Math.max(minComposerHeight.value, Math.min(maxComposerHeight, resizedHeight.value ?? minComposerHeight.value)));
+let resizeDrag: { pointerId:number; startY:number; startHeight:number; target:HTMLElement } | undefined;
+let suppressResizeClick = false;
+function finishResize(event?: PointerEvent) {
+  if (!resizeDrag || (event && event.pointerId !== resizeDrag.pointerId)) return;
+  const { target, pointerId } = resizeDrag;
+  resizeDrag = undefined;
+  if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+}
+function startResize(event: PointerEvent) {
+  if (event.button !== 0 || !event.isPrimary || resizeDrag) return;
+  const target = event.currentTarget as HTMLElement;
+  suppressResizeClick = false;
+  resizeDrag = { pointerId:event.pointerId, startY:event.clientY, startHeight:composerHeight.value, target };
+  target.setPointerCapture(event.pointerId);
+}
+function moveResize(event: PointerEvent) {
+  if (!resizeDrag || event.pointerId !== resizeDrag.pointerId) return;
+  const delta = resizeDrag.startY - event.clientY;
+  if (!suppressResizeClick && Math.abs(delta) < 3) return;
+  suppressResizeClick = true;
+  resizedHeight.value = Math.max(minComposerHeight.value, Math.min(maxComposerHeight, resizeDrag.startHeight + delta));
+}
+function toggleResize(event: MouseEvent) {
+  if (suppressResizeClick && event.detail !== 0) {
+    suppressResizeClick = false;
+    return;
+  }
+  resizedHeight.value = composerHeight.value > minComposerHeight.value ? minComposerHeight.value : maxComposerHeight;
+}
+function onResizeKeydown(event: KeyboardEvent) {
+  if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  const height = event.key === 'Home' ? minComposerHeight.value : event.key === 'End' ? maxComposerHeight : composerHeight.value + (event.key === 'ArrowUp' ? 16 : -16);
+  resizedHeight.value = Math.max(minComposerHeight.value, Math.min(maxComposerHeight, height));
+}
 const inputDisabled = computed(() => props.disabled || (props.submitting && !isPhone.value));
 const sending = ref(false);
 const uploading = ref(false);
@@ -396,7 +436,7 @@ function cancelMedia() {
   if (mediaRecorder?.state === 'recording') mediaRecorder.stop();
   mediaRecorder = undefined;
 }
-watch(() => props.contextKey, () => { text.value = ''; cancelMedia(); }, { flush: 'sync' });
+watch(() => props.contextKey, () => { text.value = ''; cancelMedia(); finishResize(); }, { flush: 'sync' });
 watch(() => props.disabled, value => { if (value) cancelMedia(); }, { flush: 'sync' });
 
 function stopRecording() {
@@ -404,6 +444,7 @@ function stopRecording() {
 }
 
 onBeforeUnmount(() => {
+  finishResize();
   cancelMedia();
   emit('media-busy', false);
 });
@@ -415,7 +456,8 @@ onBeforeUnmount(() => {
 
   <div class="message-input">
     <div class="chat-compose">
-      <Textarea ref="composer" v-model="text" @select="rememberSelection" @click="rememberSelection" @keyup="rememberSelection" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" :aria-describedby="hintId" @keydown="onKeydown" />
+      <button type="button" class="compose-resize" aria-label="调整输入框高度：向上拖动加高，向下拖动缩小；点击切换高度" title="向上拖动加高，向下拖动缩小；点击切换高度" :aria-controls="composerId" :aria-expanded="composerHeight > minComposerHeight" @pointerdown="startResize" @pointermove="moveResize" @pointerup="finishResize" @pointercancel="finishResize" @lostpointercapture="finishResize" @click="toggleResize" @keydown="onResizeKeydown"><Icon icon="lucide:grip-horizontal" aria-hidden="true" /></button>
+      <Textarea :id="composerId" ref="composer" v-model="text" :style="{ height:composerHeight + 'px' }" @select="rememberSelection" @click="rememberSelection" @keyup="rememberSelection" :placeholder="disabled ? disabledText : placeholder" :disabled="inputDisabled" rows="2" class="textarea" aria-label="聊天消息" :aria-describedby="hintId" @keydown="onKeydown" />
       <div class="compose-toolbar">
         <div class="chat-quick media-toolbar">
       <PopoverRoot v-model:open="emojiOpen">
@@ -484,21 +526,25 @@ onBeforeUnmount(() => {
 :global(.im-emoji-panel button:disabled) { opacity:.5; cursor:not-allowed; }
 .message-input { display:flex; flex-direction:column; gap:6px; flex-shrink:0; min-width:0; margin-top:8px; border-top:1px solid var(--line); padding-top:10px; }
 .media-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:4px; min-width:0; margin:0; }
-.media-toolbar .compose-tool { display:grid; place-items:center; width:42px; height:42px; min-height:42px; max-width:100%; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
-.media-toolbar .compose-tool :deep(svg) { width:23px; height:23px; }
+.media-toolbar .compose-tool { display:grid; place-items:center; width:32px; height:32px; min-height:32px; max-width:100%; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
+.media-toolbar .compose-tool :deep(svg) { width:18px; height:18px; }
 .media-toolbar .compose-tool:hover:not(:disabled) { background:var(--soft); color:var(--green); }
 .media-toolbar .compose-tool.is-active { background:var(--soft); color:var(--green); }
 .media-toolbar .compose-tool:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
 .compose-tool:disabled { opacity:.5; cursor:not-allowed; }
 .file-input { display:none; }
 .voice-trigger { display:inline-flex; min-width:0; max-width:100%; }
-.chat-compose { display:flex; flex-direction:column; align-items:stretch; gap:0; min-width:0; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.chat-compose { position:relative; display:flex; flex-direction:column; align-items:stretch; gap:0; min-width:0; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.compose-resize { position:absolute; top:2px; right:2px; display:grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:ns-resize; touch-action:none; user-select:none; }
+.compose-resize:hover { color:var(--ink); background:var(--yb-primary-soft); }
+.compose-resize:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
+.compose-resize :deep(svg) { width:14px; height:14px; }
 .chat-compose:focus-within { border-color:var(--green); box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent); }
-.chat-compose .textarea { width:100%; min-width:0; height:76px; min-height:76px; max-height:160px; resize:vertical; padding:14px 16px 8px; border:0; border-radius:12px; background:transparent; box-shadow:none; font-size:14px; line-height:1.6; }
+.chat-compose .textarea { width:100%; min-width:0; height:52px; min-height:52px; max-height:160px; resize:none; padding:10px 30px 6px 16px; border:0; border-radius:12px; background:transparent; box-shadow:none; font-size:14px; line-height:1.6; }
 .chat-compose .textarea:focus-visible { outline:0; box-shadow:none; }
-.compose-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 10px 10px; }
-.chat-compose .compose-submit { display:flex; align-items:center; justify-content:center; flex-shrink:0; min-height:42px; padding:9px 16px; gap:8px; border-radius:8px; font-size:13px; line-height:1.6; }
-.compose-submit :deep(svg) { width:18px; height:18px; }
+.compose-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 10px 6px; }
+.message-input .chat-compose .compose-submit { display:flex; align-items:center; align-self:center; justify-content:center; flex-shrink:0; min-height:30px; padding:3px 8px; gap:4px; border-radius:6px; font-size:12px; line-height:20px; }
+.compose-submit :deep(svg) { width:14px; height:14px; }
 .message-input-hint { display:flex; justify-content:space-between; gap:12px; margin:0; color:var(--muted); font-size:10px; line-height:1.5; }
 .message-input-hint > span:last-child { flex-shrink:0; }
 .media-state { display:inline-flex; align-items:center; gap:6px; min-width:0; margin:0 0 0 6px; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
@@ -507,9 +553,9 @@ onBeforeUnmount(() => {
   .message-input { margin-top:6px; padding-top:8px; }
   .media-toolbar { gap:2px; }
   .media-toolbar .compose-tool { width:44px; height:44px; min-height:44px; }
-  .chat-compose .textarea { height:72px; min-height:72px; font-size:13px; padding:12px 12px 6px; }
+  .chat-compose .textarea { height:56px; min-height:56px; font-size:13px; padding:12px 30px 6px 12px; }
   .compose-toolbar { padding:0 6px 6px; gap:6px; }
-  .chat-compose .compose-submit { min-height:44px; padding:9px 12px; gap:6px; font-size:12px; }
+  .message-input .chat-compose .compose-submit { min-height:40px; padding:7px 12px; font-size:12px; }
   .message-input-hint { font-size:9px; }
 }
 </style>

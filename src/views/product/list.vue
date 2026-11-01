@@ -5,6 +5,7 @@ import { FocusScope } from 'reka-ui';
 import { useRoute, useRouter } from 'vue-router';
 import { useUserStore } from '@/stores';
 import AiImage from '@/components/ai/ai-image.vue';
+import EmptyState from '@/components/common/empty-state.vue';
 import { Message } from '@/lib/feedback';
 import * as productApi from '@/service/api/product';
 import * as categoryApi from '@/service/api/category';
@@ -442,7 +443,7 @@ function ignoreVisualFavorite() {}
           <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
           <div v-if="loading && !list.length" class="product-grid feed-grid" aria-hidden="true"><div v-for="index in 8" :key="index" class="product-skeleton"><Skeleton class="aspect-square w-full rounded-[9px]" /><div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div></div></div>
           <div v-else-if="list.length" class="product-grid feed-grid" :class="{ 'is-updating': loading && !appending }"><ProductCard v-for="product in visibleProducts" :key="product.id" :product="product" variant="catalog" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div>
-          <div v-else class="empty"><UmIcon name="search" /><h2>{{ loadError || (imageFileId ? '没有找到相关在售商品' : '暂时没有找到匹配商品') }}</h2><p>{{ loadError ? '请稍后重试。' : imageFileId ? '可以换一张更清晰的商品图片，或调整筛选条件。' : '不妨换一个方向，发现新的喜欢。' }}</p><button type="button" class="primary" @click="loadError ? load() : resetFilters()">{{ loadError ? '重新加载' : '重置筛选' }}</button></div>
+          <EmptyState v-else icon="lucide:search" :title="loadError || (imageFileId ? '没有找到相关在售商品' : '暂时没有找到匹配商品')" :description="loadError ? '请稍后重试。' : imageFileId ? '可以换一张更清晰的商品图片，或调整筛选条件。' : '不妨换一个方向，发现新的喜欢。'" :action-text="loadError ? '重新加载' : '重置筛选'" @action="loadError ? load() : resetFilters()" />
           <div v-if="list.length && !loadError" ref="feedSentinel" class="feed-status"><template v-if="hasMoreFeed || feedError"><span aria-live="polite">已展示 {{ visibleProducts.length }} / {{ total }} 件</span><button type="button" :disabled="loading" @click="loadMoreFeed">{{ feedError ? '重新加载' : loading ? '正在加载…' : '继续浏览' }}<UmIcon name="chevron" /></button></template><span v-else role="status">已展示全部 {{ visibleProducts.length }} 件好物</span></div>
         </section>
       </div>

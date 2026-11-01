@@ -67,12 +67,12 @@ watch([() => route.fullPath, () => categories.value], () => { void nextTick(() =
   const child = selected.getBoundingClientRect();
   if (child.left < box.left || child.right > box.right) row.scrollTo({ left:row.scrollLeft + child.left - box.left - (box.width - child.width) / 2, behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
 }); });
-const footerGroups = [
-  { title: '购物指南', links: [{ label: '注册与登录', to: '/auth/login' }, { label: '全部商品', to: '/product/list' }, { label: '发起求购', to: '/purchase/create' }, { label: 'AI 选购助手', to: '/ai-guide' }] },
-  { title: '支付与配送', links: [{ label: '支付说明', to: '/help' }, { label: '我的钱包', to: '/wallet' }, { label: '订单追踪', to: '/order' }] },
-  { title: '售后服务', links: [{ label: '退换政策', to: '/help' }, { label: '我的售后', to: '/aftersale' }, { label: '联系买手', to: '/im' }] },
-  { title: '关于 Umaomao', links: [{ label: '帮助中心', to: '/help' }, { label: '平台公告', to: '/announcement' }, { label: '买手入驻', to: '/buyer/apply' }] }
-];
+const footerGroups = computed(() => [
+  { title: '购物指南', links: [{ label: user.isLoggedIn ? '个人中心' : '注册与登录', to: user.isLoggedIn ? '/profile' : '/auth/login' }, { label: '全部商品', to: '/product/list' }, { label: '发起求购', to: '/purchase/create' }, { label: 'AI 选购助手', to: '/ai-guide' }] },
+  { title: '支付与配送', links: [{ label: '支付说明', to: '/help?topic=pay' }, { label: '我的钱包', to: '/wallet' }, { label: '我的订单', to: '/order' }] },
+  { title: '售后服务', links: [{ label: '退款流程', to: '/help?topic=return' }, { label: '我的售后', to: '/aftersale' }, { label: '消息中心', to: '/im' }] },
+  { title: '关于 Umaomao', links: [{ label: '帮助中心', to: '/help' }, { label: '平台公告', to: '/announcement' }, { label: user.isLoggedIn && user.currentUser?.isBuyer ? '买手中心' : '买手入驻', to: user.isLoggedIn && user.currentUser?.isBuyer ? '/buyer/dashboard' : '/buyer/apply' }] }
+]);
 function scrollTop() { window.scrollTo({ top:0, behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); }
 watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && target.split('?')[0] === previous.split('?')[0]) return; void nextTick(() => main.value?.focus({ preventScroll:true })); });
 </script>
@@ -139,7 +139,7 @@ watch(() => route.fullPath, (target, previous) => { if (isMessaging.value && tar
 .is-messaging .main-container { width:calc(100% - 32px); max-width:none; margin:0 auto; }
 .is-messaging > .mobile-nav { display:none; }
 .messaging-header { display:flex; align-items:center; gap:24px; min-height:60px; padding:10px 20px; border-bottom:1px solid var(--line); background:var(--paper); flex-shrink:0; }
-.messaging-return { display:flex; align-items:center; gap:6px; min-height:36px; color:var(--muted); font-size:12px; }
+.messaging-return { display:flex; align-items:center; gap:6px; min-height:36px; color:var(--muted); font-size:14px; }
 .messaging-return > svg { width:18px; transform:rotate(180deg); }
 .is-messaging .messaging-header :deep(.logo .brand-art) { width:152px; height:auto; aspect-ratio:6; padding:0; background:transparent; border-radius:0; box-sizing:border-box; line-height:0; }
 .messaging-account-actions { display:flex; align-items:center; gap:12px; margin-left:auto; }

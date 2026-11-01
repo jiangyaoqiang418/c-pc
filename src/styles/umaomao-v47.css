@@ -29,12 +29,12 @@ html.theme-changing * { transition: none !important; }
 :root[data-ui-theme] .buyer-filter > button,
 :root[data-ui-theme] .buyer-filter > .category-picker > .category-trigger { min-height:46px; }
 /* Composite searches own one focus ring around the icon and editable field. */
-:root[data-ui-theme] :is(.buyer-filter > label,.review-search,.search-bar.search-box):focus-within {
+:root[data-ui-theme] :is(.buyer-filter > label,.review-search,.search-bar.search-box,.brand-search > label):focus-within {
   border-color:var(--focus-ring,var(--green));
   outline:2px solid var(--focus-ring,var(--green));
   outline-offset:2px;
 }
-:root[data-ui-theme] :is(.buyer-filter > label,.review-search,.search-bar.search-box) > input:focus {
+:root[data-ui-theme] :is(.buyer-filter > label,.review-search,.search-bar.search-box,.brand-search > label) > input:focus {
   outline:none;
   box-shadow:none;
 }

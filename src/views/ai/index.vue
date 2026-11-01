@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount, useId, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AiImage from '@/components/ai/ai-image.vue';
@@ -23,6 +23,42 @@ const currentCards = useAiProductCards(
   () => [conversationId.value, user.sessionVersion], () => !user.initializing
 );
 const imageInput = ref<HTMLInputElement>();
+const composerId = useId();
+const composerInput = ref<HTMLTextAreaElement>();
+const composerHeight = ref<number>();
+const clampComposerHeight = (height:number) => Math.max(48, Math.min(120, height));
+const currentComposerHeight = () => composerHeight.value ?? composerInput.value?.getBoundingClientRect().height ?? 48;
+let resizeDrag: { pointerId:number; startY:number; startHeight:number; target:HTMLElement } | undefined;
+let suppressResizeClick = false;
+function finishResize(event?: PointerEvent) {
+  if (!resizeDrag || (event && event.pointerId !== resizeDrag.pointerId)) return;
+  const { target, pointerId } = resizeDrag;
+  resizeDrag = undefined;
+  if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+}
+function startResize(event: PointerEvent) {
+  if (event.button !== 0 || !event.isPrimary || resizeDrag) return;
+  const target = event.currentTarget as HTMLElement;
+  suppressResizeClick = false;
+  resizeDrag = { pointerId:event.pointerId, startY:event.clientY, startHeight:clampComposerHeight(currentComposerHeight()), target };
+  target.setPointerCapture(event.pointerId);
+}
+function moveResize(event: PointerEvent) {
+  if (!resizeDrag || event.pointerId !== resizeDrag.pointerId) return;
+  const delta = resizeDrag.startY - event.clientY;
+  if (!suppressResizeClick && Math.abs(delta) < 3) return;
+  suppressResizeClick = true;
+  composerHeight.value = clampComposerHeight(resizeDrag.startHeight + delta);
+}
+function toggleResize(event: MouseEvent) {
+  if (suppressResizeClick && event.detail !== 0) { suppressResizeClick = false; return; }
+  composerHeight.value = currentComposerHeight() > 48 ? 48 : 120;
+}
+function onResizeKeydown(event: KeyboardEvent) {
+  if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+  event.preventDefault();
+  composerHeight.value = clampComposerHeight(event.key === 'Home' ? 48 : event.key === 'End' ? 120 : currentComposerHeight() + (event.key === 'ArrowUp' ? 16 : -16));
+}
 const welcome = ref(''); const welcomeError = ref(''); const uploadError = ref('');
 let uploadVersion = 0; let uploadController = new AbortController();
 async function loadWelcome() { welcomeError.value = ''; try { const data = await fetchAiWelcome(); welcome.value = data.message; } catch { welcomeError.value = '欢迎语加载失败'; } }
@@ -37,8 +73,8 @@ async function selectImages(event: Event) {
   catch(e) { if (operation === uploadVersion) uploadError.value = e instanceof Error ? e.message : '上传失败，请重试'; }
   finally { if (operation === uploadVersion) uploading.value = false; }
 }
-watch([() => user.currentUser?.id, () => user.sessionVersion, conversationId], () => { uploadVersion++; uploadController.abort(); uploadController = new AbortController(); uploading.value = false; uploadError.value = ''; });
-onBeforeUnmount(() => { uploadVersion++; uploadController.abort(); });
+watch([() => user.currentUser?.id, () => user.sessionVersion, conversationId], () => { finishResize(); uploadVersion++; uploadController.abort(); uploadController = new AbortController(); uploading.value = false; uploadError.value = ''; });
+onBeforeUnmount(() => { finishResize(); uploadVersion++; uploadController.abort(); });
 
 function login() { void router.push({ path: '/auth/login', query: { redirect: '/ai-guide' } }); }
 function newConversation() { if (user.isLoggedIn) void changeSession(); else login(); }
@@ -51,7 +87,7 @@ function onKeydown(event: KeyboardEvent) {
 <template>
   <section class="paper chat-panel ai-page" aria-label="AI 客服">
     <div class="section-heading">
-      <div><h2 aria-level="1">好物选购助手</h2><small>{{ user.isLoggedIn ? '选购咨询 · 本人订单与钱包查询' : '选购咨询 · 登录后可查询本人订单与钱包' }}</small></div>
+      <div class="ai-title"><h2 aria-level="1">好物选购助手</h2><small>{{ user.isLoggedIn ? '选购咨询 · 本人订单与钱包查询' : '选购咨询 · 登录后可查询本人订单与钱包' }}</small></div>
       <div class="heading-actions">
         <Tooltip v-if="user.isLoggedIn && conversationId"><TooltipTrigger as-child><button class="history-refresh" type="button" :aria-label="historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新当前会话'" :aria-busy="historyLoading" :disabled="locked || running" @click="loadHistory()"><Icon :icon="historyLoading ? 'lucide:loader-circle' : 'lucide:refresh-cw'" :class="{ 'animate-spin motion-reduce:animate-none': historyLoading }" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新当前会话' }}</TooltipContent></Tooltip>
         <button type="button" class="text-link new-conversation" :disabled="locked || !ready" @click="newConversation"><UmIcon name="plus" />新会话</button>
@@ -113,7 +149,10 @@ function onKeydown(event: KeyboardEvent) {
               <button type="button" class="remove-attachment" :aria-label="`移除第 ${index + 1} 张图片`" title="移除图片" :disabled="locked || running" @click="attachments = attachments.filter(row => row.id !== image.id)"><Icon icon="lucide:x" aria-hidden="true" /></button>
             </div>
           </div>
-          <textarea v-model="input" rows="2" maxlength="2000" aria-label="咨询问题" aria-describedby="ai-compose-hint" :placeholder="user.isLoggedIn ? '输入问题，也可以添加图片咨询…' : '输入你的问题…'" @keydown="onKeydown" />
+          <div class="compose-editor">
+            <button type="button" class="compose-resize" aria-label="调整输入框高度：向上拖动加高，向下拖动缩小；点击切换高度" title="向上拖动加高，向下拖动缩小；点击切换高度" :aria-controls="composerId" @pointerdown="startResize" @pointermove="moveResize" @pointerup="finishResize" @pointercancel="finishResize" @lostpointercapture="finishResize" @click="toggleResize" @keydown="onResizeKeydown"><Icon icon="lucide:grip-horizontal" aria-hidden="true" /></button>
+            <textarea :id="composerId" ref="composerInput" v-model="input" :class="{ 'is-resized': composerHeight !== undefined }" :style="composerHeight === undefined ? undefined : { height:composerHeight + 'px' }" rows="1" maxlength="2000" aria-label="咨询问题" aria-describedby="ai-compose-hint" :placeholder="user.isLoggedIn ? '输入问题，也可以添加图片咨询…' : '输入你的问题…'" @keydown="onKeydown" />
+          </div>
           <div class="compose-toolbar">
             <div class="compose-tools">
               <input ref="imageInput" type="file" hidden accept=".jpg,.jpeg,.png,.webp" multiple @change="selectImages" />
@@ -136,11 +175,13 @@ function onKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .ai-attachments { display:flex; gap:12px; flex-wrap:wrap; margin:10px 0; }
-.ai-page.chat-panel { display:flex; flex-direction:column; flex:1; width:100%; max-width:none; min-width:0; min-height:0; margin:0; padding:20px 22px; overflow:hidden; }
-.ai-page .section-heading { flex-shrink:0; gap:12px; padding-bottom:12px; }
+.ai-page.chat-panel { display:flex; flex-direction:column; flex:1; width:100%; max-width:none; min-width:0; min-height:0; margin:0; padding:12px 16px 10px; overflow:hidden; }
+.ai-page .section-heading { flex-shrink:0; gap:12px; min-height:32px; margin:0 0 10px; padding:0 0 8px; }
 .section-heading > div { min-width:0; }
+.ai-title { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; }
+.ai-page .ai-title h2 { margin:0; font-size:18px; line-height:1.35; }
 .heading-actions { display:flex; align-items:center; gap:12px; flex-shrink:0; }
-.section-heading small { display:block; line-height:1.55; }
+.ai-page .section-heading small { display:block; font-size:11px; line-height:1.4; }
 .new-conversation { display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap; font-size:12px; }
 .new-conversation svg { width:15px; height:15px; }
 .conversation-notice { color:var(--muted); font-size:12px; margin:0 0 8px; }
@@ -163,41 +204,49 @@ function onKeydown(event: KeyboardEvent) {
 .user .ai-message-text { background:var(--green); color:var(--paper); border-color:var(--green); }
 .message-progress,.message-error { font-size:12px; color:var(--muted); margin:0; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere; }
 .message-error:not(.stopped) { color:var(--danger,#b54737); }
-.ai-compose { display:flex; flex-direction:column; align-items:stretch; flex-shrink:0; gap:0; margin-top:12px; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.ai-compose { display:flex; flex-direction:column; align-items:stretch; flex-shrink:0; gap:0; margin-top:6px; padding:4px 6px; border:1px solid var(--yb-control-border,var(--line)); border-radius:10px; background:var(--paper); }
 .ai-compose:focus-within { border-color:var(--green); box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent); }
-.ai-compose textarea { width:100%; min-width:0; resize:vertical; min-height:76px; max-height:160px; padding:14px 16px 8px; border:0; border-radius:12px; background:transparent; color:inherit; font:inherit; font-size:14px; line-height:1.6; box-shadow:none; }
+.compose-editor { position:relative; min-width:0; }
+.ai-compose .compose-resize { position:absolute; top:0; right:0; display:grid; place-items:center; width:24px; height:24px; min-height:24px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--muted); cursor:ns-resize; touch-action:none; user-select:none; }
+.compose-resize:hover { color:var(--ink); background:var(--yb-primary-soft); }
+.compose-resize:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
+.compose-resize svg { width:14px; height:14px; }
+.ai-compose textarea { display:block; width:100%; min-width:0; resize:none; field-sizing:content; min-height:48px; max-height:120px; padding:12px 28px 12px 10px; border:0; border-radius:8px; background:transparent; color:inherit; font:inherit; font-size:14px; line-height:1.6; box-shadow:none; }
+.ai-compose textarea.is-resized { field-sizing:fixed; }
 .ai-compose textarea:focus-visible { outline:0; box-shadow:none; }
-.compose-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 10px 10px; }
+.compose-toolbar { display:flex; align-items:center; align-self:stretch; justify-content:space-between; gap:8px; min-height:40px; padding:0 4px 4px; }
 .compose-tools { display:flex; align-items:center; gap:8px; min-width:0; }
-.ai-compose button { flex-shrink:0; min-height:42px; white-space:nowrap; }
-.ai-compose .compose-image-button { display:grid; place-items:center; width:42px; height:42px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
-.compose-image-button svg { width:23px; height:23px; }
+.ai-compose button { flex-shrink:0; min-height:36px; white-space:nowrap; }
+.ai-compose .compose-image-button { display:grid; place-items:center; width:36px; height:36px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
+.compose-image-button svg { width:20px; height:20px; }
 .ai-compose .compose-image-button:hover:not(:disabled) { background:var(--soft); color:var(--green); }
 .compose-image-button:focus-visible,.remove-attachment:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
 .image-counter { font-size:12px; color:var(--muted); }
-.ai-compose .compose-submit { display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 16px; border-radius:8px; font-size:13px; }
-.compose-submit svg { width:18px; height:18px; }
-.composer-attachments { display:flex; flex-wrap:wrap; gap:14px; padding:14px 16px 0; }
+.ai-page .ai-compose .compose-submit { display:flex; align-items:center; align-self:center; justify-content:center; gap:4px; min-height:30px; padding:3px 8px; border-radius:6px; font-size:12px; line-height:20px; }
+.compose-submit svg { width:14px; height:14px; }
+.composer-attachments { display:flex; flex-wrap:wrap; gap:12px; padding:6px 8px 0; }
 .composer-attachment { position:relative; max-width:180px; }
 .composer-attachment :deep(.ai-image img) { max-width:72px; max-height:72px; }
 .ai-compose .remove-attachment { position:absolute; z-index:2; top:-6px; right:-6px; display:grid; place-items:center; width:24px; height:24px; min-height:24px; padding:0; border:2px solid var(--paper); border-radius:50%; background:var(--ink); color:var(--paper); box-shadow:0 2px 6px #0004; }
 .ai-compose .remove-attachment:hover:not(:disabled) { background:var(--green); color:var(--on-primary); }
 .remove-attachment svg { width:14px; height:14px; stroke-width:2.5; }
-.compose-hint { display:flex; justify-content:space-between; flex-shrink:0; gap:12px; color:var(--muted); font-size:10px; margin-top:6px; line-height:1.5; }
+.compose-hint { display:flex; justify-content:space-between; flex-shrink:0; gap:12px; color:var(--muted); font-size:10px; margin-top:3px; line-height:1.3; }
 .compose-hint > span:last-child { flex-shrink:0; }
 @media(max-width:640px) {
   .new-conversation { font-size:11px; }
-  .ai-page.chat-panel { padding:14px 12px; }
-  .ai-page .section-heading { padding-bottom:10px; }
+  .ai-page.chat-panel { padding:10px; }
+  .ai-page .section-heading { margin-bottom:8px; padding-bottom:6px; }
+  .ai-title { display:block; }
+  .ai-page .ai-title h2 { font-size:16px; }
   .ai-page .chat-messages { gap:12px; padding:12px 0 16px; }
   .ai-message { gap:8px; }
   .ai-message-avatar { width:28px; height:28px; }
   .ai-message-avatar svg { width:15px; height:15px; }
   .ai-message-content { max-width:calc(100% - 36px); }
   .ai-message-text { padding:10px 12px; font-size:12px; }
-  .ai-compose textarea { min-height:72px; font-size:13px; padding:12px 12px 6px; }
-  .ai-compose .compose-image-button { width:44px; height:44px; }
-  .ai-compose .compose-submit { min-height:44px; padding:9px 14px; font-size:12px; }
+  .ai-compose textarea { min-height:48px; font-size:13px; padding:12px 28px 12px 10px; }
+  .ai-compose .compose-image-button { width:40px; height:40px; }
+  .ai-page .ai-compose .compose-submit { min-height:40px; padding:7px 12px; font-size:12px; }
   .message-progress,.message-error,.conversation-notice { font-size:11px; }
   .compose-hint { font-size:9px; }
 }

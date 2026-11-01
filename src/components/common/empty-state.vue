@@ -26,9 +26,23 @@ const sourceIcon = computed(() => {
 
 <template>
   <div class="empty empty-state">
-    <UmIcon :name="sourceIcon" />
+    <span class="empty-state-icon" aria-hidden="true"><UmIcon :name="sourceIcon" /></span>
     <h2>{{ title }}</h2>
     <p v-if="description">{{ description }}</p>
     <button v-if="actionText" type="button" class="primary" @click="$emit('action')">{{ actionText }}</button>
   </div>
 </template>
+
+<style scoped>
+.empty-state-icon {
+  display:grid;
+  place-items:center;
+  width:72px;
+  height:72px;
+  margin:0 auto 20px;
+  border-radius:12px;
+  background:var(--soft);
+  color:var(--green);
+}
+.empty-state-icon :deep(svg) { width:40px; height:40px; stroke-width:1.7; }
+</style>

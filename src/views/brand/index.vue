@@ -139,7 +139,7 @@ onBeforeUnmount(() => { brandGuard.invalidate(); productGuard.invalidate(); });
 .brand-discovery-head .eyebrow { font-size:10px; }
 .brand-search { display:flex; align-items:center; gap:10px; width:min(100%,440px); }
 .brand-search label { display:flex; align-items:center; gap:10px; min-width:0; flex:1; height:44px; padding:0 14px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--muted); }
-.brand-search label:focus-within { border-color:var(--green); box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 14%,transparent); }
+.brand-search label:focus-within { border-color:var(--green); box-shadow:none; }
 .brand-search label > svg { width:17px; height:17px; flex-shrink:0; }
 .brand-search input { min-width:0; width:100%; border:0; padding:0; background:transparent; color:var(--ink); outline:0; }
 .brand-search button { min-height:44px; flex-shrink:0; }

@@ -659,27 +659,22 @@ describe('v47前端本地边界', () => {
     } finally { clearPrerequisiteDrafts(); clearAccessToken(); }
   });
 
-  it('配色参考展开状态同步原生toggle，重开面板恢复折叠', async () => {
+  it('配色面板重开后恢复全部分类', async () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
     const { app, state } = mountSubject<{
-      open:boolean; sourcesOpen:boolean; syncSources:(event: Event) => void;
+      open:boolean; family:string;
     }>(ThemePicker, {}, undefined, app => {
       app.provide(routeLocationKey, { fullPath:'/' } as RouteLocationNormalizedLoaded);
     });
     try {
-      expect(state.sourcesOpen).toBe(false);
       state.open = true;
       await nextTick();
-      state.syncSources({ currentTarget:{ open:true } } as unknown as Event);
-      expect(state.sourcesOpen).toBe(true);
-      state.syncSources({ currentTarget:{ open:false } } as unknown as Event);
-      expect(state.sourcesOpen).toBe(false);
-      state.syncSources({ currentTarget:{ open:true } } as unknown as Event);
+      state.family = '自然';
       state.open = false;
       await nextTick();
       state.open = true;
       await nextTick();
-      expect(state.sourcesOpen).toBe(false);
+      expect(state.family).toBe('全部');
     } finally { app.unmount(); }
   });
 
@@ -710,6 +705,69 @@ describe('v47前端本地边界', () => {
       expect(reviews.state.shortText({ content:'a'.repeat(83) + '😀x' } as Api.RealReview.ReviewDTO)).toBe('a'.repeat(83) + '😀…');
       expect(reviews.state.shortText({ content:'a'.repeat(86) } as Api.RealReview.ReviewDTO)).toBe('a'.repeat(85) + '…');
     } finally { detail.app.unmount(); reviews.app.unmount(); }
+  });
+
+  it('聊天输入框右上拖柄上拖加高、下拖缩小并限制高度，切换会话释放捕获', async () => {
+    const captured = new Set<number>();
+    const target = {
+      setPointerCapture:vi.fn((id:number) => captured.add(id)),
+      hasPointerCapture:(id:number) => captured.has(id),
+      releasePointerCapture:vi.fn((id:number) => captured.delete(id))
+    };
+    const pointer = (clientY:number, pointerId = 1) => ({ button:0, isPrimary:true, pointerId, clientY, currentTarget:target } as unknown as PointerEvent);
+    const { app, state, properties } = mountSubject<{
+      composerHeight:number; startResize:(event:PointerEvent) => void; moveResize:(event:PointerEvent) => void;
+      finishResize:(event?:PointerEvent) => void; toggleResize:(event:MouseEvent) => void;
+    }>(MessageInput, { contextKey:'first' }, 1440);
+    try {
+      expect(state.composerHeight).toBe(52);
+      state.startResize(pointer(400));
+      state.moveResize(pointer(360, 2));
+      expect(state.composerHeight).toBe(52);
+      state.moveResize(pointer(360));
+      expect(state.composerHeight).toBe(92);
+      state.moveResize(pointer(100));
+      expect(state.composerHeight).toBe(160);
+      state.finishResize(pointer(100));
+      state.toggleResize({ detail:1 } as MouseEvent);
+      expect(state.composerHeight).toBe(160);
+      state.startResize(pointer(400));
+      state.moveResize(pointer(600));
+      expect(state.composerHeight).toBe(52);
+      properties.contextKey = 'second';
+      await nextTick();
+      expect(target.releasePointerCapture).toHaveBeenCalledTimes(2);
+      state.moveResize(pointer(100));
+      expect(state.composerHeight).toBe(52);
+      state.startResize(pointer(400));
+    } finally { app.unmount(); }
+    expect(captured.size).toBe(0);
+  });
+
+  it('聊天输入框支持点击切换高度及键盘调整，手机保留适用最小高度', () => {
+    const { app, state } = mountSubject<{
+      composerHeight:number; toggleResize:(event:MouseEvent) => void; onResizeKeydown:(event:KeyboardEvent) => void;
+    }>(MessageInput, {}, 375);
+    const preventDefault = vi.fn();
+    const key = (key:string) => state.onResizeKeydown({ key, preventDefault } as unknown as KeyboardEvent);
+    try {
+      expect(state.composerHeight).toBe(56);
+      state.toggleResize({ detail:0 } as MouseEvent);
+      expect(state.composerHeight).toBe(160);
+      key('ArrowDown');
+      expect(state.composerHeight).toBe(144);
+      key('ArrowUp');
+      expect(state.composerHeight).toBe(160);
+      key('Home');
+      expect(state.composerHeight).toBe(56);
+      key('ArrowDown');
+      expect(state.composerHeight).toBe(56);
+      key('End');
+      expect(state.composerHeight).toBe(160);
+      state.toggleResize({ detail:1 } as MouseEvent);
+      expect(state.composerHeight).toBe(56);
+      expect(preventDefault).toHaveBeenCalledTimes(5);
+    } finally { app.unmount(); }
   });
 
   it('手机发送等待保留输入框和下一条草稿，PC与会话禁用保持原规则', async () => {
