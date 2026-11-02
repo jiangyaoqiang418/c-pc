@@ -53,8 +53,16 @@ export function fetchOrderConversation(orderId: string | number, options: { sign
   });
 }
 
-export function fetchSupportConversation() {
-  return realNotifyRequest.post<Api.RealNotify.ImConversationVO>('/im/conversations/support', undefined, notifyRequestOptions);
+export async function fetchSupportConversation() {
+  const route = await realNotifyRequest.post<Api.RealNotify.ImConversationVO>('/im/conversations/support', undefined, notifyRequestOptions);
+  const version: unknown = route.routingVersion;
+  // 安全小整数仅在 API 边界无损转成版本字符串；Long 原文由请求层保留。
+  if (typeof version === 'number' && Number.isSafeInteger(version) && version >= 0) return { ...route, routingVersion:String(version) };
+  return route;
+}
+
+export async function applyHumanSupport(conversationId: string) {
+  await realNotifyRequest.post('/im/conversations/intervene', { conversationId, reason: '用户要求转人工' }, { ...notifyRequestOptions, showError: false, numericSuccessOnly: true });
 }
 
 /** 咨询无需先下单，同一顾客与买手由服务端复用三方群。 */

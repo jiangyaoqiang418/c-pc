@@ -17,6 +17,8 @@ import { useReviewStore } from '@/stores/review';
 import * as reviewApi from '@/service/api/review';
 import { confirmReceipt as confirmReceiptApi, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
 import { streamCustomerChat } from '@/service/api/ai';
+import { createHumanSupportHandler } from '@/utils/human-support';
+import { supportHistoryMessage } from '@/composables/use-support-chat';
 import { readEventStream } from './stream';
 import * as aiApi from '@/service/api/ai';
 import { createRenderer, ref } from 'vue';
@@ -1769,7 +1771,7 @@ describe('AI 客服 POST 流与身份隔离', () => {
   it.each([
     ['缺少终态', start + 'event: delta\ndata: {"request_id":"r1","seq":2,"text":"仅有部分内容"}\n\n', 'STREAM_INTERRUPTED'],
     ['跨请求串流', start + 'event: delta\ndata: {"request_id":"other","seq":2,"text":"不能展示"}\n\n', 'INVALID_STREAM'],
-    ['seq 重复', start + 'event: delta\ndata: {"request_id":"r1","seq":1,"text":"不能展示"}\n\n', 'INVALID_STREAM'],
+    ['重复事件后无终态', start + 'event: delta\ndata: {"request_id":"r1","seq":1,"text":"不能展示"}\n\n', 'STREAM_INTERRUPTED'],
     ['未 start 就输出', 'event: delta\ndata: {"request_id":"r1","seq":2,"text":"不能展示"}\n\n', 'INVALID_STREAM'],
     ['无效 JSON', start + 'event: delta\ndata: {broken}\n\n', 'INVALID_STREAM'],
     ['非完成 done', start + 'event: done\ndata: {"request_id":"r1","seq":2,"status":"pending"}\n\n', 'INVALID_STREAM']
@@ -1853,6 +1855,7 @@ describe('AI 持久化会话与历史恢复', () => {
       structuredData: null, status, errorCode: null, createdAt: '1793074839421', completedAt: null };
   }
   function setup(loggedIn = true) {
+    vi.spyOn(notifyApi, 'fetchSupportConversation').mockResolvedValue({ id:'9001', type:'SUPPORT', routingVersion:'0', interveneStatus:'NONE' });
     const values = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
@@ -1949,6 +1952,7 @@ describe('AI 持久化会话与历史恢复', () => {
     await vi.waitFor(() => expect(state.ready.value).toBe(true));
     state.input.value = '首个问题';
     const sending = state.send();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     expect(state.running.value).toBe(true);
     expect(state.busy.value).toBe(true);
     await state.send();
@@ -1978,6 +1982,7 @@ describe('AI 持久化会话与历史恢复', () => {
     await vi.waitFor(() => expect(state.ready.value).toBe(true));
     state.input.value = '不能丢的问题';
     const sending = state.send();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     state.stop();
     finishCreate({ conversationId: second, current: true });
     await sending;
@@ -1995,12 +2000,13 @@ describe('AI 持久化会话与历史恢复', () => {
     const user = setup();
     vi.spyOn(aiApi, 'fetchAiSessions').mockResolvedValue({ rows: [], hasMore: false, nextCursor: null });
     let finishCreate!: (state: Api.Ai.SessionState) => void;
-    vi.spyOn(aiApi, 'createAiSession').mockImplementation(() => new Promise(resolve => { finishCreate = resolve; }));
+    const create = vi.spyOn(aiApi, 'createAiSession').mockImplementation(() => new Promise(resolve => { finishCreate = resolve; }));
     const stream = vi.spyOn(aiApi, 'streamCustomerChat').mockResolvedValue();
     const state = mount();
     await vi.waitFor(() => expect(state.ready.value).toBe(true));
     state.input.value = '旧账号问题';
     const sending = state.send();
+    await vi.waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     setAccessToken('accepted-user-b');
     user.currentUser = { id: '2093370220769533955' } as Api.RealSession.UserRecord;
     finishCreate({ conversationId: second, current: true });
@@ -2145,5 +2151,50 @@ describe('售后处理方式的幂等快照', () => {
     await expect(submitRefundIntent('u', params, { submit, lookup })).rejects.toThrow();
     await expect(submitRefundIntent('u', params, { submit, lookup }, true)).rejects.toThrow('不一致');
     expect(submit).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('11-02 客服追问与人工动作', () => {
+  const sync = { im_conversation_id:'9007199254740993123', routing_version:'0', user_client_msg_id:'user-stable', ai_client_msg_id:'ai-stable' };
+  const context = { requestId:'r-new', sync, owner:'customer', active:() => true };
+  const action = { request_id:'r-new', seq:2, type:'REQUEST_HUMAN_SUPPORT', action_id:'human_123' };
+  function storage() { const data = new Map<string,string>(); vi.stubGlobal('sessionStorage', { getItem:(key:string) => data.get(key) ?? null, setItem:(key:string,value:string) => data.set(key,value) }); }
+  it('同一轮重放 action 只分发一次，下一轮序号重新开始', () => {
+    const listener = vi.fn(); const receive = aiApi.createChatEventReceiver(listener);
+    const frame = (event:string,data:unknown) => ({event,data:JSON.stringify(data)});
+    receive(frame('start',{request_id:'r-new',seq:1,conversation_id:'a'.repeat(32),im_sync:sync}));
+    receive(frame('action', action)); receive(frame('action', action));
+    receive(frame('done',{request_id:'r-new',seq:3,status:'completed'}));
+    expect(listener.mock.calls.map(call => call[0].event)).toEqual(['start','action','done']);
+    const another = aiApi.createChatEventReceiver(listener);
+    expect(() => another(frame('start',{request_id:'another',seq:1,conversation_id:'b'.repeat(32)}))).not.toThrow();
+  });
+  it('历史问题 in_content 只恢复按钮，不再把问题追加进正文', () => {
+    const row = historyMessage({messageId:'1',requestId:'r',clientMessageId:null,role:'ASSISTANT',content:'需要哪种颜色？',structuredData:{question:{text:'需要哪种颜色？',options:['蓝色'],placement:'in_content'}},status:'COMPLETED',errorCode:null,createdAt:null,completedAt:null});
+    expect(row.text).toBe('需要哪种颜色？'); expect(row.parts).toEqual([]); expect(row.questions).toEqual(['蓝色']);
+  });
+  it('AI_REPLY 从 IM 结构恢复追问，普通人工消息保留原消息', () => {
+    const row = supportHistoryMessage({id:'2002',conversationId:sync.im_conversation_id,eventType:'AI_REPLY',senderRole:'ADMIN',content:'推荐正文',params:{structuredData:{question:{text:'继续了解？',options:[],placement:'after_cards'}}}});
+    expect(row.text).toBe('推荐正文'); expect(row.question?.options).toEqual([]); expect(row.rawIm).toBeUndefined();
+    expect(supportHistoryMessage({id:'2003',conversationId:sync.im_conversation_id,senderRole:'ADMIN',content:'人工回复'}).rawIm?.content).toBe('人工回复');
+  });
+  it('重复动作和已申请状态不重复调用申请接口', async () => {
+    storage(); vi.spyOn(notifyApi,'fetchSupportConversation').mockResolvedValue({id:sync.im_conversation_id,routingVersion:'0',interveneStatus:'REQUESTED'});
+    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockResolvedValue(); const notices = vi.fn(); const handle = createHumanSupportHandler(notices);
+    await handle(action,context); await handle(action,context);
+    expect(apply).not.toHaveBeenCalled(); expect(notices).toHaveBeenCalledOnce();
+  });
+  it('动作版本已过期时不改成新版本继续申请', async () => {
+    storage(); vi.spyOn(notifyApi,'fetchSupportConversation').mockResolvedValue({id:sync.im_conversation_id,routingVersion:'1',interveneStatus:'NONE'});
+    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockResolvedValue();
+    await createHumanSupportHandler(vi.fn())(action,context); expect(apply).not.toHaveBeenCalled();
+  });
+  it('申请响应丢失后不循环申请，手动重试先读取状态', async () => {
+    storage(); const get = vi.spyOn(notifyApi,'fetchSupportConversation').mockResolvedValue({id:sync.im_conversation_id,routingVersion:'0',interveneStatus:'NONE'});
+    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockRejectedValue(new Error('timeout')); const handle = createHumanSupportHandler(vi.fn());
+    await handle(action,context); await handle(action,context); expect(apply).toHaveBeenCalledTimes(1);
+    get.mockResolvedValue({id:sync.im_conversation_id,routingVersion:'0',interveneStatus:'REQUESTED'});
+    await handle(action,context,true); expect(apply).toHaveBeenCalledTimes(1); expect(get).toHaveBeenCalledTimes(2);
   });
 });

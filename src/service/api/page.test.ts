@@ -443,12 +443,13 @@ describe('v47前端本地边界', () => {
     await productApi.createProduct({ title:'多分类商品', categoryId:categoryIds[0], categoryIds,
       price:'1', shippingFee:'0', tax:'0', stock:0, aftersaleType:'none', overseasCustoms:false,
       summary:'', description:'详情', images:[] });
+    expect(post.mock.calls[0][1]).not.toHaveProperty('brief');
     expect(post.mock.calls[0][0]).toBe('/products/create');
     expect(post.mock.calls[0][1]).toMatchObject({ categoryId:categoryIds[0], categoryIds });
     const put = vi.spyOn(realOrderRequest, 'put').mockResolvedValue('2107332840677527555');
     await productApi.updateProduct({ id:'2107332840677527555', title:'多分类商品', categoryId:categoryIds[0], categoryIds,
       price:'1', shippingFee:'0', taxFee:'0', stock:0, afterSaleType:'NONE', overseasClearance:false,
-      brief:'', description:'详情', images:[] });
+      description:'详情', images:[] });
     expect(put.mock.calls[0][0]).toBe('/products/update');
     expect(put.mock.calls[0][1]).toMatchObject({ categoryId:categoryIds[0], categoryIds });
   });
@@ -461,7 +462,7 @@ describe('v47前端本地边界', () => {
     expect(conversationReturnPath('/im?conversationId=9007199254740993')).toBe('/im?conversationId=9007199254740993');
     for (const path of ['//example.com', 'https://example.com', '/im/order-group/1', '/buyer\\evil', '/buyer\n/orders', ['/order']]) expect(conversationReturnPath(path)).toBeUndefined();
   });
-  it('创建商品清空简介后保持为空，不用长标题覆盖而触发简介超限', async () => {
+  it('创建商品不再提交简介，也不从标题生成简介', async () => {
     vi.stubGlobal('localStorage', { getItem:() => null });
     const pinia = createPinia(); setActivePinia(pinia);
     const user = useUserStore(); user.currentUser = { id:'seller', isBuyer:true } as Api.RealSession.UserRecord; user.currentAudience = 'buyer';
@@ -476,7 +477,7 @@ describe('v47前端本地边界', () => {
       await fixture.state.onSubmit({ title:'很长的商品标题'.repeat(8), summary:'', categoryId:'category', categoryIds:['category'], parameters:[], specGroups:[], skus:[], price:'1', shippingFee:'0', tax:'0', stock:1, aftersaleType:'none', overseasCustoms:false, description:'详情', images:[] });
       await confirm.mock.calls[0][0].onOk?.();
       expect(create).toHaveBeenCalledOnce();
-      expect(create.mock.calls[0][0].summary).toBe('');
+      expect(create.mock.calls[0][0]).not.toHaveProperty('summary');
     } finally { fixture.app.unmount(); confirmations.splice(0); }
   });
   it('发货小时选择提交整点时间，清空日期同步清空值', async () => {
@@ -2335,5 +2336,14 @@ describe('售后未知操作结果保护', () => {
     expect(refundOperationUncertain(key, { ...refund, status:'APPLYING' }, 'seller')).toBe(true);
     expect(refundOperationUncertain('other-session', refund, 'seller')).toBe(false);
     expect(refundOperationUncertain(key, { ...refund, status:'PAYING', refundType:'COMPENSATION' }, 'seller')).toBe(false);
+  });
+});
+
+
+describe('三级分类关联规则', () => {
+  it('四级数据不会进入可选目录，三级和上级均可选', () => {
+    const options = createCategoryOptions([{id:'1',level:1,enabled:true,name:'一级',children:[{id:'2',parentId:'1',level:2,enabled:true,name:'二级',children:[{id:'3',parentId:'2',level:3,enabled:true,name:'三级',children:[{id:'4',parentId:'3',level:4,enabled:true,name:'四级'}]}]}]}]);
+    expect(isSelectableCategory(options,'1')).toBe(true); expect(isSelectableCategory(options,'3')).toBe(true); expect(isSelectableCategory(options,'4')).toBe(false);
+    expect(categoryApi.includeCategoryParents(options,['3'])).toEqual(['3','1','2']);
   });
 });

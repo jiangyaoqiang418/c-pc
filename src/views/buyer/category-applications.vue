@@ -51,7 +51,7 @@ let modalVersion = 0;
 watch(modalOpen, () => { modalVersion += 1; }, { flush: 'sync' });
 
 function mapCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[]): CategoryOption[] {
-  return nodes.filter(node => node.enabled === true && node.level < 5).map(node => ({
+  return nodes.filter(node => node.enabled === true && node.level < 3).map(node => ({
     value: node.id,
     label: node.name,
     children: node.children?.length ? mapCategoryOptions(node.children) : undefined
@@ -132,6 +132,9 @@ async function submit() {
   if (!form.reason.trim()) {
     Message.warning('请输入申请理由');
     return;
+  }
+  if (form.parentId && !categoryApi.isSelectableCategory(categoryOptions.value, form.parentId)) {
+    Message.warning('请选择一级或二级父分类'); return;
   }
   const requestedUserId = userStore.currentUser?.id;
   if (requestedUserId === undefined) return;

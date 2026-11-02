@@ -70,7 +70,6 @@ async function onSubmit(form: {
   stock: number;
   aftersaleType: Api.Product.AftersaleType;
   overseasCustoms: boolean;
-  summary: string;
   description: string;
   images: Api.RealProduct.ProductImageParam[];
   specGroups: Api.RealProduct.ProductSpecGroup[];
@@ -136,17 +135,16 @@ async function onSubmit(form: {
             if (!isCurrentWrite()) return;
             if (!brand.enabled) { Message.warning('品牌已停用，请重新选择'); return; }
           }
-          const productId = editProduct ? await productApi.updateProduct({
+          await (editProduct ? productApi.updateProduct({
             id: editProduct.id, title: form.title.trim(), categoryId, categoryIds:form.categoryIds, parameters:form.parameters, brandId:form.brandId,
             price: form.price, shippingFee: form.shippingFee, taxFee: form.tax,
             stock: form.stock,
             specGroups: form.specGroups, skus: form.skus,
             afterSaleType: ({ 'none': 'NONE', '7day-no-reason': 'SEVEN_DAY_NO_REASON', 'shop-warranty': 'SHOP_WARRANTY', 'national-warranty': 'NATIONAL_WARRANTY' } as const)[form.aftersaleType],
-            overseasClearance: form.overseasCustoms, brief: form.summary.trim(),
+            overseasClearance: form.overseasCustoms,
             description: form.description, images: form.images
-          }) : await productApi.createProduct({
+          }) : productApi.createProduct({
             title: form.title.trim(),
-            summary: form.summary.trim(),
             description: form.description.trim() || '—',
             categoryId, categoryIds:form.categoryIds, parameters:form.parameters,
             brandId:form.brandId,
@@ -158,10 +156,10 @@ async function onSubmit(form: {
             aftersaleType: form.aftersaleType,
             overseasCustoms: form.overseasCustoms,
             images: form.images
-          });
+          }));
           if (!isCurrentWrite()) return;
           formRef.value?.markSubmitted();
-          Message.success(`商品已提交审核（ID：${productId}）`);
+          Message.success('商品已提交审核');
           router.push('/buyer/products');
         } catch (error) {
           if (isCurrentWrite() && error instanceof Error && !('code' in error)) Message.warning(error.message);

@@ -22,4 +22,16 @@ declare namespace Api.RealBrand {
     current: number;
     size: number;
   }
+
+  type ApplyStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+  interface Application {
+    id: Id;
+    newName: string;
+    reason: string;
+    status: ApplyStatus;
+    reviewComment?: string;
+    createdBrandId?: Id | null;
+    createdAt?: string;
+    reviewedAt?: string;
+  }
 }

@@ -133,7 +133,7 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     shippingFee: readProductFee(dto.shippingFee),
     tax: readProductFee(dto.taxFee),
     images: (dto.images || []).map((url, sort) => ({ url, name: `图${sort + 1}`, type: 'image', sort })),
-    summary: dto.brief || '',
+    summary: '',
     description: dto.description || '',
     aftersaleType: toAfterSaleType(dto.afterSaleType),
     rawAfterSaleType: dto.afterSaleType,
@@ -453,7 +453,7 @@ export async function createProduct(p: {
   stock: number;
   aftersaleType: Api.Product.AftersaleType;
   overseasCustoms: boolean;
-  summary: string;
+  summary?: string;
   description: string;
   images: Api.RealProduct.ProductImageParam[];
   specGroups?: Api.RealProduct.ProductSpecGroup[];
@@ -483,7 +483,6 @@ export async function createProduct(p: {
     skus:skuWrite.skus,
     afterSaleType: fromAfterSaleType(p.aftersaleType),
     overseasClearance: p.overseasCustoms,
-    brief: p.summary,
     description: p.description,
     images: p.images
   });

@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue';
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Message } from '@/lib/feedback';
 
 interface CategoryOption {
   value: string | number;
@@ -96,8 +97,13 @@ function expand(node: CategoryOption) {
 function select(node: CategoryOption) {
   if (blocked.value || !entries.value.has(String(node.value))) return;
   if (props.multiple) {
-    if (isSelected(node.value)) updateMultiple(chosenValues.value.filter(value => String(value) !== String(node.value)));
-    else if (chosenValues.value.length < props.max) updateMultiple([...chosenValues.value, node.value]);
+    if (isSelected(node.value)) updateMultiple(chosenValues.value.filter(value => !entries.value.get(String(value))?.keys.includes(String(node.value))));
+    else {
+      const path = entries.value.get(String(node.value))!.keys.map(key => entries.value.get(key)!.node.value);
+      const next = [...new Map([...chosenValues.value, node.value, ...path].map(value => [String(value), value])).values()];
+      if (next.length > props.max) { Message.warning(`包含上级分类后最多可选 ${props.max} 个分类`); return; }
+      updateMultiple(next);
+    }
     expand(node);
     return;
   }
@@ -110,7 +116,7 @@ function updateMultiple(values: (string | number)[]) {
   if (!values.some(value => String(value) === String(props.modelValue))) emit('update:modelValue', values[0]);
 }
 function remove(value: string | number) {
-  updateMultiple(chosenValues.value.filter(item => String(item) !== String(value)));
+  updateMultiple(chosenValues.value.filter(item => !entries.value.get(String(item))?.keys.includes(String(value))));
 }
 function clear() {
   if (blocked.value) return;
@@ -158,7 +164,7 @@ async function focusFirstResult() {
         <PopoverContent v-if="open" align="start" :side-offset="6" :collision-padding="16" style="z-index:1100" aria-label="选择商品分类">
           <div ref="panel" class="category-panel" :class="{ searching, multiple }">
             <div class="category-search"><Icon icon="lucide:search" width="16" /><Input v-model="keyword" aria-label="搜索分类名称或路径" placeholder="搜索分类名称或路径" @keydown.down.prevent="focusFirstResult" /></div>
-            <p class="category-hint">{{ multiple ? `可多选，最多 ${max} 个；首选为主分类。已选 ${chosenValues.length} / ${max} 个。` : '点击名称选中任意层级，悬浮或点击箭头展开子分类。' }}</p>
+            <p class="category-hint">{{ multiple ? `可多选，自动包含上级分类；最多 ${max} 个，首选为主分类。已选 ${chosenValues.length} / ${max} 个。` : '点击名称选中任意层级，悬浮或点击箭头展开子分类。' }}</p>
             <template v-if="searching">
               <p class="search-count" role="status">共找到 {{ matches.length }} 个分类</p>
               <ul class="search-results" aria-label="分类搜索结果">

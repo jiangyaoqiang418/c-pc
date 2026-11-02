@@ -16,7 +16,7 @@ import { useUserStore } from '@/stores/user';
 const router = useRouter();
 const user = useUserStore();
 const { visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
-  notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
+  notice, humanHandling, historyMore, sessionMore, scrollRef, canSend, canAnswer, answerQuestion, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
 const locked = computed(() => busy.value || uploading.value || listLoading.value || historyLoading.value);
 const currentCards = useAiProductCards(
   () => messages.value.flatMap(message => message.parts.flatMap(part => part.type === 'products' ? part.card.items.map(item => item.action.target_id) : [])),
@@ -125,13 +125,17 @@ function onKeydown(event: KeyboardEvent) {
             <div class="ai-message-avatar" aria-hidden="true"><UmIcon :name="message.role === 'user' ? 'user' : 'headset'" /></div>
             <div class="ai-message-content">
               <div v-if="message.images?.length" class="ai-attachments"><AiImage v-for="image in message.images" :key="image.fileId" :file-id="image.fileId" /></div>
-              <div v-if="message.questions?.length" class="button-row"><button v-for="question in message.questions" :key="question" type="button" class="outline" :disabled="locked || running" @click="input = question; send()">{{ question }}</button></div>
               <p v-if="message.text" class="ai-message-text">{{ message.text }}</p>
               <template v-for="(part, partIndex) in message.parts" :key="partIndex">
                 <p v-if="part.type === 'text'" class="ai-message-text">{{ part.text }}</p>
                 <ResultCard v-else-if="part.type === 'card'" :card="part.card" @login="login" />
                 <ProductCards v-else :card="part.card" :products="currentCards.products.value" :loading="currentCards.loading.value" :error="currentCards.error.value" @retry="currentCards.refresh" />
               </template>
+              <section v-if="message.question" class="ai-question" aria-label="继续咨询">
+                <p v-if="message.question.placement !== 'in_content'" class="ai-message-text">{{ message.question.text }}</p>
+                <div class="button-row"><button v-for="question in message.question.options" :key="question" type="button" class="outline" :disabled="!canAnswer(message) || locked" @click="answerQuestion(message, question)">{{ question }}</button></div>
+              </section>
+              <p v-if="message.imSync?.sync_status === 'pending'" class="message-progress">消息待同步</p>
               <p v-if="message.snapshot" class="message-progress">历史查询快照，请以当前业务记录为准。</p>
               <p v-if="message.truncated" class="message-progress">部分卡片未保存，可重新提问查询。</p>
               <p v-if="message.state === 'PENDING'" class="message-progress">{{ message.progress || '生成中，可手动刷新消息状态。' }}</p>
@@ -140,6 +144,7 @@ function onKeydown(event: KeyboardEvent) {
             </div>
           </article>
         </div>
+        <p v-if="humanHandling"><button type="button" class="text-link" @click="router.push({path:'/im',query:{support:'1'}})">进入人工客服会话 →</button></p>
         <p v-if="archived" class="conversation-notice">此会话已归档，可查看历史。请新建会话继续提问。</p>
         <p v-if="uploadError" role="alert">{{ uploadError }}</p>
         <form class="chat-compose ai-compose" @submit.prevent="send">

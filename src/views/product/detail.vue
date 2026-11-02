@@ -582,7 +582,6 @@ function share() {
         <section class="product-info" aria-label="商品信息与规格" tabindex="0">
           <span class="eyebrow">{{ product.categoryPath }}</span>
           <h1>{{ product.title }}</h1>
-          <p v-if="product.summary" class="subtitle">{{ product.summary }}</p>
           <div class="rating"><span>★</span>{{ reviewSummaryLoading ? '评分读取中' : reviewSummaryError ? '评分待确认' : reviewSummary?.totalCount ? ratingText(reviewSummary.averageScore) : '暂无评分' }}<button type="button" @click="content?.showReviews()">查看评价（{{ reviewSummary?.totalCount ?? allReviewCount ?? '—' }}）</button><small>已售 {{ product.salesCount ?? '—' }}</small></div>
           <div class="detail-price">
             <span>{{ money(selectedPrice) }} <small>USDT</small></span>
@@ -623,7 +622,7 @@ function share() {
           <template v-if="tab === '商品详情'">
             <ProductDescription :description="product.description">
               <ProductParameters :parameters="product.parameters || []" />
-              <dl class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>商品编号</dt><dd>{{ product.code }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
+              <dl class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
             </ProductDescription>
             <p class="purchase-hint">请核对当前商品资料、包装清单、配送与售后信息后购买。</p>
           </template>

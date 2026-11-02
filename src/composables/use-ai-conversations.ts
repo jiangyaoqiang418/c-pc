@@ -2,6 +2,9 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { activateAiSession, createAiSession, fetchAiMessages, fetchAiSessions, streamCustomerChat } from '@/service/api/ai';
 import { RequestError } from '@/service/request';
 import { getAccessToken } from '@/service/request/token';
+import { fetchSupportConversation } from '@/service/api/notify';
+import { useNotifyStore } from '@/stores/notify';
+import { createHumanSupportHandler } from '@/utils/human-support';
 import { useUserStore } from '@/stores/user';
 
 export interface AiDisplayMessage {
@@ -13,6 +16,10 @@ export interface AiDisplayMessage {
   text: string;
   images?: Api.Ai.ImageReference[];
   questions?: string[];
+  question?: Api.Ai.Question;
+  questionConsumed?: boolean;
+  imSync?: Api.Ai.ImSync;
+  rawIm?: Api.RealNotify.ImMessageVO;
   parts: ({ type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData } | { type: 'products'; card: Api.Ai.ProductListCard })[];
   state: Api.Ai.MessageStatus;
   progress?: string;
@@ -23,6 +30,7 @@ export interface AiDisplayMessage {
 
 export function historyMessage(row: Api.Ai.Message): AiDisplayMessage {
   return { id: row.messageId, requestId: row.requestId, clientMessageId: row.clientMessageId,
+    question: row.structuredData?.question || undefined, questions: row.structuredData?.question?.options, imSync: row.im_sync || undefined,
     role: row.role === 'USER' ? 'user' : 'assistant', text: row.content, images:row.images || [], state: row.status,
     parts: (row.structuredData?.cards ?? []).map(card => 'type' in card && card.type === 'product_list'
       ? { type: 'products', card } : { type: 'card', card: (card as { data: Api.Ai.CardData }).data }),
@@ -51,6 +59,11 @@ export function mergeAiMessages(existing: AiDisplayMessage[], rows: Api.Ai.Messa
 
 export function useAiConversations() {
   const user = useUserStore();
+  const realtime = useNotifyStore();
+  const humanHandling = ref(false);
+  const supportReady = ref(false);
+  const supportVersion = ref<string>();
+  let supportCheck = 0;
   const sessions = ref<Api.Ai.Session[]>([]);
   const messages = ref<AiDisplayMessage[]>([]);
   const conversationId = ref<string | null>(null);
@@ -65,6 +78,14 @@ export function useAiConversations() {
   const error = ref('');
   const listError = ref('');
   const notice = ref('');
+  const handleHumanAction = createHumanSupportHandler(text => { notice.value = text; });
+  function canAnswer(row: AiDisplayMessage) {
+    return row.role === 'assistant' && (!user.isLoggedIn || (supportReady.value && row.imSync?.routing_version === supportVersion.value)) && !humanHandling.value && row.state === 'COMPLETED' && !row.questionConsumed && messages.value.at(-1) === row && !running.value && !busy.value && !historyLoading.value && ready.value;
+  }
+  function answerQuestion(row: AiDisplayMessage, text: string) {
+    if (!canAnswer(row) || !row.questions?.includes(text)) return;
+    input.value = text; void send();
+  }
   const historyMore = ref(false);
   const sessionMore = ref(false);
   const scrollRef = ref<HTMLElement>();
@@ -82,7 +103,7 @@ export function useAiConversations() {
   // 只过滤展示，当前会话恢复和分页仍使用服务端原始记录。
   const visibleSessions = computed(() => sessions.value.filter(row => row.messageCount !== 0));
   const archived = computed(() => sessions.value.find(row => row.conversationId === conversationId.value)?.status === 'ARCHIVED');
-  const canSend = computed(() => ready.value && !running.value && !busy.value && !historyLoading.value
+  const canSend = computed(() => !humanHandling.value && ready.value && !running.value && !busy.value && !historyLoading.value
     && !archived.value && !uploading.value && (!!input.value.trim() || attachments.value.length > 0) && input.value.length <= 2000 && !user.initializing);
   const pending = computed(() => messages.value.some(row => row.state === 'PENDING' && !row.temporary));
   const current = (version: number, token: string) => !disposed && version === scope && token === getAccessToken();
@@ -134,7 +155,7 @@ export function useAiConversations() {
     if (!user.isLoggedIn || listLoading.value || (more && !sessionMore.value)) return;
     const version = scope, token = getAccessToken(), operation = ++listVersion;
     let restored = false;
-    listLoading.value = true; listError.value = '';
+    listLoading.value = true; listError.value = ''; void refreshSupportStatus();
     try {
       let cursor = more ? sessionCursor : null;
       const rows: Api.Ai.Session[] = more ? [...sessions.value] : [];
@@ -202,7 +223,19 @@ export function useAiConversations() {
     const key = `web-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
     const aborter = new AbortController(); stream = aborter;
     const active = () => current(version, token) && requestTurn === turn;
+    for (const row of messages.value) row.questionConsumed = true;
     running.value = true; error.value = ''; notice.value = '';
+    if (user.isLoggedIn) {
+      try {
+        const support = await fetchSupportConversation();
+        if (!active()) return;
+        if (aborter.signal.aborted) { running.value = false; stream = undefined; return; }
+        supportReady.value = true; supportVersion.value = support.routingVersion;
+        humanHandling.value = support.interveneStatus === 'HANDLING';
+        if (humanHandling.value) { notice.value = '人工客服正在接待，请进入客服会话继续'; running.value = false; stream = undefined; return; }
+        if (!['NONE','REQUESTED'].includes(support.interveneStatus || '') || support.aiEnabled === false) throw new Error('客服接待状态暂不可用，请稍后重试');
+      } catch (e) { if (active()) { error.value = problem(e); running.value = false; stream = undefined; } return; }
+    }
     if (user.isLoggedIn && !conversationId.value) {
       busy.value = true; notice.value = '正在创建会话…';
       try {
@@ -235,19 +268,24 @@ export function useAiConversations() {
         if (!active()) return;
         if (event.event === 'start') {
           conversationId.value = event.data.conversation_id;
+          answer.imSync = event.data.im_sync;
           answer.requestId = event.data.request_id; fromUser.requestId = event.data.request_id;
           // fromUser 是入 ref 前的对象，显式更新响应式记录上的关联键。
           const questionRow = messages.value.find(row => row.id === fromUser.id);
           if (questionRow) questionRow.requestId = event.data.request_id;
         } else if (event.event === 'status') answer.progress = event.data.text;
         else if (event.event === 'delta') {
+          answer.progress = '';
           const last = answer.parts.at(-1);
           if (last?.type === 'text') last.text += event.data.text;
           else answer.parts.push({ type: 'text', text: event.data.text });
         } else if (event.event === 'card') answer.parts.push({ type: 'card', card: event.data.data });
         else if (event.event === 'product_cards') answer.parts.push({ type: 'products', card: { type: event.data.type, items: event.data.items } });
-        else if (event.event === 'done') { answer.state = 'COMPLETED'; answer.progress = ''; }
-        else if (event.event === 'question') { answer.questions = event.data.options; if (event.data.text) answer.parts.push({type:'text', text:event.data.text}); }
+        else if (event.event === 'done') { answer.state = 'COMPLETED'; answer.progress = ''; if (event.data.im_sync) answer.imSync = event.data.im_sync; }
+        else if (event.event === 'action' && answer.imSync) {
+          void handleHumanAction(event.data, { requestId: answer.requestId!, sync: answer.imSync, active, owner: String(user.currentUser?.id || '') });
+        }
+        else if (event.event === 'question') { answer.questions = event.data.options; answer.question = { text:event.data.text, options:event.data.options, placement:'after_cards' }; }
         else if (event.event === 'error') { answer.state = 'FAILED'; answer.progress = ''; answer.error = event.data.message; }
         scrollBottom();
       });
@@ -274,7 +312,29 @@ export function useAiConversations() {
     }
   }
 
+  async function refreshSupportStatus() {
+    if (!user.isLoggedIn) return;
+    const version = scope, token = getAccessToken(), check = ++supportCheck;
+    try {
+      const route = await fetchSupportConversation();
+      if (!current(version, token) || check !== supportCheck) return;
+      if (!['NONE','REQUESTED','HANDLING'].includes(route.interveneStatus || '')) throw new Error('接待状态暂不可用');
+      if (supportVersion.value !== undefined && route.routingVersion !== supportVersion.value) {
+        invalidateStream(); for (const row of messages.value) row.questionConsumed = true;
+      }
+      supportReady.value = true; supportVersion.value = route.routingVersion;
+      humanHandling.value = route.interveneStatus === 'HANDLING';
+      if (humanHandling.value) { invalidateStream(); notice.value = '人工客服正在接待，请进入客服会话继续'; }
+    } catch {
+      if (current(version, token) && check === supportCheck) { supportReady.value = false; invalidateStream(); error.value = '接待状态暂不可用，请刷新后继续'; }
+    }
+  }
+  realtime.subscribe(event => {
+    if (['SYNC','IM_INTERVENE','IM_ASSIGN'].includes(event.type)) void refreshSupportStatus();
+  });
+
   watch([() => user.sessionVersion, () => user.currentUser?.id, () => user.initializing], () => {
+    humanHandling.value = false; supportReady.value = false; supportVersion.value = undefined; supportCheck++;
     scope++; listVersion++; historyVersion++; mutationVersion++;
     invalidateStream(); reads.abort(); reads = new AbortController();
     sessions.value = []; messages.value = []; conversationId.value = null; input.value = ''; attachments.value = []; uploading.value = false;
@@ -282,10 +342,10 @@ export function useAiConversations() {
     listLoading.value = false; historyLoading.value = false; busy.value = false;
     error.value = ''; listError.value = ''; notice.value = '';
     ready.value = !user.initializing && !user.isLoggedIn;
-    if (!user.initializing && user.isLoggedIn) void loadSessions(false, true);
+    if (!user.initializing && user.isLoggedIn) { void loadSessions(false, true); void refreshSupportStatus(); }
   }, { immediate: true, flush: 'sync' });
 
   onBeforeUnmount(() => { disposed = true; scope++; invalidateStream(); reads.abort(); });
   return { sessions, visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
-    notice, historyMore, sessionMore, scrollRef, canSend, pending, archived, loadSessions, loadHistory, changeSession, stop, send };
+    notice, humanHandling, historyMore, sessionMore, scrollRef, canSend, canAnswer, answerQuestion, pending, archived, loadSessions, loadHistory, changeSession, stop, send };
 }

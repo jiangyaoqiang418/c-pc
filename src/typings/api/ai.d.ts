@@ -42,6 +42,18 @@ declare namespace Api.Ai {
   interface PageQuery { cursor?: string | null; limit: number; }
   interface MessageQuery extends PageQuery { conversationId: string; }
   type MessageStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'INTERRUPTED';
+  interface Question { text: string; options: string[]; placement: 'after_cards' | 'in_content' }
+  interface ImSync {
+    im_conversation_id: string;
+    routing_version: string;
+    user_client_msg_id?: string;
+    ai_client_msg_id?: string;
+    sync_status?: 'synced' | 'pending';
+    status?: string;
+    client_msg_id?: string;
+    message_id?: string;
+    messages?: { role: 'USER' | 'AI'; client_msg_id: string; message_id: string; status: string }[];
+  }
   interface Message {
     images?: ImageReference[];
     messageId: string;
@@ -49,7 +61,8 @@ declare namespace Api.Ai {
     clientMessageId: string | null;
     role: 'USER' | 'ASSISTANT';
     content: string;
-    structuredData: { cards?: HistoryCard[] | null; truncated?: boolean | null } | null;
+    structuredData: { cards?: HistoryCard[] | null; question?: Question | null; truncated?: boolean | null } | null;
+    im_sync?: ImSync | null;
     status: MessageStatus;
     errorCode: string | null;
     createdAt: Timestamp;
@@ -74,12 +87,13 @@ declare namespace Api.Ai {
   }
 
   type ChatEvent =
-    | { event: 'start'; data: EventBase & { conversation_id: string } }
+    | { event: 'start'; data: EventBase & { conversation_id: string; im_sync?: ImSync } }
     | { event: 'status' | 'delta'; data: EventBase & { text: string } }
     | { event: 'card'; data: EventBase & { tool: string; data: CardData } }
     | { event: 'product_cards'; data: EventBase & ProductListCard }
     | { event: 'question'; data: EventBase & { text: string; options: string[] } }
-    | { event: 'done'; data: EventBase & { status: 'completed' } }
+    | { event: 'action'; data: EventBase & { type: string; action_id: string } }
+    | { event: 'done'; data: EventBase & { status: 'completed'; im_sync?: ImSync } }
     | { event: 'error'; data: EventBase & { code: string; message: string; retryable: boolean } };
 
   interface ImageReference { fileId: string; imageUrl?: string; expireAt?: string | number | null }

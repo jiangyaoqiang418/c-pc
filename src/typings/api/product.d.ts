@@ -72,7 +72,6 @@ declare namespace Api.RealProduct {
     stock: number;
     afterSaleType?: AfterSaleType;
     overseasClearance?: boolean;
-    brief?: string;
     description?: string;
     status?: ProductStatus;
     auditStage?: 'PENDING_AUDIT' | 'IN_AUDIT';
@@ -156,7 +155,6 @@ declare namespace Api.RealProduct {
     stock: number;
     afterSaleType: AfterSaleType;
     overseasClearance?: boolean;
-    brief?: string;
     description?: string;
     images: ProductImageParam[];
   }

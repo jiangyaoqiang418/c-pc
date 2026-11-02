@@ -13,7 +13,7 @@ export interface BuyerProductDraftForm {
   stock: number | null;
   aftersaleType?: Api.Product.AftersaleType;
   overseasCustoms: boolean;
-  summary: string;
+  summary?: string;
   description: string;
   images: string[];
   amountTexts?: { price: string; shippingFee: string; tax: string };
@@ -62,7 +62,7 @@ export function readBuyerProductDraft(raw: string, ownerId: string | number, pro
   if (!draft || draft.version !== 1 || !validId(draft.ownerId) || String(draft.ownerId) !== String(ownerId)
     || (productId === undefined ? draft.productId !== undefined : !validId(draft.productId) || String(draft.productId) !== String(productId))
     || !Number.isFinite(draft.savedAt) || !form || typeof form !== 'object'
-    || !['title', 'summary', 'description'].every(key => typeof form[key as 'title'] === 'string')
+    || !['title', 'description'].every(key => typeof form[key as 'title'] === 'string')
     || (form.categoryId !== undefined && !validId(form.categoryId))
     || (form.categoryIds !== undefined && (!Array.isArray(form.categoryIds) || form.categoryIds.length > 20 || !form.categoryIds.every(validId)))
     || (form.parameters !== undefined && (!Array.isArray(form.parameters) || form.parameters.length > 200 || form.parameters.some(row => !row
@@ -92,7 +92,7 @@ export function readBuyerProductDraft(raw: string, ownerId: string | number, pro
     form: {
       title: form.title, categoryId: form.categoryId, categoryIds:form.categoryIds && [...form.categoryIds], parameters:form.parameters?.map(row => ({ groupName:row.groupName, name:row.name, value:row.value, explanation:row.explanation, highlighted:row.highlighted })), brandId: form.brandId, price: form.price, shippingFee: form.shippingFee,
       tax: form.tax, stock: form.stock, aftersaleType: form.aftersaleType, overseasCustoms: form.overseasCustoms,
-      summary: form.summary, description: form.description, images: [...form.images],
+      description: form.description, images: [...form.images],
       amountTexts: form.amountTexts && { price:form.amountTexts.price, shippingFee:form.amountTexts.shippingFee, tax:form.amountTexts.tax },
       skuEditor: form.skuEditor && { enabled: form.skuEditor.enabled,
         groups: form.skuEditor.groups.map(group => ({ name: group.name, options: [...group.options] })),

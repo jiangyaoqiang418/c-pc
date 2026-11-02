@@ -158,6 +158,7 @@ function onSearchKeydown(event: KeyboardEvent) {
         <span>搜索</span>
         <UmIcon name="search" />
       </button>
+      <button type="button" class="ai-guide-button" @click="close(); router.push('/ai-guide')">UMAO 导购</button>
     </form>
     <div v-if="imageUploading" class="image-search-progress"><LoadingStatus :label="imageNavigating ? '图片已上传，正在打开搜索结果…' : '正在上传图片，请稍候…'" /></div>
     <div v-if="opened" :id="panelId" class="search-panel" aria-label="搜索建议">
@@ -171,7 +172,7 @@ function onSearchKeydown(event: KeyboardEvent) {
         <p v-if="publicLoading" role="status">正在读取推荐词…</p>
         <p v-if="publicError" role="alert">{{ publicError }} <button type="button" @click="loadPublic">重试</button></p>
         <section><h3>推荐商品</h3><div class="search-choices"><button v-for="item in promotions" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ item.keyword }}</button><span v-if="!publicLoading && !promotions.length">暂无推荐</span></div></section>
-        <section><h3>今日热搜 <small>UTC 当日</small></h3><div class="search-choices"><button v-for="(item, index) in hot" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ index + 1 }}. {{ item.keyword }}</button><span v-if="!publicLoading && !hot.length">暂无热搜</span></div></section>
+        <section v-if="hot.length"><h3>今日热搜 <small>UTC 当日</small></h3><div class="search-choices"><button v-for="(item, index) in hot" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ index + 1 }}. {{ item.keyword }}</button></div></section>
         <section><h3>搜索历史 <button v-if="history.length" type="button" @click="saveHistory([])">清空</button></h3><p v-if="historyError" role="status">{{ historyError }}</p><div class="search-choices"><span v-for="item in history" :key="item" class="history-choice"><button data-search-choice type="button" @click="submit(item)">{{ item }}</button><button type="button" :aria-label="'删除搜索历史：' + item" @click="saveHistory(history.filter(value => value !== item))">×</button></span><span v-if="!history.length">暂无搜索历史</span></div></section>
       </template>
     </div>
@@ -179,6 +180,9 @@ function onSearchKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
+.search-wrap .search-bar > .ai-guide-button { flex-shrink:0; padding:0 12px; min-height:40px; margin-left:8px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); border:1px solid var(--line); border-radius:6px; white-space:nowrap; }
+.ai-guide-button:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+@media(max-width:600px) { .search-wrap .search-bar > .ai-guide-button { font-size:12px; padding:0 6px; margin-left:4px; } }
 .search-wrap { position:relative; width:100%; min-width:0; }
 .image-search-progress { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:60; padding:12px 16px; border:1px solid var(--line); border-radius:8px; background:var(--paper); box-shadow:var(--shadow); }
 .search-bar .image-search-button { display:grid; place-items:center; flex-shrink:0; width:42px; min-width:42px; padding:0; }

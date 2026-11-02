@@ -39,8 +39,9 @@ export interface CategoryOption {
   children?: CategoryOption[];
 }
 
-/** 发布和求购允许选择任一启用层级，最多五级，并保留完整父子关系。 */
+/** 发布和求购允许选择任一启用层级，最多三级，并保留完整父子关系。 */
 export function createCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[], level = 1, parentId?: string): CategoryOption[] {
+  if (level > 3) return [];
   return nodes.flatMap(node => {
     if (node.enabled !== true || node.level !== level || !String(node.id ?? '').trim()
       || (node.parentId !== undefined && node.parentId !== null
@@ -48,6 +49,16 @@ export function createCategoryOptions(nodes: Api.RealCategory.CategoryNodeDTO[],
     const children = createCategoryOptions(node.children || [], level + 1, node.id);
     return [{ value: node.id, label: node.name, children: children.length ? children : undefined }];
   });
+}
+
+/** 保留用户首选顺序，补齐启用祖先；数量校验交由表单一次性处理。 */
+export function includeCategoryParents(options: CategoryOption[], ids: (string | number)[]) {
+  const paths = new Map<string, string[]>();
+  function visit(nodes: CategoryOption[], parents: string[] = []) {
+    for (const node of nodes) { const path = [...parents, node.value]; paths.set(String(node.value), path); visit(node.children || [], path); }
+  }
+  visit(options);
+  return [...new Map([...ids, ...ids.flatMap(id => paths.get(String(id)) || [])].map(id => [String(id), id])).values()];
 }
 
 export function isSelectableCategory(options: CategoryOption[], id: string | number | undefined): boolean {

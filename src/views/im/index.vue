@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SupportChat from '@/components/im/support-chat.vue';
 import { Icon } from '@iconify/vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -46,7 +47,7 @@ const userStore = useUserStore();
 const notifyStore = useNotifyStore();
 
 type ConvKind = 'group' | 'cs';
-const activeTab = ref<ConvKind>('group');
+const activeTab = ref<ConvKind>(route.query.support === '1' ? 'cs' : 'group');
 const mobileConversationOpen = ref(typeof route.query.conversationId === 'string' && !!route.query.conversationId);
 const mobileBack = ref<HTMLButtonElement>();
 const conversationList = ref<HTMLElement>();
@@ -575,7 +576,7 @@ function readText(message: Api.RealNotify.ImMessageVO) {
 
 async function onSend(payload: { type: 'text' | 'image' | 'audio' | 'video'; content?: string; mediaFileId?: string | number; coverFileId?: string | number; coverUrl?: string; duration?: number }) {
   const conversation = selectedConversation.value;
-  if (!conversation || messageSending.value) return;
+  if (!conversation || conversation.type === 'SUPPORT' || messageSending.value) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
@@ -655,6 +656,7 @@ async function retryMessage(message: Api.RealNotify.ImMessageVO) {
 }
 
 async function recallMessage(message: Api.RealNotify.ImMessageVO) {
+  if (selectedConversation.value?.type === 'SUPPORT') return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedSession = userStore.sessionVersion;
   const conversationId = selectedConversationId.value;
@@ -688,7 +690,7 @@ async function recallMessage(message: Api.RealNotify.ImMessageVO) {
 
 function deleteSelectedConversation() {
   const conversation = selectedConversation.value;
-  if (!conversation || deletingConversationId.value !== undefined) return;
+  if (!conversation || conversation.type === 'SUPPORT' || deletingConversationId.value !== undefined) return;
   const requestedUserId = userStore.currentUser?.id;
   const requestedSession = userStore.sessionVersion;
   if (requestedUserId === undefined) return;
@@ -871,7 +873,7 @@ function readConversationTarget() {
   targetMessage.value = '';
 }
 
-onMounted(() => { readConversationTarget(); void init(); });
+onMounted(async () => { readConversationTarget(); await init(); if (!disposed && route.query.support === '1') await openSupportConversation(); });
 watch(() => route.query.conversationId, async () => {
   readConversationTarget();
   if (disposed) return;
@@ -1007,9 +1009,11 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
               <Tooltip v-if="selectedConversation.type === 'ORDER_GROUP'"><TooltipTrigger as-child><span tabindex="0" class="action-trigger"><button type="button" :disabled="interventionLoading || selectedConversation.interveneStatus !== 'NONE'" @click="requestIntervention" class="outline"><Icon :icon="interventionLoading ? 'lucide:loader-circle' : 'lucide:headphones'" :class="{ 'animate-spin': interventionLoading }" width="14" aria-hidden="true" />{{ selectedConversation.interveneStatus === 'REQUESTED' ? '等待客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '客服处理中' : '申请平台介入' }}</button></span></TooltipTrigger><TooltipContent>{{ selectedConversation.interveneStatus === 'REQUESTED' ? '已申请介入，请等待平台客服接入' : selectedConversation.interveneStatus === 'HANDLING' ? '平台客服正在处理此会话' : selectedConversation.interveneStatus === 'NONE' ? '申请平台客服协助处理订单' : '当前介入状态不支持重复申请' }}</TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger as-child><button type="button" aria-label="同步消息" :disabled="restSyncing" @click="refreshRestData" class="text-link"><Icon icon="lucide:refresh-cw" :class="{ 'animate-spin': restSyncing }" width="14" /><span class="action-text">同步消息</span></button></TooltipTrigger><TooltipContent>同步消息</TooltipContent></Tooltip>
               <Tooltip v-if="selectedConversation.orderId"><TooltipTrigger as-child><button type="button" aria-label="独立会话" @click="openOrderGroup" class="text-link"><Icon icon="lucide:expand" width="14" /><span class="action-text">独立会话</span></button></TooltipTrigger><TooltipContent>打开独立会话</TooltipContent></Tooltip>
-              <Tooltip><TooltipTrigger as-child><button type="button" class="text-link delete-action" aria-label="删除会话" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation"><Icon icon="lucide:trash-2" width="14" /><span class="action-text">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</span></button></TooltipTrigger><TooltipContent>{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</TooltipContent></Tooltip>
+              <Tooltip v-if="selectedConversation.type !== 'SUPPORT'"><TooltipTrigger as-child><button type="button" class="text-link delete-action" aria-label="删除会话" :disabled="deletingConversationId !== undefined" @click="deleteSelectedConversation"><Icon icon="lucide:trash-2" width="14" /><span class="action-text">{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</span></button></TooltipTrigger><TooltipContent>{{ deletingConversationId !== undefined ? '删除中…' : '删除会话' }}</TooltipContent></Tooltip>
             </div>
           </header>
+          <SupportChat v-if="selectedConversation.type === 'SUPPORT'" :key="String(userStore.sessionVersion) + ':' + selectedConversation.id" :conversation-id="String(selectedConversation.id)" @busy="mediaBusy = $event" />
+          <template v-else>
           <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="conversation-order-context">
             <ConversationOrderBar v-if="selectedConversation.orderId" compact :order-id="selectedConversation.orderId" :revision="String(orderRevision) + ':' + selectedConversation.orderStatus" @changed="ordersRefresh.schedule()" />
             <span v-else class="order-context-empty">暂无当前订单</span>
@@ -1033,7 +1037,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
           <div class="message-viewport">
             <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
               <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
-              <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :order-revision="orderRevision" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
+              <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :order-revision="orderRevision" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="selectedConversation.type !== 'SUPPORT' && isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
               <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" /><div v-else-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
             </div>
             <div v-if="!loading && (showJumpToBottom || newMessagesAvailable)" class="jump-to-bottom">
@@ -1043,6 +1047,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
           <ConsultProductPrompt v-if="consultProductId && selectedConversation.type === 'ORDER_GROUP' && selectedConversation.myRole === 'CUSTOMER'" :key="consultProductId + ':' + selectedConversation.id" :product-id="consultProductId" :conversation="selectedConversation" :disabled="loading || messageSending || mediaBusy" @busy="productCardSending = $event" @sent="onProductCardSent" />
           <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(selectedConversationId || '')" :submitting="messageSending || productCardSending" @media-busy="mediaBusy = $event" @send="onSend" />
           <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
+          </template>
         </div>
         <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '请稍后重试。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>
       </section>

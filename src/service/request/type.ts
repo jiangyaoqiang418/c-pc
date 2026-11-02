@@ -21,6 +21,8 @@ export interface RequestOptions<TData = unknown> {
   showError?: boolean;
   /** 仅金额敏感接口启用，保留 JSON 小数原文供十进制计算。 */
   preserveDecimals?: boolean;
+  /** 转人工等新契约必须明确收到数字 code=1，不能接受字符串成功码。 */
+  numericSuccessOnly?: boolean;
   skipAuthRedirect?: boolean;
 }
 

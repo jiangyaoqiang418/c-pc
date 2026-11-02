@@ -32,6 +32,10 @@ export function activateAiSession(conversationId: string) {
 export async function fetchAiMessages(query: Api.Ai.MessageQuery, signal?: AbortSignal) {
   const page = await realUserRequest.postQuery<Api.Ai.MessagePage>(`${prefix}/messages/list`, { ...query, cursor: query.cursor ?? undefined }, { signal, showError: false });
   requireAiPage(page);
+  page.rows = page.rows.map(row => {
+    const snake = (row as unknown as Record<string, unknown>).structured_data;
+    return row.structuredData == null && isObject(snake) ? { ...row, structuredData: snake as Api.Ai.Message['structuredData'] } : row;
+  });
   if (page.conversationId !== query.conversationId) throw new RequestError('客服消息与当前会话不一致，请刷新', { code: 'INVALID_AI_PAGE' });
   if (!page.rows.every(row => typeof row.messageId === 'string' && typeof row.content === 'string'
     && ['USER', 'ASSISTANT'].includes(row.role) && ['PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED'].includes(row.status)
@@ -40,6 +44,7 @@ export async function fetchAiMessages(query: Api.Ai.MessageQuery, signal?: Abort
         && row.structuredData.cards.every(card => isProductListCard(card) || (isObject(card) && !('type' in card && card.type === 'product_list') && typeof card.tool === 'string' && isObject(card.data))))))))) {
     throw new RequestError('消息加载异常', { code: 'INVALID_AI_PAGE' });
   }
+  if (page.rows.some(row => { const q = row.structuredData?.question; return q != null && (typeof q.text !== 'string' || !Array.isArray(q.options) || q.options.length > 4 || !q.options.every(item => typeof item === 'string') || !['after_cards','in_content'].includes(q.placement)); })) throw new RequestError('追问信息格式异常，请重新加载', {code:'INVALID_AI_PAGE'});
   return page;
 }
 
@@ -47,6 +52,7 @@ export async function fetchAiMessages(query: Api.Ai.MessageQuery, signal?: Abort
 export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => void) {
   let requestId: string | undefined;
   let sequence = 0;
+  const seen = new Set<number>();
   return (frame: { event: string; data: string }) => {
     let data: Record<string, unknown>;
     try {
@@ -55,7 +61,10 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
       data = parsed;
     } catch { throw invalidEvent(); }
     if (typeof data.request_id !== 'string' || !data.request_id || !Number.isSafeInteger(data.seq)
-      || (data.seq as number) <= sequence || (requestId !== undefined && data.request_id !== requestId)) throw invalidEvent();
+      || (data.seq as number) < 1 || (requestId !== undefined && data.request_id !== requestId)) throw invalidEvent();
+    if (seen.has(data.seq as number)) return false;
+    if ((data.seq as number) < sequence) throw invalidEvent();
+    if (data.im_sync !== undefined && (!isObject(data.im_sync) || typeof data.im_sync.im_conversation_id !== 'string' || typeof data.im_sync.routing_version !== 'string')) throw invalidEvent();
     if (requestId === undefined && (frame.event !== 'start' || data.seq !== 1)) throw invalidEvent();
     if (frame.event === 'start') {
       if (requestId !== undefined || typeof data.conversation_id !== 'string' || !/^[0-9a-f]{32}$/.test(data.conversation_id)) throw invalidEvent();
@@ -68,7 +77,9 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
         || (card.kind !== undefined && typeof card.kind !== 'string')
         || (card.rows !== undefined && (!Array.isArray(card.rows) || !card.rows.every(isObject)))) throw invalidEvent();
     } else if (frame.event === 'question') {
-      if (typeof data.text !== 'string' || !Array.isArray(data.options) || !data.options.every(value => typeof value === 'string')) throw invalidEvent();
+      if (typeof data.text !== 'string' || !Array.isArray(data.options) || data.options.length > 4 || !data.options.every(value => typeof value === 'string' && !!value.trim())) throw invalidEvent();
+    } else if (frame.event === 'action') {
+      if (typeof data.type !== 'string' || typeof data.action_id !== 'string') throw invalidEvent();
     } else if (frame.event === 'product_cards') {
       if (!isProductListCard(data)) throw invalidEvent();
     } else if (frame.event === 'done') {
@@ -78,7 +89,7 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
       data.message = safeAiMessage(data.message);
     } else throw invalidEvent();
     requestId = data.request_id;
-    sequence = data.seq as number;
+    sequence = data.seq as number; seen.add(sequence);
     onEvent({ event: frame.event, data } as unknown as Api.Ai.ChatEvent);
     return frame.event === 'done' || frame.event === 'error';
   };

@@ -147,7 +147,7 @@ class RealRequest {
     }
 
     const code = String(body?.code ?? '');
-    if (code !== this.config.successCode) {
+    if (code !== this.config.successCode || (options.numericSuccessOnly && body?.code !== 1)) {
       const message = getResponseMessage(body);
       const isLogout = this.config.logoutCodes.includes(code);
       const isModalLogout = this.config.modalLogoutCodes.includes(code);

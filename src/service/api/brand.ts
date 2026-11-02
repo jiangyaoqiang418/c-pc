@@ -1,5 +1,5 @@
 import { realOrderRequest } from '@/service/request';
-import { requireArray, resolvePageSize } from './page';
+import { requireArray, resolvePageSize, toPageTotal } from './page';
 
 function readBrand(value: Api.RealBrand.BrandDTO) {
   if (!value || !['string', 'number'].includes(typeof value.id) || !String(value.id).trim()
@@ -33,4 +33,13 @@ export async function fetchBrandDetail(id: Api.RealBrand.Id, options: { signal?:
   }));
   if (String(brand.id) !== String(id) || !brand.enabled) throw new Error('该品牌已停用或无法访问');
   return brand;
+}
+
+export function submitBrandApplication(newName: string, reason: string) {
+  return realOrderRequest.post<Api.RealBrand.Id>('/brands/apply/submit', { newName, reason }, { showError: false });
+}
+
+export async function fetchMyBrandApplications(query: { pageNo: number; pageSize: number; keyword?: string; status?: Api.RealBrand.ApplyStatus }, signal?: AbortSignal) {
+  const page = await realOrderRequest.postQuery<{ records: Api.RealBrand.Application[]; total: string | number }>('/brands/apply/my/page', query, { signal, showError: false });
+  return { records: requireArray<Api.RealBrand.Application>(page.records, '品牌申请'), total: toPageTotal(page.total) };
 }

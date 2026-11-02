@@ -74,7 +74,7 @@ function goDetail() {
 <template>
   <article class="product-card" :class="{ 'is-home': variant === 'home', 'is-catalog': variant === 'catalog' }">
     <div class="meme-card-top">
-      <small :title="String(product.id)">编号 {{ String(product.id).padStart(3, '0') }}</small><span>{{ product.brandName }}</span>
+      <span>{{ product.brandName }}</span>
     </div>
     <div class="product-image">
       <button type="button" class="image-button" :aria-label="'查看 ' + product.title" @click="goDetail">
@@ -91,7 +91,6 @@ function goDetail() {
     <div class="product-meta">
       <span>{{ product.brandName }} <small>{{ categoryCaption }}</small></span>
       <button type="button" class="product-name" :title="product.title" @click="goDetail">{{ product.title }}</button>
-      <p>{{ product.summary }}</p>
       <div class="product-price"><data class="product-amount" :value="String(product.price)">{{ price }}</data> <small>USDT</small><span aria-hidden="true">↗</span>
         <button type="button" class="meme-card-open" :aria-label="'选购 ' + product.title" @click="goDetail"><UmIcon name="arrow" /></button>
       </div>

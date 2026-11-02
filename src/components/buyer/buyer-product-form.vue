@@ -19,8 +19,9 @@ import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence
 import RichTextEditor from '@/components/common/rich-text-editor.vue';
 import BuyerDetailImages from './buyer-detail-images.vue';
 import BuyerProductSkus from './buyer-product-skus.vue';
+import BrandApplications from './brand-applications.vue';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft, type BuyerProductDraft } from './buyer-product-draft';
-import { fetchCreateCategoryOptions, isSelectableCategory, type CategoryOption } from '@/service/api/category';
+import { fetchCreateCategoryOptions, includeCategoryParents, isSelectableCategory, type CategoryOption } from '@/service/api/category';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { createUnsavedFormState } from '@/composables/use-unsaved-form';
 import { richTextError, sanitizeRichText } from '@/utils/rich-text';
@@ -42,7 +43,6 @@ interface FormState {
   stock: number;
   aftersaleType: Api.Product.AftersaleType;
   overseasCustoms: boolean;
-  summary: string;
   description: string;
   images: string[];
 }
@@ -114,7 +114,6 @@ const form = reactive<FormState>({
   stock: 10,
   aftersaleType: '7day-no-reason',
   overseasCustoms: false,
-  summary: '',
   description: '',
   images: []
 });
@@ -127,7 +126,7 @@ if (props.initialProduct) {
     shippingFee: NaN,
     tax: NaN, stock: p.stock,
     aftersaleType: p.aftersaleType === 'unknown' ? undefined : p.aftersaleType,
-    overseasCustoms: p.overseasCustoms, summary: p.summary, description: p.description,
+    overseasCustoms: p.overseasCustoms, description: p.description,
     images: (p.imageFiles || []).map(item => item.url)
   });
   (p.imageFiles || []).forEach(item => uploadedImageMap.set(item.url, { bucket: item.bucket, filePath: item.filePath }));
@@ -168,7 +167,7 @@ async function saveDraft() {
       form:{ title:form.title, categoryId:form.categoryId, categoryIds:[...form.categoryIds], parameters:form.parameters.map(row => ({...row})), brandId:form.brandId, price:Number.isFinite(form.price) ? form.price : null,
         shippingFee:Number.isFinite(form.shippingFee) ? form.shippingFee : null, tax:Number.isFinite(form.tax) ? form.tax : null,
         stock:Number.isFinite(form.stock) ? form.stock : null, aftersaleType:form.aftersaleType, overseasCustoms:form.overseasCustoms,
-        summary:form.summary, description, images:[...form.images], amountTexts:{...amountTexts}, skuEditor:JSON.parse(JSON.stringify(skuEditor.value)) },
+        description, images:[...form.images], amountTexts:{...amountTexts}, skuEditor:JSON.parse(JSON.stringify(skuEditor.value)) },
       imageFiles:Array.from(uploadedImageMap, ([url,image]) => ({ url,...image })).filter(image => imageUrls.has(image.url))
     };
     const saved = await saveBuyerProductDraft(draft, savedDraftRaw, () => currentContext.value);
@@ -346,7 +345,7 @@ function submit() {
     Message.warning('请选择商品分类');
     return;
   }
-  const selectedCategories = [...new Map([form.categoryId!, ...form.categoryIds].map(id => [String(id), id])).values()];
+  const selectedCategories = includeCategoryParents(cascaderOptions.value, [form.categoryId!, ...form.categoryIds]);
   try {
     validateProductDetails(selectedCategories, form.parameters);
     if (selectedCategories.some(id => !isSelectableCategory(cascaderOptions.value, id))) throw new Error('关联分类已不可用，请移除或重新选择');
@@ -378,7 +377,7 @@ function submit() {
     return;
   }
   emit('submit', { ...form, price, shippingFee:shippingFee.value, tax:tax.value, stock:skuWrite.stock ?? form.stock,
-    specGroups:skuWrite.specGroups, skus:skuWrite.skus, description: sanitizeRichText(form.description) || form.summary.trim(), images });
+    specGroups:skuWrite.specGroups, skus:skuWrite.skus, description: sanitizeRichText(form.description), images });
 }
 
 function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
@@ -423,8 +422,7 @@ const previewCategory = computed(() => {
     <section class="paper"><header class="buyer-number-heading"><span>01</span><div><h2>商品信息</h2><p>清晰的图片与准确的信息，让选择更容易。</p></div></header>
       <div class="buyer-field"><Label for="product-title">商品标题 <span>*</span></Label><Input id="product-title" v-model="form.title" maxlength="128" :disabled="submitting" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" /></div>
       <div class="buyer-two-cols buyer-category-fields"><div class="buyer-field"><Label for="product-category">商品分类 <span>*</span></Label><div class="category-row"><CategoryPicker id="product-category" v-model="form.categoryId" v-model:model-values="form.categoryIds" multiple :max="20" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting" /><Button class="outline" type="button" variant="outline" :disabled="categoryLoading || submitting" @click="reloadCategories(true)">{{ categoryLoading ? '读取中…' : '刷新分类' }}</Button></div><Alert v-if="categoryLoadError" variant="destructive"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="categoryLoading" @click="reloadCategories()">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><span class="text-sm font-medium leading-none">没有合适的分类？</span><Button class="outline" type="button" variant="outline" :disabled="draftBlocked" @click="router.push('/buyer/categories/apply')">申请新增分类 →</Button></div></div>
-      <div class="buyer-field"><Label for="product-brand">商品品牌</Label><div class="category-row"><Input v-model="brandKeyword" :disabled="submitting || brandLoading" placeholder="搜索品牌名称" @keydown.enter="onBrandSearchEnter" /><Button class="outline" type="button" variant="outline" :disabled="submitting || brandLoading" @click="loadBrands()">{{ brandLoading ? '读取中…' : '搜索品牌' }}</Button></div><Select :model-value="form.brandId == null ? '__none__' : String(form.brandId)" :disabled="submitting" @update:model-value="selectBrand"><SelectTrigger id="product-brand"><SelectValue :placeholder="selectedBrandLabel || '可选，未关联品牌'">{{ form.brandId == null ? '未关联品牌' : selectedBrandLabel || '当前关联品牌' }}</SelectValue></SelectTrigger><SelectContent><SelectItem value="__none__">未关联品牌</SelectItem><SelectItem v-if="form.brandId != null && !brands.some(brand => String(brand.id) === String(form.brandId))" :value="String(form.brandId)" disabled>{{ selectedBrandLabel || '当前关联品牌' }}{{ initialProduct?.brand?.enabled === false ? '（已停用）' : '' }}</SelectItem><SelectItem v-for="brand in brands" :key="String(brand.id)" :value="String(brand.id)" :disabled="!brand.enabled">{{ brand.name }}</SelectItem></SelectContent></Select><p v-if="brandError" class="error-text" role="alert">{{ brandError }}</p><Button v-if="brands.length < brandTotal" type="button" class="outline" variant="outline" :disabled="brandLoading || submitting" @click="loadBrands(true)">加载更多品牌</Button></div>
-      <div class="buyer-field"><Label for="product-summary">商品简介</Label><Input id="product-summary" v-model="form.summary" :disabled="submitting" maxlength="30" placeholder="一行简介，30 字以内" /><small>{{ form.summary.length }} / 30</small></div>
+      <div class="buyer-field"><Label for="product-brand">商品品牌</Label><div class="category-row"><Input v-model="brandKeyword" :disabled="submitting || brandLoading" placeholder="搜索品牌名称" @keydown.enter="onBrandSearchEnter" /><Button class="outline" type="button" variant="outline" :disabled="submitting || brandLoading" @click="loadBrands()">{{ brandLoading ? '读取中…' : '搜索品牌' }}</Button></div><Select :model-value="form.brandId == null ? '__none__' : String(form.brandId)" :disabled="submitting" @update:model-value="selectBrand"><SelectTrigger id="product-brand"><SelectValue :placeholder="selectedBrandLabel || '可选，未关联品牌'">{{ form.brandId == null ? '未关联品牌' : selectedBrandLabel || '当前关联品牌' }}</SelectValue></SelectTrigger><SelectContent><SelectItem value="__none__">未关联品牌</SelectItem><SelectItem v-if="form.brandId != null && !brands.some(brand => String(brand.id) === String(form.brandId))" :value="String(form.brandId)" disabled>{{ selectedBrandLabel || '当前关联品牌' }}{{ initialProduct?.brand?.enabled === false ? '（已停用）' : '' }}</SelectItem><SelectItem v-for="brand in brands" :key="String(brand.id)" :value="String(brand.id)" :disabled="!brand.enabled">{{ brand.name }}</SelectItem></SelectContent></Select><p v-if="brandError" class="error-text" role="alert">{{ brandError }}</p><Button v-if="brands.length < brandTotal" type="button" class="outline" variant="outline" :disabled="brandLoading || submitting" @click="loadBrands(true)">加载更多品牌</Button><BrandApplications :disabled="draftBlocked" @selected="brand => { form.brandId = brand.id; brands = [brand, ...brands.filter(row => String(row.id) !== String(brand.id))]; }" /></div>
       <div class="buyer-field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader :key="draftRevision" class="buyer-upload-grid" :model-value="form.images" @update:model-value="updateProductImages" :cover-mode="true" scene="PRODUCT" :max="6" :disabled="submitting || uploadStates.description || uploadStates.details || uploadStates.skus || !currentContext" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
     </section>
     <BuyerProductDetails v-model:parameters="form.parameters" :disabled="draftBlocked" />
@@ -439,7 +437,7 @@ const previewCategory = computed(() => {
     <footer class="buyer-form-footer"><button type="button" class="outline" @click="previewOpen = true">预览商品</button><button type="button" class="outline" :disabled="draftBlocked" @click="saveDraft">保存本地草稿</button><button type="submit" class="primary" :disabled="draftBlocked">{{ submitting ? '正在提交…' : '提交审核' }}<UmIcon name="arrow" /></button></footer>
     </div>
     <a-modal v-model:visible="previewOpen" title="商品预览" :footer="false" :width="960"><div class="product-form-preview"><p>当前表单预览，尚未发布。</p><h1>{{ form.title || '尚未填写商品标题' }}</h1><strong>{{ previewPrice === undefined ? '金额待填写' : formatAmount(previewPrice) + ' USDT' }}</strong><div class="preview-images"><img v-for="(image, index) in form.images" :key="index" :src="image" :alt="form.title || '商品图片'" /></div><ProductDescription :description="form.description"><ProductParameters :parameters="form.parameters" /></ProductDescription></div></a-modal>
-    <aside class="paper buyer-live-preview" aria-label="当前表单预览"><h3>顾客将看到</h3><img v-if="form.images.length" :src="form.images[0]" :alt="form.title || '当前上传的商品图片'" /><div v-else class="preview-empty"><UmIcon name="bag" /><span>上传商品图片后预览</span></div><small>{{ previewCategory || '尚未选择分类' }}</small><h3>{{ form.title || '尚未填写商品标题' }}</h3><p v-if="form.summary">{{ form.summary }}</p><strong>{{ previewPrice === undefined ? '—' : formatAmount(previewPrice) }} <small>USDT</small></strong><div class="preview-service"><UmIcon name="shield" />{{ ({ 'none': '无售后', '7day-no-reason': '7 天无理由', 'shop-warranty': '店铺保修', 'national-warranty': '全国联保' })[form.aftersaleType] || '尚未选择售后类型' }}</div><p class="preview-hint">当前表单预览，尚未发布。提交后进入平台审核。</p></aside>
+    <aside class="paper buyer-live-preview" aria-label="当前表单预览"><h3>顾客将看到</h3><img v-if="form.images.length" :src="form.images[0]" :alt="form.title || '当前上传的商品图片'" /><div v-else class="preview-empty"><UmIcon name="bag" /><span>上传商品图片后预览</span></div><small>{{ previewCategory || '尚未选择分类' }}</small><h3>{{ form.title || '尚未填写商品标题' }}</h3><strong>{{ previewPrice === undefined ? '—' : formatAmount(previewPrice) }} <small>USDT</small></strong><div class="preview-service"><UmIcon name="shield" />{{ ({ 'none': '无售后', '7day-no-reason': '7 天无理由', 'shop-warranty': '店铺保修', 'national-warranty': '全国联保' })[form.aftersaleType] || '尚未选择售后类型' }}</div><p class="preview-hint">当前表单预览，尚未发布。提交后进入平台审核。</p></aside>
     <a-modal content-class="buyer-dialog" v-model:visible="leaveVisible" title="保存商品草稿？" :footer="false" @cancel="decideLeave(false)"><p>还有未保存的商品资料，可以保存草稿后离开。</p><p v-if="draftError" class="error-text" role="alert">{{ draftError }}</p><DialogActions><button type="button" class="outline" @click="decideLeave(false)">继续编辑</button><button type="button" class="outline" :disabled="draftBlocked" @click="discardAndLeave">放弃修改</button><button type="button" class="primary" :disabled="draftBlocked" @click="saveAndLeave">保存并离开</button></DialogActions></a-modal>
   </form>
 </template>

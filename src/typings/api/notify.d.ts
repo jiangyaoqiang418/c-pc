@@ -40,6 +40,8 @@ declare namespace Api.RealNotify {
   }
 
   interface ImConversationVO {
+    routingVersion?: string;
+    aiEnabled?: boolean;
     id: string | number;
     title?: string;
     type?: ConversationType;
