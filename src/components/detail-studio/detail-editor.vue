@@ -8,7 +8,7 @@ import { blankPage, newDocument, palette, parseScene, textLines, uid } from './s
 import * as api from '@/service/api/detail-studio';
 import { uploadFile } from '@/service/api/product';
 
-const props = defineProps<{ modelValue?: string; revisionId?: string; documentKey?: string; title: string; disabled?: boolean }>();
+const props = defineProps<{ modelValue?: string; revisionId?: string; documentKey?: string; title: string; productImages?: string[]; productParameters?: Api.RealProduct.ProductParameter[]; disabled?: boolean }>();
 const emit = defineEmits<{ change: [value: { sourceJson: string; designRevisionId?: string; designDocumentKey: string; description?: string }]; busy: [value: boolean] }>();
 const doc = ref(parseScene(props.modelValue) || newDocument());
 const documentKey = ref(props.documentKey || uid());
@@ -102,6 +102,7 @@ async function save() {
 }
 async function generate(scope: 'all' | 'screen' | 'text' = 'all') {
   if (!capability.value?.enabled || busy.value || props.disabled || generating.value) return;
+  if (scope !== 'text' && !props.productImages?.length) { error.value = '请先在商品信息中上传商品实拍图或官方产品图，助手会自动引用，确保外观一致。'; return; }
   const epoch = ++taskEpoch;
   const productTitle = props.title.trim();
   const key = documentKey.value;
@@ -109,7 +110,7 @@ async function generate(scope: 'all' | 'screen' | 'text' = 'all') {
   task.value = null;
   delete doc.value.generationTask;
   publish();
-  await run(async () => { const created = await api.createDetailTask({ requestKey: uid(), inputJson: JSON.stringify({ name: props.title, facts: facts.value, brief: brief.value, language: language.value, count: scope === 'all' ? count.value : 1, action: scope === 'text' ? 'edit_text' : 'generate', targetPageId: scope === 'all' ? undefined : page.value.id, targetNodeId: scope === 'text' ? selectedId.value : undefined, currentPage: scope === 'text' ? page.value : undefined, theme: doc.value.theme, mode: doc.value.mode, images: doc.value.pages.flatMap(p => p.nodes.filter(n => n.type === 'image').map(n => n.src)).slice(0, 3) }) }); if (!alive || epoch !== taskEpoch) return; doc.value.generationTask = { id: created.id, documentKey: key, productTitle }; task.value = created; publish(); schedulePoll(); }).catch(() => {});
+  await run(async () => { const created = await api.createDetailTask({ requestKey: uid(), inputJson: JSON.stringify({ name: props.title, facts: [facts.value, ...(props.productParameters || []).map(p => `${p.name}：${p.value}${p.explanation ? '（' + p.explanation + '）' : ''}`)].join('\n').slice(0, 18000), brief: brief.value, language: language.value, count: scope === 'all' ? count.value : 1, action: scope === 'text' ? 'edit_text' : 'generate', targetPageId: scope === 'all' ? undefined : page.value.id, targetNodeId: scope === 'text' ? selectedId.value : undefined, currentPage: scope === 'text' ? page.value : undefined, theme: doc.value.theme, mode: doc.value.mode, images: [...new Set(props.productImages || [])].slice(0, 3) }) }); if (!alive || epoch !== taskEpoch) return; doc.value.generationTask = { id: created.id, documentKey: key, productTitle }; task.value = created; publish(); schedulePoll(); }).catch(() => {});
 }
 function schedulePoll() { if (timer) clearTimeout(timer); if (alive && generating.value) timer = setTimeout(poll, 2000); }
 watch(taskMatchesProduct, () => schedulePoll());
@@ -170,7 +171,7 @@ defineExpose({ save });
         <p v-else>选择图层后编辑。文字建议不小于 28px，保证手机可读。</p>
       </aside>
     </div>
-    <details v-if="capability?.enabled" class="ai-panel" :inert="busy || disabled" open><summary>智能详情页设计助手</summary><div class="ai-fields"><label>商品资料<textarea v-model="facts" placeholder="填写具体属性、卖点，也可粘贴官网链接" /></label><label>设计要求<textarea v-model="brief" /></label><label>语言<input v-model="language" /></label><label>屏数<input v-model.number="count" type="number" min="1" max="12" /></label></div><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('all')">一键生成商品详情</button><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('screen')">只重新生成当前屏</button><button v-if="selected?.type === 'text'" type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('text')">按设计要求改写选中文字</button><button v-if="generating" type="button" @click="cancel">中止任务</button><p v-if="taskMatchesProduct && task">任务 {{ task.status }} · 已完成 {{ task.progress }} 屏 {{ task.errorMessage }}</p><button v-if="taskMatchesProduct && task?.resultJson" type="button" :disabled="!!generating || busy || disabled" @click="applyResult">将生成结果应用到画布（替换当前内容，可撤销）</button><p>生成在后台执行，离开页面不会中止。生成结果不会自动覆盖你正在编辑的画布。</p></details>
+    <details v-if="capability?.enabled" class="ai-panel" :inert="busy || disabled" open><summary>智能详情页设计助手</summary><p>自动引用商品主图和商品参数，保持真实外观。每屏出图后检查颜色与形态，不合格最多自动校正一次，会增加模型用量。</p><div class="ai-fields"><label>商品资料<textarea v-model="facts" placeholder="填写具体属性、卖点，也可粘贴官网链接" /></label><label>设计要求<textarea v-model="brief" /></label><label>语言<input v-model="language" /></label><label>屏数<input v-model.number="count" type="number" min="1" max="12" /></label></div><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('all')">一键生成商品详情</button><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('screen')">只重新生成当前屏</button><button v-if="selected?.type === 'text'" type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('text')">按设计要求改写选中文字</button><button v-if="generating" type="button" @click="cancel">中止任务</button><p v-if="taskMatchesProduct && task">任务 {{ task.status }} · 已完成 {{ task.progress }} 屏 {{ task.errorMessage }}</p><button v-if="taskMatchesProduct && task?.resultJson" type="button" :disabled="!!generating || busy || disabled" @click="applyResult">将生成结果应用到画布（替换当前内容，可撤销）</button><p>生成在后台执行，离开页面不会中止。生成结果不会自动覆盖你正在编辑的画布。</p></details>
   </div>
 </template>
 <style scoped>
