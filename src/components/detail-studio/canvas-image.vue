@@ -18,6 +18,7 @@ const rendered = computed(() => {
   }
   return canvas;
 });
-const config = computed(() => ({ ...props.node, id: props.node.id, image: rendered.value, draggable: props.draggable }));
+// Crop ratios are already applied to rendered; Konva crop sizes are pixels, not ratios.
+const config = computed(() => ({ ...props.node, id: props.node.id, image: rendered.value, cropX: 0, cropY: 0, cropWidth: 0, cropHeight: 0, draggable: props.draggable }));
 </script>
 <template><KImage :config="config" /></template>
