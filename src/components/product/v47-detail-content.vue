@@ -4,7 +4,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 const props = defineProps<{ initialReview?: boolean }>();
 const contentTab = ref('商品详情');
 const activeTab = ref('商品详情');
-const tabs = ['商品详情', '规格参数', '用户评价', '配送与售后', '支付说明'];
+const tabs = ['商品详情', '用户评价', '配送与售后', '支付说明'];
 const anchor = ref<HTMLElement>();
 const nav = ref<HTMLElement>();
 const panel = ref<HTMLElement>();
