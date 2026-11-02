@@ -2277,7 +2277,7 @@ describe('确认转人工与接待回查', () => {
     await expect(state.refresh()).rejects.toThrow('unavailable');
     expect(state.route.value?.interveneStatus).toBe('HANDLING'); expect(state.error.value).toContain('unavailable');
   });
-  it('展示新旧动作都不申请，人工接入立即停流，结束后新问题走AI且旧回调失效', async () => {
+  it('展示卡片不申请，人工接入停流，转接退出保留原Python会话且旧回调失效', async () => {
     const values = new Map<string,string>();
     vi.stubGlobal('localStorage',{getItem:(key:string) => values.get(key) ?? null,setItem:(key:string,value:string) => values.set(key,value),removeItem:(key:string) => values.delete(key)});
     setAccessToken('support-stream-test'); setActivePinia(createPinia()); useUserStore().currentUser = {id:'qa'} as Api.RealSession.UserRecord;
@@ -2298,8 +2298,9 @@ describe('确认转人工与接待回查', () => {
       receive({event:'action',data:{request_id:'old',seq:2,type:'REQUEST_HUMAN_SUPPORT',action_id:'human_1'}});
       receive({event:'card',data:{type:'human_handoff',data:{label:'确认转人工'}}});
       await new Promise<void>(done => {finish=done;});
-    }).mockImplementation(async (_params,_signal,receive) => {
-      receive({event:'start',data:{request_id:'new',seq:1,conversation_id:'b'.repeat(32),im_sync:{im_conversation_id:id,routing_version:'2'}}});
+    }).mockImplementation(async (params,_signal,receive) => {
+      expect(params.conversationId).toBe('a'.repeat(32));
+      receive({event:'start',data:{request_id:'new',seq:1,conversation_id:'a'.repeat(32),im_sync:{im_conversation_id:id,routing_version:'3'}}});
       receive({event:'delta',data:{request_id:'new',seq:2,text:'新回答'}});receive({event:'done',data:{request_id:'new',seq:3,status:'completed'}});
     });
     state.input.value='转人工';const first=state.send();await vi.waitFor(() => expect(late).toBeTypeOf('function'));
@@ -2310,7 +2311,9 @@ describe('确认转人工与接待回查', () => {
     expect(apply).toHaveBeenCalledOnce(); expect(signal.aborted).toBe(false); expect(state.running.value).toBe(true);
     server=route('1','HANDLING');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
     expect(signal.aborted).toBe(true);expect(state.handling.value).toBe(true);expect(state.running.value).toBe(false);
-    server=route('2');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
+    server=route('2','HANDLING');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
+    expect(state.handling.value).toBe(true);expect(stream).toHaveBeenCalledOnce();
+    server=route('3');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
     expect(state.handling.value).toBe(false);state.input.value='新问题';await state.send();
     late({event:'delta',data:{request_id:'old',seq:3,text:'不应复活'}});finish();await first;
     expect(stream).toHaveBeenCalledTimes(2);expect(apply).toHaveBeenCalledOnce();

@@ -16,7 +16,7 @@
 | SHOP-91 | 商品/求购目录最多三级，仍可选择任意启用层级；分类申请仅一二级父节点；多选自动包含祖先、保留主分类，整体超过20项则阻止 | 类型、已有测试及新增三级规则用例通过，未做页面验收 |
 | SHOP-90、92 | 热搜无有效数据隐藏区块；保留真实热搜/打点、联想和识图；搜索旁新增UMAO导购入口 | 真实“热搜未显示”及识图、浅色异常未复现，不宣称已修复所有旧现象 |
 | SHOP-78、40、38 | question独立保留text/options/placement及历史恢复，仅最新有效组可继续；首个delta清status；按最新《20261102_AI客服转人工_前端对接》展示human_handoff确认卡，用户点击才申请，旧action不再自动申请；数字code=1才认成功；AI小卡横向浏览；客服入口定位常驻SUPPORT | 实时/历史确认卡、仅点击申请、超时回查、接待乱序和流隔离已扩展现有测试；真实Java/Python透传与模型上下文恢复待联调 |
-| SUPPORT统一时间线 | 以Java IM为准并按clientMsgId合并；初始化常驻会话后使用GET /notify/im/conversations/support/route，接IM_SUPPORT_ROUTE，顾客不依赖IM_ASSIGN。版本字符串以BigInt比较，同版本NONE→REQUESTED生效；HTTP串行合并，旧回查不覆盖新事件。HANDLING立即停止SSE及旧回调；NONE/true立即恢复新发送，不重发旧问题；查询失败保留已确认模式。历史确认卡使用当前状态，禁止客服删除/撤回 | 类型、518项测试、生产构建及四域Swagger检查通过，已将support/route和四个返回字段加入契约守卫；最终刷新notify Swagger已提供新GET路由。OpenAPI的ID/版本仍标int64，页面按附件要求保留字符串并以BigInt比较；实际鉴权返回与推送仍未读取。需确认Java新状态推送及Python human_handoff配套部署，仍需真实人工接入/结束/转接、多标签、重连、图片与历史回读验收。本轮未做浏览器或业务写入，未部署；代码按用户明确要求提交推送，真实闭环仍待验收 |
+| SUPPORT统一时间线 | 以Java IM为准并按clientMsgId合并；初始化常驻会话后使用GET /notify/im/conversations/support/route，接IM_SUPPORT_ROUTE，顾客不依赖IM_ASSIGN。版本字符串以BigInt比较，同版本NONE→REQUESTED生效；HTTP串行合并，旧回查不覆盖新事件。HANDLING立即停止SSE及旧回调；接入/转接/结束保留已确认Python会话ID，只有通过IM会话与版本校验的start才能更新ID；NONE/true新问题续用原模型会话，不重发旧问题；查询失败保留已确认模式。历史确认卡使用当前状态，禁止客服删除/撤回 | 类型、518项测试、生产构建及四域Swagger检查通过，已将support/route和四个返回字段加入契约守卫；最终刷新notify Swagger已提供新GET路由。OpenAPI的ID/版本仍标int64，页面按附件要求保留字符串并以BigInt比较；实际鉴权返回与推送仍未读取。需确认Java新状态推送及Python human_handoff配套部署，仍需真实人工接入/结束/转接、多标签、重连、图片与历史回读验收。本轮未做浏览器或业务写入，未部署；代码按用户明确要求提交推送，真实闭环仍待验收 |
 
 自动检查：C-PC类型、497项现有及扩展测试、实时四域Swagger通过；生产构建通过（保留现有 chunk 体积提示）。未验证项：实际页面、布局与主题表现；真实品牌/商品保存、客服全链路和历史字段透传。非Backlog及文档未明确项不扩大实施，AI详情生成、验证器、KYC视频、商品视频和信誉/成单归因仍待契约/决定。买手申请开关单独保留为未编号文档项，未混入本批。
 

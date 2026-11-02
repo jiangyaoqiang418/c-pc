@@ -51,7 +51,8 @@ export function useSupportChat(conversationId: string) {
   const support = useSupportRoute(conversationId, (next, previous) => {
     notice.value = next.interveneStatus === 'REQUESTED' ? '正在等待人工客服，您可以继续咨询' : '';
     if (next.interveneStatus === 'HANDLING' || previous && next.routingVersion !== previous.routingVersion) {
-      stop(); pythonId = undefined;
+      // 接待版本只隔离生成任务；人工结束后仍续用原模型会话。
+      stop();
       for (const row of messages.value) row.questionConsumed = true;
     }
   });
@@ -184,9 +185,10 @@ export function useSupportChat(conversationId: string) {
       await streamCustomerChat({ message: text, imageFileIds: images.map(image => image.id), conversationId: pythonId, clientMessageId: key }, aborter.signal, event => {
         if (!active()) return;
         if (event.event === 'start') {
-          pythonId = event.data.conversation_id; answer.requestId = event.data.request_id; answer.imSync = event.data.im_sync;
+          answer.requestId = event.data.request_id; answer.imSync = event.data.im_sync;
           const sync = event.data.im_sync;
           if (!sync || sync.im_conversation_id !== conversationId || sync.routing_version !== route.value?.routingVersion) { stop(); notice.value = '接待状态已变化，请刷新后继续'; void load(); return; }
+          pythonId = event.data.conversation_id;
           const question = messages.value.find(row => row.id === fromUser.id);
           if (question) question.clientMessageId = sync.user_client_msg_id;
           answer.clientMessageId = sync.ai_client_msg_id;

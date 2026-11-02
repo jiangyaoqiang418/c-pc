@@ -77,7 +77,7 @@ git pull --ff-only origin main
 
 ## AI 转人工确认卡与接待路由
 
-以最新《20261102_AI客服转人工_前端对接》覆盖此前“收到 action 自动申请”的行为：实时及历史 human_handoff 只展示确认卡，用户点击后回查状态再申请。接待查询使用 GET /notify/im/conversations/support/route；顾客接收 IM_SUPPORT_ROUTE，版本按字符串与 BigInt 保留和比较。人工接入立即中断旧生成，结束后恢复新问题的 AI 发送；不自动重放问题，旧回调不会复活。后台现有接入、结束和转接接口复用，无离页自动结束操作。
+以最新《20261102_AI客服转人工_前端对接》覆盖此前“收到 action 自动申请”的行为：实时及历史 human_handoff 只展示确认卡，用户点击后回查状态再申请。接待查询使用 GET /notify/im/conversations/support/route；顾客接收 IM_SUPPORT_ROUTE，版本按字符串与 BigInt 保留和比较。人工接入或转接立即中断旧生成，保留已确认的原 Python 会话 ID，结束后新问题携带原 ID 与 Java 新接待版本继续；不自动重放问题，旧回调不会复活。只有当前会话和接待版本校验通过的 start 才能更新模型会话 ID。后台现有接入、结束和转接接口复用，无离页自动结束操作。
 
 代码与既有测试已适配，详细验证和未验项见 Swagger 矩阵。最终刷新 notify Swagger 已有新 route 查询及四个状态字段，并已纳入契约检查；需继续核对实际鉴权返回、推送及 Python 确认卡片。未做浏览器验收、业务消息发送或发布；本轮按用户明确要求提交推送，仍为部分完成，不以自动检查代替真实客服闭环验收。
 
