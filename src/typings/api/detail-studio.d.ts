@@ -9,7 +9,7 @@ declare namespace Api.DetailStudio {
     edgeFade?: number;
   }
   interface Page { id: string; width: 750; height: number; background: string; nodes: Node[] }
-  interface Document { targetPageId?: string; schemaVersion: 1; theme: 'dark' | 'light' | 'warm'; mode: 'mixed' | 'image'; pages: Page[] }
+  interface Document { generationTask?: { id: string; documentKey: string; productTitle: string }; targetPageId?: string; schemaVersion: 1; theme: 'dark' | 'light' | 'warm'; mode: 'mixed' | 'image'; pages: Page[] }
   interface Revision { id: string; documentKey: string; sourceJson: string; description: string }
   interface Capability { enabled: boolean; keyConfigured: boolean; reasoningModel?: string; imageModel?: string }
   interface Task { id: string; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; progress: number; resultJson?: string; errorMessage?: string }

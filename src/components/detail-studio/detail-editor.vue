@@ -28,7 +28,9 @@ const capability = ref<Api.DetailStudio.Capability>();
 const task = ref<Api.DetailStudio.Task | null>();
 const facts = ref(''), brief = ref('旗舰店风格，突出商品卖点，简洁清晰。符合品牌设计语言和设计美学'), language = ref('简体中文'), count = ref(4);
 const brush = ref('#b9c8ff'), brushSize = ref(8);
-const generating = computed(() => task.value && ['QUEUED', 'RUNNING'].includes(task.value.status));
+const taskMatchesProduct = computed(() => !!task.value && doc.value.generationTask?.id === task.value.id && doc.value.generationTask.documentKey === documentKey.value && doc.value.generationTask.productTitle === props.title.trim());
+let taskEpoch = 0;
+const generating = computed(() => taskMatchesProduct.value && task.value && ['QUEUED', 'RUNNING'].includes(task.value.status));
 let alive = true, observer: ResizeObserver | undefined, timer: ReturnType<typeof setTimeout> | undefined, drawing: Api.DetailStudio.Node | undefined;
 function publish() { emit('change', { sourceJson: JSON.stringify(doc.value), designRevisionId: revision.value, designDocumentKey: documentKey.value }); }
 function remember() { history.value.push(JSON.stringify(doc.value)); if (history.value.length > 40) history.value.shift(); future.value = []; }
@@ -99,18 +101,47 @@ async function save() {
   }); return revision.value;
 }
 async function generate(scope: 'all' | 'screen' | 'text' = 'all') {
-  if (!capability.value?.enabled) return;
-  await run(async () => { task.value = await api.createDetailTask({ requestKey: uid(), inputJson: JSON.stringify({ name: props.title, facts: facts.value, brief: brief.value, language: language.value, count: scope === 'all' ? count.value : 1, action: scope === 'text' ? 'edit_text' : 'generate', targetPageId: scope === 'all' ? undefined : page.value.id, targetNodeId: scope === 'text' ? selectedId.value : undefined, currentPage: scope === 'text' ? page.value : undefined, theme: doc.value.theme, mode: doc.value.mode, images: doc.value.pages.flatMap(p => p.nodes.filter(n => n.type === 'image').map(n => n.src)).slice(0, 3) }) }); schedulePoll(); }).catch(() => {});
+  if (!capability.value?.enabled || busy.value || props.disabled || generating.value) return;
+  const epoch = ++taskEpoch;
+  const productTitle = props.title.trim();
+  const key = documentKey.value;
+  if (timer) clearTimeout(timer);
+  task.value = null;
+  delete doc.value.generationTask;
+  publish();
+  await run(async () => { const created = await api.createDetailTask({ requestKey: uid(), inputJson: JSON.stringify({ name: props.title, facts: facts.value, brief: brief.value, language: language.value, count: scope === 'all' ? count.value : 1, action: scope === 'text' ? 'edit_text' : 'generate', targetPageId: scope === 'all' ? undefined : page.value.id, targetNodeId: scope === 'text' ? selectedId.value : undefined, currentPage: scope === 'text' ? page.value : undefined, theme: doc.value.theme, mode: doc.value.mode, images: doc.value.pages.flatMap(p => p.nodes.filter(n => n.type === 'image').map(n => n.src)).slice(0, 3) }) }); if (!alive || epoch !== taskEpoch) return; doc.value.generationTask = { id: created.id, documentKey: key, productTitle }; task.value = created; publish(); schedulePoll(); }).catch(() => {});
 }
 function schedulePoll() { if (timer) clearTimeout(timer); if (alive && generating.value) timer = setTimeout(poll, 2000); }
-async function poll() { try { if (task.value) task.value = await api.fetchDetailTask(task.value.id); } catch (e) { error.value = '任务进度暂时无法读取，可稍后刷新；后台任务继续执行。'; } finally { schedulePoll(); } }
-async function cancel() { try { if (task.value) task.value = await api.cancelDetailTask(task.value.id); } catch (e) { error.value = (e as Error).message; } }
-function applyResult() { if (!task.value?.resultJson) return; const result = parseScene(task.value.resultJson)!; const target = result.targetPageId ? doc.value.pages.findIndex(p => p.id === result.targetPageId) : -1; if (result.targetPageId && target < 0) { error.value = '原画布已删除，未覆盖当前内容。'; return; } mutate(() => { if (target >= 0) { result.pages[0].id = result.targetPageId!; doc.value.pages.splice(target, 1, result.pages[0]); index.value = target; } else { doc.value = result; index.value = 0; } selectedId.value = ''; }); }
+watch(taskMatchesProduct, () => schedulePoll());
+async function poll() {
+  const id = task.value?.id, epoch = taskEpoch;
+  if (!id || !taskMatchesProduct.value) return;
+  try { const result = await api.fetchDetailTask(id); if (alive && epoch === taskEpoch && task.value?.id === id && taskMatchesProduct.value) task.value = result; }
+  catch { if (alive && epoch === taskEpoch) error.value = '任务进度暂时无法读取，可稍后刷新；后台任务继续执行。'; }
+  finally { if (epoch === taskEpoch) schedulePoll(); }
+}
+async function cancel() {
+  const id = task.value?.id, epoch = taskEpoch;
+  if (!id || !taskMatchesProduct.value) return;
+  try { const result = await api.cancelDetailTask(id); if (alive && epoch === taskEpoch && task.value?.id === id) task.value = result; }
+  catch (e) { if (alive && epoch === taskEpoch) error.value = (e as Error).message; }
+}
+function applyResult() { if (!taskMatchesProduct.value || !task.value?.resultJson) return; const result = parseScene(task.value.resultJson)!; const target = result.targetPageId ? doc.value.pages.findIndex(p => p.id === result.targetPageId) : -1; if (result.targetPageId && target < 0) { error.value = '原画布已删除，未覆盖当前内容。'; return; } mutate(() => { if (target >= 0) { result.pages[0].id = result.targetPageId!; doc.value.pages.splice(target, 1, result.pages[0]); index.value = target; } else { result.generationTask = doc.value.generationTask; doc.value = result; index.value = 0; } selectedId.value = ''; }); }
 onMounted(async () => {
   observer = new ResizeObserver(entries => scale.value = Math.min(1, Math.max(.25, (entries[0].contentRect.width - 24) / 750))); if (canvasHost.value) observer.observe(canvasHost.value);
-  try { capability.value = await api.fetchDetailCapability(); if (capability.value.enabled) { task.value = await api.fetchLatestDetailTask(); schedulePoll(); } if (props.revisionId) { const r = await api.fetchDetailRevision(props.revisionId); documentKey.value = r.documentKey; } } catch (e) { error.value = (e as Error).message; }
+  const epoch = taskEpoch;
+  try {
+    capability.value = await api.fetchDetailCapability();
+    if (props.revisionId) { const r = await api.fetchDetailRevision(props.revisionId); if (!alive || epoch !== taskEpoch) return; documentKey.value = r.documentKey; }
+    const binding = doc.value.generationTask;
+    if (capability.value.enabled && binding && binding.documentKey === documentKey.value && binding.productTitle === props.title.trim()) {
+      const restored = await api.fetchDetailTask(binding.id);
+      if (!alive || epoch !== taskEpoch) return;
+      task.value = restored; schedulePoll();
+    }
+  } catch (e) { if (alive && epoch === taskEpoch) error.value = (e as Error).message; }
 });
-onBeforeUnmount(() => { alive = false; observer?.disconnect(); if (timer) clearTimeout(timer); });
+onBeforeUnmount(() => { alive = false; taskEpoch++; observer?.disconnect(); if (timer) clearTimeout(timer); });
 defineExpose({ save });
 </script>
 <template>
@@ -139,7 +170,7 @@ defineExpose({ save });
         <p v-else>选择图层后编辑。文字建议不小于 28px，保证手机可读。</p>
       </aside>
     </div>
-    <details v-if="capability?.enabled" class="ai-panel" :inert="busy || disabled" open><summary>智能详情页设计助手</summary><div class="ai-fields"><label>商品资料<textarea v-model="facts" placeholder="填写具体属性、卖点，也可粘贴官网链接" /></label><label>设计要求<textarea v-model="brief" /></label><label>语言<input v-model="language" /></label><label>屏数<input v-model.number="count" type="number" min="1" max="12" /></label></div><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('all')">一键生成商品详情</button><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('screen')">只重新生成当前屏</button><button v-if="selected?.type === 'text'" type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('text')">按设计要求改写选中文字</button><button v-if="generating" type="button" @click="cancel">中止任务</button><p v-if="task">任务 {{ task.status }} · 已完成 {{ task.progress }} 屏 {{ task.errorMessage }}</p><button v-if="task?.resultJson" type="button" :disabled="!!generating || busy || disabled" @click="applyResult">将生成结果应用到画布（替换当前内容，可撤销）</button><p>生成在后台执行，离开页面不会中止。生成结果不会自动覆盖你正在编辑的画布。</p></details>
+    <details v-if="capability?.enabled" class="ai-panel" :inert="busy || disabled" open><summary>智能详情页设计助手</summary><div class="ai-fields"><label>商品资料<textarea v-model="facts" placeholder="填写具体属性、卖点，也可粘贴官网链接" /></label><label>设计要求<textarea v-model="brief" /></label><label>语言<input v-model="language" /></label><label>屏数<input v-model.number="count" type="number" min="1" max="12" /></label></div><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('all')">一键生成商品详情</button><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('screen')">只重新生成当前屏</button><button v-if="selected?.type === 'text'" type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('text')">按设计要求改写选中文字</button><button v-if="generating" type="button" @click="cancel">中止任务</button><p v-if="taskMatchesProduct && task">任务 {{ task.status }} · 已完成 {{ task.progress }} 屏 {{ task.errorMessage }}</p><button v-if="taskMatchesProduct && task?.resultJson" type="button" :disabled="!!generating || busy || disabled" @click="applyResult">将生成结果应用到画布（替换当前内容，可撤销）</button><p>生成在后台执行，离开页面不会中止。生成结果不会自动覆盖你正在编辑的画布。</p></details>
   </div>
 </template>
 <style scoped>
