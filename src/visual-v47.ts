@@ -100,8 +100,8 @@ const catalogFixture: CatalogVisualFixture = {
       && (!query.categoryId || categoryIds.has(String(product.categoryId)))
       && (!query.aftersaleType || product.aftersaleType === query.aftersaleType)
       && (!query.overseasCustoms || product.overseasCustoms)
-      && (query.minPrice === undefined || Number(product.price) >= query.minPrice)
-      && (query.maxPrice === undefined || Number(product.price) <= query.maxPrice));
+      && (query.minPrice === undefined || Number(product.price) >= Number(query.minPrice))
+      && (query.maxPrice === undefined || Number(product.price) <= Number(query.maxPrice)));
     if (query.sort === 'SALES') selected.sort((a, b) => b.salesCount - a.salesCount);
     if (query.sort === 'NEW') selected.reverse();
     if (query.sort === 'PRICE_ASC') selected.sort((a, b) => Number(a.price) - Number(b.price));

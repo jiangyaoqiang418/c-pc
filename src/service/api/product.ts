@@ -1,10 +1,10 @@
-import { realOrderRequest } from '@/service/request';
+import { realOrderRequest, RequestError } from '@/service/request';
 import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
 import { toFiniteNumber } from './number';
 import { enums } from '@shared';
 import { sumPaymentAmounts } from '@/utils/checkout';
-import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
+import { compareDecimalAmount, exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { validateProductSkuWrite } from '@/utils/product-sku';
 
 export function toAfterSaleType(value?: string): Api.RealProduct.DisplayAfterSaleType {
@@ -217,6 +217,23 @@ export function normalizeStorefrontSort(sort?: string): StorefrontSort {
   return legacyStorefrontSortMap[sort as LegacyStorefrontSort] || 'DEFAULT';
 }
 
+export function validateImageSearchInput(fileId: unknown, hint?: unknown) {
+  if (typeof fileId !== 'string' || !/^[1-9]\d*$/.test(fileId)) {
+    throw new RequestError('图片标识无效，请重新上传图片', { code: 'INVALID_IMAGE_SEARCH' });
+  }
+  if (hint !== undefined && (typeof hint !== 'string' || hint.length > 120)) {
+    throw new RequestError('补充描述最多120字符，请修改后重试', { code: 'INVALID_IMAGE_SEARCH' });
+  }
+  return { fileId, hint: typeof hint === 'string' ? hint.trim() || undefined : undefined };
+}
+
+function imageSearchPrice(value: string | number | undefined) {
+  if (value === undefined) return undefined;
+  const amount = exactTransactionAmount(value, true);
+  if (amount.value === undefined) throw new RequestError(amount.error, { code: 'INVALID_IMAGE_SEARCH' });
+  return amount.value;
+}
+
 export async function fetchStorefrontProducts(q: {
   brandId?: Api.RealProduct.Id;
   current?: number;
@@ -225,29 +242,40 @@ export async function fetchStorefrontProducts(q: {
   categoryId?: string | number;
   aftersaleType?: Api.Product.AftersaleType;
   overseasCustoms?: boolean;
-  minPrice?: number;
-  maxPrice?: number;
+  minPrice?: string | number;
+  maxPrice?: string | number;
   sort?: StorefrontSort | LegacyStorefrontSort;
   signal?: AbortSignal;
   imageFileId?: string;
   hint?: string;
 }) {
+  const imageSearch = q.imageFileId !== undefined;
+  const image = imageSearch ? validateImageSearchInput(q.imageFileId, q.hint) : undefined;
+  const minPrice = imageSearch ? imageSearchPrice(q.minPrice) : q.minPrice;
+  const maxPrice = imageSearch ? imageSearchPrice(q.maxPrice) : q.maxPrice;
+  if (imageSearch && (!Number.isSafeInteger(q.current ?? 1) || (q.current ?? 1) < 1
+    || !Number.isSafeInteger(q.size ?? 20) || (q.size ?? 20) < 1 || (q.size ?? 20) > 500)) {
+    throw new RequestError('分页参数无效，请重新搜索', { code: 'INVALID_IMAGE_SEARCH' });
+  }
+  if (imageSearch && minPrice !== undefined && maxPrice !== undefined && compareDecimalAmount(minPrice, maxPrice) === 1) {
+    throw new RequestError('最低价格不能高于最高价格', { code: 'INVALID_IMAGE_SEARCH' });
+  }
   const page = await realOrderRequest.postQuery<
     Api.Common.PaginatingQueryRecord<Api.RealProduct.StorefrontProductVO> & { pageNo?: number; pageSize?: number },
     Api.RealProduct.StorefrontProductPageQuery
-  > (q.imageFileId ? '/storefront/search/images/page' : '/storefront/products/page', {
-    fileId:q.imageFileId, hint:q.hint,
+  > (imageSearch ? '/storefront/search/images/page' : '/storefront/products/page', {
+    fileId:image?.fileId, hint:image?.hint,
     pageNo: q.current || 1,
     pageSize: q.size || 20,
     keyword: q.keyword,
     brandId: q.brandId,
     categoryId: q.categoryId,
-    minPrice: q.minPrice,
-    maxPrice: q.maxPrice,
+    minPrice,
+    maxPrice,
     afterSaleType: q.aftersaleType ? fromAfterSaleType(q.aftersaleType) : undefined,
     overseasClearance: q.overseasCustoms,
     sortBy: normalizeStorefrontSort(q.sort)
-  }, { signal: q.signal, preserveDecimals: true, timeoutMs:q.imageFileId ? 60_000 : undefined });
+  }, { signal: q.signal, preserveDecimals: true, timeoutMs:imageSearch ? 60_000 : undefined, ...(imageSearch ? { showError:false } : {}) });
   return {
     current: page.current || page.pageNo || q.current || 1,
     size: page.size || page.pageSize || q.size || 20,

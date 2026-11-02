@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import { useSupportChat } from '@/composables/use-support-chat';
 import { useAiProductCards } from '@/composables/use-ai-product-cards';
 import { uploadAiImage } from '@/service/api/ai';
@@ -73,7 +74,7 @@ onBeforeUnmount(() => { alive = false; controller.abort(); emit('busy', false); 
     <p v-if="notice" role="status">{{ notice }}</p><p v-if="error" role="alert">{{ error }}</p>
     <div ref="viewport" class="support-messages" role="log" aria-label="平台客服消息" aria-live="polite" @scroll="markVisible">
       <button v-if="hasMore" type="button" :disabled="loading" @click="loadOlder">加载更早消息</button>
-      <article v-for="message in messages" :key="message.id" :class="['support-message', message.role]">
+      <article v-for="message in messages" :key="message.id" :class="['support-message', message.role, { 'im-message': message.rawIm }]">
         <MessageBubble v-if="message.rawIm" :msg="message.rawIm" :side="message.rawIm.msgType === 'SYSTEM' ? 'center' : message.role === 'user' ? 'right' : 'left'" :can-recall="false" @retry="row => sendHuman({type:'text'}, row.clientMsgId)" />
         <template v-else>
           <strong>{{ message.role === 'user' ? '我' : 'AI客服' }}</strong>
@@ -89,8 +90,16 @@ onBeforeUnmount(() => { alive = false; controller.abort(); emit('busy', false); 
     <MessageInput v-if="handling" :context-key="String(user.sessionVersion) + ':' + conversationId" :submitting="running" :disabled="!route" @send="sendHuman" @media-busy="mediaBusy = $event" />
     <form v-else class="support-compose" @submit.prevent="!uploading && send()">
       <div v-if="attachments.length" class="support-images"><div v-for="image in attachments" :key="image.id"><AiImage :file-id="image.id" /><button type="button" :disabled="uploading || running" aria-label="移除图片" @click="attachments = attachments.filter(row => row.id !== image.id)">移除</button></div></div>
-      <textarea v-model="input" rows="2" maxlength="2000" aria-label="咨询问题" placeholder="输入问题，也可以添加图片咨询" @keydown.enter="event => { if (!event.shiftKey && !event.isComposing) { event.preventDefault(); if (!uploading) send(); } }" />
-      <div class="support-tools"><input ref="upload" type="file" hidden accept="image/jpeg,image/png,image/webp" multiple @change="selectImages" /><button type="button" :disabled="uploading || running || attachments.length >= 3" @click="upload?.click()">{{ uploading ? '上传中…' : '添加图片' }}</button><button v-if="running" type="button" @click="stop">停止生成</button><button v-else type="submit" :disabled="!canSend || uploading">发送</button></div>
+      <div class="support-editor">
+        <textarea v-model="input" rows="2" maxlength="2000" aria-label="咨询问题" placeholder="输入问题，也可以添加图片咨询" @keydown.enter="event => { if (!event.shiftKey && !event.isComposing) { event.preventDefault(); if (!uploading) send(); } }" />
+        <div class="support-tools">
+          <input ref="upload" type="file" hidden accept="image/jpeg,image/png,image/webp" multiple @change="selectImages" />
+          <div class="support-media-tools"><button type="button" class="support-image-tool" :disabled="uploading || running || attachments.length >= 3" :aria-label="uploading ? '图片上传中' : '添加咨询图片'" :title="uploading ? '图片上传中' : '添加图片'" @click="upload?.click()"><Icon :icon="uploading ? 'lucide:loader-circle' : 'lucide:image-plus'" :class="{ 'animate-spin motion-reduce:animate-none': uploading }" aria-hidden="true" /></button><span v-if="attachments.length" class="support-image-count">{{ attachments.length }} / 3 张</span></div>
+          <button v-if="running" type="button" class="support-submit" @click="stop"><Icon icon="lucide:square" aria-hidden="true" />停止生成</button>
+          <button v-else type="submit" class="support-submit primary" :disabled="!canSend || uploading">发送<Icon icon="lucide:arrow-right" aria-hidden="true" /></button>
+        </div>
+      </div>
+      <p class="support-compose-hint"><span>Enter 发送，Shift+Enter 换行</span><span>{{ input.length }} 字</span></p>
     </form>
   </div>
 </template>
@@ -101,12 +110,32 @@ onBeforeUnmount(() => { alive = false; controller.abort(); emit('busy', false); 
 .support-status { border-bottom:1px solid var(--line); } .support-status>span { flex:1; }
 .support-messages { flex:1; min-height:100px; overflow:auto; padding:16px; }
 .support-message { min-width:0; margin-bottom:16px; padding:12px; border:1px solid var(--line); border-radius:10px; background:var(--paper); }
-.support-message.user { background:var(--yb-primary-soft); }
+.support-message.user { width:fit-content; max-width:85%; margin-left:auto; background:var(--yb-primary-soft); }
+.support-message.im-message { width:100%; max-width:none; padding:0; border:0; background:transparent; }
+.im-message :deep(.msg-row.message) { width:fit-content; max-width:85%; }
+.im-message.user :deep(.msg-row.message) { margin-left:auto; }
+.im-message :deep(.message-body) { display:flex; flex-direction:column; align-items:flex-start; }
+.im-message.user :deep(.message-body) { align-items:flex-end; }
+.im-message :deep(.avatar) { flex-shrink:0; }
+@media(max-width:600px) { .support-message.user,.im-message :deep(.msg-row.message) { max-width:95%; } .support-message.im-message { max-width:none; } }
 p { white-space:pre-wrap; overflow-wrap:anywhere; }
 button { min-height:36px; padding:6px 12px; border:1px solid var(--line); border-radius:6px; color:var(--yb-brand-primary); background:var(--paper); }
 button:disabled { opacity:.55; cursor:not-allowed; } button:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
 .support-compose { padding:12px; border-top:1px solid var(--line); }
-textarea { width:100%; resize:vertical; max-height:160px; padding:10px; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
-.support-tools { justify-content:flex-end; padding:8px 0 0; }
+.support-editor { min-width:0; border:1px solid var(--yb-control-border,var(--line)); border-radius:12px; background:var(--paper); }
+.support-editor:focus-within { border-color:var(--green); box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 12%,transparent); }
+.support-editor textarea { display:block; width:100%; min-width:0; height:56px; min-height:52px; max-height:160px; resize:vertical; padding:10px 16px 6px; color:var(--ink); background:transparent; border:0; border-radius:12px; box-shadow:none; font-size:14px; line-height:1.6; }
+.support-editor textarea:focus-visible { outline:0; box-shadow:none; }
+.support-tools { justify-content:space-between; gap:12px; padding:0 10px 6px; }
+.support-media-tools { display:flex; align-items:center; gap:6px; }
+.support-tools .support-image-tool { display:grid; place-items:center; width:32px; height:32px; min-height:32px; padding:0; border:0; border-radius:8px; background:transparent; color:var(--muted); }
+.support-image-tool:hover:not(:disabled) { background:var(--soft); color:var(--green); }
+.support-image-tool svg { width:18px; height:18px; }
+.support-image-count { color:var(--muted); font-size:11px; }
+.support-tools .support-submit { display:flex; align-items:center; justify-content:center; gap:4px; min-height:30px; padding:3px 8px; border-radius:6px; font-size:12px; line-height:20px; }
+.support-tools .support-submit.primary { background:var(--green); color:var(--on-primary,var(--paper)); border-color:var(--green); }
+.support-submit svg { width:14px; height:14px; }
+.support-compose-hint { display:flex; justify-content:space-between; gap:12px; margin:6px 0 0; color:var(--muted); font-size:10px; line-height:1.5; }
+@media(max-width:700px) { .support-tools .support-image-tool { width:44px; height:44px; min-height:44px; } .support-tools .support-submit { min-height:40px; padding:7px 12px; } .support-editor textarea { font-size:13px; padding:12px 12px 6px; } }
 .support-images { display:flex; flex-wrap:wrap; gap:8px; } .support-images>div { max-width:100px; }
 </style>

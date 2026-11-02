@@ -8,6 +8,7 @@ import { useUserStore } from '@/stores';
 import AiImage from '@/components/ai/ai-image.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { Message } from '@/lib/feedback';
+import { RequestError } from '@/service/request';
 import * as productApi from '@/service/api/product';
 import * as categoryApi from '@/service/api/category';
 import { useCategoryNavigation } from '@/composables/use-category-navigation';
@@ -17,16 +18,23 @@ import { Skeleton } from '@/components/ui/skeleton';
 import UmIcon from '@/components/common/um-icon.vue';
 import V47CatalogCategories from '@/components/product/v47-catalog-categories.vue';
 import { createLatestRequestGuard } from '@/utils/latest-request';
-import { exactDecimalNumber } from '@/components/wallet/decimal-amount';
+import { compareDecimalAmount, exactDecimalNumber, exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import type { CatalogVisualFixture } from '@/visual/types';
 
 const props = defineProps<{ visualFixture?: CatalogVisualFixture }>();
 const router = useRouter();
 const route = useRoute();
 const user = useUserStore();
+const isImageSearch = computed(() => route.query.imageFileId !== undefined);
 const imageFileId = computed(() => typeof route.query.imageFileId === 'string' ? route.query.imageFileId : undefined);
 const imageHint = computed(() => typeof route.query.hint === 'string' ? route.query.hint : undefined);
-watch(() => user.sessionVersion, () => { if (imageFileId.value) { requestGuard.invalidate(); list.value = []; void router.replace({name:'product-list'}); } });
+const hintDraft = ref('');
+const imageQueryError = computed(() => {
+  if (!isImageSearch.value) return '';
+  try { productApi.validateImageSearchInput(route.query.imageFileId, route.query.hint); return ''; }
+  catch (error) { return error instanceof Error ? error.message : '识图参数无效，请重新上传图片'; }
+});
+watch(() => user.sessionVersion, () => { if (isImageSearch.value) { requestGuard.invalidate(); list.value = []; void router.replace({name:'product-list'}); } });
 
 
 const filter = reactive({
@@ -35,14 +43,19 @@ const filter = reactive({
   brandId: undefined as string | undefined,
   aftersaleType: undefined as Api.Product.AftersaleType | undefined,
   overseasCustoms: undefined as boolean | undefined,
-  minPrice: undefined as number | undefined,
-  maxPrice: undefined as number | undefined,
+  minPrice: undefined as string | number | undefined,
+  maxPrice: undefined as string | number | undefined,
   sort: 'DEFAULT' as productApi.StorefrontSort
 });
 
 const expandedFilters = reactive({ aftersale: true, overseas: true, price: true });
 const priceTexts = reactive({ minPrice:'', maxPrice:'' });
-function readPrice(value: string) { return value.trim() ? exactDecimalNumber(value, true) : { value:undefined, error:'' }; }
+function readPrice(value: string) {
+  if (!value.trim()) return { value:undefined, error:'' };
+  return isImageSearch.value ? exactTransactionAmount(value.trim().replace(/^\./, '0.').replace(/\.$/, '.0'), true) : exactDecimalNumber(value, true);
+}
+const reversedPriceRange = computed(() => filter.minPrice !== undefined && filter.maxPrice !== undefined
+  && compareDecimalAmount(filter.minPrice, filter.maxPrice) === 1);
 const priceError = computed(() => {
   const min = readPrice(priceTexts.minPrice);
   const max = readPrice(priceTexts.maxPrice);
@@ -81,9 +94,11 @@ const feedError = ref('');
 const feedRoot = ref<HTMLElement>();
 const feedSentinel = ref<HTMLElement>();
 const loadedPage = ref(0);
+const feedEnded = ref(false);
 const visibleLimit = ref(24);
 const visibleProducts = computed(() => list.value.slice(0, visibleLimit.value));
-const hasMoreFeed = computed(() => visibleProducts.value.length < list.value.length || loadedPage.value * size.value < total.value);
+const hasMoreFeed = computed(() => visibleProducts.value.length < list.value.length
+  || !feedEnded.value && (isImageSearch.value ? list.value.length < total.value : loadedPage.value * size.value < total.value));
 let feedObserver: IntersectionObserver | undefined;
 const requestGuard = createLatestRequestGuard();
 const { categories: navigationCategories, loadCategories } = useCategoryNavigation();
@@ -165,6 +180,9 @@ const sortOptions: { value: productApi.StorefrontSort; label: string }[] = [
   { value: 'PRICE_ASC', label: '价格升序' },
   { value: 'PRICE_DESC', label: '价格降序' }
 ];
+const displaySortOptions = computed(() => isImageSearch.value ? sortOptions.map(option => ({
+  ...option, label: option.value === 'DEFAULT' ? '相关度优先（层内销量）' : `层内${option.label}`
+})) : sortOptions);
 
 const aftersaleOptions = [
   { value: 'all', label: '不限' },
@@ -182,7 +200,10 @@ const overseasSelection = computed({
   set: (value: string) => { filter.overseasCustoms = value === 'overseas' ? true : undefined; }
 });
 
+let lastConditions: string | undefined;
+let lastImageSearch = false;
 function syncFromQuery() {
+  hintDraft.value = imageHint.value || '';
   const queryKeyword = route.query.keyword;
   const queryCategoryId = route.query.categoryId;
   const queryBrandId = route.query.brandId;
@@ -210,7 +231,17 @@ function syncFromQuery() {
   const page = typeof rawPage === 'string' ? Number(rawPage) : NaN;
   const validPage = Number.isSafeInteger(page) && page > 0;
   current.value = validPage ? page : 1;
-  return (queryKeyword !== undefined && typeof queryKeyword !== 'string')
+  const conditions = JSON.stringify([route.query.imageFileId, route.query.hint, queryKeyword, queryCategoryId,
+    queryBrandId, rawAftersaleType, rawOverseas, rawMinPrice, rawMaxPrice, querySort]);
+  const changedImageConditions = lastConditions !== undefined && conditions !== lastConditions && (isImageSearch.value || lastImageSearch);
+  lastConditions = conditions; lastImageSearch = isImageSearch.value;
+  if (changedImageConditions) {
+    current.value = 1; requestGuard.invalidate();
+    list.value = []; total.value = 0; loadedPage.value = 0; feedEnded.value = false;
+    loading.value = false; appending.value = false; loadError.value = ''; feedError.value = '';
+  }
+  return (changedImageConditions && route.query.page !== undefined)
+    || (queryKeyword !== undefined && typeof queryKeyword !== 'string')
     || (queryCategoryId !== undefined && typeof queryCategoryId !== 'string')
     || (queryBrandId !== undefined && typeof queryBrandId !== 'string')
     || Array.isArray(route.query.sort)
@@ -224,16 +255,17 @@ function syncFromQuery() {
 
 async function load(append = false) {
   if (append && (loading.value || !hasMoreFeed.value)) return;
-  if (imageFileId.value && !user.isLoggedIn) { void router.replace({path:'/auth/login',query:{redirect:route.fullPath}}); return; }
+  if (isImageSearch.value && !user.isLoggedIn) { void router.replace({path:'/auth/login',query:{redirect:route.fullPath}}); return; }
   const page = append ? loadedPage.value + 1 : current.value;
   const shown = visibleProducts.value.length;
-  if (priceError.value || filter.minPrice !== undefined && filter.maxPrice !== undefined && filter.minPrice > filter.maxPrice) {
+  if (imageQueryError.value || priceError.value || reversedPriceRange.value) {
     requestGuard.invalidate();
     loading.value = false;
     appending.value = false;
     list.value = [];
     total.value = 0;
-    loadError.value = priceError.value || '最低价格不能高于最高价格，请调整筛选条件。';
+    feedEnded.value = true;
+    loadError.value = imageQueryError.value || priceError.value || '最低价格不能高于最高价格，请调整筛选条件。';
     return;
   }
   const isCurrent = requestGuard.begin();
@@ -241,6 +273,10 @@ async function load(append = false) {
   loading.value = true;
   loadError.value = '';
   feedError.value = '';
+  if (!append) {
+    feedEnded.value = false;
+    if (isImageSearch.value) { list.value = []; total.value = 0; loadedPage.value = 0; }
+  }
   try {
     const r = await (props.visualFixture?.load || productApi.fetchStorefrontProducts)({
       current: page,
@@ -259,7 +295,12 @@ async function load(append = false) {
     if (!isCurrent()) return;
     size.value = resolvePageSize(r, size.value);
     const maxPage = Math.max(1, Math.ceil(r.total / size.value));
-    if (page > maxPage) {
+    if (isImageSearch.value && append && !r.records.length) {
+      feedEnded.value = true;
+      total.value = r.total;
+      return;
+    }
+    if (!isImageSearch.value && page > maxPage) {
       current.value = append ? 1 : maxPage;
       updateUrl(true);
       return;
@@ -282,15 +323,16 @@ async function load(append = false) {
     }
     loadedPage.value = page;
     total.value = r.total;
-  } catch {
+    if (!r.records.length) feedEnded.value = true;
+  } catch (error) {
     if (!isCurrent()) return;
     if (append) {
-      feedError.value = '商品列表加载失败，请检查网络后重试。';
+      feedError.value = isImageSearch.value && error instanceof RequestError ? error.message : '商品列表加载失败，请检查网络后重试。';
       return;
     }
     list.value = [];
     total.value = 0;
-    loadError.value = imageFileId.value ? '识图搜索失败，请重试或重新上传图片。' : '商品列表加载失败，请检查网络后重试。';
+    loadError.value = isImageSearch.value ? (error instanceof RequestError ? error.message : '识图搜索失败，请重试或重新上传图片。') : '商品列表加载失败，请检查网络后重试。';
   } finally {
     if (isCurrent()) { loading.value = false; appending.value = false; }
   }
@@ -335,11 +377,11 @@ function applyToUrl(closePanel = false) {
     void load();
     return;
   }
-  if ([filter.minPrice, filter.maxPrice].some(price => price != null && (!Number.isFinite(price) || price < 0))) {
+  if ([filter.minPrice, filter.maxPrice].some(price => typeof price === 'number' && (!Number.isFinite(price) || price < 0))) {
     Message.warning('请输入有效的非负价格');
     return;
   }
-  if (filter.minPrice != null && filter.maxPrice != null && filter.minPrice > filter.maxPrice) {
+  if (reversedPriceRange.value) {
     Message.warning('最低价格不能高于最高价格');
     return;
   }
@@ -359,6 +401,17 @@ function resetFilters() {
   applyToUrl();
 }
 
+function applyImageHint() {
+  if (loading.value || !isImageSearch.value) return;
+  try {
+    const input = productApi.validateImageSearchInput(route.query.imageFileId, hintDraft.value);
+    const before = route.fullPath;
+    void router.push({ name:'product-list', query:{ ...route.query, imageFileId:input.fileId, hint:input.hint, page:undefined } }).then(() => {
+      if (route.fullPath === before) void load();
+    });
+  } catch (error) { Message.warning(error instanceof Error ? error.message : '请核对补充描述'); }
+}
+
 onMounted(() => {
   if ('IntersectionObserver' in window) feedObserver = new IntersectionObserver(entries => {
     if (entries.some(entry => entry.isIntersecting) && !feedError.value) loadMoreFeed();
@@ -366,7 +419,7 @@ onMounted(() => {
   filterViewport = matchMedia('(max-width:700px)');
   filterViewport.addEventListener('change', syncFilterViewport);
   window.addEventListener('keydown', closeFilters);
-  if (syncFromQuery()) updateUrl(true);
+  if (syncFromQuery() && !imageQueryError.value) updateUrl(true);
   else load();
 });
 onBeforeUnmount(() => {
@@ -381,12 +434,13 @@ onBeforeUnmount(() => {
 watch(
   () => route.fullPath,
   () => {
-    if (syncFromQuery()) updateUrl(true);
+    if (syncFromQuery() && !imageQueryError.value) updateUrl(true);
     else load();
   }
 );
 
 const title = computed(() => {
+  if (isImageSearch.value) return '相关商品';
   if (filter.keyword) return `搜索：「${filter.keyword}」`;
   if (filter.categoryId) return categoryPath.value.at(-1)?.name || '分类筛选';
   return '全部商品';
@@ -432,20 +486,28 @@ function ignoreVisualFavorite() {}
       </aside>
       </FocusScope>
       <div class="catalog-content">
-        <section v-if="imageFileId" class="paper image-search-summary" aria-label="识图搜索">
-          <div class="image-search-preview"><AiImage :file-id="imageFileId" /></div>
-          <div class="image-search-copy"><h2>识图搜索结果</h2><LoadingStatus v-if="loading" label="正在识别图片并搜索商品…" /><p v-else>展示可能相关的在售商品，结果不代表精确同款。</p></div>
-          <button type="button" class="outline image-search-exit" @click="router.push({name:'product-list'})">退出识图搜索</button>
+        <section v-if="isImageSearch" class="paper image-search-summary" aria-label="识图搜索">
+          <div class="image-search-heading">
+            <div class="image-search-preview"><AiImage v-if="imageFileId && !imageQueryError" :file-id="imageFileId" /><span v-else>请重新上传图片</span></div>
+            <div class="image-search-copy"><h2>相关商品<span>识图搜索</span></h2><p>相关度优先，同层内按所选方式排序；结果可能包含相邻型号，不代表精确同款。</p></div>
+            <button type="button" class="image-search-exit" @click="router.push({name:'product-list'})"><UmIcon name="close" aria-hidden="true" />退出识图搜索</button>
+          </div>
+          <LoadingStatus v-if="loading" label="正在识别图片并搜索商品…" />
+          <form class="image-search-hint" @submit.prevent="applyImageHint">
+            <div class="image-search-field-label"><label for="image-search-hint">补充描述 <span>选填</span></label></div>
+            <div class="image-search-controls"><div class="image-search-input-wrap"><input id="image-search-hint" v-model="hintDraft" maxlength="120" aria-describedby="image-search-count" placeholder="补充品牌、型号或使用需求，帮助缩小范围" /><small id="image-search-count" class="image-search-count">{{ hintDraft.length }} / 120</small></div><button type="submit" class="primary" :disabled="loading" aria-label="重新搜索" title="重新搜索"><UmIcon name="search" aria-hidden="true" /></button></div>
+          </form>
         </section>
         <V47CatalogCategories :roots="catalogCategories" :selected-id="filter.categoryId" @select="router.push(categoryLocation($event))" />
-        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件精选商品</template></span><div><button ref="filterTrigger" type="button" class="filter-button outline" :aria-expanded="filterOpen" @click="openFilters"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="app-select-trigger catalog-sort" aria-label="商品排序"><SelectValue placeholder="请选择排序方式" /></SelectTrigger><SelectContent><SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
+        <div class="catalog-toolbar" aria-label="搜索结果与排序"><span>{{ loading ? '正在加载…' : loadError ? '读取失败' : '共 ' }}<template v-if="!loading && !loadError"><b>{{ total }}</b> 件{{ isImageSearch ? '相关商品' : '精选商品' }}</template></span><div><button ref="filterTrigger" type="button" class="filter-button outline" :aria-expanded="filterOpen" @click="openFilters"><UmIcon name="filter" />筛选</button><Select :model-value="filter.sort" @update:model-value="selectSort"><SelectTrigger class="app-select-trigger catalog-sort" aria-label="商品排序"><SelectValue placeholder="请选择排序方式" /></SelectTrigger><SelectContent><SelectItem v-for="option in displaySortOptions" :key="option.value" :value="option.value">{{ option.label }}</SelectItem></SelectContent></Select></div></div>
         <div v-if="filter.categoryId || filter.aftersaleType || filter.overseasCustoms" class="active-filters" role="group" aria-label="已选筛选条件"><button v-if="filter.categoryId" type="button" aria-label="清除商品分类筛选" :title="`清除分类：${categoryLabel}`" @click="clearCategory">{{ categoryLabel }} ×</button><button v-if="filter.aftersaleType" type="button" aria-label="清除售后服务筛选" @click="selectAftersale('all')">{{ aftersaleOptions.find(option => option.value === filter.aftersaleType)?.label }} ×</button><button v-if="filter.overseasCustoms" type="button" aria-label="清除海外直邮筛选" @click="selectOverseas('all')">海外直邮 ×</button><button v-if="categoryError && !categoryLoading" type="button" @click="loadCategoryPath(true)">重试分类名称</button></div>
         <section ref="feedRoot" class="catalog-results product-feed" :aria-busy="loading" aria-label="商品列表">
           <span v-if="loading" class="catalog-sr-only" role="status">正在加载商品</span>
           <div v-if="loading && !list.length" class="product-grid feed-grid" aria-hidden="true"><div v-for="index in 8" :key="index" class="product-skeleton"><Skeleton class="aspect-square w-full rounded-[9px]" /><div class="skeleton-info"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-1/2" /><Skeleton class="mt-3 h-6 w-2/5" /></div></div></div>
           <div v-else-if="list.length" class="product-grid feed-grid" :class="{ 'is-updating': loading && !appending }"><ProductCard v-for="product in visibleProducts" :key="product.id" :product="product" variant="catalog" :favorite-handler="visualFixture ? ignoreVisualFavorite : undefined" /></div>
-          <EmptyState v-else icon="lucide:search" :title="loadError || (imageFileId ? '没有找到相关在售商品' : '暂时没有找到匹配商品')" :description="loadError ? '请稍后重试。' : imageFileId ? '可以换一张更清晰的商品图片，或调整筛选条件。' : '不妨换一个方向，发现新的喜欢。'" :action-text="loadError ? '重新加载' : '重置筛选'" @action="loadError ? load() : resetFilters()" />
-          <div v-if="list.length && !loadError" ref="feedSentinel" class="feed-status"><template v-if="hasMoreFeed || feedError"><span aria-live="polite">已展示 {{ visibleProducts.length }} / {{ total }} 件</span><button type="button" :disabled="loading" @click="loadMoreFeed">{{ feedError ? '重新加载' : loading ? '正在加载…' : '继续浏览' }}<UmIcon name="chevron" /></button></template><span v-else role="status">已展示全部 {{ visibleProducts.length }} 件好物</span></div>
+          <EmptyState v-else icon="lucide:search" :title="loadError || (isImageSearch ? '暂未找到相关商品' : '暂时没有找到匹配商品')" :description="isImageSearch ? '可调整补充描述和筛选，或用搜索栏图片按钮重新上传。' : loadError ? '请稍后重试。' : '不妨换一个方向，发现新的喜欢。'" :action-text="loadError ? '重新加载' : '重置筛选'" @action="loadError ? load() : resetFilters()" />
+          <p v-if="feedError" class="feed-error" role="alert">{{ feedError }}</p>
+          <div v-if="list.length && !loadError" ref="feedSentinel" class="feed-status"><template v-if="hasMoreFeed || feedError"><span aria-live="polite">已展示 {{ visibleProducts.length }} / {{ total }} 件</span><button type="button" :disabled="loading" @click="loadMoreFeed">{{ feedError ? '重新加载' : loading ? '正在加载…' : '继续浏览' }}<UmIcon name="chevron" /></button></template><span v-else role="status">{{ isImageSearch ? '本次已展示' : '已展示全部' }} {{ visibleProducts.length }} 件{{ isImageSearch ? '相关商品' : '好物' }}</span></div>
         </section>
       </div>
     </div>
@@ -456,15 +518,31 @@ function ignoreVisualFavorite() {}
 .breadcrumb { flex-wrap:wrap; }
 .breadcrumb a,.breadcrumb span { min-width:0; overflow-wrap:anywhere; }
 .catalog-content { min-width:0; }
-.image-search-summary { display:flex; align-items:center; gap:16px; min-width:0; margin-bottom:20px; padding:16px; }
-.image-search-preview { flex:0 0 88px; width:88px; min-width:0; overflow-wrap:anywhere; }
+.image-search-summary { display:flex; flex-direction:column; gap:14px; min-width:0; margin-bottom:20px; padding:18px 20px; }
+.image-search-heading { display:flex; align-items:center; gap:14px; min-width:0; }
+.image-search-preview { flex:0 0 64px; width:64px; min-width:0; overflow-wrap:anywhere; font-size:11px; }
 .image-search-preview :deep(.ai-image) { min-width:0; }
-.image-search-preview :deep(.ai-image > button) { display:flex; align-items:center; justify-content:center; width:100%; }
-.image-search-preview :deep(.ai-image img) { max-width:100%; max-height:88px; }
+.image-search-preview :deep(.ai-image > button) { display:flex; align-items:center; justify-content:center; width:64px; height:64px; padding:0; border:1px solid var(--line); border-radius:10px; background:var(--soft); overflow:hidden; }
+.image-search-preview :deep(.ai-image img) { width:100%; height:100%; max-width:100%; max-height:64px; object-fit:contain; }
 .image-search-copy { flex:1; min-width:0; overflow-wrap:anywhere; }
-.image-search-copy h2 { margin:0 0 6px; font-size:18px; }
-.image-search-copy p { margin:0; font-size:12px; line-height:1.7; }
-.image-search-exit { flex-shrink:0; max-width:100%; white-space:nowrap; }
+.image-search-copy h2 { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:0 0 5px; color:var(--ink); font-size:16px; }
+.image-search-copy h2 span { padding:2px 7px; border-radius:5px; background:var(--yb-primary-soft); color:var(--yb-brand-primary); font-size:10px; font-weight:500; }
+.image-search-copy p { margin:0; color:var(--muted); font-size:12px; line-height:1.6; }
+.image-search-exit { display:inline-flex; align-items:center; justify-content:center; gap:6px; flex-shrink:0; min-height:34px; max-width:100%; padding:6px 11px; border:1px solid var(--line); border-radius:8px; background:var(--soft); color:var(--ink); font-size:12px; font-weight:500; line-height:20px; white-space:nowrap; transition:background .15s,color .15s,border-color .15s; }
+.image-search-exit:hover { background:var(--yb-primary-soft); color:var(--yb-brand-primary); border-color:var(--yb-brand-primary); }
+.image-search-exit svg { width:14px; height:14px; }
+.image-search-hint { display:grid; gap:6px; min-width:0; }
+.image-search-field-label { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:12px; color:var(--ink); }
+.image-search-field-label label span { color:var(--muted); font-size:11px; font-weight:400; }
+.image-search-field-label label span { margin-left:5px; }
+.image-search-controls { display:flex; align-items:stretch; gap:10px; min-width:0; }
+.image-search-input-wrap { position:relative; flex:1; min-width:0; }
+.image-search-count { position:absolute; right:10px; bottom:5px; color:var(--muted); font-size:10px; line-height:14px; pointer-events:none; white-space:nowrap; }
+.image-search-controls input { display:block; width:100%; min-width:0; min-height:40px; padding:9px 76px 9px 12px; border:1px solid var(--yb-control-border,var(--line)); border-radius:8px; background:var(--paper); color:var(--ink); font-size:13px; }
+.image-search-controls > button { display:flex; align-items:center; justify-content:center; flex-shrink:0; gap:6px; width:44px; min-height:40px; padding:8px; border-radius:8px; font-size:12px; white-space:nowrap; }
+.image-search-controls > button svg { width:15px; height:15px; }
+.image-search-hint input:focus-visible,.image-search-exit:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
+.feed-error { color:var(--ink); padding:12px; border:1px solid var(--line); border-radius:6px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .catalog-results { min-height:320px; }
 .feed-grid { transition:opacity .15s; }
 .feed-grid.is-updating { opacity:.55; }
@@ -472,11 +550,14 @@ function ignoreVisualFavorite() {}
 .skeleton-info { padding:12px 5px 13px; display:grid; gap:6px; }
 .active-filters button { max-width:100%; white-space:normal; text-align:left; }
 @media (max-width:700px) {
-  .image-search-summary { display:grid; grid-template-columns:64px minmax(0,1fr); gap:12px; padding:14px; margin-bottom:16px; }
+  .image-search-summary { gap:12px; padding:14px; margin-bottom:16px; }
+  .image-search-heading { flex-wrap:wrap; gap:10px; }
   .image-search-preview { width:64px; }
   .image-search-preview :deep(.ai-image img) { max-height:64px; }
   .image-search-copy h2 { font-size:16px; }
-  .image-search-exit { grid-column:1/-1; justify-self:start; }
+  .image-search-exit { margin-left:auto; }
+  .image-search-controls { gap:8px; }
+  .image-search-controls > button { padding:8px 10px; }
   .catalog-filter-touch-mask { position:fixed; inset:0; z-index:69; background:transparent; }
   .filters.open { overscroll-behavior:contain; }
   .catalog-toolbar { flex-wrap:wrap; gap:10px; }

@@ -117,8 +117,9 @@ declare namespace Api.RealProduct {
     pageSize?: number;
     keyword?: string;
     categoryId?: string | number;
-    minPrice?: number;
-    maxPrice?: number;
+    /** 识图检索按十进制字符串传递，普通列表保留既有数值契约。 */
+    minPrice?: string | number;
+    maxPrice?: string | number;
     afterSaleType?: AfterSaleType;
     overseasClearance?: boolean;
     sortBy?: 'DEFAULT' | 'SALES' | 'NEW' | 'PRICE_ASC' | 'PRICE_DESC';

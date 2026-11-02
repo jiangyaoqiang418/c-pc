@@ -1189,7 +1189,7 @@ describe('v47商品列表连续浏览', () => {
     id:`9007199254740993${start + index}`, title:`商品${start + index}`
   } as Api.RealProduct.Record));
   const page = (current: number, size = 24, total = 50) => ({ current, size, total, records:records((current - 1) * size, Math.min(size, total - (current - 1) * size)) });
-  async function mountCatalog(load: CatalogVisualFixture['load']) {
+  async function mountCatalog(load: CatalogVisualFixture['load'], query: Record<string, string> = {}) {
     vi.stubGlobal('localStorage', { getItem: () => null });
     vi.stubGlobal('window', { addEventListener:vi.fn(), removeEventListener:vi.fn() });
     vi.stubGlobal('matchMedia', () => ({ matches:false, addEventListener:vi.fn(), removeEventListener:vi.fn() }));
@@ -1198,9 +1198,11 @@ describe('v47商品列表连续浏览', () => {
       setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
     });
     const app = renderer.createApp({ ...CatalogView, render:() => null }, { visualFixture:{ load } });
-    app.use(createPinia());
+    const pinia = createPinia(); app.use(pinia);
+    if (query.imageFileId !== undefined) useUserStore(pinia).currentUser = { id:'catalog-image-user' } as Api.RealSession.UserRecord;
+    const route = reactive({ query:{...query}, fullPath:'/product/list', path:'/product/list' });
     app.provide(ssrContextKey, {});
-    app.provide(routeLocationKey, reactive({ query:{}, fullPath:'/product/list', path:'/product/list' }) as RouteLocationNormalizedLoaded);
+    app.provide(routeLocationKey, route as RouteLocationNormalizedLoaded);
     app.provide(routerKey, { push:vi.fn().mockResolvedValue(undefined), replace:vi.fn().mockResolvedValue(undefined) } as unknown as Router);
     app.provide(categoryNavigationKey, { categories:readonly(ref([])), loading:readonly(ref(false)), loadError:readonly(ref('')), activeMenu:ref(null), loadCategories:async () => {} });
     app.mount({});
@@ -1208,10 +1210,10 @@ describe('v47商品列表连续浏览', () => {
     const state = (app as unknown as { _instance:{ setupState:{
       load:(append?: boolean) => Promise<void>; loadMoreFeed:() => void;
       list:Api.RealProduct.Record[]; visibleProducts:Api.RealProduct.Record[];
-      total:number; loadedPage:number; size:number; feedError:string; hasMoreFeed:boolean;
+      total:number; current:number; loadedPage:number; size:number; feedError:string; loadError:string; hasMoreFeed:boolean;
       filter:{ keyword:string };
     } } })._instance.setupState;
-    return { app, state };
+    return { app, state, route };
   }
 
   it('先显示24条，按12条揭示缓存，再追加下一页，Long原值及末页保留', async () => {
@@ -1292,6 +1294,65 @@ describe('v47商品列表连续浏览', () => {
     expect(state.list).toHaveLength(40);
     expect(state.loadedPage).toBe(2);
   });
+  it('识图URL的文件标识无效时显示校验错误，不调用普通商品查询', async () => {
+    const load = vi.fn<CatalogVisualFixture['load']>();
+    const {app,state} = await mountCatalog(load,{imageFileId:['9001'] as unknown as string});
+    try { expect(load).not.toHaveBeenCalled(); expect(state.loadError).toContain('图片标识无效'); }
+    finally { app.unmount(); }
+  });
+  it('识图空页立即停止追加，保留已有结果和真实 total', async () => {
+    const load = vi.fn<CatalogVisualFixture['load']>().mockResolvedValueOnce(page(1))
+      .mockResolvedValueOnce({current:2,size:24,total:50,records:[]});
+    const {app,state} = await mountCatalog(load,{imageFileId:'9007199254740993123'});
+    try {
+      await state.load(true);
+      expect(state.list).toHaveLength(24); expect(state.total).toBe(50); expect(state.hasMoreFeed).toBe(false);
+      state.loadMoreFeed(); expect(load).toHaveBeenCalledTimes(2);
+    } finally { app.unmount(); }
+  });
+  it('识图按已加载条数继续分页，不用页码乘页大小提前结束', async () => {
+    const load = vi.fn<CatalogVisualFixture['load']>().mockResolvedValueOnce(page(1,24,50))
+      .mockResolvedValueOnce({current:2,size:24,total:50,records:records(24,1)})
+      .mockResolvedValueOnce({current:3,size:24,total:50,records:records(25,1)})
+      .mockResolvedValueOnce({current:4,size:24,total:50,records:records(26,1)});
+    const {app,state} = await mountCatalog(load,{imageFileId:'9007199254740993123'});
+    try {
+      await state.load(true); await state.load(true);
+      expect(state.list).toHaveLength(26); expect(state.hasMoreFeed).toBe(true);
+      await state.load(true); expect(state.list).toHaveLength(27); expect(state.loadedPage).toBe(4);
+    } finally { app.unmount(); }
+  });
+  it('识图业务失败保留后端提示，追加失败保留已有商品，可重试原页', async () => {
+    const failure = new RequestError('图片暂时无法读取，请重新上传',{code:'-328'});
+    const load = vi.fn<CatalogVisualFixture['load']>().mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(page(1)).mockRejectedValueOnce(failure).mockResolvedValueOnce(page(2));
+    const {app,state} = await mountCatalog(load,{imageFileId:'9007199254740993123'});
+    try {
+      expect(state.loadError).toBe(failure.message); expect(state.list).toHaveLength(0);
+      await state.load(); await state.load(true);
+      expect(state.feedError).toBe(failure.message); expect(state.list).toHaveLength(24);
+      await state.load(true); expect(state.feedError).toBe(''); expect(load.mock.calls.map(([q]) => q.current)).toEqual([1,1,2,2]);
+    } finally { app.unmount(); }
+  });
+  it('识图条件变化立即清空旧结果并回到第一页，迟到旧页不写回', async () => {
+    let old!: (value: Awaited<ReturnType<CatalogVisualFixture['load']>>) => void;
+    let next!: (value: Awaited<ReturnType<CatalogVisualFixture['load']>>) => void;
+    const load = vi.fn<CatalogVisualFixture['load']>().mockResolvedValueOnce(page(3,24,100))
+      .mockImplementationOnce(() => new Promise(resolve => {old = resolve;}))
+      .mockImplementationOnce(() => new Promise(resolve => {next = resolve;}));
+    const {app,state,route} = await mountCatalog(load,{imageFileId:'9007199254740993123',page:'3',hint:'手机'});
+    try {
+      const pending = state.load(true);
+      route.query.hint = '手机壳'; route.fullPath = '/product/list?changed';
+      await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+      expect(state.current).toBe(1); expect(state.list).toHaveLength(0);
+      expect(load.mock.calls[2]![0]).toMatchObject({current:1,hint:'手机壳'});
+      next({current:1,size:24,total:1,records:records(99,1)});
+      await vi.waitFor(() => expect(state.list).toHaveLength(1));
+      old(page(4,24,100)); await pending; expect(state.list[0]?.id).toBe('900719925474099399');
+    } finally { app.unmount(); }
+  });
+
 });
 
 describe('v47 新接入契约与恢复边界', () => {
@@ -2345,5 +2406,30 @@ describe('三级分类关联规则', () => {
     const options = createCategoryOptions([{id:'1',level:1,enabled:true,name:'一级',children:[{id:'2',parentId:'1',level:2,enabled:true,name:'二级',children:[{id:'3',parentId:'2',level:3,enabled:true,name:'三级',children:[{id:'4',parentId:'3',level:4,enabled:true,name:'四级'}]}]}]}]);
     expect(isSelectableCategory(options,'1')).toBe(true); expect(isSelectableCategory(options,'3')).toBe(true); expect(isSelectableCategory(options,'4')).toBe(false);
     expect(categoryApi.includeCategoryParents(options,['3'])).toEqual(['3','1','2']);
+  });
+});
+
+
+describe('SHOP-77 识图搜索参数边界', () => {
+  const id = '9007199254740993123';
+  it.each(['', '0', '-1', '1.5', ' 12', 9001, ['9001']])('拒绝无效文件标识 %s，不降级为普通检索', async fileId => {
+    const query = vi.spyOn(realOrderRequest,'postQuery');
+    await expect(productApi.fetchStorefrontProducts({imageFileId:fileId as string})).rejects.toMatchObject({code:'INVALID_IMAGE_SEARCH'});
+    expect(query).not.toHaveBeenCalled();
+  });
+  it('hint最多120字符，和keyword分别传递，价格保留8位小数及Long整数', async () => {
+    const query = vi.spyOn(realOrderRequest,'postQuery').mockResolvedValue({pageNo:'1',pageSize:'20',total:'0',records:[]});
+    const hint = '款'.repeat(120);
+    await productApi.fetchStorefrontProducts({imageFileId:id,hint,minPrice:'9007199254740993.12345678',maxPrice:'9007199254740994.12345678',sort:'PRICE_ASC'});
+    expect(query.mock.calls[0]![1]).toMatchObject({fileId:id,hint,keyword:undefined,minPrice:'9007199254740993.12345678',maxPrice:'9007199254740994.12345678',sortBy:'PRICE_ASC'});
+    await expect(productApi.fetchStorefrontProducts({imageFileId:id,hint:hint+'款'})).rejects.toMatchObject({code:'INVALID_IMAGE_SEARCH'});
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+  it('价格倒置或分页越界不发送，正常空页不当作业务错误', async () => {
+    const query = vi.spyOn(realOrderRequest,'postQuery').mockResolvedValue({total:'0',records:[]});
+    await expect(productApi.fetchStorefrontProducts({imageFileId:id,minPrice:'2',maxPrice:'1'})).rejects.toThrow('最低价格');
+    await expect(productApi.fetchStorefrontProducts({imageFileId:id,size:501})).rejects.toThrow('分页参数');
+    await expect(productApi.fetchStorefrontProducts({imageFileId:id})).resolves.toMatchObject({total:0,records:[]});
+    expect(query).toHaveBeenCalledTimes(1);
   });
 });

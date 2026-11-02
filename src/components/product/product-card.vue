@@ -100,6 +100,9 @@ function goDetail() {
 </template>
 
 <style scoped>
+/* Keep the overlay surface and text paired across legacy palette overrides. */
+.product-card .product-image > .quick-view { background:var(--paper) !important; color:var(--ink) !important; border:1px solid var(--line) !important; }
+.product-card .product-image > .quick-view:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
 .product-card .favorite[aria-busy=true] { opacity:1; background:var(--paper); border:1px solid var(--line); }
 /* Production Long IDs retain their full value without changing the reference card width. */
 .meme-card-top > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

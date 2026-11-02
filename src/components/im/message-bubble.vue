@@ -30,7 +30,7 @@ const isProductCard = computed(() => type.value === 'PRODUCT_CARD');
 const isImage = computed(() => type.value === 'IMAGE');
 const isVoice = computed(() => type.value === 'VOICE');
 const isVideo = computed(() => type.value === 'VIDEO');
-const senderInitial = computed(() => Array.from(props.senderName || props.msg.senderName || '成员')[0]);
+const senderInitial = computed(() => props.side === 'right' ? '我' : Array.from(props.senderName || props.msg.senderName || '成员')[0]);
 const mediaFailed = ref(false);
 const mediaAttempt = ref(0);
 const mediaElement = ref<HTMLImageElement | HTMLMediaElement>();
