@@ -15,6 +15,9 @@ export interface BuyerProductDraftForm {
   overseasCustoms: boolean;
   summary?: string;
   description: string;
+  detailDesignJson?: string;
+  designRevisionId?: string;
+  designDocumentKey?: string;
   images: string[];
   amountTexts?: { price: string; shippingFee: string; tax: string };
   skuEditor?: ProductSkuEditorState;
@@ -92,7 +95,7 @@ export function readBuyerProductDraft(raw: string, ownerId: string | number, pro
     form: {
       title: form.title, categoryId: form.categoryId, categoryIds:form.categoryIds && [...form.categoryIds], parameters:form.parameters?.map(row => ({ groupName:row.groupName, name:row.name, value:row.value, explanation:row.explanation, highlighted:row.highlighted })), brandId: form.brandId, price: form.price, shippingFee: form.shippingFee,
       tax: form.tax, stock: form.stock, aftersaleType: form.aftersaleType, overseasCustoms: form.overseasCustoms,
-      description: form.description, images: [...form.images],
+      description: form.description, detailDesignJson: typeof form.detailDesignJson === 'string' ? form.detailDesignJson : undefined, designRevisionId: typeof form.designRevisionId === 'string' ? form.designRevisionId : undefined, designDocumentKey: typeof form.designDocumentKey === 'string' ? form.designDocumentKey : undefined, images: [...form.images],
       amountTexts: form.amountTexts && { price:form.amountTexts.price, shippingFee:form.amountTexts.shippingFee, tax:form.amountTexts.tax },
       skuEditor: form.skuEditor && { enabled: form.skuEditor.enabled,
         groups: form.skuEditor.groups.map(group => ({ name: group.name, options: [...group.options] })),

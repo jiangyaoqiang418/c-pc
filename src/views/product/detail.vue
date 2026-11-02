@@ -31,6 +31,7 @@ import { resolvePageSize } from '@/service/api/page';
 import { setImageFallback } from '@/utils/image-placeholder';
 import { productRequiresSku, resolveProductPurchase, skuCanPurchase, skuMatchesSelection } from '@/utils/product-sku';
 
+const props = defineProps<{ previewProduct?: Api.RealProduct.Record }>();
 const route = useRoute();
 const router = useRouter();
 const purchasePanelTop = ref(160);
@@ -53,10 +54,11 @@ const cart = useCartStore();
 const userStore = useUserStore();
 const favorites = useProductFavoritesStore();
 
-const product = ref<Api.RealProduct.Record>();
+const product = ref<Api.RealProduct.Record | undefined>(props.previewProduct);
 const consulting = ref(false);
 const consultationGuard = createLatestRequestGuard(() => `${route.params.id}:${userStore.currentUser?.id}:${userStore.sessionVersion}`);
 async function consultSeller() {
+  if (props.previewProduct) return;
   const currentProduct = product.value;
   if (!currentProduct || consulting.value) return;
   if (!userStore.isLoggedIn || userStore.currentUser?.id === undefined) {
@@ -174,7 +176,7 @@ let writeVersion = 0;
 
 const id = computed(() => String(route.params.id || ''));
 const aftersaleMeta = computed(() => product.value ? productApi.getAftersaleMeta(product.value.aftersaleType) : undefined);
-const isOwnProduct = computed(() => userStore.currentUser?.id !== undefined && product.value?.sellerId !== undefined
+const isOwnProduct = computed(() => !props.previewProduct && userStore.currentUser?.id !== undefined && product.value?.sellerId !== undefined
   && String(userStore.currentUser.id) === String(product.value.sellerId));
 const canBuy = computed(() => !buyDisabledReason.value);
 function ratingText(value?: string | number) {
@@ -184,6 +186,12 @@ function ratingText(value?: string | number) {
 function money(value?: string | number) { return formatPaymentAmount(value); }
 
 async function load() {
+  if (props.previewProduct) {
+    product.value = props.previewProduct; loading.value = false;
+    const first = product.value.skus?.find(skuCanPurchase);
+    selectedSpecs.value = first ? Object.fromEntries(first.specs.map(s => [s.name, s.value])) : {};
+    return;
+  }
   if (!id.value) return;
   reviewsGuard.invalidate();
   summaryGuard.invalidate();
@@ -252,6 +260,7 @@ async function load() {
 }
 
 async function loadReviewSummary() {
+  if (props.previewProduct) return;
   const productId = product.value?.id;
   if (productId === undefined) return;
   const isCurrent = summaryGuard.begin();
@@ -270,6 +279,7 @@ async function loadReviewSummary() {
 }
 
 async function loadSellerRating() {
+  if (props.previewProduct) return;
   const sellerId = product.value?.sellerId;
   if (sellerId === undefined) return;
   const isCurrent = sellerRatingGuard.begin();
@@ -288,6 +298,7 @@ async function loadSellerRating() {
 }
 
 async function loadSellerQualification() {
+  if (props.previewProduct) return;
   const sellerId = product.value?.sellerId;
   if (sellerId === undefined || sellerId === '') return;
   const isCurrent = qualificationGuard.begin();
@@ -302,6 +313,7 @@ async function loadSellerQualification() {
 }
 
 async function loadReviews(page: number) {
+  if (props.previewProduct) return;
   commentReads.invalidate();
   const productId = product.value?.id;
   if (productId === undefined) return;
@@ -406,6 +418,7 @@ watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.s
 });
 
 async function addToCart() {
+  if (props.previewProduct) return;
   if (!product.value || !canBuy.value) return;
   const added = await cart.add(product.value.id, qty.value, product.value, selectedSku.value?.id);
   if (added === undefined) return;
@@ -416,6 +429,7 @@ async function addToCart() {
   Message.success('已加入购物袋');
 }
 function buyNow() {
+  if (props.previewProduct) return;
   if (!product.value || !canBuy.value) return;
   if (!Number.isSafeInteger(qty.value) || qty.value < 1 || qty.value > selectedStock.value) {
     Message.warning('请按当前库存调整购买数量');
@@ -425,6 +439,7 @@ function buyNow() {
   router.push({ path: '/checkout', query: { contextId } });
 }
 function startPurchase() {
+  if (props.previewProduct) return;
   if (!product.value) return;
   router.push({
     name: 'purchase-create',
@@ -433,6 +448,7 @@ function startPurchase() {
 }
 
 async function favorite() {
+  if (props.previewProduct) return;
   if (!product.value) return;
   if (favoriteBusy.value) return;
   const requestedUserId = userStore.currentUser?.id;
@@ -468,6 +484,7 @@ async function favorite() {
 }
 
 const buyDisabledReason = computed(() => {
+  if (props.previewProduct) return '商品预览 · 不执行购买';
   if (loading.value) return '商品信息正在刷新，请稍候';
   if (isOwnProduct.value) return '不能购买本人出售的商品';
   if (!product.value || product.value.status !== 'NORMAL') return '当前商品状态不可购买';
@@ -499,6 +516,7 @@ function filterReviews(value: { stars: number; hasImage: boolean; keyword: strin
 }
 
 async function voteHelpful(review: Api.RealReview.ReviewDTO) {
+  if (props.previewProduct) return;
   const userId = userStore.currentUser?.id;
   if (userId === undefined) { Message.warning('请先登录后再投票'); return; }
   const key = String(review.reviewId);
@@ -543,6 +561,7 @@ async function voteHelpful(review: Api.RealReview.ReviewDTO) {
   }
 }
 async function loadRelated() {
+  if (props.previewProduct) return;
   const productId = product.value?.id;
   if (productId === undefined) return;
   const requestedUserId = userStore.currentUser?.id;
@@ -562,6 +581,7 @@ async function loadRelated() {
   }
 }
 function share() {
+  if (props.previewProduct) return;
   shareUrl.value = window.location.href;
   shareVisible.value = true;
 }
@@ -620,7 +640,7 @@ function share() {
       <V47DetailContent @contextmenu="preventImageAction" @dragstart="preventImageAction" ref="content" :key="String(product.id)" :initial-review="route.query.tab === 'reviews'">
         <template #default="{ tab }">
           <template v-if="tab === '商品详情'">
-            <ProductDescription :description="product.description">
+            <ProductDescription :description="product.description" :detail-design-json="product.detailDesignJson">
               <ProductParameters :parameters="product.parameters || []" />
               <dl class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
             </ProductDescription>
@@ -647,9 +667,11 @@ function share() {
 .breadcrumb [aria-current] { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .purchase-panel,.product-browse-content { min-width:0; }
 .product-browse-content { grid-column:1 / -1; }
+/* The gallery shares the grid with the long description; sticky would overlap it
+   in tablet-sized windows and embedded admin previews. */
+.product-detail > :deep(.gallery) { position:static; }
 @media (min-width:1001px) {
   .product-detail { grid-template-columns:minmax(0,1.4fr) minmax(340px,1fr); gap:28px; }
-  .product-detail > :deep(.gallery) { position:static; }
   .product-browse-content { grid-column:1; grid-row:2; }
   .product-browse-content :deep(.detail-bottom) { margin-top:0; }
   .purchase-panel { grid-column:2; grid-row:1 / span 2; position:sticky; top:var(--purchase-panel-top); display:flex; flex-direction:column; max-height:var(--purchase-panel-height); border:1px solid var(--line); border-radius:var(--radius); background:var(--paper); }

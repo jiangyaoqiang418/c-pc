@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import DialogActions from '@/components/common/dialog-actions.vue';
 import BuyerProductDetails from './buyer-product-details.vue';
+import { toProductRecord } from '@/service/api/product';
 import ProductDescription from '@/components/product/product-description.vue';
 import ProductParameters from '@/components/product/product-parameters.vue';
-import { computed } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
+const DetailEditor = defineAsyncComponent(() => import('@/components/detail-studio/detail-editor.vue'));
+const studio = ref<{ save: () => Promise<string | undefined> }>();
+
 import { formatAmount } from '@shared';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Button } from '@/components/ui/button';
@@ -44,6 +48,9 @@ interface FormState {
   aftersaleType: Api.Product.AftersaleType;
   overseasCustoms: boolean;
   description: string;
+  detailDesignJson?: string;
+  designRevisionId?: string;
+  designDocumentKey?: string;
   images: string[];
 }
 
@@ -61,9 +68,31 @@ interface Props {
   initialProduct?: Api.RealProduct.Record;
 }
 const props = defineProps<Props>();
+const canvasEnabled = ref(!props.initialProduct?.description || !!props.initialProduct?.designRevisionId);
 const emit = defineEmits<{ (e: 'submit', form: SubmitForm): void }>();
 const router = useRouter();
 const previewOpen = ref(false);
+const previewUrl = ref('');
+const previewMobile = ref(false);
+let previewKey = '';
+async function openProductPreview() {
+  try {
+    await studio.value?.save();
+    const sku = productSkuEditorWrite(skuEditor.value, props.initialProduct?.skus);
+    const dto: Api.RealProduct.ProductDTO = {
+      id: String(props.initialProduct?.id || 'preview'), sellerId: String(draftOwnerId!), sellerName: userStore.currentUser?.nickname || '商品买手',
+      title: form.title || '商品标题', categoryId: String(form.categoryId || ''), categoryName: previewCategory.value,
+      price: sku.price || amountTexts.price || '0', shippingFee: amountTexts.shippingFee || '0', taxFee: amountTexts.tax || '0', stock: sku.stock ?? form.stock,
+      status: 'ON_SALE', hasSku: skuEditor.value.enabled, specGroups: sku.specGroups, skus: sku.skus.map((s, i) => ({ ...s, id: s.id || 'preview-' + i })),
+      images: form.images, parameters: form.parameters, description: form.description, detailDesignJson: form.detailDesignJson,
+      afterSaleType: ({ none: 'NONE', '7day-no-reason': 'SEVEN_DAY_NO_REASON', 'shop-warranty': 'SHOP_WARRANTY', 'national-warranty': 'NATIONAL_WARRANTY' } as const)[form.aftersaleType], overseasClearance: form.overseasCustoms
+    };
+    if (previewKey) sessionStorage.removeItem('product-preview:' + previewKey);
+    previewKey = crypto.randomUUID(); sessionStorage.setItem('product-preview:' + previewKey, JSON.stringify(toProductRecord(dto)));
+    previewUrl.value = '/product/preview#local=' + previewKey; previewOpen.value = true;
+  } catch (e) { Message.warning((e as Error).message); }
+}
+onBeforeUnmount(() => { if (previewKey) sessionStorage.removeItem('product-preview:' + previewKey); });
 const userStore = useUserStore();
 const draftOwnerId = userStore.currentUser?.id;
 const draftProductId = props.initialProduct?.id;
@@ -127,6 +156,7 @@ if (props.initialProduct) {
     tax: NaN, stock: p.stock,
     aftersaleType: p.aftersaleType === 'unknown' ? undefined : p.aftersaleType,
     overseasCustoms: p.overseasCustoms, description: p.description,
+    detailDesignJson: p.detailDesignJson, designRevisionId: p.designRevisionId,
     images: (p.imageFiles || []).map(item => item.url)
   });
   (p.imageFiles || []).forEach(item => uploadedImageMap.set(item.url, { bucket: item.bucket, filePath: item.filePath }));
@@ -151,6 +181,7 @@ async function saveDraft() {
   if (draftBlocked.value || !draftKey) return false;
   savingDraft.value = true;
   try {
+    await studio.value?.save();
     const originalForm = JSON.stringify(formSnapshot());
     const descriptionIssue = richTextError(form.description);
     if (descriptionIssue) {
@@ -167,7 +198,7 @@ async function saveDraft() {
       form:{ title:form.title, categoryId:form.categoryId, categoryIds:[...form.categoryIds], parameters:form.parameters.map(row => ({...row})), brandId:form.brandId, price:Number.isFinite(form.price) ? form.price : null,
         shippingFee:Number.isFinite(form.shippingFee) ? form.shippingFee : null, tax:Number.isFinite(form.tax) ? form.tax : null,
         stock:Number.isFinite(form.stock) ? form.stock : null, aftersaleType:form.aftersaleType, overseasCustoms:form.overseasCustoms,
-        description, images:[...form.images], amountTexts:{...amountTexts}, skuEditor:JSON.parse(JSON.stringify(skuEditor.value)) },
+        description, detailDesignJson:form.detailDesignJson, designRevisionId:form.designRevisionId, designDocumentKey:form.designDocumentKey, images:[...form.images], amountTexts:{...amountTexts}, skuEditor:JSON.parse(JSON.stringify(skuEditor.value)) },
       imageFiles:Array.from(uploadedImageMap, ([url,image]) => ({ url,...image })).filter(image => imageUrls.has(image.url))
     };
     const saved = await saveBuyerProductDraft(draft, savedDraftRaw, () => currentContext.value);
@@ -220,6 +251,7 @@ function restoreDraft() {
     shippingFee:draft.form.shippingFee === null ? '' : String(draft.form.shippingFee), tax:draft.form.tax === null ? '' : String(draft.form.tax) });
   skuEditor.value = draft.form.skuEditor || productSkuEditorState(props.initialProduct);
   if (draft.form.brandId === undefined && props.initialProduct?.brandId !== undefined) form.brandId = props.initialProduct.brandId ?? undefined;
+  canvasEnabled.value = !!form.detailDesignJson || !form.description;
   draftRevision.value += 1;
   Message.success('已恢复本地草稿，请核对当前分类与商品状态后再提交');
 }
@@ -266,6 +298,7 @@ onBeforeRouteLeave(confirmLeave);
 onBeforeRouteUpdate((to,from) => JSON.stringify(to.params) === JSON.stringify(from.params) ? true : confirmLeave());
 watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], () => {
   savedDraft.value = undefined;
+  canvasEnabled.value = !!form.detailDesignJson || !form.description;
   draftRevision.value += 1;
   decideLeave(false);
 }, { flush:'sync' });
@@ -334,7 +367,8 @@ async function reloadCategories(showSuccess = false) {
 
 onBeforeUnmount(() => { active.value = false; categoryGuard.invalidate(); brandGuard.invalidate(); window.removeEventListener('beforeunload', beforeUnload); decideLeave(false); });
 
-function submit() {
+async function submit() {
+  try { await studio.value?.save(); } catch { return; }
   if (draftBlocked.value) return;
   if (!form.title.trim()) {
     Message.warning('请输入商品标题');
@@ -388,6 +422,11 @@ function onUploaded(items: Api.RealProduct.FileUploadResult[]) {
   });
 }
 
+function updateDesign(value: { sourceJson: string; designRevisionId?: string; designDocumentKey: string; description?: string }) {
+  if (!currentContext.value) return;
+  form.detailDesignJson = value.sourceJson; form.designRevisionId = value.designRevisionId; form.designDocumentKey = value.designDocumentKey;
+  if (value.description !== undefined) form.description = value.description;
+}
 function updateDescription(value: string) {
   if (currentContext.value && !props.submitting) form.description = value;
 }
@@ -432,17 +471,21 @@ const previewCategory = computed(() => {
       <div class="buyer-field"><Label for="product-aftersale">售后类型 <span>*</span></Label><Select v-model="form.aftersaleType" :disabled="submitting"><SelectTrigger id="product-aftersale" class="app-select-trigger h-[46px]"><SelectValue placeholder="请选择售后服务" /></SelectTrigger><SelectContent><SelectItem value="none">无售后</SelectItem><SelectItem value="7day-no-reason">7 天无理由</SelectItem><SelectItem value="shop-warranty">店铺保修</SelectItem><SelectItem value="national-warranty">全国联保</SelectItem></SelectContent></Select></div>
       <label class="buyer-switch" for="product-overseas"><span><b>海外直邮</b><small>海外过关后不可退，购买时向顾客提示。</small></span><input id="product-overseas" v-model="form.overseasCustoms" type="checkbox" role="switch" :disabled="submitting" /></label>
     </section>
-    <section class="paper"><header class="buyer-number-heading"><span>03</span><div><h2>商品详情</h2><p>说明版本、材质、配件与使用信息。</p></div></header><div class="buyer-field"><Label>详细描述</Label><RichTextEditor :key="draftRevision" class="buyer-rich-editor" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :model-value="form.description" @update:model-value="updateDescription" :disabled="submitting || uploadStates.product || uploadStates.details || uploadStates.skus || !currentContext" @uploading="uploadStates.description = $event" @uploaded="onUploaded" /></div><BuyerDetailImages :model-value="form.description" @update:model-value="updateDescription" :context="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || uploadStates.product || uploadStates.description || uploadStates.skus || !currentContext" @uploading="uploadStates.details = $event" @uploaded="onUploaded" /></section>
+    <section class="paper detail-editor-section"><header class="buyer-number-heading"><span>03</span><div><h2>商品详情</h2><p>AI 设计或手工制作，保存后仍可编辑每个图层。</p></div></header>
+      <DetailEditor v-if="canvasEnabled" :key="draftRevision" ref="studio" :model-value="form.detailDesignJson" :revision-id="form.designRevisionId" :document-key="form.designDocumentKey" :title="form.title" :disabled="submitting || !currentContext" @busy="uploadStates.details = $event" @change="updateDesign" />
+      <template v-else><p>当前商品使用富文本详情，原内容保持可编辑。</p><button type="button" class="outline" @click="canvasEnabled = true">创建画布详情（保存后替换原描述）</button><RichTextEditor :model-value="form.description" @update:model-value="updateDescription" :disabled="submitting || !currentContext" @uploading="uploadStates.description = $event" @uploaded="onUploaded" /><BuyerDetailImages :model-value="form.description" @update:model-value="updateDescription" :context="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || !currentContext" @uploading="uploadStates.details = $event" @uploaded="onUploaded" /></template>
+    </section>
     <p v-if="uploading" class="buyer-inline-hint" role="status">图片正在上传，请稍候。</p>
-    <footer class="buyer-form-footer"><button type="button" class="outline" @click="previewOpen = true">预览商品</button><button type="button" class="outline" :disabled="draftBlocked" @click="saveDraft">保存本地草稿</button><button type="submit" class="primary" :disabled="draftBlocked">{{ submitting ? '正在提交…' : '提交审核' }}<UmIcon name="arrow" /></button></footer>
+    <footer class="buyer-form-footer"><button type="button" class="outline" @click="openProductPreview">预览商品</button><button type="button" class="outline" :disabled="draftBlocked" @click="saveDraft">保存本地草稿</button><button type="submit" class="primary" :disabled="draftBlocked">{{ submitting ? '正在提交…' : '提交审核' }}<UmIcon name="arrow" /></button></footer>
     </div>
-    <a-modal v-model:visible="previewOpen" title="商品预览" :footer="false" :width="960"><div class="product-form-preview"><p>当前表单预览，尚未发布。</p><h1>{{ form.title || '尚未填写商品标题' }}</h1><strong>{{ previewPrice === undefined ? '金额待填写' : formatAmount(previewPrice) + ' USDT' }}</strong><div class="preview-images"><img v-for="(image, index) in form.images" :key="index" :src="image" :alt="form.title || '商品图片'" /></div><ProductDescription :description="form.description"><ProductParameters :parameters="form.parameters" /></ProductDescription></div></a-modal>
+    <a-modal v-model:visible="previewOpen" title="顾客实际商品页预览" :footer="false" :width="1400"><button type="button" @click="previewMobile = !previewMobile">{{ previewMobile ? '切换 PC' : '切换 H5' }}</button><iframe v-if="previewOpen" :src="previewUrl" title="商品页预览" :style="{ width: previewMobile ? '390px' : '100%', height: '75vh', border: '0', display: 'block', margin: '12px auto', maxWidth: '100%' }" /></a-modal>
     <aside class="paper buyer-live-preview" aria-label="当前表单预览"><h3>顾客将看到</h3><img v-if="form.images.length" :src="form.images[0]" :alt="form.title || '当前上传的商品图片'" /><div v-else class="preview-empty"><UmIcon name="bag" /><span>上传商品图片后预览</span></div><small>{{ previewCategory || '尚未选择分类' }}</small><h3>{{ form.title || '尚未填写商品标题' }}</h3><strong>{{ previewPrice === undefined ? '—' : formatAmount(previewPrice) }} <small>USDT</small></strong><div class="preview-service"><UmIcon name="shield" />{{ ({ 'none': '无售后', '7day-no-reason': '7 天无理由', 'shop-warranty': '店铺保修', 'national-warranty': '全国联保' })[form.aftersaleType] || '尚未选择售后类型' }}</div><p class="preview-hint">当前表单预览，尚未发布。提交后进入平台审核。</p></aside>
     <a-modal content-class="buyer-dialog" v-model:visible="leaveVisible" title="保存商品草稿？" :footer="false" @cancel="decideLeave(false)"><p>还有未保存的商品资料，可以保存草稿后离开。</p><p v-if="draftError" class="error-text" role="alert">{{ draftError }}</p><DialogActions><button type="button" class="outline" @click="decideLeave(false)">继续编辑</button><button type="button" class="outline" :disabled="draftBlocked" @click="discardAndLeave">放弃修改</button><button type="button" class="primary" :disabled="draftBlocked" @click="saveAndLeave">保存并离开</button></DialogActions></a-modal>
   </form>
 </template>
 
 <style scoped>
+.detail-editor-section { grid-column:1 / -1; }
 .product-form-preview { display:grid; gap:20px; }.product-form-preview h1 { font-size:24px; overflow-wrap:anywhere; }.preview-images { display:flex; gap:12px; overflow:auto; }.preview-images img { max-width:100%; max-height:340px; object-fit:contain; }
 .buyer-editor-fields { min-width:0; }
 .category-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; }

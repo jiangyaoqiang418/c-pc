@@ -48,6 +48,12 @@ const routes: RouteRecordRaw[] = [
     meta: { layout: 'default', title: '商品列表' }
   },
   {
+    path: '/product/preview',
+    name: 'product-preview',
+    component: () => import('@/views/product/preview.vue'),
+    meta: { layout: 'default', title: '商品预览' }
+  },
+  {
     path: '/product/:id',
     name: 'product-detail',
     component: () => import('@/views/product/detail.vue'),
