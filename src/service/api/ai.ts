@@ -4,6 +4,7 @@ import { readEventStream } from '@/service/request/stream';
 import { isAuthenticationFailure, RequestError, responseTraceId, type RealResponse } from '@/service/request/type';
 import { parseJsonPreservingLong } from '@/utils/json';
 import { isProductListCard } from '@/utils/ai-product';
+import { isHumanHandoffCard } from '@/utils/human-support';
 
 const invalidEvent = () => new RequestError('客服响应格式异常，回答已中断，请重新提问', { code: 'INVALID_STREAM' });
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -41,7 +42,7 @@ export async function fetchAiMessages(query: Api.Ai.MessageQuery, signal?: Abort
     && ['USER', 'ASSISTANT'].includes(row.role) && ['PENDING', 'COMPLETED', 'FAILED', 'INTERRUPTED'].includes(row.status)
     && (row.structuredData == null || (isObject(row.structuredData)
       && (row.structuredData.cards == null || (Array.isArray(row.structuredData.cards)
-        && row.structuredData.cards.every(card => isProductListCard(card) || (isObject(card) && !('type' in card && card.type === 'product_list') && typeof card.tool === 'string' && isObject(card.data))))))))) {
+        && row.structuredData.cards.every(card => isProductListCard(card) || isHumanHandoffCard(card) || (isObject(card) && !('type' in card && card.type === 'product_list') && typeof card.tool === 'string' && isObject(card.data))))))))) {
     throw new RequestError('消息加载异常', { code: 'INVALID_AI_PAGE' });
   }
   if (page.rows.some(row => { const q = row.structuredData?.question; return q != null && (typeof q.text !== 'string' || !Array.isArray(q.options) || q.options.length > 4 || !q.options.every(item => typeof item === 'string') || !['after_cards','in_content'].includes(q.placement)); })) throw new RequestError('追问信息格式异常，请重新加载', {code:'INVALID_AI_PAGE'});
@@ -60,6 +61,13 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
       if (!isObject(parsed)) throw invalidEvent();
       data = parsed;
     } catch { throw invalidEvent(); }
+    // 新确认卡可仅含 type/data；仍只能归属已经 start 的本次活跃流。
+    if (frame.event === 'card' && data.type === 'human_handoff') {
+      if (!requestId || !isHumanHandoffCard(data)) throw invalidEvent();
+      if (data.request_id === undefined && data.seq === undefined) {
+        onEvent({ event: 'card', data }); return false;
+      }
+    }
     if (typeof data.request_id !== 'string' || !data.request_id || !Number.isSafeInteger(data.seq)
       || (data.seq as number) < 1 || (requestId !== undefined && data.request_id !== requestId)) throw invalidEvent();
     if (seen.has(data.seq as number)) return false;
@@ -70,6 +78,8 @@ export function createChatEventReceiver(onEvent: (event: Api.Ai.ChatEvent) => vo
       if (requestId !== undefined || typeof data.conversation_id !== 'string' || !/^[0-9a-f]{32}$/.test(data.conversation_id)) throw invalidEvent();
     } else if (frame.event === 'status' || frame.event === 'delta') {
       if (typeof data.text !== 'string') throw invalidEvent();
+    } else if (frame.event === 'card' && isHumanHandoffCard(data)) {
+      // 与旧查询结果卡分开校验，不读取模型 URL、身份或接口参数。
     } else if (frame.event === 'card') {
       if (typeof data.tool !== 'string' || !isObject(data.data) || typeof data.data.code !== 'string') throw invalidEvent();
       const card = data.data;

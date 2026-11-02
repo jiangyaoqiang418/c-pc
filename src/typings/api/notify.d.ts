@@ -1,6 +1,7 @@
 declare namespace Api.RealNotify {
   type ConversationType = 'ORDER_GROUP' | 'SUPPORT' | string;
   type InterveneStatus = 'NONE' | 'REQUESTED' | 'HANDLING';
+  interface SupportRoute { conversationId: string; routingVersion: string; interveneStatus: InterveneStatus; aiEnabled: boolean; }
   type ConversationRole = 'CUSTOMER' | 'SELLER' | 'ADMIN' | string;
   type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'ORDER_CARD' | 'PRODUCT_CARD' | 'SYSTEM' | string;
   type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'PRODUCT_CARD';

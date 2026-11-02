@@ -10,6 +10,7 @@ import { useNotifyStore } from '@/stores/notify';
 import AiImage from '@/components/ai/ai-image.vue';
 import ProductCards from '@/components/ai/product-cards.vue';
 import ResultCard from '@/components/ai/result-card.vue';
+import HumanHandoffCard from '@/components/ai/human-handoff-card.vue';
 import MessageBubble from './message-bubble.vue';
 import MessageInput from './message-input.vue';
 
@@ -17,7 +18,7 @@ const props = defineProps<{ conversationId: string }>();
 const emit = defineEmits<{ busy: [value: boolean] }>();
 const user = useUserStore();
 const notify = useNotifyStore();
-const { route, messages, input, attachments, running, loading, applying, notice, error, hasMore, handling, canSend, canAnswer, send, sendHuman, stop, load, refresh, requestHuman } = useSupportChat(props.conversationId);
+const { route, messages, input, attachments, running, loading, applying, notice, error, routeError, hasMore, handling, canSend, canAnswer, send, sendHuman, stop, load, refresh, requestHuman } = useSupportChat(props.conversationId);
 const cards = useAiProductCards(() => messages.value.flatMap(row => row.parts.flatMap(part => part.type === 'products' ? part.card.items.map(item => item.action.target_id) : [])), () => [props.conversationId, user.sessionVersion], () => !user.initializing);
 const viewport = ref<HTMLElement>();
 const upload = ref<HTMLInputElement>();
@@ -70,8 +71,8 @@ onBeforeUnmount(() => { alive = false; controller.abort(); emit('busy', false); 
 
 <template>
   <div class="support-chat">
-    <div class="support-status" role="status"><span>{{ !route ? '接待状态暂不可用' : handling ? '人工客服接待中' : route.interveneStatus === 'REQUESTED' ? '等待客服接入，AI仍可继续回答' : 'AI客服为你服务' }}</span><button type="button" :disabled="loading" @click="refresh">刷新</button><button v-if="route && !handling" type="button" :disabled="applying || route.interveneStatus === 'REQUESTED'" @click="requestHuman">{{ applying ? '正在申请…' : '转人工' }}</button></div>
-    <p v-if="notice" role="status">{{ notice }}</p><p v-if="error" role="alert">{{ error }}</p>
+    <div class="support-status" role="status"><span>{{ !route ? '接待状态暂不可用' : handling ? '人工客服接待中' : route.interveneStatus === 'REQUESTED' ? '等待客服接入，AI仍可继续回答' : 'AI客服为你服务' }}</span><button type="button" :disabled="loading" @click="refresh">刷新</button><button v-if="route && !handling" type="button" :disabled="applying || route.interveneStatus === 'REQUESTED'" @click="requestHuman()">{{ applying ? '正在申请…' : '转人工' }}</button></div>
+    <p v-if="notice" role="status">{{ notice }}</p><p v-if="error || routeError" role="alert">{{ error || routeError }}</p>
     <div ref="viewport" class="support-messages" role="log" aria-label="平台客服消息" aria-live="polite" @scroll="markVisible">
       <button v-if="hasMore" type="button" :disabled="loading" @click="loadOlder">加载更早消息</button>
       <article v-for="message in messages" :key="message.id" :class="['support-message', message.role, { 'im-message': message.rawIm }]">
@@ -80,7 +81,7 @@ onBeforeUnmount(() => { alive = false; controller.abort(); emit('busy', false); 
           <strong>{{ message.role === 'user' ? '我' : 'AI客服' }}</strong>
           <div v-if="message.images?.length" class="support-images"><AiImage v-for="image in message.images" :key="image.fileId" :file-id="image.fileId" /></div>
           <p v-if="message.text">{{ message.text }}</p>
-          <template v-for="(part,index) in message.parts" :key="index"><p v-if="part.type === 'text'">{{ part.text }}</p><ResultCard v-else-if="part.type === 'card'" :card="part.card" /><ProductCards v-else :card="part.card" :products="cards.products.value" :loading="cards.loading.value" :error="cards.error.value" @retry="cards.refresh" /></template>
+          <template v-for="(part,index) in message.parts" :key="index"><p v-if="part.type === 'text'">{{ part.text }}</p><ResultCard v-else-if="part.type === 'card'" :card="part.card" /><HumanHandoffCard v-else-if="part.type === 'handoff'" :card="part.card" :route="route" :logged-in="user.isLoggedIn" :applying="applying" @confirm="requestHuman" /><ProductCards v-else :card="part.card" :products="cards.products.value" :loading="cards.loading.value" :error="cards.error.value" @retry="cards.refresh" /></template>
           <section v-if="message.question"><p v-if="message.question.placement !== 'in_content'">{{ message.question.text }}</p><div class="support-options"><button v-for="option in message.question.options" :key="option" type="button" :disabled="!canAnswer(message) || uploading" @click="input = option; send()">{{ option }}</button></div></section>
           <p v-if="message.state === 'PENDING'" role="status">{{ message.progress || '正在回复…' }}</p><p v-if="message.error" role="alert">{{ message.error }}</p><p v-if="message.imSync?.sync_status === 'pending'">消息待同步</p>
         </template>

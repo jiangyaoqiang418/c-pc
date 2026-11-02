@@ -9,6 +9,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import ResultCard from '@/components/ai/result-card.vue';
 import ProductCards from '@/components/ai/product-cards.vue';
+import HumanHandoffCard from '@/components/ai/human-handoff-card.vue';
 import { useAiProductCards } from '@/composables/use-ai-product-cards';
 import { useAiConversations } from '@/composables/use-ai-conversations';
 import { useUserStore } from '@/stores/user';
@@ -16,7 +17,7 @@ import { useUserStore } from '@/stores/user';
 const router = useRouter();
 const user = useUserStore();
 const { visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
-  notice, humanHandling, historyMore, sessionMore, scrollRef, canSend, canAnswer, answerQuestion, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
+  notice, humanHandling, supportRoute, applying, requestHuman, historyMore, sessionMore, scrollRef, canSend, canAnswer, answerQuestion, pending, archived, loadSessions, loadHistory, changeSession, stop, send } = useAiConversations();
 const locked = computed(() => busy.value || uploading.value || listLoading.value || historyLoading.value);
 const currentCards = useAiProductCards(
   () => messages.value.flatMap(message => message.parts.flatMap(part => part.type === 'products' ? part.card.items.map(item => item.action.target_id) : [])),
@@ -129,6 +130,7 @@ function onKeydown(event: KeyboardEvent) {
               <template v-for="(part, partIndex) in message.parts" :key="partIndex">
                 <p v-if="part.type === 'text'" class="ai-message-text">{{ part.text }}</p>
                 <ResultCard v-else-if="part.type === 'card'" :card="part.card" @login="login" />
+                <HumanHandoffCard v-else-if="part.type === 'handoff'" :card="part.card" :route="supportRoute" :logged-in="user.isLoggedIn" :applying="applying" @confirm="requestHuman" @login="login" />
                 <ProductCards v-else :card="part.card" :products="currentCards.products.value" :loading="currentCards.loading.value" :error="currentCards.error.value" @retry="currentCards.refresh" />
               </template>
               <section v-if="message.question" class="ai-question" aria-label="继续咨询">

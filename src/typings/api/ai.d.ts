@@ -16,7 +16,8 @@ declare namespace Api.Ai {
     hasSku: boolean; priceFrom: string; priceTo: string; priceLabel: string; stock: string;
     salesCount?: string; sellerName?: string; afterSale?: string;
   };
-  type HistoryCard = ProductListCard | { tool: string; data: CardData };
+  interface HumanHandoffCard { type: 'human_handoff'; data: { label: string; reason?: string } }
+  type HistoryCard = ProductListCard | HumanHandoffCard | { tool: string; data: CardData };
   interface ChatParams {
     message?: string;
     imageFileIds?: string[];
@@ -89,7 +90,7 @@ declare namespace Api.Ai {
   type ChatEvent =
     | { event: 'start'; data: EventBase & { conversation_id: string; im_sync?: ImSync } }
     | { event: 'status' | 'delta'; data: EventBase & { text: string } }
-    | { event: 'card'; data: EventBase & { tool: string; data: CardData } }
+    | { event: 'card'; data: (EventBase & { tool: string; data: CardData }) | (Partial<EventBase> & HumanHandoffCard) }
     | { event: 'product_cards'; data: EventBase & ProductListCard }
     | { event: 'question'; data: EventBase & { text: string; options: string[] } }
     | { event: 'action'; data: EventBase & { type: string; action_id: string } }

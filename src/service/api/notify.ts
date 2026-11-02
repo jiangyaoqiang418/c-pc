@@ -1,5 +1,6 @@
 import { realNotifyRequest } from '@/service/request';
 import { requireArray, toPageTotal } from './page';
+import { parseSupportRoute } from '@/utils/human-support';
 
 // notify 服务的鉴权问题不应清空整站登录态；调用方仍会收到真实错误并自行展示。
 const notifyRequestOptions = { skipAuthRedirect: true };
@@ -61,8 +62,12 @@ export async function fetchSupportConversation() {
   return route;
 }
 
-export async function applyHumanSupport(conversationId: string) {
-  await realNotifyRequest.post('/im/conversations/intervene', { conversationId, reason: '用户要求转人工' }, { ...notifyRequestOptions, showError: false, numericSuccessOnly: true });
+export async function fetchSupportRoute(options: { signal?: AbortSignal } = {}) {
+  return parseSupportRoute(await realNotifyRequest.get<unknown>('/im/conversations/support/route', { ...notifyRequestOptions, ...options, showError: false }));
+}
+
+export async function applyHumanSupport(conversationId: string, reason?: string) {
+  await realNotifyRequest.post('/im/conversations/intervene', { conversationId, reason }, { ...notifyRequestOptions, showError: false, numericSuccessOnly: true });
 }
 
 /** 咨询无需先下单，同一顾客与买手由服务端复用三方群。 */
