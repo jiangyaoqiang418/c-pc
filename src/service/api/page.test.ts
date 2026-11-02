@@ -871,6 +871,9 @@ describe('v47前端本地边界', () => {
     vi.stubGlobal('window', new EventTarget());
     vi.stubGlobal('matchMedia', () => Object.assign(new EventTarget(), { matches:false }));
     vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { querySelector: () => null }));
+    vi.stubGlobal('requestAnimationFrame', vi.fn().mockReturnValue(1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
     const detail = mountSubject<{ product?: Api.RealProduct.Record; sellerInitial:string }>(DetailView, {}, undefined, app => {
       app.use(createPinia());
       app.provide(routeLocationKey, { params:{}, query:{} } as RouteLocationNormalizedLoaded);
@@ -1186,6 +1189,7 @@ describe('v47商品列表连续浏览', () => {
   } as Api.RealProduct.Record));
   const page = (current: number, size = 24, total = 50) => ({ current, size, total, records:records((current - 1) * size, Math.min(size, total - (current - 1) * size)) });
   async function mountCatalog(load: CatalogVisualFixture['load']) {
+    vi.stubGlobal('localStorage', { getItem: () => null });
     vi.stubGlobal('window', { addEventListener:vi.fn(), removeEventListener:vi.fn() });
     vi.stubGlobal('matchMedia', () => ({ matches:false, addEventListener:vi.fn(), removeEventListener:vi.fn() }));
     const renderer = createRenderer<object, object>({
@@ -1193,6 +1197,7 @@ describe('v47商品列表连续浏览', () => {
       setText: () => undefined, setElementText: () => undefined, parentNode: () => null, nextSibling: () => null, patchProp: () => undefined
     });
     const app = renderer.createApp({ ...CatalogView, render:() => null }, { visualFixture:{ load } });
+    app.use(createPinia());
     app.provide(ssrContextKey, {});
     app.provide(routeLocationKey, reactive({ query:{}, fullPath:'/product/list', path:'/product/list' }) as RouteLocationNormalizedLoaded);
     app.provide(routerKey, { push:vi.fn().mockResolvedValue(undefined), replace:vi.fn().mockResolvedValue(undefined) } as unknown as Router);

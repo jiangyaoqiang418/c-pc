@@ -98,9 +98,11 @@ describe('v47 收藏及公开评价异步恢复', () => {
   async function detail() {
     const user = session();
     const events = new EventTarget();
-    const visibility = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+    const visibility = Object.assign(new EventTarget(), { visibilityState: 'visible', querySelector: () => null });
     vi.stubGlobal('window', events);
     vi.stubGlobal('document', visibility);
+    vi.stubGlobal('requestAnimationFrame', vi.fn().mockReturnValue(1));
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
     const route = reactive({ params: { id: productId }, query: {}, fullPath: `/product/${productId}` });
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     vi.spyOn(productApi, 'fetchProductDetail').mockImplementation(async id => ({ id, price: '1', stock: 1, images: [], specGroups: [] } as unknown as Api.RealProduct.Record));
