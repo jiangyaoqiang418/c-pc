@@ -517,3 +517,5 @@ AI业务查询卡片展示：订单、余额、充值、转出和订单钱包直
 品牌 Logo 与申请审核：复用平台 MinIO 的 BRAND_LOGO 场景，PNG/JPEG/WebP ≤5MB。后台 POST /brands/logo/upload，买手 POST /brands/apply/logo/upload 返回文件 ID 与 URL；申请提交传 logoFileId，审核通过带入正式品牌。后台保存传 logoFileId 替换、removeLogo=true 清空，两者均不传保留原图；不直接保存任意外链。后台品牌申请入口按 brand:apply:list / brand:audit 分离权限并刷新当前权限；申请图片保持原比例，上传中禁止提交。Java 发布前执行 sql/migrations/20261103_brand_logo.sql，不重放 init.sql。
 
 商品创建/编辑的品牌搜索：点击搜索或回车后自动展开品牌选择列表；无匹配结果显示明确提示，不自动修改已关联品牌。
+
+智能详情页设计助手：仅 capability.enabled 为 true 时展示 AI 面板并读取生成任务；未开通买手仍可手工编辑画布。设计要求默认“旗舰店风格，突出商品卖点，简洁清晰。符合品牌设计语言和设计美学”。
