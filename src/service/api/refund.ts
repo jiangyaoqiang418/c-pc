@@ -10,7 +10,7 @@ export function createRefund(params: Api.RealRefund.RefundApplyParams, options: 
 }
 
 export async function fetchRefundByKey(idempotencyKey: string) {
-  const result = await realOrderRequest.get<Api.RealRefund.RefundDTO | null>('/orders/refunds/by-key', { params: { idempotencyKey }, showError: false });
+  const result = await realOrderRequest.get<Api.RealRefund.RefundDTO | null>('/orders/refunds/by-key', { params: { idempotencyKey }, showError: false, preserveDecimals: true });
   if (result === undefined || (result !== null && (typeof result !== 'object' || result.refundId === undefined))) {
     throw new Error('退款回查响应损坏，不能确认原申请是否落地');
   }
@@ -21,7 +21,7 @@ export async function fetchMyRefunds(params: Api.RealRefund.RefundPageQuery = {}
   const page = await realOrderRequest.postQuery<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
     '/orders/refunds/bought/page',
     params,
-    options
+    { ...options, preserveDecimals: true }
   );
   return normalizePage(page);
 }
@@ -33,13 +33,17 @@ export async function fetchSoldRefunds(params: Api.RealRefund.RefundPageQuery = 
   const page = await realOrderRequest.postQuery<Api.RealRefund.PageResult<Api.RealRefund.RefundDTO>, Api.RealRefund.RefundPageQuery>(
     '/orders/refunds/sold/page',
     params,
-    options
+    { ...options, preserveDecimals: true }
   );
   return normalizePage(page);
 }
 
 export function fetchRefundDetail(id: string | number, options: { signal?: AbortSignal } = {}) {
-  return realOrderRequest.get<Api.RealRefund.RefundDTO>('/orders/refunds/detail', { params: { id }, signal: options.signal });
+  return realOrderRequest.get<Api.RealRefund.RefundDTO>('/orders/refunds/detail', { params: { refundId: id }, signal: options.signal, preserveDecimals: true });
+}
+
+export function operateRefund(params: Api.RealRefund.RefundOperateParams) {
+  return realOrderRequest.put<unknown, Api.RealRefund.RefundOperateParams>('/orders/refunds/operate', params, { showError: false });
 }
 
 export function cancelRefund(refundId: string | number) {

@@ -13,7 +13,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
 import BuyerOrderCard from '@/components/buyer/buyer-order-card.vue';
 import ShippingUploadModal from '@/components/buyer/shipping-upload-modal.vue';
-import LogisticsManageModal from '@/components/buyer/logistics-manage-modal.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as realOrderApi from '@/service/api/order';
@@ -62,18 +61,12 @@ const shippingModalOpen = ref(false);
 const shippingSubmitting = ref(false);
 const shippingOrder = ref<Api.RealOrder.Record>();
 const shippingMode = ref<'shipping' | 'procure'>('shipping');
-const logisticsModalOpen = ref(false);
-const logisticsSubmitting = ref(false);
-const logisticsOrder = ref<Api.RealOrder.Record>();
 const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const actionGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
-let logisticsWriteVersion = 0;
 let shippingWriteVersion = 0;
 let priceWriteVersion = 0;
 let shippingModalVersion = 0;
-let logisticsModalVersion = 0;
 watch(shippingModalOpen, () => { shippingModalVersion += 1; }, { flush: 'sync' });
-watch(logisticsModalOpen, () => { logisticsModalVersion += 1; }, { flush: 'sync' });
 
 function syncFromQuery() {
   orderNo.value = typeof route.query.orderNo === 'string' ? route.query.orderNo.trim() : '';
@@ -154,7 +147,6 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   actionGuard.invalidate();
-  logisticsWriteVersion += 1;
   shippingWriteVersion += 1;
   priceWriteVersion += 1;
   requestGuard.invalidate();
@@ -168,7 +160,6 @@ watch(() => route.fullPath, () => {
 });
 watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next, nextSession], [previous, previousSession]) => {
   if (String(next) === String(previous) && nextSession === previousSession) return;
-  logisticsWriteVersion += 1;
   shippingWriteVersion += 1;
   priceWriteVersion += 1;
   requestGuard.invalidate();
@@ -178,13 +169,10 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
   loadError.value = '';
   priceModalOpen.value = false;
   shippingModalOpen.value = false;
-  logisticsModalOpen.value = false;
   priceOrder.value = undefined;
   shippingOrder.value = undefined;
-  logisticsOrder.value = undefined;
   priceSubmitting.value = false;
   shippingSubmitting.value = false;
-  logisticsSubmitting.value = false;
   syncQuery();
 });
 
@@ -230,19 +218,11 @@ function onProcure(order: Api.RealOrder.Record) {
   shippingModalOpen.value = true;
 }
 
-function manageLogistics(order: Api.RealOrder.Record) {
-  if (!getOrderCapabilities(order, userStore.currentUser?.id).isSeller || order.status !== 'IN_TRANSIT') return;
-  logisticsModalVersion += 1;
-  logisticsOrder.value = order;
-  logisticsModalOpen.value = true;
-}
-
 // 工作台入口只定位并读取原订单，仍使用本页已有弹窗，绝不自动执行写入。
 watch([() => route.query.action, () => route.query.orderId, () => userStore.currentUser?.id], async ([action, orderId, userId]) => {
   const isCurrent = actionGuard.begin();
   shippingModalOpen.value = false;
-  logisticsModalOpen.value = false;
-  if (!['shipping', 'procure', 'logistics'].includes(String(action)) || typeof orderId !== 'string' || !orderId || userId === undefined) return;
+  if (!['shipping', 'procure'].includes(String(action)) || typeof orderId !== 'string' || !orderId || userId === undefined) return;
   try {
     const order = await realOrderApi.fetchOrderDetail(orderId, { signal: isCurrent.signal });
     if (!isCurrent()) return;
@@ -252,54 +232,11 @@ watch([() => route.query.action, () => route.query.orderId, () => userStore.curr
     }
     if (action === 'shipping' && getOrderCapabilities(order, userId).ship) onUploadShipping(order);
     else if (action === 'procure' && getOrderCapabilities(order, userId).procure) onProcure(order);
-    else if (action === 'logistics' && order.status === 'IN_TRANSIT') manageLogistics(order);
     else Message.warning('订单状态已变化，请核对最新订单后操作');
   } catch {
     if (isCurrent()) Message.warning('操作订单读取失败，请从下方订单列表重新进入');
   }
 }, { immediate: true });
-
-async function createLogisticsTrack(params: Api.RealOrder.LogisticsTrackParams) {
-  if (logisticsSubmitting.value) return;
-  const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
-  const operation = ++logisticsWriteVersion;
-  const submittedModalVersion = logisticsModalVersion;
-  const isCurrentWrite = () => operation === logisticsWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
-  logisticsSubmitting.value = true;
-  try {
-    await realOrderApi.createLogisticsTrack(params);
-    if (!isCurrentWrite()) return;
-    Message.success('物流轨迹已登记');
-    if (submittedModalVersion === logisticsModalVersion) logisticsModalOpen.value = false;
-    await load();
-  } catch {
-    // 请求层已展示后端业务提示，保留表单供修正后重试。
-  } finally {
-    if (operation === logisticsWriteVersion) logisticsSubmitting.value = false;
-  }
-}
-
-async function markLogisticsException(params: Api.RealOrder.LogisticsExceptionParams) {
-  if (logisticsSubmitting.value) return;
-  const requestedUserId = userStore.currentUser?.id;
-  if (requestedUserId === undefined) return;
-  const operation = ++logisticsWriteVersion;
-  const submittedModalVersion = logisticsModalVersion;
-  const isCurrentWrite = () => operation === logisticsWriteVersion && String(userStore.currentUser?.id) === String(requestedUserId);
-  logisticsSubmitting.value = true;
-  try {
-    await realOrderApi.markLogisticsException(params);
-    if (!isCurrentWrite()) return;
-    Message.success('物流异常已标记');
-    if (submittedModalVersion === logisticsModalVersion) logisticsModalOpen.value = false;
-    await load();
-  } catch {
-    // 请求层已展示后端业务提示，保留表单供修正后重试。
-  } finally {
-    if (operation === logisticsWriteVersion) logisticsSubmitting.value = false;
-  }
-}
 
 async function shipOrder(params: Api.RealOrder.OrderShipParams) {
   if (shippingSubmitting.value) return;
@@ -414,13 +351,12 @@ function selectTab(value: unknown) {
     <header class="buyer-page-top"><div><h1>买手订单</h1></div><Button class="outline" variant="outline" :disabled="loading" @click="load"><UmIcon name="return" />刷新</Button></header>
     <div class="buyer-tabs" role="group" aria-label="订单状态"><button v-for="tab in TABS" :key="tab.key" type="button" :class="{ active:activeKey === tab.key }" :aria-pressed="activeKey === tab.key" @click="selectTab(tab.key)">{{ tab.label }}</button></div><form class="buyer-filter order-search" role="search" @submit.prevent="searchOrders"><label><UmIcon name="search" /><input v-model="orderNoDraft" aria-label="订单号精确查询" placeholder="订单号（精确匹配）" autocomplete="off" /></label><label><UmIcon name="search" /><input v-model="productTitleDraft" aria-label="商品名称关键词" placeholder="商品名称" autocomplete="off" /></label><button type="submit" class="outline" :disabled="loading">查询</button><button type="button" class="outline" :disabled="loading" @click="resetSearch">重置</button></form>
     <LoadingStatus v-if="loading" block label="正在更新买手订单…" />
-    <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @procure="onProcure" @manage-logistics="manageLogistics" /></div>
+    <div v-if="orders.length" class="order-list"><BuyerOrderCard v-for="order in orders" :key="order.id" :order="order" @change-price="openPriceModal" @upload-shipping="onUploadShipping" @procure="onProcure" /></div>
     <div v-else-if="loading" class="loading-list" aria-busy="true" aria-label="正在读取买手订单"><Skeleton v-for="n in 3" :key="n" class="order-skeleton" /></div>
     <EmptyState v-else :title="loadError || '该状态下没有订单'" :description="loadError ? '请稍后重试。' : '去求购大厅接单或等待顾客通过商品下单'" :action-text="loadError ? '重新加载' : undefined" @action="load" />
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="changePage" />
     <a-modal content-class="buyer-dialog" v-model:visible="priceModalOpen" title="修改待付款订单价格" :ok-loading="priceSubmitting" :closable="!priceSubmitting" :mask-closable="!priceSubmitting" :esc-to-close="!priceSubmitting" :on-before-cancel="() => !priceSubmitting" :on-before-ok="changePrice"><div class="price-form"><div class="buyer-field"><Label for="buyer-order-code">订单号</Label><Input placeholder="暂无订单号" id="buyer-order-code" :model-value="priceOrder?.code" disabled /></div><div class="buyer-field"><Label for="buyer-order-amount">订单金额（USDT）<span>*</span></Label><AmountInput id="buyer-order-amount" v-model="priceAmount" :disabled="priceSubmitting" :min="0.01" :precision="2" placeholder="请输入调整后的金额" /></div></div></a-modal>
     <ShippingUploadModal v-model:visible="shippingModalOpen" :order="shippingOrder" :submitting="shippingSubmitting" :mode="shippingMode" @confirm="shipOrder" @procure="procureOrder" />
-    <LogisticsManageModal v-model:visible="logisticsModalOpen" :order="logisticsOrder" :submitting="logisticsSubmitting" @create-track="createLogisticsTrack" @mark-exception="markLogisticsException" />
   </div>
 </template>
 

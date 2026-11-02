@@ -2,6 +2,9 @@
 import { Icon } from '@iconify/vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { parseOrderMessageCard } from '@/utils/im';
+import { parseProductMessageCard } from '@/utils/im-product-card';
+import { setImageFallback } from '@/utils/image-placeholder';
+import ConversationOrderBar from '@/components/im/conversation-order-bar.vue';
 
 interface Props {
   msg: Api.RealNotify.ImMessageVO;
@@ -9,6 +12,7 @@ interface Props {
   senderName?: string;
   readText?: string;
   canRecall?: boolean;
+  orderRevision?: number;
 }
 
 const props = defineProps<Props>();
@@ -22,6 +26,7 @@ const emit = defineEmits<{
 const type = computed(() => String(props.msg.msgType || 'TEXT').toUpperCase());
 const isSystem = computed(() => type.value === 'SYSTEM');
 const isOrderCard = computed(() => type.value === 'ORDER_CARD');
+const isProductCard = computed(() => type.value === 'PRODUCT_CARD');
 const isImage = computed(() => type.value === 'IMAGE');
 const isVoice = computed(() => type.value === 'VOICE');
 const isVideo = computed(() => type.value === 'VIDEO');
@@ -83,15 +88,18 @@ const systemContent = computed(() => {
     COMPLETED: '订单已完成',
     SETTLED: '订单货款已结算',
     CANCELED: '订单已取消',
-    REFUND_APPLIED: '买家已申请仅退款',
+    REFUND_APPLIED: '买家已申请售后',
     REFUND_AGREED: '平台已同意退款',
     REFUND_REJECTED: '平台已驳回退款',
-    REFUND_CANCELED: '买家已撤销退款申请'
+    REFUND_CANCELED: '买家已撤销退款申请',
+    AFTERSALE_UPDATED: '售后处理状态已更新',
+    AFTERSALE_COMPLETED: '售后流程已完成'
   };
   return templates[eventType] || statusText || props.msg.content || '订单状态已更新';
 });
 
 const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props.msg.content) : undefined);
+const productCard = computed(() => isProductCard.value ? parseProductMessageCard(props.msg.content) : undefined);
 
 
 </script>
@@ -100,7 +108,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 
   <div v-if="msg.recalled" class="msg-row center"><div class="bubble system"><Icon icon="lucide:undo-2" width="13" />消息已撤回</div></div>
   <div v-else-if="isSystem" class="msg-row center"><div class="bubble system">{{ systemContent }}</div></div>
-  <div v-else-if="isOrderCard" class="msg-row center">
+  <div v-else-if="isOrderCard" class="msg-row center order-message">
     <button v-if="orderCard" type="button" class="im-order-card" @click="orderCard.orderId && emit('open-order', orderCard.orderId)">
       <img v-if="orderCard.productImage" :src="orderCard.productImage" alt="订单商品" class="order-cover" />
       <div class="order-card-body">
@@ -109,6 +117,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
         <div class="order-footer"><span>{{ orderCard.statusText || '查看订单' }}</span><strong v-if="orderCard.amount !== undefined">{{ orderCard.currency || 'USDT' }} {{ orderCard.amount }}</strong><Icon icon="lucide:arrow-up-right" width="15" /></div>
       </div>
     </button>
+    <ConversationOrderBar v-if="orderCard?.orderId" aftersale-only compact :order-id="orderCard.orderId" :revision="String(orderRevision)" />
     <div v-else class="bubble system">{{ msg.content || '订单卡片' }}</div>
   </div>
   <div v-else class="msg-row message" :class="[side, { me: side === 'right' }]"><span class="avatar"><img v-if="msg.senderAvatar && !avatarFailed" :src="msg.senderAvatar" :alt="senderName || msg.senderName || '成员'" @error="avatarFailed = true" /><template v-else>{{ senderInitial }}</template></span><div class="message-body">
@@ -122,6 +131,13 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
     </div>
     <div v-else-if="isVoice" class="bubble media voice" :class="side"><audio :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl || undefined" aria-label="语音消息" controls preload="metadata" @error="onMediaError" /><span v-if="msg.duration">{{ msg.duration }} 秒</span></div>
     <div v-else-if="isVideo" class="bubble media video" :class="side"><video :key="mediaKey" ref="mediaElement" :src="msg.mediaUrl || undefined" :poster="msg.coverUrl || undefined" aria-label="视频消息" controls preload="none" playsinline @error="onMediaError" /><span v-if="msg.duration" class="video-duration">{{ msg.duration }} 秒</span></div>
+    <template v-else-if="isProductCard">
+      <RouterLink v-if="productCard" class="im-order-card im-product-card" :to="{ name: 'product-detail', params: { id: productCard.productId } }">
+        <img v-if="productCard.image" :src="productCard.image" :alt="productCard.title" class="order-cover" @error="setImageFallback" />
+        <div class="order-card-body"><div class="order-title">{{ productCard.title }}</div><div class="order-footer"><span>查看商品</span><strong>{{ productCard.price }} USDT</strong><Icon icon="lucide:arrow-up-right" width="15" /></div></div>
+      </RouterLink>
+      <p v-else class="bubble system">商品卡片暂不可用</p>
+    </template>
     <p v-else class="bubble text" :class="side">{{ msg.content || '—' }}</p>
     <div v-if="side === 'right'" class="message-status" aria-live="polite">
       <span v-if="msg.failed" class="failed"><Icon icon="lucide:circle-alert" width="13" />发送失败</span><span v-else-if="msg.pending">发送中…</span><span v-else-if="readText">{{ readText }}</span>
@@ -133,6 +149,7 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 
 <style scoped>
 .msg-row.center { align-self:center; width:100%; display:flex; justify-content:center; }
+.order-message { flex-direction:column; align-items:center; gap:8px; }
 .message-body { min-width:0; }
 .msg-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; color:var(--muted); font-size:11px; margin-bottom:6px; }
 .message.me .msg-meta { justify-content:flex-end; }
@@ -158,6 +175,8 @@ const orderCard = computed(() => isOrderCard.value ? parseOrderMessageCard(props
 .media-error>span { max-width:260px; font-size:13px; }
 .im-order-card { width:390px; max-width:90%; display:flex; overflow:hidden; padding:0; text-align:left; background:var(--paper); border:1px solid var(--line); border-radius:10px; }
 .im-order-card:hover { border-color:var(--green); }
+.im-product-card { max-width:100%; text-decoration:none; }
+.im-product-card:focus-visible { outline:2px solid var(--green); outline-offset:3px; }
 .order-cover { width:92px; min-height:92px; object-fit:cover; flex-shrink:0; }
 .order-card-body { min-width:0; flex:1; padding:14px; }
 .order-title { color:var(--ink); font-size:14px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

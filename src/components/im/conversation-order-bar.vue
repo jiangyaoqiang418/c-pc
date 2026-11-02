@@ -9,7 +9,7 @@ import { formatUsdt } from '@shared/utils/currency';
 import { Message } from '@/lib/feedback';
 import AmountInput from '@/components/common/amount-input.vue';
 
-const props = defineProps<{ orderId: string | number; revision?: string; compact?: boolean }>();
+const props = defineProps<{ orderId: string | number; revision?: string; compact?: boolean; aftersaleOnly?: boolean }>();
 const emit = defineEmits<{ changed: [] }>();
 const user = useUserStore();
 const router = useRouter();
@@ -19,9 +19,30 @@ const loading = ref(false);
 const open = ref(false);
 const amount = ref<number>();
 const submitting = ref(false);
+const openingAftersale = ref(false);
 let active = true;
 const guard = createLatestRequestGuard(() => `${props.orderId}:${user.currentUser?.id}:${user.sessionVersion}`);
 const canEdit = computed(() => order.value && getOrderCapabilities(order.value, user.currentUser?.id).isSeller && order.value.status === 'PENDING_PAYMENT');
+const capabilities = computed(() => getOrderCapabilities(order.value, user.currentUser?.id));
+const hasAftersale = computed(() => !!order.value?.refundId && (capabilities.value.isCustomer || capabilities.value.isSeller));
+const canOpenAftersale = computed(() => capabilities.value.refund || capabilities.value.viewAftersale || hasAftersale.value);
+async function openAftersale() {
+  if (loading.value || submitting.value || openingAftersale.value || !canOpenAftersale.value) return;
+  const id = props.orderId;
+  const owner = user.currentUser?.id;
+  const session = user.sessionVersion;
+  openingAftersale.value = true;
+  try {
+    await load();
+    if (!active || !sameContext(id, owner, session) || !order.value || !canOpenAftersale.value) return;
+    if (order.value.refundId) await router.push({ name: 'aftersale-detail', params: { id: String(order.value.refundId) } });
+    else if (capabilities.value.refund) await router.push({ name: 'aftersale-create', params: { orderId: String(id) } });
+    else Message.warning('售后单信息尚未取得，请重新加载订单');
+  } finally { if (sameContext(id, owner, session)) openingAftersale.value = false; }
+}
+function sameContext(id: string | number, owner: string | number | undefined, session: number) {
+  return String(props.orderId) === String(id) && user.currentUser?.id === owner && user.sessionVersion === session;
+}
 async function load() {
   const current = guard.begin();
   loading.value = true;
@@ -59,15 +80,16 @@ async function submit() {
   finally { if (current()) { submitting.value = false; await load(); } }
 }
 watch([() => props.orderId, () => props.revision, () => user.currentUser?.id, () => user.sessionVersion], () => {
-  guard.invalidate(); order.value = undefined; open.value = false; submitting.value = false; void load();
+  guard.invalidate(); order.value = undefined; open.value = false; submitting.value = false; openingAftersale.value = false; void load();
 }, { immediate: true });
 onBeforeUnmount(() => { active = false; guard.invalidate(); });
 </script>
 
 <template>
   <section class="conversation-order-bar" :class="{ compact }" aria-label="当前订单" :aria-busy="loading">
-    <button type="button" class="order-entry" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })"><strong :title="order?.productTitle">{{ order?.productTitle || '查看当前订单' }}</strong><span v-if="order" :title="order.code + ' · ' + formatUsdt(order.totalAmount)">{{ order.code }} · {{ formatUsdt(order.totalAmount) }}</span></button>
-    <button v-if="canEdit" type="button" class="outline" :disabled="loading || submitting" @click="edit">修改价格</button>
+    <button v-if="!aftersaleOnly" type="button" class="order-entry" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })"><strong :title="order?.productTitle">{{ order?.productTitle || '查看当前订单' }}</strong><span v-if="order" :title="order.code + ' · ' + formatUsdt(order.totalAmount)">{{ order.code }} · {{ formatUsdt(order.totalAmount) }}</span></button>
+    <button v-if="canEdit && !aftersaleOnly" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="edit">修改价格</button>
+    <button v-if="canOpenAftersale" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="openAftersale">{{ openingAftersale ? '正在核对售后…' : hasAftersale || capabilities.viewAftersale ? '查看售后' : '申请售后' }}</button>
     <button v-if="error" type="button" class="text-link" @click="load">{{ error }}，重试</button>
     <span v-else-if="loading" role="status">正在核对订单</span>
   </section>

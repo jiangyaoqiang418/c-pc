@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRenderer, markRaw, ssrContextKey, type Component } from 'vue';
+import { createRenderer, markRaw, nextTick, ssrContextKey, type Component } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import MessageInput from '@/components/im/message-input.vue';
 import MessageBubble from '@/components/im/message-bubble.vue';
+import ConsultProductPrompt from '@/components/im/consult-product-prompt.vue';
 import * as notifyApi from '@/service/api/notify';
+import * as productApi from '@/service/api/product';
+import { useUserStore } from '@/stores/user';
+import { parseProductMessageCard } from './im-product-card';
+import { rememberConsultation, takeConsultation } from './consultation';
 import { closeConfirmation, confirmations, Message } from '@/lib/feedback';
 import {
   applyReadEvent,
@@ -22,8 +28,90 @@ import {
   shouldSendOnEnter,
   mergeMessages,
   parseOrderMessageCard,
-  markUnconfirmedMessageFailed
+  markUnconfirmedMessageFailed,
+  isOrderConversationEvent
 } from './im';
+
+describe('咨询商品与售后群事件', () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+  function mountConsultPrompt() {
+    vi.stubGlobal('localStorage', { getItem:() => null, setItem:() => undefined, removeItem:() => undefined });
+    setActivePinia(createPinia());
+    const user = useUserStore();
+    user.currentUser = { id:'1001' } as Api.RealSession.UserRecord;
+    vi.spyOn(productApi, 'fetchProductDetail').mockImplementation(async id => ({ id, sellerId:'2001', title:'咨询商品', images:[] } as unknown as Api.RealProduct.Record));
+    const renderer = createRenderer<object, object>({
+      insert:() => undefined, remove:() => undefined, createElement:() => ({}), createText:() => ({}), createComment:() => ({}),
+      setText:() => undefined, setElementText:() => undefined, parentNode:() => null, nextSibling:() => null, patchProp:() => undefined
+    });
+    const sent = vi.fn();
+    const app = renderer.createApp({ ...ConsultProductPrompt, render:() => null } as Component, {
+      productId:'3001', conversation:{ id:'9001', sellerId:'2001', type:'ORDER_GROUP', myRole:'CUSTOMER' }, onSent:sent
+    });
+    app.provide(ssrContextKey, {});
+    app.mount({});
+    const instance = (app as unknown as { _instance:{ setupState:{ send:() => Promise<void>; sent:boolean; sending:boolean }; props:{ productId:string } } })._instance;
+    return { app, state:instance.setupState, properties:instance.props, sent };
+  }
+
+  it('商品发送结果未知时重试沿用消息键，且只提交商品 ID 不提交客户端快照', async () => {
+    const post = vi.spyOn(notifyApi, 'sendConversationMessage').mockRejectedValueOnce(new Error('断线')).mockResolvedValue({ id:'8001', conversationId:'9001', msgType:'PRODUCT_CARD' });
+    const { app, state, sent } = mountConsultPrompt();
+    try {
+      await nextTick();
+      await state.send();
+      expect(state.sent).toBe(false);
+      await state.send();
+      expect(post).toHaveBeenCalledTimes(2);
+      expect(post.mock.calls[0][0]).toEqual(post.mock.calls[1][0]);
+      expect(post.mock.calls[0][0]).toEqual({ conversationId:'9001', msgType:'PRODUCT_CARD', productId:'3001', clientMsgId:expect.any(String) });
+      expect(sent).toHaveBeenCalledOnce();
+      expect(state.sent).toBe(true);
+    } finally { app.unmount(); }
+  });
+
+  it('切换商品后再回到原商品，旧发送结果不能写入新上下文', async () => {
+    let finish!: (message:Api.RealNotify.ImMessageVO) => void;
+    vi.spyOn(notifyApi, 'sendConversationMessage').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const { app, state, properties, sent } = mountConsultPrompt();
+    try {
+      await nextTick();
+      const pending = state.send();
+      properties.productId = '3002'; await nextTick();
+      properties.productId = '3001'; await nextTick();
+      finish({ id:'8001', conversationId:'9001', msgType:'PRODUCT_CARD' });
+      await pending;
+      expect(sent).not.toHaveBeenCalled();
+      expect(state.sent).toBe(false);
+      expect(state.sending).toBe(false);
+    } finally { app.unmount(); }
+  });
+
+  it('商品卡保留 Long 商品 ID 和八位小数，不接受订单卡或展示坏 JSON', () => {
+    const card = parseProductMessageCard('{"productId":2117141212394250241,"title":"咨询商品","price":"19.90000001","images":["javascript:alert(1)","https://example.test/product.png"]}');
+    expect(card).toEqual({ productId:'2117141212394250241', title:'咨询商品', price:'19.90000001', image:'https://example.test/product.png' });
+    expect(parseProductMessageCard('{"orderId":"2117141212394250241","amount":"19.9"}')).toBeUndefined();
+    expect(parseProductMessageCard('{"productId":"1","title":"商品","price":"NaN"}')).toBeUndefined();
+    expect(parseProductMessageCard('not json')).toBeUndefined();
+  });
+
+  it('会话交接只消费当前用户当前登录版本的返回值', () => {
+    const conversation = { id:'9001', sellerId:'2001', type:'ORDER_GROUP', myRole:'CUSTOMER' };
+    rememberConsultation(conversation, '1001', 3);
+    expect(takeConsultation('9001', '1002', 3)).toBeUndefined();
+    rememberConsultation(conversation, '1001', 3);
+    expect(takeConsultation('9001', '1001', 4)).toBeUndefined();
+    rememberConsultation(conversation, '1001', 3);
+    expect(takeConsultation('9001', '1001', 3)).toEqual(conversation);
+    expect(takeConsultation('9001', '1001', 3)).toBeUndefined();
+  });
+
+  it.each(['AFTERSALE_UPDATED', 'AFTERSALE_COMPLETED'])('%s 即使不是 SYSTEM 类型也触发订单回读', eventType => {
+    expect(isOrderConversationEvent({ id:'1', conversationId:'9001', msgType:'TEXT', eventType })).toBe(true);
+    expect(isOrderConversationEvent({ id:'2', conversationId:'9001', msgType:'PRODUCT_CARD' })).toBe(false);
+  });
+});
 
 describe('IM 媒体播放节点生命周期', () => {
   interface BubbleState {

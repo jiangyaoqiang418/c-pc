@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchMergeSourcePages, resolvePageSize, toPageTotal } from './page';
+import { detectCarriers } from './logistics';
+import * as logisticsApi from './logistics';
+import LogisticsCarrierFields from '@/components/common/logistics-carrier-fields.vue';
 import { realOrderRequest, realUserRequest, realNotifyRequest } from '@/service/request';
 import { sendConversationMessage } from './notify';
 import { findReviewableOrderIds, submitReview, replyReview, createReviewAppeal } from './review';
@@ -11,7 +14,8 @@ import { fetchBuyerDepositLedger } from './buyer';
 import { fetchCurrentUser, updateProfile, prepareRegistration } from './auth';
 import { prepareAddress } from './address';
 import { createAddress, updateAddress } from './address';
-import { createRefund } from './refund';
+import { createRefund, operateRefund } from './refund';
+import { refundCapabilities, refundActionAllowed, markRefundOperationUncertain, refundOperationUncertain } from '@/utils/refund';
 import { RequestError, isDefinitiveRejection } from '@/service/request/type';
 import { fetchFinanceOrderDetail, fetchFinanceProductDetail, financeAccumulatedInterest, financeRedemptionIssue, financeSubscriptionIssue } from './finance';
 import { createRecharge } from './wallet';
@@ -28,7 +32,7 @@ import * as productApi from './product';
 import { fetchBrandsPage, fetchBrandDetail } from './brand';
 import { fetchHelpPage, fetchHelpDetail, fetchAgreementCurrent, fetchAnnouncementsPage, contentReadMessage } from './content';
 import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpfulState } from './review';
-import { productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite, validateProductDetails } from '@/utils/product-sku';
+import { missingProductSkuCombinations, productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite, validateProductDetails } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
 import { createRenderer, h, nextTick, reactive, readonly, ref, ssrContextKey, type App, type Component } from 'vue';
@@ -68,8 +72,131 @@ import { conversationReturnPath } from '@/utils/notification';
 import { normalizeReviewComments, hasMoreReviewComments } from '@/utils/review-comments';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import * as reviewApi from './review';
+import * as rechargeApi from './wallet';
+import { effectScope, type EffectScope } from 'vue';
+import { useRechargeReceipt, type RechargeReceiptTarget } from '@/composables/use-recharge-receipt';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+describe('钱包到账回执与自动关闭', () => {
+  const scopes: EffectScope[] = [];
+  const initialTarget: RechargeReceiptTarget = { ownerId:'2117141212394250241', session:1, asset:'USDT', chain:'TRON', txHash:'tx-a' };
+  const row = (change: Partial<Api.RealWallet.RechargeVO> = {}) => ({ id:'2117141212394250242', asset:'USDT', chain:'TRON', txHash:'tx-a', status:'PENDING', amount:'19.90000001', ...change } as Api.RealWallet.RechargeVO);
+  const page = (records: Api.RealWallet.RechargeVO[], total = records.length, current = 1) => ({ current, size:30, total, records });
+  function track() {
+    vi.useFakeTimers();
+    vi.stubGlobal('document', { hidden:false });
+    const target = ref<RechargeReceiptTarget>({ ...initialTarget });
+    const active = ref(true);
+    const onClose = vi.fn();
+    const onConfirmed = vi.fn();
+    const scope = effectScope();
+    scopes.push(scope);
+    const receipt = scope.run(() => useRechargeReceipt({ target:() => target.value, active:() => active.value, onClose, onConfirmed }))!;
+    return { target, active, scope, onClose, onConfirmed, ...receipt };
+  }
+  afterEach(() => { scopes.splice(0).forEach(scope => scope.stop()); vi.clearAllTimers(); vi.useRealTimers(); });
+
+  it('钱包交易已提交但平台仍PENDING时，不提示到账或启动关闭倒计时', async () => {
+    vi.spyOn(rechargeApi, 'fetchRechargePage').mockResolvedValue(page([row()]));
+    vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockResolvedValue(row());
+    const receipt = track();
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(receipt.receivedRecharge.value).toBeUndefined();
+    expect(receipt.closeCountdown.value).toBeUndefined();
+    expect(receipt.onConfirmed).not.toHaveBeenCalled();
+    expect(receipt.onClose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { txHash:'different-hash' }, { asset:'USDC' as const }, { chain:'ETH' }
+  ])('已确认的其他交易不启动倒计时：%j', change => {
+    vi.spyOn(rechargeApi, 'fetchRechargePage').mockResolvedValue(page([row({ status:'CONFIRMED', ...change })]));
+    const detail = vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockResolvedValue(row({ status:'CONFIRMED' }));
+    const receipt = track();
+    return vi.advanceTimersByTimeAsync(10000).then(() => {
+      expect(detail).not.toHaveBeenCalled();
+      expect(receipt.receivedRecharge.value).toBeUndefined();
+      expect(receipt.onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  it.each([
+    { txHash:'different-hash' }, { asset:'USDC' as const }, { chain:'ETH' }, { status:'PENDING' }
+  ])('列表已确认但详情不一致时不宣告到账：%j', async change => {
+    vi.spyOn(rechargeApi, 'fetchRechargePage').mockResolvedValue(page([row({ status:'CONFIRMED' })]));
+    vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockResolvedValue(row({ status:'CONFIRMED', ...change }));
+    const receipt = track();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(receipt.receivedRecharge.value).toBeUndefined();
+    expect(receipt.onClose).not.toHaveBeenCalled();
+  });
+
+  it('精确匹配本笔交易并详情确认后倒计时5秒，取消后查看记录返回不重新关闭', async () => {
+    vi.spyOn(rechargeApi, 'fetchRechargePage').mockResolvedValue(page([row({ status:'CONFIRMED', txHash:undefined, reportedTxHash:'tx-a' })]));
+    vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockResolvedValue(row({ status:'CONFIRMED', txHash:undefined, reportedTxHash:'tx-a' }));
+    const receipt = track();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(receipt.closeCountdown.value).toBe(5);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(receipt.closeCountdown.value).toBe(3);
+    receipt.cancelAutoClose();
+    receipt.active.value = false;
+    receipt.active.value = true;
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(receipt.receivedRecharge.value?.status).toBe('CONFIRMED');
+    expect(receipt.closeCountdown.value).toBeUndefined();
+    expect(receipt.onClose).not.toHaveBeenCalled();
+  });
+
+  it.each(['owner', 'session', 'chain', 'asset', 'hash', 'unmount'] as const)('切换%s后，迟到分页即使返回旧交易确认也不更新或关闭', async change => {
+    let finish!: (value: ReturnType<typeof page>) => void;
+    const list = vi.spyOn(rechargeApi, 'fetchRechargePage').mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValue(page([]));
+    const detail = vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockResolvedValue(row({ status:'CONFIRMED' }));
+    const receipt = track();
+    if (change === 'unmount') receipt.scope.stop();
+    else receipt.target.value = { ...receipt.target.value, ...(change === 'owner' ? { ownerId:'2117141212394250243' } : change === 'session' ? { session:2 } : change === 'chain' ? { chain:'ETH' } : change === 'asset' ? { asset:'USDC' as const } : { txHash:'tx-b' }) };
+    expect(list.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    finish(page([row({ status:'CONFIRMED' })]));
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(detail).not.toHaveBeenCalled();
+    expect(receipt.receivedRecharge.value).toBeUndefined();
+    expect(receipt.onConfirmed).not.toHaveBeenCalled();
+    expect(receipt.onClose).not.toHaveBeenCalled();
+  });
+
+  it('卸载时正在等待的确认详情，迟到后不能刷新余额或关闭其他页面', async () => {
+    let finish!: (value: Api.RealWallet.RechargeVO) => void;
+    vi.spyOn(rechargeApi, 'fetchRechargePage').mockResolvedValue(page([row({ status:'CONFIRMED' })]));
+    vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const receipt = track();
+    await vi.advanceTimersByTimeAsync(0);
+    receipt.scope.stop();
+    finish(row({ status:'CONFIRMED' }));
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(receipt.onConfirmed).not.toHaveBeenCalled();
+    expect(receipt.receivedRecharge.value).toBeUndefined();
+    expect(receipt.onClose).not.toHaveBeenCalled();
+  });
+
+  it('翻页找到PENDING后固定查详情，不被后来首屏记录挤掉；确认后才关闭', async () => {
+    const list = vi.spyOn(rechargeApi, 'fetchRechargePage').mockResolvedValueOnce(page(Array.from({ length:30 }, (_, index) => row({ id:String(index + 1), txHash:'other-' + index })), 31)).mockResolvedValueOnce(page([row()], 31, 2));
+    const detail = vi.spyOn(rechargeApi, 'fetchRechargeDetail').mockResolvedValue(row({ status:'CONFIRMED' }));
+    const receipt = track();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(list.mock.calls.map(call => call[0]?.pageNo)).toEqual([1, 2]);
+    expect(receipt.closeCountdown.value).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(detail.mock.calls[0][0]).toBe('2117141212394250242');
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(receipt.closeCountdown.value).toBe(5);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(receipt.onClose).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(receipt.onConfirmed).toHaveBeenCalledOnce();
+    expect(receipt.onClose).toHaveBeenCalledOnce();
+  });
+});
 
 describe('搜索与评论对接边界', () => {
   it('评论总数与最近预览独立保留，Long 数量无损比较，匿名正文按服务端快照传递', async () => {
@@ -158,6 +285,61 @@ describe('v47前端本地边界', () => {
     const state = (app as unknown as { _instance:{ subTree:{ component:{ setupState:T } } } })._instance.subTree.component.setupState;
     return { app, state, properties };
   }
+
+  it('运单变化丢弃旧识别，多候选须明确选择，识别失败仍可手选', async () => {
+    vi.useFakeTimers();
+    const carriers = [
+      {id:'2117141212394250241',code:'SF',name:'顺丰',enabled:true,defaultCarrier:false,customNameRequired:false,sortNo:0},
+      {id:'2117141212394250242',code:'OTHER',name:'其他',enabled:true,defaultCarrier:false,customNameRequired:true,sortNo:1}
+    ];
+    vi.spyOn(orderApi, 'fetchCarriers').mockResolvedValue(carriers);
+    const pending = new Map<string, (rows:Api.RealOrder.CarrierDTO[]) => void>();
+    const detect = vi.spyOn(logisticsApi, 'detectCarriers').mockImplementation(no => new Promise(resolve => { pending.set(no, resolve); }));
+    let properties:Record<string, unknown>;
+    const validity = vi.fn();
+    const fixture = mountSubject<{ candidates:Api.RealOrder.CarrierDTO[]; chooseCarrier:(code:string) => void; detectionHint:string; valid:boolean }>(LogisticsCarrierFields, {
+      trackingNo:'', carrierCode:'', carrierName:'', contextKey:'order:a',
+      'onUpdate:carrierCode':(value:string) => {properties.carrierCode=value;},
+      'onUpdate:carrierName':(value:string) => {properties.carrierName=value;}, onValid:validity
+    });
+    properties=fixture.properties;
+    try {
+      await nextTick(); await nextTick();
+      properties.trackingNo='SF123456'; await nextTick(); await vi.advanceTimersByTimeAsync(400);
+      properties.trackingNo='MULTI123'; await nextTick(); await vi.advanceTimersByTimeAsync(400);
+      pending.get('SF123456')!([carriers[0]]); await nextTick(); await nextTick();
+      expect(properties.carrierCode).toBe('');
+      pending.get('MULTI123')!(carriers); await nextTick(); await nextTick();
+      expect(fixture.state.candidates).toHaveLength(2); expect(properties.carrierCode).toBe('');
+      expect(fixture.state.valid).toBe(false);
+      fixture.state.chooseCarrier('OTHER'); await nextTick();
+      expect(properties.carrierCode).toBe('OTHER'); expect(fixture.state.valid).toBe(false);
+      properties.carrierName='本地快运'; await nextTick(); expect(fixture.state.valid).toBe(true);
+      detect.mockRejectedValueOnce(new Error('no quota'));
+      properties.trackingNo='FAIL1234'; await nextTick(); await vi.advanceTimersByTimeAsync(400);
+      expect(properties.trackingNo).toBe('FAIL1234'); expect(fixture.state.detectionHint).toContain('手动');
+      fixture.state.chooseCarrier('SF'); await nextTick();
+      expect(properties.carrierCode).toBe('SF'); expect(fixture.state.valid).toBe(true);
+    } finally {fixture.app.unmount(); vi.useRealTimers();}
+  });
+
+  it('手选物流公司取消在途识别，旧上下文响应不得覆盖新订单', async () => {
+    vi.useFakeTimers();
+    const rows = [{id:'9007199254740993001',code:'SF',name:'顺丰',enabled:true,defaultCarrier:false,customNameRequired:false,sortNo:0}, {id:'9007199254740993002',code:'YD',name:'韵达',enabled:true,defaultCarrier:false,customNameRequired:false,sortNo:1}];
+    vi.spyOn(orderApi, 'fetchCarriers').mockResolvedValue(rows);
+    let resolve!: (rows:Api.RealOrder.CarrierDTO[]) => void;
+    vi.spyOn(logisticsApi, 'detectCarriers').mockImplementation(() => new Promise(done => {resolve=done;}));
+    let properties:Record<string, unknown>;
+    const fixture=mountSubject<{chooseCarrier:(code:string) => void}>(LogisticsCarrierFields, {trackingNo:'',carrierCode:'',carrierName:'',contextKey:'a', 'onUpdate:carrierCode':(value:string) => {properties.carrierCode=value;}, 'onUpdate:carrierName':(value:string) => {properties.carrierName=value;} });
+    properties=fixture.properties;
+    try {
+      await nextTick(); await nextTick(); properties.trackingNo='FIRST123'; await nextTick(); await vi.advanceTimersByTimeAsync(400);
+      fixture.state.chooseCarrier('YD'); await nextTick(); resolve([rows[0]]); await nextTick(); await nextTick(); expect(properties.carrierCode).toBe('YD');
+      properties.trackingNo='SECOND12'; await nextTick(); await vi.advanceTimersByTimeAsync(400);
+      const oldResolve=resolve; properties.contextKey='b'; properties.carrierCode=''; properties.trackingNo=''; await nextTick();
+      oldResolve([rows[0]]); await nextTick(); await nextTick(); expect(properties.carrierCode).toBe('');
+    } finally {fixture.app.unmount(); vi.useRealTimers();}
+  });
 
   it('评价发布系统消息保留正文，已完成状态不覆盖评分播报', () => {
     const content = '买家已评价订单 2116539536067088384：商品 5 星，买手服务 5 星';
@@ -1367,6 +1549,34 @@ describe('v47 新接入契约与恢复边界', () => {
     expect(() => validateProductSkuWrite(groups, [{ ...sku, id:'unknown' }], [sku])).toThrow('不可改');
   });
 
+  it('一键生成只补缺失SKU，保留已有Long ID、价格、停用状态且拒绝超量', () => {
+    const original = { id:'2117141212394250241', specs:[{ name:'颜色', value:'黑' }, { name:'容量', value:'128G' }], price:'999999999999.00000001', stock:'8', image:'https://example.com/sku.jpg', enabled:false };
+    const state = { enabled:true, groups:[{ name:'颜色', options:['黑','白'] }, { name:'容量', options:['128G','256G'] }], skus:[original] };
+    const missing = missingProductSkuCombinations(state);
+    expect(missing).toHaveLength(3);
+    expect(missing).toContainEqual([{ name:'颜色', value:'白' }, { name:'容量', value:'256G' }]);
+    expect(state.skus).toEqual([original]);
+    expect(missingProductSkuCombinations({ ...state, skus:[...state.skus, ...missing.map(specs => ({...original, id:undefined, specs}))] })).toEqual([]);
+    expect(() => missingProductSkuCombinations({ ...state, groups:[{ name:'颜色', options:['黑',' 黑 '] }] })).toThrow('不能重复');
+    expect(() => missingProductSkuCombinations({ ...state, groups:[{ name:'颜色', options:[''] }] })).toThrow('完整规格组');
+    expect(() => missingProductSkuCombinations({ ...state, groups:[{ name:'甲', options:Array.from({length:15}, (_,i) => String(i)) }, { name:'乙', options:Array.from({length:15}, (_,i) => String(i)) }] })).toThrow('超过 200');
+    expect(() => missingProductSkuCombinations({ ...state, skus:Array.from({length:199}, () => original) })).toThrow('保留已有规格');
+  });
+
+  it('运单识别透传业务code和取消信号，不以第三方编码替代且允许空候选', async () => {
+    const controller = new AbortController();
+    const row = { id:'2117141212394250241', code:'SF', name:'顺丰', enabled:true, defaultCarrier:false, customNameRequired:false, sortNo:0, expressCpCode:'shunfeng' };
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue([row]);
+    expect(await detectCarriers(' SF123456789 ', {signal:controller.signal})).toEqual([row]);
+    expect(get).toHaveBeenCalledWith('/orders/carriers/detect', {params:{trackingNo:'SF123456789'},signal:controller.signal,showError:false});
+    get.mockResolvedValueOnce([]);
+    expect(await detectCarriers('unknown')).toEqual([]);
+    get.mockResolvedValueOnce([{...row, code:''}]);
+    await expect(detectCarriers('invalid')).rejects.toThrow('识别结果异常');
+    get.mockRejectedValueOnce(new Error('upstream unavailable'));
+    await expect(detectCarriers('failed')).rejects.toThrow('upstream unavailable');
+  });
+
   it('SKU新增不带旧ID，编辑全量回传，品牌与原金额不经浮点转换', async () => {
     const input = { title:'规格商品', categoryId:productId, brandId:productId, price:'1', shippingFee:'0', tax:'0', stock:1, aftersaleType:'none' as const, overseasCustoms:false, summary:'', description:'', images:[], specGroups:groups, skus:[{ ...sku, id:undefined }] };
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(productId);
@@ -2066,5 +2276,59 @@ describe('锁仓确认金额快照', () => {
       state.submit();
       expect(subscribe).toHaveBeenCalledExactlyOnceWith('2.00');
     } finally { app.unmount(); }
+  });
+});
+
+
+describe('四种售后方式的角色和子状态边界', () => {
+  const buyerId = '2117141212394250241';
+  const sellerId = '2117141212394250242';
+  const otherId = '2117141212394250243';
+  const actions:Api.RealRefund.RefundAction[] = ['SELECT', 'RETURN_SHIP', 'RETURN_RECEIVE', 'EXCHANGE_SHIP', 'EXCHANGE_RECEIVE'];
+  const cases:Array<[string, Api.RealRefund.RefundAction[], Api.RealRefund.RefundAction[]]> = [
+    ['CONFIRMING', ['SELECT'], ['SELECT']], ['APPLYING', ['SELECT'], ['SELECT']],
+    ['RETURNING', ['RETURN_SHIP'], []], ['RETURN_RECEIVING', [], ['RETURN_RECEIVE']],
+    ['EXCHANGING', [], ['EXCHANGE_SHIP']], ['EXCHANGE_RECEIVING', ['EXCHANGE_RECEIVE'], []],
+    ['PAYING', [], []], ['COMPLETED', [], []], ['AGREED', [], []], ['REJECTED', [], []], ['CANCELED', [], []], ['UNKNOWN_NEW_STATE', [], []]
+  ];
+  it.each(cases)('%s 只开放归属角色的当前步骤，未知状态不开放操作', (status, buyerActions, sellerActions) => {
+    const refund:Api.RealRefund.RefundDTO = {refundId:'2117141212394250299', orderId:'2117141212394250300', buyerId, sellerId, status, refundType:'EXCHANGE'};
+    for (const action of actions) {
+      expect(refundActionAllowed(refund,buyerId,action)).toBe(buyerActions.includes(action));
+      expect(refundActionAllowed(refund,sellerId,action)).toBe(sellerActions.includes(action));
+      expect(refundActionAllowed(refund,otherId,action)).toBe(false);
+    }
+    expect(refundCapabilities(refund,buyerId).cancel).toBe(['CONFIRMING','APPLYING'].includes(status));
+    expect(refundCapabilities(refund,sellerId).cancel).toBe(false);
+    expect(refundCapabilities(refund,otherId).cancel).toBe(false);
+  });
+  it('无当前登录人或无归属字段时不允许选择、撤销或确认收发货', () => {
+    const refund:Api.RealRefund.RefundDTO={refundId:'2117141212394250299',orderId:'2117141212394250300',status:'CONFIRMING'};
+    expect(refundCapabilities(undefined,buyerId)).toEqual({buyer:false,seller:false,select:false,cancel:false,returnShip:false,returnReceive:false,exchangeShip:false,exchangeReceive:false});
+    expect(refundCapabilities(refund,undefined).select).toBe(false);
+    expect(refundCapabilities(refund,buyerId).select).toBe(false);
+    expect(refundCapabilities({...refund,status:'EXCHANGE_RECEIVING'},undefined).exchangeReceive).toBe(false);
+  });
+  it.each(['WALLET','DEPOSIT'] as const)('售后赔偿 %s 请求保留Long ID和28+8金额原文，不注入员工ID', async compensationSource => {
+    const params:Api.RealRefund.RefundOperateParams={refundId:'2117141212394250299',action:'SELECT',refundType:'COMPENSATION',compensationAmount:'9999999999999999999999999999.00000001',compensationSource,payPassword:'input-only',remark:'本次协商方案'};
+    const before={...params};
+    const put=vi.spyOn(realOrderRequest,'put').mockResolvedValue(null);
+    await operateRefund(params);
+    expect(put).toHaveBeenCalledExactlyOnceWith('/orders/refunds/operate',before,{showError:false});
+    expect(put.mock.calls[0][1]).not.toHaveProperty('operatorId');
+    expect(params).toEqual(before);
+  });
+});
+
+
+describe('售后未知操作结果保护', () => {
+  it('同值DTO回读和仍可执行SELECT的状态变化不解除未知提交，明确推进后才解除', () => {
+    const refund = { refundId:'uncertain-long', buyerId:'buyer', sellerId:'seller', status:'CONFIRMING', refundType:'REFUND_ONLY' } as Api.RealRefund.RefundDTO;
+    const key = 'seller-session-unknown-test';
+    markRefundOperationUncertain(key, refund, 'SELECT');
+    expect(refundOperationUncertain(key, { ...refund }, 'seller')).toBe(true);
+    expect(refundOperationUncertain(key, { ...refund, status:'APPLYING' }, 'seller')).toBe(true);
+    expect(refundOperationUncertain('other-session', refund, 'seller')).toBe(false);
+    expect(refundOperationUncertain(key, { ...refund, status:'PAYING', refundType:'COMPENSATION' }, 'seller')).toBe(false);
   });
 });

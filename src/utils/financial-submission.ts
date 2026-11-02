@@ -93,6 +93,7 @@ export function readRefundIntent(userId: string | number, orderId: string | numb
   const value = JSON.parse(raw) as RefundIntent;
   if (!value || String(value.userId) !== String(userId) || String(value.params?.orderId) !== String(orderId)
     || typeof value.params.reason !== 'string' || !Array.isArray(value.params.evidenceImages)
+    || (value.params.refundType !== undefined && !['REFUND_ONLY', 'RETURN_REFUND', 'COMPENSATION', 'EXCHANGE'].includes(value.params.refundType))
     || value.params.evidenceImages.some(item => typeof item !== 'string')
     || (value.receipt !== undefined && !validReceipt(value.receipt))
     || (value.params.idempotencyKey !== undefined && !/^[0-9a-f-]{36}$/i.test(value.params.idempotencyKey))) {
@@ -107,7 +108,7 @@ export async function submitRefundIntent(userId: string | number, params: Api.Re
   submit: (params: Api.RealRefund.RefundApplyParams) => Promise<string | number>;
 }, restoring = false) {
   const key = refundIntentKey(userId, params.orderId);
-  const snapshot = { orderId: params.orderId, reason: params.reason, evidenceImages: [...(params.evidenceImages || [])] };
+  const snapshot = { orderId: params.orderId, ...(params.refundType ? { refundType: params.refundType } : {}), reason: params.reason, evidenceImages: [...(params.evidenceImages || [])] };
   return withSubmissionLock(key, async () => {
     const previous = readRefundIntent(userId, params.orderId);
     if (restoring && !previous) throw new Error('原申请记录已变化，请重新读取');
@@ -123,6 +124,7 @@ export async function submitRefundIntent(userId: string | number, params: Api.Re
       if (result !== null) {
         if (!result || String(result.buyerId) !== String(userId) || String(result.orderId) !== String(intent.params.orderId)
           || result.reason !== intent.params.reason || JSON.stringify(result.evidenceImages || []) !== JSON.stringify(intent.params.evidenceImages)
+          || (intent.params.refundType !== undefined && (result.preferredType || result.refundType) !== intent.params.refundType)
           || !((typeof result.refundId === 'string' && result.refundId.trim()) || (typeof result.refundId === 'number' && Number.isSafeInteger(result.refundId)))) {
           throw new Error('原退款回查归属或参数不一致，请到我的售后核实');
         }

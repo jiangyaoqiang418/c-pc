@@ -17,6 +17,7 @@ import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
 import { readRefundIntent, submitRefundIntent } from '@/utils/financial-submission';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
+import { refundTypes } from '@/utils/refund';
 
 const route = useRoute();
 const router = useRouter();
@@ -30,7 +31,7 @@ const uploading = ref(false);
 const confirmationOpen = ref(false);
 const pendingIntent = ref<ReturnType<typeof readRefundIntent>>();
 const recoveryError = ref('');
-const form = reactive({ reason: '', evidenceImages: [] as string[] });
+const form = reactive({ refundType: 'REFUND_ONLY' as Api.RealRefund.RefundType, reason: '', evidenceImages: [] as string[] });
 const { markInteracted, markSaved } = useUnsavedForm(() => form, () => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${orderId.value}`);
 const eligible = computed(() => getOrderCapabilities(order.value, userStore.currentUser?.id).refund);
 const requestGuard = createLatestRequestGuard();
@@ -83,6 +84,7 @@ watch([orderId, () => userStore.currentUser?.id, () => userStore.sessionVersion]
   writeVersion += 1;
   confirmationModal?.close();
   form.reason = '';
+  form.refundType = 'REFUND_ONLY';
   form.evidenceImages = [];
   submitting.value = false;
   confirmationOpen.value = false;
@@ -94,9 +96,9 @@ watch([orderId, () => userStore.currentUser?.id, () => userStore.sessionVersion]
 function submit(restoring = false) {
   if (submitting.value || confirmationOpen.value || uploading.value) return;
   if (recoveryError.value) return Message.warning(recoveryError.value);
-  if (!order.value || (!restoring && !eligible.value)) return Message.warning('当前订单状态不可申请仅退款');
-  if (!restoring && !form.reason.trim()) return Message.warning('请填写退款原因');
-  const snapshot = restoring && pendingIntent.value ? pendingIntent.value.params : { orderId: order.value.id, reason: form.reason.trim(), evidenceImages: [...form.evidenceImages] };
+  if (!order.value || (!restoring && !eligible.value)) return Message.warning('当前订单状态不可申请售后');
+  if (!restoring && (!form.reason.trim() || form.reason.trim().length > 512)) return Message.warning('请填写 512 字以内的售后原因');
+  const snapshot = restoring && pendingIntent.value ? pendingIntent.value.params : { orderId: order.value.id, refundType: form.refundType, reason: form.reason.trim(), evidenceImages: [...form.evidenceImages] };
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   if (requestedUserId === undefined) return;
@@ -104,8 +106,8 @@ function submit(restoring = false) {
   const requestedSession = userStore.sessionVersion;
   confirmationOpen.value = true;
   confirmationModal = Modal.confirm({
-    title: '确认申请仅退款？',
-    content: '申请提交后由买手确认意见，再由平台审核；平台审核通过后退款会原路退回钱包。',
+    title: '确认申请售后？',
+    content: '申请提交后订单进入售后中，并自动申请平台介入。您选择的是期望方式，具体方案由买手或平台确认；退款或赔偿以实际资金记录为准。',
     okText: '提交申请',
     onCancel() {
       if (operation === writeVersion && userStore.sessionVersion === requestedSession) confirmationOpen.value = false;
@@ -136,7 +138,7 @@ function submit(restoring = false) {
         if (!isCurrentWrite()) return;
         try { pendingIntent.value = readRefundIntent(requestedUserId, requestedOrderId); } catch { recoveryError.value = '原申请读取失败，请先到我的售后核实'; }
         markSaved();
-        Message.success('仅退款申请已提交，等待买手确认');
+        Message.success('售后申请已提交，请跟进处理进度');
         router.replace({ name: 'aftersale-detail', params: { id: String(refundId) } });
       } catch (error) {
         if (!isCurrentWrite()) return;
@@ -162,7 +164,7 @@ const submitDisabledReason = computed(() => {
   if (uploading.value) return '请等待凭证上传完成';
   if (recoveryError.value) return recoveryError.value;
   if (pendingIntent.value && !pendingIntent.value.receipt) return '请先恢复并核对原退款申请';
-  if (!eligible.value) return '仅待发货或待收货订单可申请仅退款';
+  if (!eligible.value) return '仅已付款且未完成、无正在处理售后的订单可申请';
   return '';
 });
 </script>
@@ -170,13 +172,14 @@ const submitDisabledReason = computed(() => {
 <template>
   <div class="aftersale-create-page" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
     <div class="aftersale-create-content paper narrow" :aria-busy="loading">
-      <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><strong>申请仅退款</strong></nav>
+      <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><strong>申请售后</strong></nav>
       <template v-if="order">
         <Alert v-if="recoveryError" class="notice"><AlertDescription>{{ recoveryError }}</AlertDescription></Alert>
         <Alert v-else-if="pendingIntent && !pendingIntent.receipt" class="notice"><AlertDescription>原退款申请待核对，将使用原原因、凭证和幂等键；回查未落地才按原参数重试。</AlertDescription><button type="button" class="outline"  :disabled="submitting || confirmationOpen" @click="submit(true)">恢复原申请</button></Alert>
-        <h1>申请仅退款</h1><p>待发货或待收货订单可申请，由平台审核。</p>
+        <h1>申请售后</h1><p>已付款且未完成的订单可申请，处理期间暂停正常完成流程。</p>
         <section class="checkout-item refund-order"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="order-info"><strong>{{ order.productTitle }}</strong><div class="meta"><OrderStatusTag :status="order.status" size="small" /><span>订单 {{ order.code }}</span></div></div><strong class="amount">U {{ order.totalAmount }}</strong></section>
-        <Alert v-if="!eligible" class="notice"><AlertDescription id="refund-unavailable">仅“待发货”或“待收货”订单可申请仅退款。</AlertDescription></Alert>
+        <Alert v-if="!eligible" class="notice"><AlertDescription id="refund-unavailable">仅已付款且未完成、无正在处理售后的订单可申请。</AlertDescription></Alert>
+        <fieldset class="refund-types" :disabled="!eligible || submitting || confirmationOpen"><legend>期望处理方式</legend><label v-for="item in refundTypes" :key="item.value"><input v-model="form.refundType" type="radio" name="refund-type" :value="item.value" />{{ item.label }}</label></fieldset>
         <AftersaleRequestFields v-model:reason="form.reason" v-model:evidence-images="form.evidenceImages" :eligible="eligible" :submitting="submitting" :confirmation-open="confirmationOpen" :submit-disabled-reason="submitDisabledReason" :evidence-context="`${orderId}:${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" @uploading="uploading = $event" @cancel="cancelCreate" @submit="submit(false)" />
       </template>
       <div v-else-if="loading" class="skeletons"><Skeleton class="h-28" /><Skeleton class="h-52" /><Skeleton class="h-44" /></div>
@@ -186,6 +189,7 @@ const submitDisabledReason = computed(() => {
 </template>
 
 <style scoped>
+.refund-types { border:0; padding:0; margin:20px 0; }.refund-types label { display:inline-flex; align-items:center; gap:8px; min-height:44px; margin-right:16px; }
 .refund-order { margin:20px 0; }.order-info { min-width:0; flex:1; }.order-info strong { overflow-wrap:anywhere; }
 .meta { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:12px; color:var(--muted); }
 .amount { font-size:20px; }

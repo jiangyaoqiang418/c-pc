@@ -10,6 +10,7 @@ import * as refundApi from '@/service/api/refund';
 import { useUserStore } from '@/stores';
 import { isDefinitiveRejection } from '@/service/request/type';
 import { createLatestRequestGuard } from '@/utils/latest-request';
+import { refundStatusDefs, refundStatusLabels, refundTypeLabel } from '@/utils/refund';
 import { resolvePageSize } from '@/service/api/page';
 
 const router = useRouter();
@@ -26,14 +27,11 @@ const pageSize = ref(30);
 const total = ref(0);
 const cancellingId = ref<string | number>();
 const cancellationPending = ref(false);
-const statusDefs = [
-  { key: 'all', label: '全部' }, { key: 'CONFIRMING', label: '待买手确认' }, { key: 'APPLYING', label: '待平台审核' },
-  { key: 'AGREED', label: '已同意' }, { key: 'REJECTED', label: '已驳回' }, { key: 'CANCELED', label: '已撤销' }
-];
+const statusDefs = refundStatusDefs;
 const statusColor: Record<string, string> = { CONFIRMING: 'orange', APPLYING: 'orange', AGREED: 'green', REJECTED: 'red', CANCELED: 'gray' };
 const unknownCancellations = ref(new Set<string>());
 const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
-const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || ({ CONFIRMING: '待买手确认', APPLYING: '待平台审核', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销' }[String(row.status)] || row.status || '—');
+const statusLabel = (row: Api.RealRefund.RefundDTO) => row.statusText || refundStatusLabels[String(row.status)] || '状态待确认';
 const canCancel = (row: Api.RealRefund.RefundDTO) => userStore.currentUser?.id !== undefined
   && String(row.buyerId) === String(userStore.currentUser.id) && ['CONFIRMING', 'APPLYING'].includes(String(row.status));
 let writeVersion = 0;
@@ -159,7 +157,7 @@ function cancel(row: Api.RealRefund.RefundDTO) {
     return;
   }
   cancellationPending.value = true;
-  confirmationModal = Modal.confirm({ title: '撤销仅退款申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; }, async onOk() {
+  confirmationModal = Modal.confirm({ title: '撤销售后申请？', content: '撤销后订单会恢复到申请前状态。', okButtonProps: { status: 'danger' }, onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; }, async onOk() {
     if (!isCurrentWrite()) return;
     cancellingId.value = refundId;
     let submitted = false;
@@ -196,17 +194,17 @@ function changeTab(value: string | number) {
   <div class="aftersale-list-page">
     <header class="page-heading compact"><h1>我的售后</h1><button type="button" class="outline"  @click="router.push('/order')">查看订单</button></header>
     <div class="tabs" role="tablist" aria-label="售后状态"><button v-for="item in statusDefs" :key="item.key" type="button" role="tab" :class="{ active:activeKey === item.key }" :aria-selected="activeKey === item.key" @click="changeTab(item.key)">{{ item.label }}</button></div>
-    <section class="case-list" :aria-busy="loading" aria-label="仅退款申请列表">
+    <section class="case-list" :aria-busy="loading" aria-label="售后申请列表">
       <LoadingStatus v-if="loading" block label="正在更新售后记录…" />
     <div v-if="loading && !refunds.length" class="loading-list"><Skeleton v-for="n in 3" :key="n" class="case-skeleton" /></div>
       <template v-else-if="refunds.length">
-        <article v-for="row in refunds" :key="row.refundId" class="paper case-card" :class="{ refreshing: loading }" role="link" tabindex="0" :aria-label="`打开仅退款申请 ${row.orderNo || row.refundId}`" @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.enter.self="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.space.self.prevent="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">
-          <header class="section-heading case-head"><h2>{{ row.productTitle || '仅退款申请' }}</h2><span class="pill status" :class="statusColor[String(row.status)]">{{ statusLabel(row) }}</span></header>
-          <div class="case-body"><div><small>订单号：{{ row.orderNo || '—' }}</small><p>{{ row.reason || '—' }}</p></div><div class="amount"><small>申请退款金额</small><strong>U {{ row.amount ?? '—' }}</strong></div></div>
+        <article v-for="row in refunds" :key="row.refundId" class="paper case-card" :class="{ refreshing: loading }" role="link" tabindex="0" :aria-label="`打开售后申请 ${row.orderNo || row.refundId}`" @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.enter.self="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })" @keydown.space.self.prevent="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">
+          <header class="section-heading case-head"><h2>{{ row.productTitle || '售后申请' }}</h2><span class="pill status" :class="statusColor[String(row.status)]">{{ statusLabel(row) }}</span></header>
+          <div class="case-body"><div><small>订单号：{{ row.orderNo || '—' }}</small><p>{{ row.reason || '—' }}</p></div><div class="amount"><small>{{ refundTypeLabel(row.preferredType || row.refundType) }} · 订单金额</small><strong>U {{ row.amount ?? '—' }}</strong></div></div>
           <footer class="button-row actions" @click.stop><button type="button" class="outline"  @click="router.push({ name: 'aftersale-detail', params: { id: String(row.refundId) } })">查看详情</button><button type="button" v-if="canCancel(row)"  class="danger outline" :disabled="!!cancellingId || cancellationPending || loading" @click="cancel(row)">{{ cancellingId === row.refundId ? unknownCancellations.has(cancellationKey(row.refundId)) ? '正在核对…' : '撤销中…' : unknownCancellations.has(cancellationKey(row.refundId)) ? '核对撤销结果' : '撤销申请' }}</button></footer>
         </article>
       </template>
-      <EmptyState v-else :title="loadError || '暂无仅退款申请'" :description="loadError ? '不会展示不完整的售后数据。' : '可在待发货或待收货订单中申请仅退款'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && load()" />
+      <EmptyState v-else :title="loadError || '暂无售后申请'" :description="loadError ? '不会展示不完整的售后数据。' : '可在待发货或待收货订单中申请售后'" :action-text="loadError ? '重新加载' : undefined" @action="loadError && load()" />
     </section>
     <BusinessPagination v-if="total > pageSize" :current="current" :total="total" :page-size="pageSize" :loading="loading || cancellationPending" @change="current = $event; syncQuery()" />
   </div>

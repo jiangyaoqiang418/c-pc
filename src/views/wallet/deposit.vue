@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRechargeReceipt } from '@/composables/use-recharge-receipt';
 import DialogActions from '@/components/common/dialog-actions.vue';
 import UmIcon from '@/components/common/um-icon.vue';
 import WalletAssetTabs from '@/components/wallet/wallet-asset-tabs.vue';
@@ -269,6 +270,20 @@ function rechargeSource(source?: Api.RealWallet.RechargeMethod | null) {
 }
 const directRecords = computed(() => directProgress.value?.txHash ? recentDeposits.value.filter(record => record.asset === (directProgress.value?.asset || 'USDT') && record.chain === directProgress.value?.chain
   && (record.txHash === directProgress.value?.txHash || record.reportedTxHash === directProgress.value?.txHash)) : []);
+
+const { receivedRecharge, receiptChecking, closeCountdown, cancelAutoClose } = useRechargeReceipt({
+  target: () => {
+    const progress = directProgress.value;
+    const ownerId = userStore.currentUser?.id;
+    return ownerId === undefined || !progress?.txHash ? undefined : {
+      ownerId: String(ownerId), session: userStore.sessionVersion, asset: asset.value,
+      chain: progress.chain, txHash: progress.txHash
+    };
+  },
+  active: () => !directBusy.value && depositMethod.value === 'wallet' && operationView.value === 'form',
+  onConfirmed: () => walletStore.fetchWallet(userStore.currentUser!.id, asset.value),
+  onClose: closeOperation
+});
 
 function formatTime(value?: string | number) {
   if (!value) return '—';
@@ -811,6 +826,8 @@ const statusFilter = computed({
   <div class="wallet-operation-page">
   <component :is="userStore.isBuyerActive ? BuyerWallet : WalletHome" />
   <WalletOperationDialog :visible="true" title="转入 · 链上充值" description="选择币种与网络，安心管理每一笔充值。" deposit :busy="submitting || directBusy" @dismiss="closeOperation">
+    <div v-if="receivedRecharge" class="deposit-hint" role="status"><UmIcon name="shield" /><span>充值已到账：{{ formatAmount(receivedRecharge.amount) }} {{ receivedRecharge.asset }}。<small v-if="closeCountdown !== undefined">{{ closeCountdown }} 秒后关闭充值窗口。</small><small v-else>已取消自动关闭，您可以继续查看充值记录。</small><button v-if="closeCountdown !== undefined" type="button" class="outline wallet-note-action" @click="cancelAutoClose">取消自动关闭</button><button type="button" class="outline wallet-note-action" @click="closeOperation">关闭充值窗口</button></span></div>
+    <p v-else-if="receiptChecking" role="status" class="deposit-hint">正在核对本笔充值到账状态…</p>
     <WalletAssetTabs :model-value="asset" :disabled="submitting || directBusy" @update:model-value="selectAsset" />
     <p class="wallet-operation-note">USDT、USDC 独立记账，请选择对应资产和网络。</p>
     <p v-if="!loadingChains && !chainOptions.length" class="wallet-asset-unavailable" role="status">{{ asset }} 暂无已开放的充值网络，请稍后重新加载。</p>

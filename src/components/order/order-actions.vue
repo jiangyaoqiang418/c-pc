@@ -36,7 +36,7 @@ const actions = computed(() => {
   }
   if (permissions.isCustomer && (s === 'PROCURING' || s === 'PROCURED')) {
     a.push({ type: 'cs', label: '联系买手', emit: () => emit('cs') });
-    a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
+    if (permissions.refund) a.push({ type: 'aftersale', label: '申请售后', emit: () => emit('aftersale') });
   }
   if (permissions.logistics) {
     a.push({ type: 'logistics', label: '查看物流', emit: () => emit('logistics') });
@@ -44,7 +44,7 @@ const actions = computed(() => {
   if (permissions.confirm && s === 'IN_TRANSIT') {
     a.push({ type: 'confirm', label: '确认收货', primary: true, emit: () => emit('confirm') });
     if (permissions.extendReceipt) a.push({ type: 'extend-receipt', label: '延长收货', emit: () => emit('extend-receipt') });
-    a.push({ type: 'aftersale', label: '申请仅退款', emit: () => emit('aftersale') });
+    if (permissions.refund) a.push({ type: 'aftersale', label: '申请售后', emit: () => emit('aftersale') });
   }
   if (permissions.review && props.reviewable) {
     a.push({ type: 'review', label: '写评价', emit: () => emit('review') });

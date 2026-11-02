@@ -57,6 +57,16 @@ export function fetchSupportConversation() {
   return realNotifyRequest.post<Api.RealNotify.ImConversationVO>('/im/conversations/support', undefined, notifyRequestOptions);
 }
 
+/** 咨询无需先下单，同一顾客与买手由服务端复用三方群。 */
+export async function fetchConsultConversation(sellerId: string) {
+  const conversation = await realNotifyRequest.post<Api.RealNotify.ImConversationVO>('/im/conversations/consult', { sellerId }, notifyRequestOptions);
+  if (!conversation || !/^\d+$/.test(String(conversation.id || '')) || conversation.type !== 'ORDER_GROUP'
+    || String(conversation.sellerId) !== sellerId || conversation.myRole !== 'CUSTOMER') {
+    throw new Error('咨询会话信息异常，请重新进入');
+  }
+  return conversation;
+}
+
 export function fetchConversationOrders(conversationId: string | number, includeHistory = false, options: { signal?: AbortSignal } = {}) {
   return realNotifyRequest.get<Api.RealNotify.ImConversationOrder[]>('/im/conversations/orders', {
     params: { conversationId, includeHistory }, ...notifyRequestOptions, signal: options.signal

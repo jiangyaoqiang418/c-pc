@@ -11,6 +11,9 @@ import { useUserStore } from '@/stores';
 import { isDefinitiveRejection } from '@/service/request/type';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatDateValue } from '@/utils/date-range';
+import RefundOperation from '@/components/aftersale/refund-operation.vue';
+import { refundCapabilities, refundStatusLabels, refundTypeLabel } from '@/utils/refund';
+import { useNotifyStore } from '@/stores/notify';
 
 const route = useRoute(); const router = useRouter();
 const userStore = useUserStore();
@@ -21,9 +24,21 @@ const cancellationUnknown = ref(false);
 const requestGuard = createLatestRequestGuard(() => `${id.value}:${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let writeVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
-const labels: Record<string, string> = { CONFIRMING: '待买手确认', APPLYING: '待平台审核', AGREED: '平台已同意退款', REJECTED: '平台已驳回', CANCELED: '买家已撤销' };
-const canCancel = computed(() => userStore.currentUser?.id !== undefined
-  && String(refund.value?.buyerId) === String(userStore.currentUser.id) && ['CONFIRMING', 'APPLYING'].includes(String(refund.value?.status)));
+const labels = refundStatusLabels;
+const operationBusy = ref(false);
+const canCancel = computed(() => refundCapabilities(refund.value, userStore.currentUser?.id).cancel);
+let polling: ReturnType<typeof setInterval> | undefined;
+let refreshQueued = false;
+let disposed = false;
+function refresh() { if (disposed) return; if (operationBusy.value || cancelling.value || cancellationPending.value) { refreshQueued = true; return; } void load(); }
+function operationState(busy: boolean) { operationBusy.value = busy; if (!disposed && !busy && refreshQueued) { refreshQueued = false; void load(); } }
+useNotifyStore().subscribe(event => {
+  if (event.type === 'SYNC' || event.type === 'IM_MESSAGE' && ['AFTERSALE_UPDATED', 'AFTERSALE_COMPLETED'].includes(event.payload.eventType || '')) refresh();
+});
+watch(() => refund.value?.status, status => {
+  if (polling) clearInterval(polling);
+  polling = status === 'PAYING' ? setInterval(() => { if (!document.hidden && !loading.value) refresh(); }, 10_000) : undefined;
+});
 const formatTime = (value?: string | number) => formatDateValue(value);
 async function load() {
   const isCurrent = requestGuard.begin();
@@ -50,7 +65,7 @@ async function load() {
     if (isCurrent()) loading.value = false;
   }
 }
-onMounted(load); onBeforeUnmount(() => { writeVersion += 1; confirmationModal?.close(); requestGuard.invalidate(); });
+onMounted(() => { void load(); window.addEventListener('focus', refresh); }); onBeforeUnmount(() => { disposed = true; writeVersion += 1; confirmationModal?.close(); requestGuard.invalidate(); if (polling) clearInterval(polling); window.removeEventListener('focus', refresh); });
 watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion, () => userStore.currentAudience], ([nextId, nextUserId, nextSession, nextAudience], [prevId, prevUserId, prevSession, prevAudience]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession && nextAudience === prevAudience) return;
   writeVersion += 1;
@@ -82,7 +97,7 @@ function cancel() {
     try {
       const latest = await refundApi.fetchRefundDetail(refundId);
       if (!isCurrentWrite()) return;
-      if (!validDetail(latest) || !['CONFIRMING', 'APPLYING', 'CANCELED', 'AGREED', 'REJECTED'].includes(String(latest.status))) throw new Error('原退款申请状态未确认');
+      if (!validDetail(latest) || !labels[String(latest.status)]) throw new Error('原售后申请状态未确认');
       refund.value = latest;
       unknownCancellations.delete(pendingKey);
       cancellationUnknown.value = false;
@@ -100,7 +115,7 @@ function cancel() {
   }
   cancellationPending.value = true;
   confirmationModal = Modal.confirm({
-    title: '撤销仅退款申请？',
+    title: '撤销售后申请？',
     content: '撤销后订单将恢复到申请前状态。',
     okButtonProps: { status: 'danger' },
     onCancel() { if (!isCurrentWrite()) return; writeVersion += 1; cancellationPending.value = false; },
@@ -150,12 +165,17 @@ watch([id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () 
   <div class="aftersale-detail-page">
     <div class="aftersale-detail-content paper narrow" :aria-busy="loading">
       <template v-if="refund">
-        <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/aftersale">我的仅退款</RouterLink><span>/</span><strong>{{ refund.orderNo || refund.refundId }}</strong></nav>
+        <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/aftersale">我的售后</RouterLink><span>/</span><strong>{{ refund.orderNo || refund.refundId }}</strong></nav>
         <header class="refund-heading"><div><h1>售后处理进度</h1><p>订单 {{ refund.orderNo || '—' }} · 申请于 {{ formatTime(refund.appliedAt || refund.createdAt) }}</p></div><span class="pill status" :class="String(refund.status).toLowerCase()">{{ refund.statusText || labels[String(refund.status)] || refund.status }}</span></header>
-        <section class="refund-section"><h2>退款信息</h2><dl><div><dt>退款金额</dt><dd class="amount">U {{ refund.amount ?? '—' }}</dd></div><div><dt>退款业务号</dt><dd>{{ refund.refundBizNo || '—' }}</dd></div><div><dt>订单申请前状态</dt><dd>{{ refund.orderStatusBefore || '—' }}</dd></div><div><dt>审核时间</dt><dd>{{ formatTime(refund.reviewedAt) }}</dd></div></dl></section>
+        <section class="refund-section"><h2>售后信息</h2><p>期望方式：{{ refundTypeLabel(refund.preferredType) }} · 当前方案：{{ refundTypeLabel(refund.refundType) }}</p><dl><div><dt>订单实付金额</dt><dd class="amount">U {{ refund.amount ?? '—' }}</dd></div><div><dt>退款业务号</dt><dd>{{ refund.refundBizNo || '—' }}</dd></div><div><dt>订单申请前状态</dt><dd>{{ refund.orderStatusBefore || '—' }}</dd></div><div><dt>审核时间</dt><dd>{{ formatTime(refund.reviewedAt) }}</dd></div></dl></section>
         <section class="refund-section"><h2>退款原因</h2><p class="reason">{{ refund.reason || '—' }}</p><div v-if="refund.evidenceImages?.length" class="evidence"><button v-for="(url, index) in refund.evidenceImages" :key="`${url}:${index}`" type="button" :aria-label="`预览退款凭证 ${index + 1}`" @click="previewIndex = index; previewOpen = true"><img :src="url" :alt="`退款凭证 ${index + 1}`" @error="setImageFallback" /></button></div></section>
         <section v-if="refund.sellerConfirmedAt" class="refund-section"><h2>买手确认意见</h2><p class="reason">{{ refund.sellerAgree === true ? '同意退款' : refund.sellerAgree === false ? '不同意退款' : '—' }} · {{ refund.sellerRemark || '—' }}<br />{{ formatTime(refund.sellerConfirmedAt) }}</p></section><section v-if="refund.reviewRemark" class="refund-section"><h2>平台审核说明</h2><p class="reason">{{ refund.reviewRemark }}</p></section>
-        <footer class="button-row actions"><button type="button" class="outline"  @click="router.push({ name: 'order-detail', params: { id: String(refund.orderId) } })">查看订单</button><button type="button" v-if="canCancel"  class="danger outline" :disabled="cancelling || cancellationPending || loading" @click="cancel">{{ cancelling ? cancellationUnknown ? '正在核对…' : '撤销中…' : cancellationUnknown ? '核对撤销结果' : '撤销申请' }}</button></footer>
+        <section v-if="refund.status === 'PAYING'" class="refund-section" role="status"><h2>赔偿支付中</h2><p>额外赔偿 {{ refund.compensationAmount || '—' }} USDT，等待支付结果，请勿重复提交。</p><p v-if="refund.paymentError" role="alert">{{ refund.paymentError }}</p><p v-if="refund.nextPaymentAt">下次重试：{{ formatTime(refund.nextPaymentAt) }}</p></section>
+        <section v-if="refund.status === 'AGREED'" class="refund-section" role="status"><p>退款已同意，实际入账请以钱包流水为准。</p></section>
+        <section v-if="refund.status === 'COMPLETED'" class="refund-section"><h2>售后完成</h2><p v-if="refund.compensationAmount">赔偿金额：{{ refund.compensationAmount }} USDT</p><p>完成时间：{{ formatTime(refund.completedAt) }}</p></section>
+        <section v-if="refund.returnTrackingNo || refund.exchangeTrackingNo || refund.processRemark" class="refund-section"><h2>处理记录</h2><p v-if="refund.returnTrackingNo">退货物流：{{ refund.returnCarrierName || refund.returnCarrierCode }} · {{ refund.returnTrackingNo }}</p><p v-if="refund.exchangeTrackingNo">换货物流：{{ refund.exchangeCarrierName || refund.exchangeCarrierCode }} · {{ refund.exchangeTrackingNo }}</p><p class="reason">{{ refund.processRemark }}</p></section>
+        <RefundOperation :refund="refund" :disabled="loading || cancelling || cancellationPending" @changed="refresh" @busy="operationState" />
+        <footer class="button-row actions"><button type="button" class="outline" :disabled="loading || operationBusy" @click="refresh">刷新进度</button><button type="button" class="outline"  @click="router.push({ name: 'order-detail', params: { id: String(refund.orderId) } })">查看订单</button><button type="button" v-if="canCancel"  class="danger outline" :disabled="cancelling || cancellationPending || loading || operationBusy" @click="cancel">{{ cancelling ? cancellationUnknown ? '正在核对…' : '撤销中…' : cancellationUnknown ? '核对撤销结果' : '撤销申请' }}</button></footer>
         <ImagePreview v-model="previewOpen" :images="refund.evidenceImages || []" :start-index="previewIndex" title="退款凭证" />
       </template>
       <div v-else-if="loading" class="skeletons"><Skeleton class="h-36" /><Skeleton class="h-52" /><Skeleton class="h-52" /></div>

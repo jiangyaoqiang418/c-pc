@@ -23,6 +23,24 @@ function skuCombination(specs: Api.RealProduct.ProductSkuOption[]) {
   return JSON.stringify([...specs].sort((a, b) => a.name.localeCompare(b.name)).map(spec => [spec.name, spec.value]));
 }
 
+/** 只生成缺失组合；先检查总量，避免截断规格或覆盖已有 SKU 的身份和编辑内容。 */
+export function missingProductSkuCombinations(state: ProductSkuEditorState) {
+  const groups = productSkuEditorGroups(state);
+  if (!groups.length || groups.length > 3 || groups.some(group => !group.name || group.name.length > 32
+    || !group.options.length || group.options.length > 50 || group.options.some(option => !option || option.length > 64))) {
+    throw new Error('请填写 1–3 个完整规格组，每组 1–50 个选项');
+  }
+  if (new Set(groups.map(group => group.name)).size !== groups.length
+    || groups.some(group => new Set(group.options).size !== group.options.length)) throw new Error('规格组及组内选项不能重复');
+  if (groups.reduce((total, group) => total * group.options.length, 1) > 200) throw new Error('规格组合超过 200 个，请减少选项后再生成');
+  let combinations: Api.RealProduct.ProductSkuOption[][] = [[]];
+  for (const group of groups) combinations = combinations.flatMap(specs => group.options.map(value => [...specs, { name: group.name, value }]));
+  const existing = new Set(state.skus.map(sku => skuCombination(sku.specs)));
+  const missing = combinations.filter(specs => !existing.has(skuCombination(specs)));
+  if (state.skus.length + missing.length > 200) throw new Error('保留已有规格后将超过 200 个组合，请先核对并移除不需要的规格');
+  return missing;
+}
+
 /** 校验全量写入，已有 SKU ID 只能保留原组合，金额全程使用十进制字符串。 */
 export function validateProductSkuWrite(groups: Api.RealProduct.ProductSpecGroup[] = [], skus: Api.RealProduct.ProductSkuSaveParams[] = [], originalSkus?: Api.RealProduct.ProductSku[]) {
   if (!Array.isArray(groups) || !Array.isArray(skus)) throw new Error('商品规格资料不完整');

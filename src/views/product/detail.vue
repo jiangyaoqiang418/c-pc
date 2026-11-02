@@ -20,6 +20,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import * as productApi from '@/service/api/product';
 import * as reviewApi from '@/service/api/review';
+import { fetchConsultConversation } from '@/service/api/notify';
+import { rememberConsultation } from '@/utils/consultation';
 import { useCartStore, useUserStore } from '@/stores';
 import { useProductFavoritesStore } from '@/stores/product-favorites';
 import { createLatestRequestGuard } from '@/utils/latest-request';
@@ -52,6 +54,30 @@ const userStore = useUserStore();
 const favorites = useProductFavoritesStore();
 
 const product = ref<Api.RealProduct.Record>();
+const consulting = ref(false);
+const consultationGuard = createLatestRequestGuard(() => `${route.params.id}:${userStore.currentUser?.id}:${userStore.sessionVersion}`);
+async function consultSeller() {
+  const currentProduct = product.value;
+  if (!currentProduct || consulting.value) return;
+  if (!userStore.isLoggedIn || userStore.currentUser?.id === undefined) {
+    await router.push({ name: 'login', query: { redirect: route.fullPath } });
+    return;
+  }
+  if (String(currentProduct.sellerId) === String(userStore.currentUser.id)) return Message.warning('不能咨询自己发布的商品');
+  if (currentProduct.sellerId === undefined || currentProduct.sellerId === '') return Message.warning('买手信息暂不可用');
+  const owner = String(userStore.currentUser.id);
+  const session = userStore.sessionVersion;
+  const isCurrent = consultationGuard.begin();
+  consulting.value = true;
+  try {
+    const conversation = await fetchConsultConversation(String(currentProduct.sellerId));
+    if (!isCurrent()) return;
+    rememberConsultation(conversation, owner, session);
+    await router.push({ path: '/im', query: { conversationId: String(conversation.id), productId: String(currentProduct.id) } });
+  } catch (error) {
+    if (isCurrent()) Message.error(error instanceof Error ? error.message : '咨询买手失败，请重试');
+  } finally { if (isCurrent()) consulting.value = false; }
+}
 const sellerInitial = computed(() => Array.from(product.value?.sellerName || 'U')[0]);
 const reviews = ref<Api.RealReview.ReviewDTO[]>([]);
 const reviewPage = ref(1);
@@ -163,6 +189,8 @@ async function load() {
   summaryGuard.invalidate();
   sellerRatingGuard.invalidate();
   qualificationGuard.invalidate();
+  consultationGuard.invalidate();
+  consulting.value = false;
   sellerQualification.value = undefined;
   sellerQualificationError.value = false;
   helpfulBusy.value = {};
@@ -362,11 +390,14 @@ onBeforeUnmount(() => {
   relatedGuard.invalidate();
   writeVersion += 1;
   requestGuard.invalidate();
+  consultationGuard.invalidate();
 });
 watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.sessionVersion], ([nextId, nextUserId, nextSession], [prevId, prevUserId, prevSession]) => {
   if (String(nextId) === String(prevId) && String(nextUserId) === String(prevUserId) && nextSession === prevSession) return;
   writeVersion += 1;
   favoriting.value = false;
+  consultationGuard.invalidate();
+  consulting.value = false;
   if (String(nextId) !== String(prevId)) {
     qty.value = 1;
     product.value = undefined;
@@ -576,8 +607,8 @@ function share() {
           </FocusScope>
           <div v-if="product.overseasCustoms" class="overseas-note"><UmIcon name="globe" /><span>海外直邮商品<small>过关后不可退货退款，请认真挑选。</small></span></div>
           <p v-if="isOwnProduct" class="status-banner">这是您本人出售的商品，不可购买或加入购物袋。</p>
-          <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" @click="router.push('/im')"><UmIcon name="headset" />咨询买手</button></div>
-          <button type="button" class="seller-card" @click="router.push('/im')"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small v-if="sellerScoreLoading || sellerScoreError">{{ sellerScoreLoading ? '正在加载买手评分…' : '买手评分加载失败' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
+          <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" :disabled="consulting || isOwnProduct" @click="consultSeller"><UmIcon name="headset" />{{ consulting ? '正在连接买手…' : '咨询买手' }}</button></div>
+          <button type="button" class="seller-card" :disabled="consulting || isOwnProduct" @click="consultSeller"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small v-if="sellerScoreLoading || sellerScoreError">{{ sellerScoreLoading ? '正在加载买手评分…' : '买手评分加载失败' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
           <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新加载买手评分</button>
           <button v-if="sellerQualificationError" type="button" class="text-link seller-score-retry" @click="loadSellerQualification">重新核对买手资格</button>
         </section>

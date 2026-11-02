@@ -2122,3 +2122,28 @@ describe('AI 持久化会话与历史恢复', () => {
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ clientMessageId: 'web-original-key', conversationId: first });
   });
 });
+
+describe('售后处理方式的幂等快照', () => {
+  it('未知结果恢复仍按原方式和原键提交，不把换货改成新选择的赔偿', async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
+    const params = { orderId: '9007199254740993', refundType: 'EXCHANGE' as const, reason: '与描述不符', evidenceImages: [] };
+    const submit = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce('9007199254740994');
+    const lookup = vi.fn().mockResolvedValue(null);
+    await expect(submitRefundIntent('buyer', params, { submit, lookup })).rejects.toThrow('timeout');
+    const original = readRefundIntent('buyer', params.orderId)!;
+    expect(original.params.refundType).toBe('EXCHANGE');
+    await expect(submitRefundIntent('buyer', { ...params, refundType: 'COMPENSATION' }, { submit, lookup }, true)).resolves.toBe('9007199254740994');
+    expect(submit.mock.calls[1][0]).toEqual(original.params);
+  });
+  it('回查期望方式不一致时不接受回执也不重发', async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
+    const params = { orderId: 'o', refundType: 'RETURN_REFUND' as const, reason: 'QA', evidenceImages: [] };
+    const submit = vi.fn().mockRejectedValue(new Error('timeout'));
+    const lookup = vi.fn().mockResolvedValue({ refundId: 'r', orderId: 'o', buyerId: 'u', reason: 'QA', evidenceImages: [], preferredType: 'REFUND_ONLY' });
+    await expect(submitRefundIntent('u', params, { submit, lookup })).rejects.toThrow();
+    await expect(submitRefundIntent('u', params, { submit, lookup }, true)).rejects.toThrow('不一致');
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+});

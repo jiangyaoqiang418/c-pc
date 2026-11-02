@@ -55,6 +55,8 @@ declare namespace Api.RealOrder {
     canProcure?: boolean;
     canShip?: boolean;
     canConfirmAftersale?: boolean;
+    refundType?: string;
+    refundPreferredType?: Api.RealRefund.RefundType;
   };
 
   type DisplayRecord = Api.Order.OrderRecord | Record;
@@ -136,6 +138,8 @@ declare namespace Api.RealOrder {
     paymentBizNo?: string;
     refundId?: string;
     refundStatus?: string;
+    refundType?: string;
+    refundPreferredType?: Api.RealRefund.RefundType;
     refundAmount?: string | number | null;
     paidAt?: string | number;
     shippedAt?: string | number;

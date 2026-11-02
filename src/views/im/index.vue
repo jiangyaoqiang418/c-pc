@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
 import MessageBubble from '@/components/im/message-bubble.vue';
 import MessageInput from '@/components/im/message-input.vue';
+import ConsultProductPrompt from '@/components/im/consult-product-prompt.vue';
 import ConversationOrderBar from '@/components/im/conversation-order-bar.vue';
 import RealtimeConnectionStatus from '@/components/im/realtime-connection-status.vue';
 import EmptyState from '@/components/common/empty-state.vue';
@@ -37,6 +38,7 @@ import {
   sameBusinessId
 } from '@/utils/im';
 import { createCoalescedRefresh, createLatestRequestGuard } from '@/utils/latest-request';
+import { takeConsultation } from '@/utils/consultation';
 
 const router = useRouter();
 const route = useRoute();
@@ -52,6 +54,11 @@ const pendingConversationTarget = ref<string>();
 const targetMessage = ref('');
 let selectingTargetTab = false;
 const conversations = ref<Api.RealNotify.ImConversationVO[]>([]);
+const consultationSeed = ref<Api.RealNotify.ImConversationVO>();
+const productCardSending = ref(false);
+const orderRevision = ref(0);
+const consultProductId = computed(() => typeof route.query.productId === 'string' && /^\d+$/.test(route.query.productId)
+  && sameBusinessId(route.query.conversationId as string | undefined, selectedConversationId.value) ? route.query.productId : undefined);
 const selectedConversationId = ref<string | number>();
 const conversationOrders = ref<Api.RealNotify.ImConversationOrder[]>([]);
 const includeHistoryOrders = ref(false);
@@ -190,6 +197,7 @@ async function loadConversations(selectFirst = true, append = false) {
   try {
     const targetPage = append ? conversationPageNo.value + 1 : conversationPageNo.value;
     const records = new Map((append ? conversations.value : []).map(item => [String(item.id), item]));
+    if (consultationSeed.value) records.set(String(consultationSeed.value.id), consultationSeed.value);
     let loadedPage = append ? conversationPageNo.value : 0;
     let total = 0;
     for (let page = append ? targetPage : 1; page <= targetPage
@@ -237,10 +245,18 @@ async function init() {
   conversationLoading.value = true;
   loading.value = true;
   try {
+    const seed = takeConsultation(pendingConversationTarget.value, String(userStore.currentUser?.id), userStore.sessionVersion);
+    if (seed) {
+      consultationSeed.value = seed;
+      conversations.value = [seed, ...conversations.value.filter(item => !sameBusinessId(item.id, seed.id))];
+      await selectConversation(seed, true);
+      if (disposed || lifecycle !== conversationLifecycleVersion) return;
+    }
     await loadConversations();
     if (!disposed && lifecycle === conversationLifecycleVersion && !messageLoadError.value) lastSyncedAt.value = new Date();
   } catch {
     if (disposed || lifecycle !== conversationLifecycleVersion) return;
+    if (consultationSeed.value && sameBusinessId(selectedConversationId.value, consultationSeed.value.id)) return;
     conversations.value = [];
     conversationPageNo.value = 1;
     conversationTotal.value = 0;
@@ -294,6 +310,7 @@ async function selectConversation(conversation: Api.RealNotify.ImConversationVO,
   recallWriteVersion += 1;
   recallingMessageIds.value = new Set();
   messageSending.value = false;
+  productCardSending.value = false;
   const isCurrent = messageListGuard.begin();
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
@@ -751,6 +768,12 @@ function openOrderGroup() {
 function openOrder(orderId: string | number) {
   router.push({ name: 'order-detail', params: { id: orderId } });
 }
+function onProductCardSent(message: Api.RealNotify.ImMessageVO) {
+  if (!sameBusinessId(message.conversationId, selectedConversationId.value)) return;
+  messages.value = mergeMessages(messages.value, message);
+  scheduleConversationRefresh();
+  void scrollToBottom();
+}
 
 function lastSyncText() {
   return lastSyncedAt.value ? `最近同步 ${lastSyncedAt.value.toLocaleTimeString()}` : '尚未同步';
@@ -798,7 +821,7 @@ notifyStore.subscribe(async event => {
       const followBottom = isNearMessageBottom(scrollRef.value);
       const scrollVersion = historyScrollVersion;
       messages.value = mergeMessages(messages.value, message);
-      if (isOrderConversationEvent(message)) ordersRefresh.schedule();
+      if (isOrderConversationEvent(message)) { orderRevision.value += 1; ordersRefresh.schedule(); }
       if (!sameBusinessId(selectedConversationId.value, message.conversationId) || disposed) return;
       if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
       else newMessagesAvailable.value = true;
@@ -921,6 +944,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
   olderMessagesGuard.invalidate();
   incrementalMessagesGuard.invalidate();
   conversations.value = [];
+  consultationSeed.value = undefined;
   conversationPageNo.value = 1;
   conversationTotal.value = 0;
   loadingMoreConversations.value = false;
@@ -987,7 +1011,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
             </div>
           </header>
           <div v-if="selectedConversation.type === 'ORDER_GROUP'" class="conversation-order-context">
-            <ConversationOrderBar v-if="selectedConversation.orderId" compact :order-id="selectedConversation.orderId" :revision="selectedConversation.orderStatus" @changed="ordersRefresh.schedule()" />
+            <ConversationOrderBar v-if="selectedConversation.orderId" compact :order-id="selectedConversation.orderId" :revision="String(orderRevision) + ':' + selectedConversation.orderStatus" @changed="ordersRefresh.schedule()" />
             <span v-else class="order-context-empty">暂无当前订单</span>
             <PopoverRoot :key="String(selectedConversationId)" @update:open="showOrderRecords">
               <PopoverTrigger as-child><button type="button" class="order-records-trigger" aria-label="查看会话订单记录"><Icon icon="lucide:history" width="14" /><span>订单记录</span><span v-if="conversationOrders.length" class="order-records-count">{{ conversationOrders.length }}</span><Icon icon="lucide:chevron-down" width="13" /></button></PopoverTrigger>
@@ -996,7 +1020,7 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
                   <header class="order-records-header"><h3>会话订单</h3><button type="button" @click="toggleHistoryOrders" class="text-link">{{ includeHistoryOrders ? '只看进行中' : '查看历史订单' }}</button><PopoverClose as-child><button type="button" class="order-records-close" aria-label="关闭订单记录"><Icon icon="lucide:x" width="16" /></button></PopoverClose></header>
                   <div class="order-records-list" :aria-busy="ordersLoading">
                     <p v-if="ordersLoading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="14" />正在读取订单</p>
-                    <button v-for="item in conversationOrders" :key="item.orderId" type="button" class="order-record" @click="openOrder(item.orderId)"><span>{{ item.orderNo || item.orderId }}</span><span class="order-record-status">{{ item.orderStatusText || item.orderStatus }}</span><Icon icon="lucide:chevron-right" width="14" /></button>
+                    <div v-for="item in conversationOrders" :key="item.orderId"><button type="button" class="order-record" @click="openOrder(item.orderId)"><span>{{ item.orderNo || item.orderId }}</span><span class="order-record-status">{{ item.orderStatusText || item.orderStatus }}</span><Icon icon="lucide:chevron-right" width="14" /></button><ConversationOrderBar compact aftersale-only :order-id="item.orderId" :revision="String(orderRevision) + ':' + item.orderStatus" @changed="ordersRefresh.schedule()" /></div>
                     <p v-if="ordersLoadError" role="alert">订单记录加载失败<button type="button" class="text-link" @click="loadConversationOrders">重试</button></p>
                     <p v-else-if="!ordersLoading && !conversationOrders.length">{{ includeHistoryOrders ? '暂无订单记录' : '暂无进行中订单，可查看历史订单' }}</p>
                   </div>
@@ -1009,14 +1033,15 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion], ([next,
           <div class="message-viewport">
             <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
               <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
-              <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
+              <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :order-revision="orderRevision" :side="sideOf(message)" :sender-name="getSenderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
               <EmptyState v-if="messageLoadError" :title="messageLoadError" action-text="重新加载" @action="retryMessageLoad" /><div v-else-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
             </div>
             <div v-if="!loading && (showJumpToBottom || newMessagesAvailable)" class="jump-to-bottom">
               <Tooltip><TooltipTrigger as-child><button type="button" :aria-label="newMessagesAvailable ? '有新消息，跳到底部' : '跳到底部'" @click="scrollToBottom"><Icon icon="lucide:arrow-down-to-line" width="18" /><span v-if="newMessagesAvailable" class="new-message-dot" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ newMessagesAvailable ? '有新消息，查看最新消息' : '跳到底部' }}</TooltipContent></Tooltip>
             </div>
           </div>
-          <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(selectedConversationId || '')" :submitting="messageSending" @media-busy="mediaBusy = $event" @send="onSend" />
+          <ConsultProductPrompt v-if="consultProductId && selectedConversation.type === 'ORDER_GROUP' && selectedConversation.myRole === 'CUSTOMER'" :key="consultProductId + ':' + selectedConversation.id" :product-id="consultProductId" :conversation="selectedConversation" :disabled="loading || messageSending || mediaBusy" @busy="productCardSending = $event" @sent="onProductCardSent" />
+          <MessageInput :context-key="String(userStore.currentUser?.id || '') + ':' + userStore.sessionVersion + ':' + String(selectedConversationId || '')" :submitting="messageSending || productCardSending" @media-busy="mediaBusy = $event" @send="onSend" />
           <ImagePreview v-model="imagePreviewVisible" :images="imageUrls" :start-index="imagePreviewCurrent" @update:current="imagePreviewCurrent = $event" />
         </div>
         <div v-else class="placeholder"><EmptyState :title="conversationLoadError || '请选择左侧会话'" :description="conversationLoadError ? '请稍后重试。' : '点击三方群或客服开始聊天'" :action-text="conversationLoadError ? '重新加载' : undefined" @action="retryConversationLoad" /></div>

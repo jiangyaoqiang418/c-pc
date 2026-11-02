@@ -2,8 +2,8 @@ declare namespace Api.RealNotify {
   type ConversationType = 'ORDER_GROUP' | 'SUPPORT' | string;
   type InterveneStatus = 'NONE' | 'REQUESTED' | 'HANDLING';
   type ConversationRole = 'CUSTOMER' | 'SELLER' | 'ADMIN' | string;
-  type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'ORDER_CARD' | 'SYSTEM' | string;
-  type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO';
+  type MessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'ORDER_CARD' | 'PRODUCT_CARD' | 'SYSTEM' | string;
+  type SendMessageType = 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'PRODUCT_CARD';
   type SocketEventType = 'READY' | 'IM_MESSAGE' | 'IM_READ' | 'IM_RECALL' | 'IM_INTERVENE' | 'NOTIFICATION' | 'PONG' | string;
 
   interface PageQuery {
@@ -107,6 +107,7 @@ declare namespace Api.RealNotify {
     mediaFileId?: string | number;
     coverFileId?: string | number;
     clientMsgId?: string;
+    productId?: string;
   }
 
   interface ImFileUploadResult {

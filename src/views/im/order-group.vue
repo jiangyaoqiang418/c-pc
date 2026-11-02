@@ -49,6 +49,7 @@ const conversationOrders = ref<Api.RealNotify.ImConversationOrder[]>([]);
 const currentOrder = computed(() => conversationOrders.value.find(item => String(item.orderId) === orderCode.value));
 const returnPath = computed(() => conversationReturnPath(route.query.returnTo));
 const messages = ref<Api.RealNotify.ImMessageVO[]>([]);
+const orderRevision = ref(0);
 const loading = ref(false);
 const loadError = ref('');
 const pageNo = ref(1);
@@ -484,7 +485,7 @@ notifyStore.subscribe(async event => {
     const scrollVersion = historyScrollVersion;
     const operation = messageWriteVersion;
     messages.value = mergeMessages(messages.value, event.payload);
-    if (isOrderConversationEvent(event.payload)) metadataRefresh.schedule();
+    if (isOrderConversationEvent(event.payload)) { orderRevision.value += 1; metadataRefresh.schedule(); }
     if (operation !== messageWriteVersion || !sameBusinessId(conversation.value?.id, event.payload.conversationId)) return;
     if (followBottom && scrollVersion === historyScrollVersion) await scrollToBottom();
     else newMessagesAvailable.value = true;
@@ -556,13 +557,13 @@ watch([() => route.params.orderCode, () => userStore.currentUser?.id, () => user
       <div v-if="loading" class="chat-loading" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="24" /><span>正在加载订单会话</span></div>
       <div v-if="conversation" class="conversation">
         <header class="conversation-header section-heading"><div class="conversation-main"><div class="header-product"><img v-if="conversation.productImage" :src="conversation.productImage" alt="订单商品" /><div><h2 :title="conversation.peerName || conversation.productTitle || conversation.title || '订单会话'">{{ conversation.peerName || conversation.productTitle || conversation.title || '订单会话' }}</h2><p>订单 {{ conversation.orderNo || orderCode }} · {{ conversation.orderStatusText || '—' }}</p></div></div><RealtimeConnectionStatus :state="notifyStore.socketState" @reconnect="notifyStore.connect" /><button type="button" :aria-label="returnPath ? '关闭独立会话并返回上一页' : '关闭独立会话并返回消息中心'" @click="closeToConversationList" class="icon-btn"><Icon icon="lucide:x" width="18" /></button></div></header>
-        <ConversationOrderBar :order-id="orderCode" :revision="String(currentOrder?.orderStatus) + String(currentOrder?.amount)" @changed="metadataRefresh.schedule()" />
+        <ConversationOrderBar :order-id="orderCode" :revision="String(orderRevision) + ':' + String(currentOrder?.orderStatus) + String(currentOrder?.amount)" @changed="metadataRefresh.schedule()" />
         <div v-if="notifyStore.socketState === 'closed'" class="notice warning" role="status"><Icon icon="lucide:wifi-off" width="16" /><span>实时连接暂不可用，消息仍可发送；恢复连接后会自动同步。</span><button type="button" @click="notifyStore.connect" class="text-link">立即重连</button></div>
         <div v-if="syncIncomplete || messageSyncError" class="notice warning" role="status"><Icon icon="lucide:circle-alert" width="16" /><span>{{ messageSyncError || '还有历史增量消息待同步' }}</span><button type="button" :disabled="syncingMessages" @click="syncIncremental" class="text-link">继续同步</button></div>
         <div class="message-viewport">
           <div ref="scrollRef" class="messages chat-messages chat-scroll" style="overflow-anchor: none" @scroll="onMessageScroll" @load.capture="onMessageMediaLoad">
             <div v-if="hasOlder" class="load-older"><button type="button" :disabled="loadingOlder" @click="loadOlderMessages" class="text-link"><Icon :icon="loadingOlder ? 'lucide:loader-circle' : 'lucide:history'" :class="{ 'animate-spin': loadingOlder }" width="15" />加载更早消息</button></div>
-            <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
+            <MessageBubble v-for="message in messages" :key="message.id" :msg="message" :order-revision="orderRevision" :side="sideOf(message)" :sender-name="senderName(message)" :read-text="readText(message)" :can-recall="isRecallAvailable(message, userStore.currentUser?.id)" @recall="recallMessage" @retry="retryMessage" @open-order="openOrder" @preview-image="previewImage" />
             <div v-if="!messages.length" class="empty-msg">当前会话暂无消息</div>
           </div>
           <div v-if="!loading && (showJumpToBottom || newMessagesAvailable)" class="jump-to-bottom">

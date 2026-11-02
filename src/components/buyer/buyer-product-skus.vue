@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
 import { Message, Modal } from '@/lib/feedback';
-import { productSkuEditorGroups, type ProductSkuEditorState } from '@/utils/product-sku';
+import { missingProductSkuCombinations, productSkuEditorGroups, type ProductSkuEditorState } from '@/utils/product-sku';
 
 const props = defineProps<{ modelValue: ProductSkuEditorState; disabled?: boolean; contextKey: string }>();
 const emit = defineEmits<{
@@ -69,6 +69,17 @@ function addSku() {
     change(next => next.skus.push({ key:'new:' + Date.now() + ':' + ++nextSkuKey, specs, price: '', stock: '0', enabled: true, image: '' }));
   } catch (error) { Message.warning((error as Error).message); }
 }
+function generateSkus() {
+  if (busy.value) return;
+  try {
+    const missing = missingProductSkuCombinations(props.modelValue);
+    if (!missing.length) return Message.info('所有规格组合均已添加，原有价格、库存和图片保持保留');
+    change(next => {
+      next.skus.push(...missing.map(specs => ({ key:'new:' + Date.now() + ':' + ++nextSkuKey, specs, price:'', stock:'0', enabled:true, image:'' })));
+    });
+    Message.success(`已新增 ${missing.length} 个组合，请填写价格、库存和图片`);
+  } catch (error) { Message.warning((error as Error).message); }
+}
 function removeSku(index: number) {
   if (busy.value) return;
   const sku = props.modelValue.skus[index];
@@ -96,11 +107,18 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
       </div>
       <button type="button" class="outline" :disabled="busy || modelValue.groups.length >= 3" @click="addGroup">添加规格组</button>
       <div v-if="groups.length" class="sku-add"><div v-for="(group, index) in groups" :key="index" class="buyer-field"><Label :for="contextKey + '-pick-' + index">{{ group.name || '规格组 ' + (index + 1) }}</Label><Select :model-value="selection.get(group.name) || group.options[0] || undefined" :disabled="busy || !group.name || group.options.some(option => !option)" @update:model-value="selection.set(group.name, String($event))"><SelectTrigger :id="contextKey + '-pick-' + index"><SelectValue placeholder="选择选项" /></SelectTrigger><SelectContent><SelectItem v-for="option in [...new Set(group.options)].filter(Boolean)" :key="option" :value="option">{{ option }}</SelectItem></SelectContent></Select></div><button type="button" class="outline" :disabled="busy || modelValue.skus.length >= 200" @click="addSku">添加此组合</button></div>
-      <div v-for="(sku, index) in modelValue.skus" :key="rowKey(sku, index)" class="sku-row">
-        <div class="sku-group-heading"><b>{{ sku.specs.map(spec => spec.name + '：' + spec.value).join(' / ') }}</b><button type="button" class="text-button" :disabled="busy" @click="removeSku(index)">移除组合</button></div>
-        <div class="buyer-two-cols"><div class="buyer-field"><Label :for="contextKey + '-sku-price-' + index">售价（USDT）<span>*</span></Label><Input :id="contextKey + '-sku-price-' + index" :model-value="sku.price" inputmode="decimal" autocomplete="off" :disabled="busy" placeholder="最多 8 位小数" @update:model-value="change(next => { next.skus[index].price = String($event); })" /></div><div class="buyer-field"><Label :for="contextKey + '-sku-stock-' + index">库存 <span>*</span></Label><Input placeholder="请输入库存数量" :id="contextKey + '-sku-stock-' + index" :model-value="sku.stock" inputmode="numeric" autocomplete="off" :disabled="busy" @update:model-value="change(next => { next.skus[index].stock = String($event); })" /></div></div>
-        <label class="sku-enabled"><input type="checkbox" :checked="sku.enabled" :disabled="busy" @change="change(next => { next.skus[index].enabled = ($event.target as HTMLInputElement).checked; })" />启用此组合</label>
-        <div class="buyer-field"><Label>规格图片</Label><p class="helper">留空使用商品封面。</p><AftersaleEvidenceUploader :key="contextKey + ':' + rowKey(sku, index)" :model-value="imageValues(sku, index)" :max="1" scene="PRODUCT" :disabled="disabled || (uploadingRows.size > 0 && !uploadingRows.has(index))" @update:model-value="updateImage(index, $event)" @uploading="setUploading(index, $event)" @uploaded="emit('uploaded', $event)" /></div>
+      <div class="sku-generate"><button type="button" class="primary" :disabled="busy || !groups.length" @click="generateSkus">一键生成全部规格组合</button><span class="helper">只补充缺失组合，保留已有价格、库存、图片和启停状态。</span></div>
+      <div v-if="modelValue.skus.length" class="sku-table-wrap" role="region" aria-label="商品规格组合编辑表，可横向滚动" tabindex="0">
+        <table class="sku-table"><caption class="sr-only">逐行填写规格价格、库存和图片</caption><thead><tr><th v-for="group in groups" :key="group.name" scope="col">{{ group.name }}</th><th scope="col">售价（USDT）<span aria-hidden="true"> *</span></th><th scope="col">库存<span aria-hidden="true"> *</span></th><th scope="col">规格图片</th><th scope="col">启用</th><th scope="col">操作</th></tr></thead>
+          <tbody><tr v-for="(sku, index) in modelValue.skus" :key="rowKey(sku, index)">
+            <td v-for="group in groups" :key="group.name">{{ sku.specs.find(spec => spec.name === group.name)?.value || '待补充' }}</td>
+            <td><Input :id="contextKey + '-sku-price-' + index" :aria-label="`第 ${index + 1} 个规格售价（USDT）`" :model-value="sku.price" inputmode="decimal" autocomplete="off" :disabled="busy" placeholder="最多 8 位小数" @update:model-value="change(next => { next.skus[index].price = String($event); })" /></td>
+            <td><Input :id="contextKey + '-sku-stock-' + index" :aria-label="`第 ${index + 1} 个规格库存`" placeholder="库存数量" :model-value="sku.stock" inputmode="numeric" autocomplete="off" :disabled="busy" @update:model-value="change(next => { next.skus[index].stock = String($event); })" /></td>
+            <td class="sku-image-cell"><AftersaleEvidenceUploader :key="contextKey + ':' + rowKey(sku, index)" :model-value="imageValues(sku, index)" :max="1" scene="PRODUCT" :disabled="disabled || (uploadingRows.size > 0 && !uploadingRows.has(index))" @update:model-value="updateImage(index, $event)" @uploading="setUploading(index, $event)" @uploaded="emit('uploaded', $event)" /><small class="helper">留空使用商品封面</small></td>
+            <td><label class="sku-enabled"><input type="checkbox" :aria-label="`启用第 ${index + 1} 个规格`" :checked="sku.enabled" :disabled="busy" @change="change(next => { next.skus[index].enabled = ($event.target as HTMLInputElement).checked; })" /><span>{{ sku.enabled ? '启用' : '停用' }}</span></label></td>
+            <td><button type="button" class="text-button sku-remove" :aria-label="`移除第 ${index + 1} 个规格组合`" :disabled="busy" @click="removeSku(index)">移除</button></td>
+          </tr></tbody>
+        </table>
       </div>
       <p v-if="!modelValue.skus.length" class="helper">选择规格选项并添加组合后，可分别填写价格和库存。</p>
       <p class="helper">已添加 {{ modelValue.skus.length }} / 200 个组合。停用组合会保留，移除组合会在提交后删除。</p>
@@ -110,7 +128,7 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
 
 <style scoped>
 .buyer-sku-editor { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; margin-bottom:20px; }
-.sku-group,.sku-row { display:grid; gap:14px; padding:18px; border:1px solid var(--line); border-radius:8px; min-width:0; }
+.sku-group { display:grid; gap:14px; padding:18px; border:1px solid var(--line); border-radius:8px; min-width:0; }
 .sku-group-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; overflow-wrap:anywhere; }
 .sku-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .sku-option { display:flex; gap:8px; align-items:center; min-width:0; }
@@ -120,9 +138,21 @@ function updateImage(index: number, images: string[]) { change(next => { next.sk
 .sku-add .buyer-field { flex:1 1 130px; margin:0; min-width:0; }
 .sku-add .buyer-field > label { overflow-wrap:anywhere; }
 .sku-enabled { display:flex; align-items:center; gap:8px; }
+.sku-generate { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.sku-table-wrap { min-width:0; max-width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:8px; }
+.sku-table-wrap:focus-visible { outline:2px solid var(--green); outline-offset:3px; }
+.sku-table { width:100%; border-collapse:collapse; font-size:13px; }
+.sku-table th,.sku-table td { padding:12px; text-align:left; vertical-align:middle; border-bottom:1px solid var(--line); min-width:85px; overflow-wrap:anywhere; }
+.sku-table th { background:var(--soft); color:var(--ink); font-weight:600; white-space:nowrap; }
+.sku-table tr:last-child td { border-bottom:0; }
+.sku-table td:has(input[inputmode=decimal]) { min-width:170px; }
+.sku-table td:has(input[inputmode=numeric]) { min-width:130px; }
+.sku-image-cell { min-width:145px !important; }
+.sku-enabled,.sku-remove { min-height:44px; }
+.sku-remove { padding:8px; }
 .helper { color:var(--muted); font-size:12px; line-height:1.7; }
-.sku-row :deep(.cell),.sku-row :deep(.add) { width:72px; height:72px; }
-@media(max-width:700px) { .sku-options { grid-template-columns:minmax(0,1fr); } .sku-group,.sku-row { padding:14px; } }
+.sku-table :deep(.cell),.sku-table :deep(.add) { width:72px; height:72px; }
+@media(max-width:700px) { .sku-options { grid-template-columns:minmax(0,1fr); } .sku-group { padding:14px; } }
 @media(max-width:700px) {
   .text-button { position:relative; }
   .text-button::after { content:''; position:absolute; top:50%; left:50%; width:max(100%,44px); height:max(100%,44px); transform:translate(-50%,-50%); }

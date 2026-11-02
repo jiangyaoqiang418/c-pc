@@ -99,7 +99,8 @@ export function orderConversationMetadata(
 
 export function isOrderConversationEvent(message: Api.RealNotify.ImMessageVO) {
   const type = String(message.msgType || '').toUpperCase();
-  return type === 'ORDER_CARD' || (type === 'SYSTEM' && Boolean(message.eventType));
+  return type === 'ORDER_CARD' || (type === 'SYSTEM' && Boolean(message.eventType))
+    || ['AFTERSALE_UPDATED', 'AFTERSALE_COMPLETED'].includes(String(message.eventType || '').toUpperCase());
 }
 
 /** 重连和已读回执需回读旧消息；增量接口不会返回旧消息更新后的 readCount。 */

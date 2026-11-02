@@ -1,5 +1,20 @@
 declare namespace Api.RealRefund {
   type RefundStatus = 'CONFIRMING' | 'APPLYING' | 'AGREED' | 'REJECTED' | 'CANCELED' | string;
+  type RefundType = 'REFUND_ONLY' | 'RETURN_REFUND' | 'COMPENSATION' | 'EXCHANGE';
+  type RefundAction = 'SELECT' | 'RETURN_SHIP' | 'RETURN_RECEIVE' | 'EXCHANGE_SHIP' | 'EXCHANGE_RECEIVE';
+
+  interface RefundOperateParams {
+    refundId: string | number;
+    action: RefundAction;
+    refundType?: RefundType;
+    compensationAmount?: string;
+    compensationSource?: 'WALLET' | 'DEPOSIT';
+    payPassword?: string;
+    trackingNo?: string;
+    carrierCode?: string;
+    carrierName?: string;
+    remark?: string;
+  }
 
   interface RefundConfirmParams {
     refundId: string | number;
@@ -9,6 +24,7 @@ declare namespace Api.RealRefund {
 
   interface RefundApplyParams {
     orderId: string | number;
+    refundType?: RefundType;
     reason: string;
     evidenceImages?: string[];
     idempotencyKey?: string;
@@ -34,6 +50,19 @@ declare namespace Api.RealRefund {
     productImage?: string;
     refundType?: string;
     refundTypeText?: string;
+    preferredType?: RefundType;
+    compensationAmount?: string;
+    compensationSource?: 'WALLET' | 'DEPOSIT';
+    returnTrackingNo?: string;
+    returnCarrierCode?: string;
+    returnCarrierName?: string;
+    exchangeTrackingNo?: string;
+    exchangeCarrierCode?: string;
+    exchangeCarrierName?: string;
+    processRemark?: string;
+    paymentError?: string;
+    nextPaymentAt?: string;
+    completedAt?: string;
     amount?: string | number;
     reason?: string;
     evidenceImages?: string[];
