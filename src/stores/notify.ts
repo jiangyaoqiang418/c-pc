@@ -11,6 +11,7 @@ export type NotifyRealtimeEvent =
   | { type: 'IM_RECALL'; payload: Api.RealNotify.ImRecallEvent }
   | { type: 'IM_ASSIGN'; payload: { conversationId?: string | number } }
   | { type: 'IM_INTERVENE'; payload: Api.RealNotify.ImInterveneEvent }
+  | { type: 'IM_SUPPORT_ROUTE'; payload: Api.RealNotify.SupportRoute }
   | { type: 'NOTIFICATION'; payload: Api.RealNotify.NotificationSocketPayload }
   | { type: 'SYNC' };
 
@@ -207,6 +208,9 @@ export const useNotifyStore = defineStore('bw-notify', () => {
       scheduleUnreadRefresh();
       emit({ type, payload: framePayload<Api.RealNotify.ImRecallEvent>(frame) });
       return;
+    }
+    if (type === 'IM_SUPPORT_ROUTE') {
+      emit({ type, payload: framePayload<Api.RealNotify.SupportRoute>(frame) }); return;
     }
     if (type === 'IM_ASSIGN') {
       scheduleUnreadRefresh(); emit({ type, payload: framePayload<{ conversationId?: string | number }>(frame) }); return;

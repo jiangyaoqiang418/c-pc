@@ -436,6 +436,10 @@ if (notifyResponse.status === 404) {
   expectRequired(recallMessage, ['id'], '消息撤回');
   const conversationSchema = notify.components?.schemas?.ImConversationVO;
   expectProperties(conversationSchema, ['lastReadMessageId', 'peerName', 'orderNo', 'orderStatusText', 'productTitle', 'amount'], '会话响应');
+  const supportRoute = responseDataSchema(notify, operation(notify, '/im/conversations/support/route', 'get'));
+  expectProperties(supportRoute, ['conversationId', 'routingVersion', 'interveneStatus', 'aiEnabled'], '客服接待路由');
+  expectFieldType(supportRoute, 'aiEnabled', 'boolean', '客服AI开关');
+  expectFieldType(supportRoute, 'interveneStatus', 'string', '客服接待状态');
   const messageSchema = notify.components?.schemas?.ImMessageVO;
   expectProperties(messageSchema, ['senderName', 'senderAvatar', 'eventType', 'params', 'clientMsgId', 'recalled'], '消息响应');
   if (!messageSchema.properties.eventType.description?.includes('REVIEW_PUBLISHED')) throw new Error('IM 缺少评价发布事件说明');

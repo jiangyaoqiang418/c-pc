@@ -2,9 +2,8 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { activateAiSession, createAiSession, fetchAiMessages, fetchAiSessions, streamCustomerChat } from '@/service/api/ai';
 import { RequestError } from '@/service/request';
 import { getAccessToken } from '@/service/request/token';
-import { fetchSupportConversation } from '@/service/api/notify';
-import { useNotifyStore } from '@/stores/notify';
-import { createHumanSupportHandler } from '@/utils/human-support';
+import { isHumanHandoffCard } from '@/utils/human-support';
+import { useSupportRoute } from './use-support-route';
 import { useUserStore } from '@/stores/user';
 
 export interface AiDisplayMessage {
@@ -20,7 +19,7 @@ export interface AiDisplayMessage {
   questionConsumed?: boolean;
   imSync?: Api.Ai.ImSync;
   rawIm?: Api.RealNotify.ImMessageVO;
-  parts: ({ type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData } | { type: 'products'; card: Api.Ai.ProductListCard })[];
+  parts: ({ type: 'text'; text: string } | { type: 'card'; card: Api.Ai.CardData } | { type: 'products'; card: Api.Ai.ProductListCard } | { type: 'handoff'; card: Api.Ai.HumanHandoffCard })[];
   state: Api.Ai.MessageStatus;
   progress?: string;
   error?: string;
@@ -32,7 +31,7 @@ export function historyMessage(row: Api.Ai.Message): AiDisplayMessage {
   return { id: row.messageId, requestId: row.requestId, clientMessageId: row.clientMessageId,
     question: row.structuredData?.question || undefined, questions: row.structuredData?.question?.options, imSync: row.im_sync || undefined,
     role: row.role === 'USER' ? 'user' : 'assistant', text: row.content, images:row.images || [], state: row.status,
-    parts: (row.structuredData?.cards ?? []).map(card => 'type' in card && card.type === 'product_list'
+    parts: (row.structuredData?.cards ?? []).map(card => isHumanHandoffCard(card) ? { type:'handoff', card } : 'type' in card && card.type === 'product_list'
       ? { type: 'products', card } : { type: 'card', card: (card as { data: Api.Ai.CardData }).data }),
     truncated: row.structuredData?.truncated === true, snapshot: !!row.structuredData?.cards?.some(card => 'tool' in card),
     error: row.status === 'FAILED' ? '回答失败' : row.status === 'INTERRUPTED' ? '回答中断' : undefined };
@@ -59,11 +58,9 @@ export function mergeAiMessages(existing: AiDisplayMessage[], rows: Api.Ai.Messa
 
 export function useAiConversations() {
   const user = useUserStore();
-  const realtime = useNotifyStore();
   const humanHandling = ref(false);
   const supportReady = ref(false);
   const supportVersion = ref<string>();
-  let supportCheck = 0;
   const sessions = ref<Api.Ai.Session[]>([]);
   const messages = ref<AiDisplayMessage[]>([]);
   const conversationId = ref<string | null>(null);
@@ -78,7 +75,6 @@ export function useAiConversations() {
   const error = ref('');
   const listError = ref('');
   const notice = ref('');
-  const handleHumanAction = createHumanSupportHandler(text => { notice.value = text; });
   function canAnswer(row: AiDisplayMessage) {
     return row.role === 'assistant' && (!user.isLoggedIn || (supportReady.value && row.imSync?.routing_version === supportVersion.value)) && !humanHandling.value && row.state === 'COMPLETED' && !row.questionConsumed && messages.value.at(-1) === row && !running.value && !busy.value && !historyLoading.value && ready.value;
   }
@@ -227,13 +223,14 @@ export function useAiConversations() {
     running.value = true; error.value = ''; notice.value = '';
     if (user.isLoggedIn) {
       try {
-        const support = await fetchSupportConversation();
+        const supportRoute = await support.refresh();
+        if (!supportRoute) throw new Error('接待状态暂不可用，请刷新后重试');
         if (!active()) return;
         if (aborter.signal.aborted) { running.value = false; stream = undefined; return; }
-        supportReady.value = true; supportVersion.value = support.routingVersion;
-        humanHandling.value = support.interveneStatus === 'HANDLING';
+        supportReady.value = true; supportVersion.value = supportRoute.routingVersion;
+        humanHandling.value = supportRoute.interveneStatus === 'HANDLING';
         if (humanHandling.value) { notice.value = '人工客服正在接待，请进入客服会话继续'; running.value = false; stream = undefined; return; }
-        if (!['NONE','REQUESTED'].includes(support.interveneStatus || '') || support.aiEnabled === false) throw new Error('客服接待状态暂不可用，请稍后重试');
+        if (!['NONE','REQUESTED'].includes(supportRoute.interveneStatus || '') || supportRoute.aiEnabled === false) throw new Error('客服接待状态暂不可用，请稍后重试');
       } catch (e) { if (active()) { error.value = problem(e); running.value = false; stream = undefined; } return; }
     }
     if (user.isLoggedIn && !conversationId.value) {
@@ -279,12 +276,13 @@ export function useAiConversations() {
           const last = answer.parts.at(-1);
           if (last?.type === 'text') last.text += event.data.text;
           else answer.parts.push({ type: 'text', text: event.data.text });
-        } else if (event.event === 'card') answer.parts.push({ type: 'card', card: event.data.data });
+        } else if (event.event === 'card') {
+          if (isHumanHandoffCard(event.data)) {
+            if (!answer.parts.some(part => part.type === 'handoff')) answer.parts.push({ type:'handoff', card:event.data });
+          } else answer.parts.push({ type: 'card', card: event.data.data as Api.Ai.CardData });
+        }
         else if (event.event === 'product_cards') answer.parts.push({ type: 'products', card: { type: event.data.type, items: event.data.items } });
         else if (event.event === 'done') { answer.state = 'COMPLETED'; answer.progress = ''; if (event.data.im_sync) answer.imSync = event.data.im_sync; }
-        else if (event.event === 'action' && answer.imSync) {
-          void handleHumanAction(event.data, { requestId: answer.requestId!, sync: answer.imSync, active, owner: String(user.currentUser?.id || '') });
-        }
         else if (event.event === 'question') { answer.questions = event.data.options; answer.question = { text:event.data.text, options:event.data.options, placement:'after_cards' }; }
         else if (event.event === 'error') { answer.state = 'FAILED'; answer.progress = ''; answer.error = event.data.message; }
         scrollBottom();
@@ -292,6 +290,8 @@ export function useAiConversations() {
     } catch (e) {
       if (!active()) return;
       answer.progress = ''; answer.state = 'INTERRUPTED'; answer.error = aborter.signal.aborted ? '已停止生成，回答可能不完整。' : problem(e);
+      if (user.isLoggedIn && !aborter.signal.aborted) await refreshSupportStatus();
+      if (!active()) return;
       if (e instanceof RequestError && e.code === '-326') {
         notice.value = '消息已记录，正在读取已保存内容。请勿重复发送。';
         messages.value = messages.value.filter(row => row.id !== answer.id);
@@ -312,29 +312,28 @@ export function useAiConversations() {
     }
   }
 
+  const support = useSupportRoute(undefined, (next, previous) => {
+    if (next.interveneStatus === 'HANDLING' || previous && next.routingVersion !== previous.routingVersion) {
+      invalidateStream(); for (const row of messages.value) row.questionConsumed = true;
+    }
+    supportReady.value = true; supportVersion.value = next.routingVersion;
+    humanHandling.value = next.interveneStatus === 'HANDLING';
+    notice.value = humanHandling.value ? '人工客服正在接待，请进入客服会话继续'
+      : next.interveneStatus === 'REQUESTED' ? '正在等待人工客服，您可以继续咨询' : '';
+  });
   async function refreshSupportStatus() {
     if (!user.isLoggedIn) return;
-    const version = scope, token = getAccessToken(), check = ++supportCheck;
-    try {
-      const route = await fetchSupportConversation();
-      if (!current(version, token) || check !== supportCheck) return;
-      if (!['NONE','REQUESTED','HANDLING'].includes(route.interveneStatus || '')) throw new Error('接待状态暂不可用');
-      if (supportVersion.value !== undefined && route.routingVersion !== supportVersion.value) {
-        invalidateStream(); for (const row of messages.value) row.questionConsumed = true;
-      }
-      supportReady.value = true; supportVersion.value = route.routingVersion;
-      humanHandling.value = route.interveneStatus === 'HANDLING';
-      if (humanHandling.value) { invalidateStream(); notice.value = '人工客服正在接待，请进入客服会话继续'; }
-    } catch {
-      if (current(version, token) && check === supportCheck) { supportReady.value = false; invalidateStream(); error.value = '接待状态暂不可用，请刷新后继续'; }
-    }
+    try { await support.refresh(); }
+    catch { if (!disposed) { supportReady.value = !!support.route.value; error.value = support.error.value; } }
   }
-  realtime.subscribe(event => {
-    if (['SYNC','IM_INTERVENE','IM_ASSIGN'].includes(event.type)) void refreshSupportStatus();
-  });
+  async function requestHuman(reason?: string) {
+    await support.requestHuman(reason);
+    if (!disposed) notice.value = support.notice.value;
+  }
+  watch(support.error, value => { if (value) error.value = value; });
 
   watch([() => user.sessionVersion, () => user.currentUser?.id, () => user.initializing], () => {
-    humanHandling.value = false; supportReady.value = false; supportVersion.value = undefined; supportCheck++;
+    humanHandling.value = false; supportReady.value = false; supportVersion.value = undefined;
     scope++; listVersion++; historyVersion++; mutationVersion++;
     invalidateStream(); reads.abort(); reads = new AbortController();
     sessions.value = []; messages.value = []; conversationId.value = null; input.value = ''; attachments.value = []; uploading.value = false;
@@ -347,5 +346,5 @@ export function useAiConversations() {
 
   onBeforeUnmount(() => { disposed = true; scope++; invalidateStream(); reads.abort(); });
   return { sessions, visibleSessions, messages, conversationId, input, attachments, uploading, running, busy, listLoading, historyLoading, ready, error, listError,
-    notice, humanHandling, historyMore, sessionMore, scrollRef, canSend, canAnswer, answerQuestion, pending, archived, loadSessions, loadHistory, changeSession, stop, send };
+    notice, humanHandling, supportRoute: support.route, applying: support.applying, requestHuman, historyMore, sessionMore, scrollRef, canSend, canAnswer, answerQuestion, pending, archived, loadSessions, loadHistory, changeSession, stop, send };
 }

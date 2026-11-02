@@ -17,11 +17,12 @@ import { useReviewStore } from '@/stores/review';
 import * as reviewApi from '@/service/api/review';
 import { confirmReceipt as confirmReceiptApi, payOrder, withOrderPayment, type OrderPaymentActions } from '@/service/api/order';
 import { streamCustomerChat } from '@/service/api/ai';
-import { createHumanSupportHandler } from '@/utils/human-support';
-import { supportHistoryMessage } from '@/composables/use-support-chat';
+import { acceptSupportRoute, isHumanHandoffCard, parseSupportRoute } from '@/utils/human-support';
+import { useSupportRoute } from '@/composables/use-support-route';
+import { supportHistoryMessage, useSupportChat } from '@/composables/use-support-chat';
 import { readEventStream } from './stream';
 import * as aiApi from '@/service/api/ai';
-import { createRenderer, ref } from 'vue';
+import { createRenderer, effectScope, ref } from 'vue';
 import { fetchCurrentProductCards } from '@/service/api/product-cards';
 import * as productCardsApi from '@/service/api/product-cards';
 import { useAiProductCards } from '@/composables/use-ai-product-cards';
@@ -197,6 +198,14 @@ describe('实时会话隔离与全局未读', () => {
     const store = useNotifyStore();
     return { Socket, store, notificationCount, imCount };
   }
+
+  it('顾客接待事件保留字符串版本并分发，不依赖后台指派事件', () => {
+    const {Socket,store} = setupRealtime(); const listener = vi.fn(); const scope = effectScope(); scope.run(() => store.subscribe(listener)); store.connect();
+    const event = {type:'IM_SUPPORT_ROUTE',conversationId:'9007199254740993123',routingVersion:'9007199254740993124',interveneStatus:'HANDLING',aiEnabled:false};
+    Socket.instances[0].onmessage!({data:JSON.stringify(event)});
+    expect(listener).toHaveBeenCalledWith({type:'IM_SUPPORT_ROUTE',payload:event});
+    store.disconnect(); scope.stop();
+  });
 
   it('通知已读按 ID 去重，失败可重试，旧会话完成不刷新新账号角标', async () => {
     const { store, notificationCount } = setupRealtime();
@@ -1856,6 +1865,7 @@ describe('AI 持久化会话与历史恢复', () => {
   }
   function setup(loggedIn = true) {
     vi.spyOn(notifyApi, 'fetchSupportConversation').mockResolvedValue({ id:'9001', type:'SUPPORT', routingVersion:'0', interveneStatus:'NONE' });
+    vi.spyOn(notifyApi, 'fetchSupportRoute').mockResolvedValue({ conversationId:'9001', routingVersion:'0', interveneStatus:'NONE', aiEnabled:true });
     const values = new Map<string, string>();
     vi.stubGlobal('localStorage', { getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) });
@@ -2157,9 +2167,7 @@ describe('售后处理方式的幂等快照', () => {
 
 describe('11-02 客服追问与人工动作', () => {
   const sync = { im_conversation_id:'9007199254740993123', routing_version:'0', user_client_msg_id:'user-stable', ai_client_msg_id:'ai-stable' };
-  const context = { requestId:'r-new', sync, owner:'customer', active:() => true };
   const action = { request_id:'r-new', seq:2, type:'REQUEST_HUMAN_SUPPORT', action_id:'human_123' };
-  function storage() { const data = new Map<string,string>(); vi.stubGlobal('sessionStorage', { getItem:(key:string) => data.get(key) ?? null, setItem:(key:string,value:string) => data.set(key,value) }); }
   it('同一轮重放 action 只分发一次，下一轮序号重新开始', () => {
     const listener = vi.fn(); const receive = aiApi.createChatEventReceiver(listener);
     const frame = (event:string,data:unknown) => ({event,data:JSON.stringify(data)});
@@ -2179,22 +2187,144 @@ describe('11-02 客服追问与人工动作', () => {
     expect(row.text).toBe('推荐正文'); expect(row.question?.options).toEqual([]); expect(row.rawIm).toBeUndefined();
     expect(supportHistoryMessage({id:'2003',conversationId:sync.im_conversation_id,senderRole:'ADMIN',content:'人工回复'}).rawIm?.content).toBe('人工回复');
   });
-  it('重复动作和已申请状态不重复调用申请接口', async () => {
-    storage(); vi.spyOn(notifyApi,'fetchSupportConversation').mockResolvedValue({id:sync.im_conversation_id,routingVersion:'0',interveneStatus:'REQUESTED'});
-    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockResolvedValue(); const notices = vi.fn(); const handle = createHumanSupportHandler(notices);
-    await handle(action,context); await handle(action,context);
-    expect(apply).not.toHaveBeenCalled(); expect(notices).toHaveBeenCalledOnce();
+  it('转人工卡实时与历史仅恢复展示，不提交申请', () => {
+    const apply = vi.spyOn(notifyApi, 'applyHumanSupport');
+    const card: Api.Ai.HumanHandoffCard = { type:'human_handoff', data:{label:'确认转人工',reason:'需要协助'} };
+    const row = supportHistoryMessage({id:'2004',conversationId:sync.im_conversation_id,eventType:'AI_REPLY',params:{structuredData:{cards:[card]}}});
+    expect(row.parts).toEqual([{type:'handoff',card}]);
+    expect(historyMessage({messageId:'1',requestId:null,clientMessageId:null,role:'ASSISTANT',content:'',structuredData:{cards:[card]},status:'COMPLETED',errorCode:null,createdAt:null,completedAt:null}).parts).toEqual([{type:'handoff',card}]);
+    const receive = aiApi.createChatEventReceiver(vi.fn());
+    receive({event:'start',data:JSON.stringify({request_id:'r',seq:1,conversation_id:'a'.repeat(32)})});
+    expect(() => receive({event:'card',data:JSON.stringify(card)})).not.toThrow();
+    expect(() => receive({event:'card',data:JSON.stringify({...card,request_id:'other',seq:2})})).toThrow();
+    expect(apply).not.toHaveBeenCalled();
+    expect(isHumanHandoffCard({type:'human_handoff',data:{label:'确认',reason:'x'.repeat(256)}})).toBe(false);
   });
-  it('动作版本已过期时不改成新版本继续申请', async () => {
-    storage(); vi.spyOn(notifyApi,'fetchSupportConversation').mockResolvedValue({id:sync.im_conversation_id,routingVersion:'1',interveneStatus:'NONE'});
+  it('接待版本精确比较，同版本申请生效，旧回查不能覆盖新状态', () => {
+    const base = {conversationId:sync.im_conversation_id,routingVersion:'9007199254740993123',interveneStatus:'NONE' as const,aiEnabled:true};
+    const requested = {...base,interveneStatus:'REQUESTED' as const};
+    expect(acceptSupportRoute(base,requested)).toBe(true);
+    expect(acceptSupportRoute(requested,base)).toBe(false);
+    expect(acceptSupportRoute(base,{...base,routingVersion:'9007199254740993122'})).toBe(false);
+    expect(acceptSupportRoute(base,{...base,routingVersion:'9007199254740993124',interveneStatus:'HANDLING',aiEnabled:false})).toBe(true);
+    expect(() => parseSupportRoute({...base,routingVersion:1})).toThrow();
+    expect(() => parseSupportRoute({...base,interveneStatus:'HANDLING',aiEnabled:true})).toThrow();
+  });
+});
+
+describe('确认转人工与接待回查', () => {
+  const id = '9007199254740993123';
+  let unmount: (() => void) | undefined;
+  afterEach(() => { unmount?.(); unmount = undefined; });
+  function route(version = '0', status: Api.RealNotify.InterveneStatus = 'NONE'): Api.RealNotify.SupportRoute {
+    return {conversationId:id,routingVersion:version,interveneStatus:status,aiEnabled:status !== 'HANDLING'};
+  }
+  function mount(changed = vi.fn()) {
+    const data = new Map<string,string>();
+    vi.stubGlobal('localStorage',{getItem:(key:string) => data.get(key) ?? null,setItem:(key:string,value:string) => data.set(key,value),removeItem:(key:string) => data.delete(key)});
+    setAccessToken('support-test'); setActivePinia(createPinia());
+    useUserStore().currentUser = {id:'test-customer'} as Api.RealSession.UserRecord;
+    const store = useNotifyStore(); let listener: ((event: import('@/stores/notify').NotifyRealtimeEvent) => void) | undefined;
+    vi.spyOn(store,'subscribe').mockImplementation(fn => { listener = fn; return () => true; });
+    let state!: ReturnType<typeof useSupportRoute>;
+    const renderer = createRenderer<object,object>({createElement:() => ({}),patchProp(){},insert(){},remove(){},setElementText(){},createText:() => ({}),setText(){},createComment:() => ({}),parentNode:() => null,nextSibling:() => null});
+    const app = renderer.createApp({setup(){state = useSupportRoute(id,changed);return () => null;}});
+    app.mount({}); unmount = () => app.unmount();
+    return {state,changed,push:(value:Api.RealNotify.SupportRoute) => listener?.({type:'IM_SUPPORT_ROUTE',payload:value})};
+  }
+  it('点击才申请，重复点击和已经等待都不重复申请', async () => {
+    const get = vi.spyOn(notifyApi,'fetchSupportRoute').mockResolvedValue(route());
+    let resolve!: () => void;
+    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockImplementation(() => new Promise<void>(done => {resolve=done;}));
+    const {state} = mount(); await state.refresh(); expect(apply).not.toHaveBeenCalled();
+    const first = state.requestHuman('顾客希望协助'); await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+    await state.requestHuman('顾客希望协助'); expect(apply).toHaveBeenCalledOnce();
+    get.mockResolvedValue(route('0','REQUESTED')); resolve(); await first;
+    await state.requestHuman(); expect(apply).toHaveBeenCalledOnce();
+    expect(state.notice.value).toContain('等待人工客服');
+    expect(apply).toHaveBeenCalledWith(id,'顾客希望协助');
+  });
+  it('申请响应迟到时不把已结束的人工接待改回等待', async () => {
+    let server=route();vi.spyOn(notifyApi,'fetchSupportRoute').mockImplementation(async () => server);
+    let finish!: () => void;
+    const apply=vi.spyOn(notifyApi,'applyHumanSupport').mockImplementation(() => new Promise<void>(done => {finish=done;}));
+    const {state,push}=mount();const first=state.requestHuman();await vi.waitFor(() => expect(apply).toHaveBeenCalledOnce());
+    server=route('1','HANDLING');push(server);server=route('2');push(server);finish();await first;
+    expect(state.route.value?.interveneStatus).toBe('NONE');expect(state.notice.value).toBe('');
+  });
+  it('超时后先回查，已申请不再次提交', async () => {
+    const get = vi.spyOn(notifyApi,'fetchSupportRoute').mockResolvedValueOnce(route()).mockResolvedValue(route('0','REQUESTED'));
+    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockRejectedValue(new Error('timeout'));
+    const {state} = mount(); await state.requestHuman(); await state.requestHuman();
+    expect(apply).toHaveBeenCalledOnce(); expect(get).toHaveBeenCalledTimes(3);
+    expect(state.route.value?.interveneStatus).toBe('REQUESTED');
+  });
+  it('人工推送立即生效，迟到HTTP不回退，结束立即恢复，查询串行合并', async () => {
+    let resolve!: (value:Api.RealNotify.SupportRoute) => void;
+    const get = vi.spyOn(notifyApi,'fetchSupportRoute').mockImplementationOnce(() => new Promise(done => {resolve=done;})).mockResolvedValue(route('2'));
+    const {state,push,changed} = mount(); const first = state.refresh();
+    push(route('1','HANDLING')); expect(state.route.value?.interveneStatus).toBe('HANDLING');
+    expect(changed).toHaveBeenCalledOnce(); expect(get).toHaveBeenCalledOnce();
+    push(route('0')); expect(state.route.value?.interveneStatus).toBe('HANDLING');
+    push(route('2')); expect(state.route.value?.interveneStatus).toBe('NONE');
+    resolve(route()); await first;
+    expect(state.route.value?.routingVersion).toBe('2'); expect(get).toHaveBeenCalledTimes(2);
+  });
+  it('回查失败保留人工模式，不自动恢复AI，其他会话事件忽略', async () => {
+    const get = vi.spyOn(notifyApi,'fetchSupportRoute').mockResolvedValueOnce(route('1','HANDLING')).mockRejectedValue(new Error('unavailable'));
+    const {state,push} = mount(); await state.refresh();
+    push({...route('2'),conversationId:'other'}); expect(get).toHaveBeenCalledOnce();
+    await expect(state.refresh()).rejects.toThrow('unavailable');
+    expect(state.route.value?.interveneStatus).toBe('HANDLING'); expect(state.error.value).toContain('unavailable');
+  });
+  it('展示卡片不申请，人工接入停流，转接退出保留原Python会话且旧回调失效', async () => {
+    const values = new Map<string,string>();
+    vi.stubGlobal('localStorage',{getItem:(key:string) => values.get(key) ?? null,setItem:(key:string,value:string) => values.set(key,value),removeItem:(key:string) => values.delete(key)});
+    setAccessToken('support-stream-test'); setActivePinia(createPinia()); useUserStore().currentUser = {id:'qa'} as Api.RealSession.UserRecord;
+    let server = route();
+    vi.spyOn(notifyApi,'fetchSupportRoute').mockImplementation(async () => server);
+    vi.spyOn(notifyApi,'fetchConversationMessages').mockResolvedValue({records:[],total:0});
     const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockResolvedValue();
-    await createHumanSupportHandler(vi.fn())(action,context); expect(apply).not.toHaveBeenCalled();
+    const listeners: ((event:import('@/stores/notify').NotifyRealtimeEvent) => void)[] = [];
+    vi.spyOn(useNotifyStore(),'subscribe').mockImplementation(fn => {listeners.push(fn);return () => true;});
+    let state!: ReturnType<typeof useSupportChat>;
+    const renderer = createRenderer<object,object>({createElement:() => ({}),patchProp(){},insert(){},remove(){},setElementText(){},createText:() => ({}),setText(){},createComment:() => ({}),parentNode:() => null,nextSibling:() => null});
+    const app = renderer.createApp({setup(){state=useSupportChat(id);return () => null;}});app.mount({});unmount=() => app.unmount();
+    await vi.waitFor(() => expect(state.loading.value).toBe(false));
+    let late!: (event:Api.Ai.ChatEvent) => void; let finish!: () => void; let signal!: AbortSignal;
+    const stream = vi.spyOn(aiApi,'streamCustomerChat').mockImplementationOnce(async (_params,abort,receive) => {
+      signal=abort;late=receive;
+      receive({event:'start',data:{request_id:'old',seq:1,conversation_id:'a'.repeat(32),im_sync:{im_conversation_id:id,routing_version:'0',user_client_msg_id:'user-old',ai_client_msg_id:'ai-old'}}});
+      receive({event:'action',data:{request_id:'old',seq:2,type:'REQUEST_HUMAN_SUPPORT',action_id:'human_1'}});
+      receive({event:'card',data:{type:'human_handoff',data:{label:'确认转人工'}}});
+      await new Promise<void>(done => {finish=done;});
+    }).mockImplementation(async (params,_signal,receive) => {
+      expect(params.conversationId).toBe('a'.repeat(32));
+      receive({event:'start',data:{request_id:'new',seq:1,conversation_id:'a'.repeat(32),im_sync:{im_conversation_id:id,routing_version:'3'}}});
+      receive({event:'delta',data:{request_id:'new',seq:2,text:'新回答'}});receive({event:'done',data:{request_id:'new',seq:3,status:'completed'}});
+    });
+    state.input.value='转人工';const first=state.send();await vi.waitFor(() => expect(late).toBeTypeOf('function'));
+    expect(apply).not.toHaveBeenCalled(); expect(state.running.value).toBe(true);
+    expect(state.messages.value.at(-1)?.parts[0].type).toBe('handoff');
+    apply.mockImplementation(async () => { server=route('0','REQUESTED'); });
+    await state.requestHuman('需要人工协助');
+    expect(apply).toHaveBeenCalledOnce(); expect(signal.aborted).toBe(false); expect(state.running.value).toBe(true);
+    server=route('1','HANDLING');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
+    expect(signal.aborted).toBe(true);expect(state.handling.value).toBe(true);expect(state.running.value).toBe(false);
+    server=route('2','HANDLING');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
+    expect(state.handling.value).toBe(true);expect(stream).toHaveBeenCalledOnce();
+    server=route('3');for(const fn of listeners)fn({type:'IM_SUPPORT_ROUTE',payload:server});
+    expect(state.handling.value).toBe(false);state.input.value='新问题';await state.send();
+    late({event:'delta',data:{request_id:'old',seq:3,text:'不应复活'}});finish();await first;
+    expect(stream).toHaveBeenCalledTimes(2);expect(apply).toHaveBeenCalledOnce();
+    expect(state.messages.value.flatMap(row => row.parts).filter(part => part.type==='text').map(part => part.text)).toEqual(['新回答']);
   });
-  it('申请响应丢失后不循环申请，手动重试先读取状态', async () => {
-    storage(); const get = vi.spyOn(notifyApi,'fetchSupportConversation').mockResolvedValue({id:sync.im_conversation_id,routingVersion:'0',interveneStatus:'NONE'});
-    const apply = vi.spyOn(notifyApi,'applyHumanSupport').mockRejectedValue(new Error('timeout')); const handle = createHumanSupportHandler(vi.fn());
-    await handle(action,context); await handle(action,context); expect(apply).toHaveBeenCalledTimes(1);
-    get.mockResolvedValue({id:sync.im_conversation_id,routingVersion:'0',interveneStatus:'REQUESTED'});
-    await handle(action,context,true); expect(apply).toHaveBeenCalledTimes(1); expect(get).toHaveBeenCalledTimes(2);
+
+  it('退出后迟到回查不能写回，新的会话不复用旧申请忙态', async () => {
+    let resolve!: (value:Api.RealNotify.SupportRoute) => void;
+    vi.spyOn(notifyApi,'fetchSupportRoute').mockImplementation(() => new Promise(done => {resolve=done;}));
+    const {state} = mount(); const first = state.refresh();
+    useUserStore().sessionVersion++; resolve(route()); await first;
+    expect(state.route.value).toBeUndefined(); expect(state.applying.value).toBe(false);
   });
 });
