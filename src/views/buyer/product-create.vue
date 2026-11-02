@@ -71,6 +71,7 @@ async function onSubmit(form: {
   aftersaleType: Api.Product.AftersaleType;
   overseasCustoms: boolean;
   description: string;
+  designRevisionId?: string;
   images: Api.RealProduct.ProductImageParam[];
   specGroups: Api.RealProduct.ProductSpecGroup[];
   skus: Api.RealProduct.ProductSkuSaveParams[];
@@ -142,10 +143,11 @@ async function onSubmit(form: {
             specGroups: form.specGroups, skus: form.skus,
             afterSaleType: ({ 'none': 'NONE', '7day-no-reason': 'SEVEN_DAY_NO_REASON', 'shop-warranty': 'SHOP_WARRANTY', 'national-warranty': 'NATIONAL_WARRANTY' } as const)[form.aftersaleType],
             overseasClearance: form.overseasCustoms,
-            description: form.description, images: form.images
+            description: form.description, designRevisionId: form.designRevisionId, images: form.images
           }) : productApi.createProduct({
             title: form.title.trim(),
             description: form.description.trim() || '—',
+            designRevisionId: form.designRevisionId,
             categoryId, categoryIds:form.categoryIds, parameters:form.parameters,
             brandId:form.brandId,
             price: form.price,

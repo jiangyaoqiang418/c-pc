@@ -135,6 +135,7 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     images: (dto.images || []).map((url, sort) => ({ url, name: `图${sort + 1}`, type: 'image', sort })),
     summary: '',
     description: dto.description || '',
+    designRevisionId: dto.designRevisionId, detailDesignJson: dto.detailDesignJson,
     aftersaleType: toAfterSaleType(dto.afterSaleType),
     rawAfterSaleType: dto.afterSaleType,
     rawStatus: dto.status,
@@ -483,6 +484,7 @@ export async function createProduct(p: {
   overseasCustoms: boolean;
   summary?: string;
   description: string;
+  designRevisionId?: string;
   images: Api.RealProduct.ProductImageParam[];
   specGroups?: Api.RealProduct.ProductSpecGroup[];
   skus?: Api.RealProduct.ProductSkuSaveParams[];
@@ -512,6 +514,7 @@ export async function createProduct(p: {
     afterSaleType: fromAfterSaleType(p.aftersaleType),
     overseasClearance: p.overseasCustoms,
     description: p.description,
+    designRevisionId: p.designRevisionId,
     images: p.images
   });
   return id;

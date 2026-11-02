@@ -30,6 +30,8 @@ declare namespace Api.RealProduct {
     sellerId: Id;
     categoryId: Id;
     aftersaleType: DisplayAfterSaleType;
+    designRevisionId?: string;
+    detailDesignJson?: string;
     salesCount?: number;
     viewCount?: number;
     favoriteCount?: number;
@@ -73,6 +75,8 @@ declare namespace Api.RealProduct {
     afterSaleType?: AfterSaleType;
     overseasClearance?: boolean;
     description?: string;
+    designRevisionId?: string;
+    detailDesignJson?: string;
     status?: ProductStatus;
     auditStage?: 'PENDING_AUDIT' | 'IN_AUDIT';
     statusText?: string;
@@ -157,6 +161,8 @@ declare namespace Api.RealProduct {
     afterSaleType: AfterSaleType;
     overseasClearance?: boolean;
     description?: string;
+    designRevisionId?: string;
+    detailDesignJson?: string;
     images: ProductImageParam[];
   }
 
