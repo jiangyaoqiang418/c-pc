@@ -31,16 +31,43 @@ const loading = ref(false);
 const loadError = ref('');
 const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}:${asset.value}`);
 
+const refreshSeconds = ref(0);
+let refreshContext = '';
+let nextRefreshAt = 0;
+let refreshTimer: ReturnType<typeof setInterval> | undefined;
+function clearRefreshTimer() {
+  if (refreshTimer !== undefined) clearInterval(refreshTimer);
+  refreshTimer = undefined;
+}
+function beginRefreshCooldown() {
+  clearRefreshTimer();
+  nextRefreshAt = Date.now() + 5000;
+  refreshSeconds.value = 5;
+  refreshTimer = setInterval(() => {
+    refreshSeconds.value = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
+    if (!refreshSeconds.value) clearRefreshTimer();
+  }, 250);
+}
+
 async function loadAll() {
   if (props.visualFixture) return;
   const userId = userStore.currentUser?.id;
   if (!userId) {
+    clearRefreshTimer();
+    refreshContext = '';
+    nextRefreshAt = 0;
+    refreshSeconds.value = 0;
     requestGuard.invalidate();
     recentTxns.value = [];
     loadError.value = '';
     loading.value = false;
     return;
   }
+  const context = `${String(userId)}:${userStore.sessionVersion}:${asset.value}:${userStore.currentAudience}`;
+  // 冷却针对当前账号与币种；切换身份或币种仍立即读取，旧响应由请求守卫隔离。
+  if (context === refreshContext && (loading.value || Date.now() < nextRefreshAt)) return;
+  refreshContext = context;
+  beginRefreshCooldown();
   const isCurrent = requestGuard.begin();
   loading.value = true;
   loadError.value = '';
@@ -59,31 +86,14 @@ async function loadAll() {
 }
 
 onMounted(loadAll);
-watch(asset, () => {
-  requestGuard.invalidate();
-  recentTxns.value = [];
-  drawerTxn.value = undefined;
-  drawerOpen.value = false;
-  void loadAll();
-});
-watch(() => userStore.currentAudience, loadAll);
-watch(() => userStore.currentUser?.id, (next, previous) => {
-  if (String(next) === String(previous)) return;
-  requestGuard.invalidate();
+watch([asset, () => userStore.currentAudience, () => userStore.currentUser?.id, () => userStore.sessionVersion], () => {
   recentTxns.value = [];
   drawerTxn.value = undefined;
   drawerOpen.value = false;
   loadError.value = '';
   void loadAll();
 });
-watch(() => userStore.sessionVersion, () => {
-  requestGuard.invalidate();
-  recentTxns.value = [];
-  drawerTxn.value = undefined;
-  drawerOpen.value = false;
-  void loadAll();
-});
-onBeforeUnmount(requestGuard.invalidate);
+onBeforeUnmount(() => { requestGuard.invalidate(); clearRefreshTimer(); });
 
 const overview = computed(() => walletStore.getOverview(asset.value));
 const account = computed(() => props.visualFixture ? props.visualFixture.account : overview.value?.account);
@@ -135,9 +145,9 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
 
 <template>
   <div class="wallet-page" :aria-busy="loading">
-    <div class="page-heading compact"><h1>我的钱包</h1><WalletAssetTabs :model-value="asset" :disabled="!!visualFixture" @update:model-value="selectAsset" /></div>
-    <div v-if="loadError" class="status-banner wallet-status" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
-    <div v-if="!visualFixture && partialData" class="status-banner wallet-status" role="status"><UmIcon name="clock" /><span>钱包总额或今日收支尚未取得，请重新加载。</span><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
+    <div class="page-heading compact"><h1>我的钱包</h1><button v-if="!visualFixture" type="button" class="outline" :disabled="loading || refreshSeconds > 0" @click="loadAll">{{ loading ? '正在刷新…' : refreshSeconds > 0 ? `刷新（${refreshSeconds}s）` : '刷新钱包' }}</button><WalletAssetTabs :model-value="asset" :disabled="!!visualFixture" @update:model-value="selectAsset" /></div>
+    <div v-if="loadError" class="status-banner wallet-status" role="alert"><UmIcon name="shield" /><span>{{ loadError }}</span><button class="outline" :disabled="loading || refreshSeconds > 0" @click="loadAll">重新加载</button></div>
+    <div v-if="!visualFixture && partialData" class="status-banner wallet-status" role="status"><UmIcon name="clock" /><span>钱包总额或今日收支尚未取得，请重新加载。</span><button class="outline" :disabled="loading || refreshSeconds > 0" @click="loadAll">重新加载</button></div>
     <section class="wallet-hero">
       <div><span>可用余额 · {{ asset }}</span><h1><LoadingStatus v-if="!visualFixture && walletStore.loadingByAsset[asset]" class="inherit-color" label="正在读取余额…" /><template v-else>{{ money(account?.available) }}</template></h1><p>USDT、USDC 独立记账，余额不合并</p></div>
       <UmIcon name="wallet" />
@@ -162,7 +172,7 @@ function openDetail(t: Api.RealWallet.DisplayLedger) {
       <div class="section-heading"><h2>资产明细</h2><span class="wallet-total">资产总额 <b>{{ money(totalAssets) }}</b> {{ asset }}</span></div>
       <div class="wallet-cashflow" title="按北京时间自然日统计，仅含链上充值和转出"><span>今日链上充值 <b>{{ money(today?.depositIn) }} {{ asset }}</b></span><span>今日链上转出 <b>{{ money(today?.withdrawOut) }} {{ asset }}</b></span></div>
       <button v-for="bucket in assetBuckets" :key="bucket.key" type="button" class="transaction asset-bucket" @click="goBucket(bucket.key)"><UmIcon :name="bucketIcons[bucket.key]" /><span class="transaction-copy"><b>{{ bucket.label }}</b><small>{{ bucket.hint }}</small></span><b>{{ money(bucket.value) }} <small>{{ asset }}</small><span v-if="bucket.ratio != null" class="bucket-ratio">{{ formatFinanceRate(bucket.ratio, 1, '暂不可用') }}</span></b><UmIcon name="arrow" /></button>
-      <div v-if="!assetBuckets.length" class="empty"><UmIcon name="wallet" /><h2>{{ loading ? '正在读取资产…' : '资产暂不可用' }}</h2><p>重新加载后查看完整资产明细。</p><button class="outline" :disabled="loading" @click="loadAll">重新加载</button></div>
+      <div v-if="!assetBuckets.length" class="empty"><UmIcon name="wallet" /><h2>{{ loading ? '正在读取资产…' : '资产暂不可用' }}</h2><p>重新加载后查看完整资产明细。</p><button class="outline" :disabled="loading || refreshSeconds > 0" @click="loadAll">重新加载</button></div>
     </section>
     <section v-if="showProductionDetails" class="paper wallet-safety">
       <div class="section-heading"><h2>支付安全</h2></div>

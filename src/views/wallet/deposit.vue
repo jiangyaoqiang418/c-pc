@@ -175,6 +175,7 @@ const selectedWalletChain = computed(() => {
 });
 const methodCodes = { address: 'ADDRESS', wallet: 'WALLET', amount: 'DECLARATION' } as const;
 function methodEnabled(method: keyof typeof methodCodes) {
+  if (method === 'amount') return false;
   return realWalletApi.rechargeMethodEnabled(selectedChain.value, methodCodes[method]);
 }
 const directWallets = computed(() => availableWallets(chain.value || ''));
@@ -773,7 +774,7 @@ watch([asset, chain, selectedChain], ([nextAsset, nextChain], [previousAsset, pr
   directError.value = '';
   currentRecharge.value = undefined;
   if (pendingRechargeReadId.value === undefined && !methodEnabled(depositMethod.value)) {
-    depositMethod.value = (['address', 'wallet', 'amount'] as const).find(methodEnabled) ?? 'address';
+    depositMethod.value = (['address', 'wallet'] as const).find(methodEnabled) ?? 'address';
   }
   void loadRechargeAddress();
 });
@@ -821,7 +822,7 @@ const statusFilter = computed({
       <template v-if="operationView === 'form'">
         <div class="deposit-selectors"><div><label for="deposit-currency">货币</label><Select :model-value="asset" :disabled="submitting || directBusy" @update:model-value="value => selectAsset(value as Api.RealWallet.Asset)"><SelectTrigger id="deposit-currency" class="app-select-trigger wallet-network-trigger h-[46px]"><SelectValue placeholder="请选择币种" /></SelectTrigger><SelectContent><SelectItem value="USDT">USDT</SelectItem><SelectItem value="USDC">USDC</SelectItem></SelectContent></Select></div><div><label for="deposit-network">网络</label><Select v-model="chain" :disabled="loadingChains || submitting || directBusy || !chainOptions.length"><SelectTrigger id="deposit-network" class="app-select-trigger wallet-network-trigger h-[46px]"><SelectValue :placeholder="loadingChains ? '正在读取…' : '暂无可用网络'" /></SelectTrigger><SelectContent><SelectItem v-for="option in chainOptions" :key="option.chain" :value="option.chain">{{ option.label }}（{{ option.chain }}）</SelectItem></SelectContent></Select></div></div>
         <div class="deposit-subline"><span>充值至 {{ asset }} 钱包</span><button @click="operationView = 'records'">充值记录<UmIcon name="chevron" /></button></div>
-        <div class="deposit-methods" role="group" aria-label="充值方式"><span :style="{ transform: 'translateX(' + (['address', 'wallet', 'amount'].indexOf(depositMethod) * 100) + '%)' }" /><button v-for="item in [{ key: 'address', label: '地址充值' }, { key: 'wallet', label: '钱包充值' }, { key: 'amount', label: '金额充值' }] as const" :key="item.key" :class="{ active: depositMethod === item.key }" :aria-pressed="depositMethod === item.key" :disabled="submitting || directBusy || (!methodEnabled(item.key) && !(item.key === 'amount' && pendingRechargeReadId !== undefined))" @click="depositMethod = item.key">{{ item.label }}</button></div>
+        <div class="deposit-methods" role="group" aria-label="充值方式"><span :style="{ width: 'calc((100% - 8px)/2)', transform: 'translateX(' + (['address', 'wallet'].indexOf(depositMethod) * 100) + '%)' }" /><button v-for="item in [{ key: 'address', label: '地址充值' }, { key: 'wallet', label: '钱包充值' }] as const" :key="item.key" :class="{ active: depositMethod === item.key }" :aria-pressed="depositMethod === item.key" :disabled="submitting || directBusy || !methodEnabled(item.key)" @click="depositMethod = item.key">{{ item.label }}</button></div>
         <div :key="depositMethod" class="deposit-content">
           <div v-if="!loadingChains && !selectedChain && pendingRechargeReadId === undefined" class="deposit-empty"><UmIcon name="wallet" /><h3>暂无可用充值网络</h3><p>请稍后重新加载网络配置。</p><button class="outline wallet-note-action" @click="loadChains">重新加载</button></div>
           <template v-else>
