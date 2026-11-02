@@ -128,6 +128,7 @@ const brandGuard = createLatestRequestGuard();
 const brands = ref<Api.RealBrand.BrandDTO[]>([]);
 const brandKeyword = ref('');
 const brandLoading = ref(false);
+const brandSelectOpen = ref(false);
 const brandError = ref('');
 const brandCurrent = ref(1);
 const brandTotal = ref(0);
@@ -298,6 +299,7 @@ function beforeUnload(event: BeforeUnloadEvent) {
 onBeforeRouteLeave(confirmLeave);
 onBeforeRouteUpdate((to,from) => JSON.stringify(to.params) === JSON.stringify(from.params) ? true : confirmLeave());
 watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], () => {
+  brandSelectOpen.value = false;
   savedDraft.value = undefined;
   canvasEnabled.value = !!form.detailDesignJson || !form.description;
   draftRevision.value += 1;
@@ -315,10 +317,10 @@ onMounted(async () => {
 function onBrandSearchEnter(event: KeyboardEvent) {
   if (event.isComposing || event.keyCode === 229) return;
   event.preventDefault();
-  void loadBrands();
+  void loadBrands(false, true);
 }
 
-async function loadBrands(append = false) {
+async function loadBrands(append = false, showResults = false) {
   if (!currentContext.value || brandLoading.value) return;
   const isCurrent = brandGuard.begin();
   const keyword = brandKeyword.value.trim();
@@ -333,6 +335,7 @@ async function loadBrands(append = false) {
     loadedBrandKeyword = keyword;
     brandCurrent.value = current;
     brandTotal.value = page.total;
+    if (showResults) brandSelectOpen.value = true;
   } catch {
     if (isCurrent()) brandError.value = '品牌加载失败，已选品牌保持不变。';
   } finally { if (isCurrent()) brandLoading.value = false; }
@@ -462,7 +465,7 @@ const previewCategory = computed(() => {
     <section class="paper"><header class="buyer-number-heading"><span>01</span><div><h2>商品信息</h2><p>清晰的图片与准确的信息，让选择更容易。</p></div></header>
       <div class="buyer-field"><Label for="product-title">商品标题 <span>*</span></Label><Input id="product-title" v-model="form.title" maxlength="128" :disabled="submitting" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛" /></div>
       <div class="buyer-two-cols buyer-category-fields"><div class="buyer-field"><Label for="product-category">商品分类 <span>*</span></Label><div class="category-row"><CategoryPicker id="product-category" v-model="form.categoryId" v-model:model-values="form.categoryIds" multiple :max="20" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting" /><Button class="outline" type="button" variant="outline" :disabled="categoryLoading || submitting" @click="reloadCategories(true)">{{ categoryLoading ? '读取中…' : '刷新分类' }}</Button></div><Alert v-if="categoryLoadError" variant="destructive"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="categoryLoading" @click="reloadCategories()">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><span class="text-sm font-medium leading-none">没有合适的分类？</span><Button class="outline" type="button" variant="outline" :disabled="draftBlocked" @click="router.push('/buyer/categories/apply')">申请新增分类 →</Button></div></div>
-      <div class="buyer-field"><Label for="product-brand">商品品牌</Label><div class="category-row"><Input v-model="brandKeyword" :disabled="submitting || brandLoading" placeholder="搜索品牌名称" @keydown.enter="onBrandSearchEnter" /><Button class="outline" type="button" variant="outline" :disabled="submitting || brandLoading" @click="loadBrands()">{{ brandLoading ? '读取中…' : '搜索品牌' }}</Button></div><Select :model-value="form.brandId == null ? '__none__' : String(form.brandId)" :disabled="submitting" @update:model-value="selectBrand"><SelectTrigger id="product-brand"><SelectValue :placeholder="selectedBrandLabel || '可选，未关联品牌'">{{ form.brandId == null ? '未关联品牌' : selectedBrandLabel || '当前关联品牌' }}</SelectValue></SelectTrigger><SelectContent><SelectItem value="__none__">未关联品牌</SelectItem><SelectItem v-if="form.brandId != null && !brands.some(brand => String(brand.id) === String(form.brandId))" :value="String(form.brandId)" disabled>{{ selectedBrandLabel || '当前关联品牌' }}{{ initialProduct?.brand?.enabled === false ? '（已停用）' : '' }}</SelectItem><SelectItem v-for="brand in brands" :key="String(brand.id)" :value="String(brand.id)" :disabled="!brand.enabled"><BrandMark :src="brand.logo" :name="brand.name" />{{ brand.name }}</SelectItem></SelectContent></Select><p v-if="brandError" class="error-text" role="alert">{{ brandError }}</p><Button v-if="brands.length < brandTotal" type="button" class="outline" variant="outline" :disabled="brandLoading || submitting" @click="loadBrands(true)">加载更多品牌</Button><BrandApplications :disabled="draftBlocked" @busy="uploadStates.brand = $event" @selected="brand => { form.brandId = brand.id; brands = [brand, ...brands.filter(row => String(row.id) !== String(brand.id))]; }" /></div>
+      <div class="buyer-field"><Label for="product-brand">商品品牌</Label><div class="category-row"><Input v-model="brandKeyword" :disabled="submitting || brandLoading" placeholder="搜索品牌名称" @keydown.enter="onBrandSearchEnter" /><Button class="outline" type="button" variant="outline" :disabled="submitting || brandLoading" @click="loadBrands(false, true)">{{ brandLoading ? '读取中…' : '搜索品牌' }}</Button></div><Select v-model:open="brandSelectOpen" :model-value="form.brandId == null ? '__none__' : String(form.brandId)" :disabled="submitting" @update:model-value="selectBrand"><SelectTrigger id="product-brand"><SelectValue :placeholder="selectedBrandLabel || '可选，未关联品牌'">{{ form.brandId == null ? '未关联品牌' : selectedBrandLabel || '当前关联品牌' }}</SelectValue></SelectTrigger><SelectContent><SelectItem value="__none__">未关联品牌</SelectItem><SelectItem v-if="form.brandId != null && !brands.some(brand => String(brand.id) === String(form.brandId))" :value="String(form.brandId)" disabled>{{ selectedBrandLabel || '当前关联品牌' }}{{ initialProduct?.brand?.enabled === false ? '（已停用）' : '' }}</SelectItem><SelectItem v-if="!brands.length && !brandLoading" value="__empty__" disabled>未找到可选品牌，可调整关键词或申请新增品牌</SelectItem><SelectItem v-for="brand in brands" :key="String(brand.id)" :value="String(brand.id)" :text-value="brand.name" :disabled="!brand.enabled"><BrandMark :src="brand.logo" :name="brand.name" />{{ brand.name }}</SelectItem></SelectContent></Select><p v-if="brandError" class="error-text" role="alert">{{ brandError }}</p><Button v-if="brands.length < brandTotal" type="button" class="outline" variant="outline" :disabled="brandLoading || submitting" @click="loadBrands(true, true)">加载更多品牌</Button><BrandApplications :disabled="draftBlocked" @busy="uploadStates.brand = $event" @selected="brand => { form.brandId = brand.id; brands = [brand, ...brands.filter(row => String(row.id) !== String(brand.id))]; }" /></div>
       <div class="buyer-field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader :key="draftRevision" class="buyer-upload-grid" :model-value="form.images" @update:model-value="updateProductImages" :cover-mode="true" scene="PRODUCT" :max="6" :disabled="submitting || uploadStates.description || uploadStates.details || uploadStates.skus || !currentContext" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
     </section>
     <BuyerProductDetails v-model:parameters="form.parameters" :disabled="draftBlocked" />
