@@ -596,7 +596,9 @@ function checkoutSignature() {
     grandTotal.value, paymentMethod.value, selectedChain.value]);
 }
 
-watch(checkoutSignature, () => { agreed.value = false; });
+// 支付方式与网络切换保留协议勾选；提交时仍使用完整签名核对支付上下文。
+watch(() => JSON.stringify([userStore.currentUser?.id, contextId.value, currentOrderItems(), addressId.value,
+  grandTotal.value]), () => { agreed.value = false; });
 
 function isSelfPurchaseError(error: unknown) {
   return error instanceof RequestError && /不能购买自己(?:的|发布的)?商品/.test(error.message);
