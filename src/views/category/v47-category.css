@@ -1214,9 +1214,6 @@ small {
 .category-focus-toolbar {
   grid-template-columns: 44px minmax(0,1fr) 36px 44px
 }
-.category-focus-toolbar .theme-trigger {
-  height: 40px
-}
 }
 @media(prefers-reduced-motion:reduce) {
 p,
@@ -1278,56 +1275,6 @@ small {
 }
 
 /* ./themes-audit.css */
-
-:root[data-ui-theme="forest"] .section-heading h2 span {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-rail>button>svg {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-rail>button>svg:last-child {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-rail small {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-rail .all-link {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .breadcrumb {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .empty>svg {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .filters .section-heading button {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-root-button>svg:first-child {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-root-button>svg:last-child {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-root-button small {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-all-link {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-subgroup h3 svg {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-subgroup h3 a:hover,
-:root[data-ui-theme="forest"] .category-mega-heading>a:hover {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-menu-note {
-  color: var(--muted)
-}
-:root[data-ui-theme="forest"] .category-rail-label {
-  color: var(--muted)
-}
 :root[data-ui-theme] .section-heading .eyebrow {
   color: var(--accent-text)
 }

@@ -1,6 +1,6 @@
-// Restore any valid v47 or existing PC palette before the first paint.
+// Restore the approved dark or light palette before the first paint.
 (function () {
-  var themes = ["web3-meme", "navy-coral", "forest", "ocean", "clay", "graphite", "plum", "matcha", "mint", "cocoa", "oat", "canyon", "cobalt", "navy", "teal", "indigo", "cherry", "blush", "apricot", "lavender", "sky", "citron", "web3-aurora", "web3-cyber", "web3-electric", "web3-ember", "web3-prism"];
+  var themes = ["web3-meme", "navy-coral"];
   var theme = 'web3-meme';
   try {
     var saved = localStorage.getItem('um.uiTheme');

@@ -21,7 +21,7 @@
   --yb-faint:var(--muted)!important;
   --meme-negative:#b42318!important;
 }
-:root[data-ui-layout="v47"][data-ui-palette]:is([data-ui-palette="web3-meme"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) {
+:root[data-ui-layout="v47"][data-ui-palette]:is([data-ui-palette="web3-meme"]) {
   --yb-danger:#ff8d9c!important;
   --yb-on-danger:var(--dark);
   --yb-danger-soft:color-mix(in srgb,var(--yb-danger) 12%,var(--paper));
@@ -44,86 +44,6 @@
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .category-browser-home > .category-menu-surface {
   background:var(--paper)!important;
   border-radius:inherit;
-}
-
-/* Forest intentionally uses the original --ui-* fallbacks. The compatibility
-   data-ui-theme="web3-meme" attribute otherwise leaks MEME's generated palette
-   slots into it, so mark every slot invalid and let each var() use its fallback. */
-:root[data-ui-layout="v47"][data-ui-palette="forest"] {
-  --v47-palette-00:initial;
-  --v47-palette-01:initial;
-  --v47-palette-02:initial;
-  --v47-palette-03:initial;
-  --v47-palette-04:initial;
-  --v47-palette-05:initial;
-  --v47-palette-06:initial;
-  --v47-palette-07:initial;
-  --v47-palette-08:initial;
-  --v47-palette-09:initial;
-  --v47-palette-10:initial;
-  --v47-palette-11:initial;
-  --v47-palette-12:initial;
-  --v47-palette-13:initial;
-  --v47-palette-14:initial;
-  --v47-palette-15:initial;
-  --v47-palette-16:initial;
-  --v47-palette-17:initial;
-  --v47-palette-18:initial;
-  --v47-palette-19:initial;
-  --v47-palette-20:initial;
-  --v47-palette-21:initial;
-  --v47-palette-22:initial;
-  --v47-palette-23:initial;
-  --v47-palette-24:initial;
-  --v47-palette-25:initial;
-  --v47-palette-26:initial;
-  --v47-palette-27:initial;
-  --v47-palette-28:initial;
-  --v47-palette-29:initial;
-  --v47-palette-30:initial;
-  --v47-palette-31:initial;
-  --v47-palette-32:initial;
-  --v47-palette-33:initial;
-  --v47-palette-34:initial;
-  --v47-palette-35:initial;
-  --v47-palette-36:initial;
-  --v47-palette-37:initial;
-  --v47-palette-38:initial;
-  --v47-palette-39:initial;
-  --v47-palette-40:initial;
-  --v47-palette-41:initial;
-  --v47-palette-42:initial;
-  --v47-palette-43:initial;
-  --v47-palette-44:initial;
-  --v47-palette-45:initial;
-  --v47-palette-46:initial;
-  --v47-palette-47:initial;
-  --v47-palette-48:initial;
-  --v47-palette-49:initial;
-  --v47-palette-50:initial;
-  --v47-palette-51:initial;
-  --v47-palette-52:initial;
-  --v47-palette-53:initial;
-  --v47-palette-54:initial;
-  --v47-palette-55:initial;
-  --v47-palette-56:initial;
-  --v47-palette-57:initial;
-  --v47-palette-58:initial;
-  --v47-palette-59:initial;
-  --v47-palette-60:initial;
-  --v47-palette-61:initial;
-  --v47-palette-62:initial;
-  --v47-palette-63:initial;
-  --v47-palette-64:initial;
-  --v47-palette-65:initial;
-  --v47-palette-66:initial;
-  --v47-palette-67:initial;
-  --v47-palette-68:initial;
-  --v47-palette-69:initial;
-  --v47-palette-70:initial;
-  --v47-palette-71:initial;
-  --v47-palette-72:initial;
-  --v47-palette-73:initial;
 }
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) :is(.primary,.gold,.account-auth .primary,.all-categories) {
   background:var(--green)!important;
@@ -284,9 +204,6 @@
   --v47-address-control-border:var(--ui-d9ded5,#d9ded5);
 }
 /* Forest is the reference's base palette, so it has no theme alias override. */
-:root[data-ui-layout="v47"][data-ui-palette="forest"] :is(.address-form.v47,#refund-reason) {
-  --ui-d9ded5:#d9ded5;
-}
 /* The MEME close control has a literal green stroke; other palettes use their line color. */
 :root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]) .dialog-close {
   border-color:var(--line)!important;
@@ -594,17 +511,6 @@
 
 /* The five additional dark Web3 palettes inherited MEME's dark heading on a
    palette-local dark surface. Keep the card dark and use its own text roles. */
-:root[data-ui-layout="v47"]:is([data-ui-palette="forest"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) .join-banner {
-  background:var(--soft)!important;
-  color:var(--ink)!important;
-  border-color:var(--line)!important;
-}
-:root[data-ui-layout="v47"]:is([data-ui-palette="forest"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) .join-banner h2 {
-  color:var(--ink)!important;
-}
-:root[data-ui-layout="v47"]:is([data-ui-palette="forest"],[data-ui-palette="web3-aurora"],[data-ui-palette="web3-cyber"],[data-ui-palette="web3-electric"],[data-ui-palette="web3-ember"],[data-ui-palette="web3-prism"]) .join-banner p {
-  color:var(--muted)!important;
-}
 
 /* Destructive actions must not be recolored as an ordinary primary action. */
 :root[data-ui-layout="v47"][data-ui-palette] .um-dialog .um-dialog-danger {
@@ -621,9 +527,6 @@
   border-color:var(--yb-control-border)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette] .positive {
-  color:var(--green)!important;
-}
-:root[data-ui-layout="v47"][data-ui-palette]:not([data-ui-palette="web3-meme"]):root[data-ui-palette="forest"] .vault-workspace .positive {
   color:var(--green)!important;
 }
 :root[data-ui-layout="v47"][data-ui-palette] .business-pagination .page-number.active {

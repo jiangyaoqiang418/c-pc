@@ -48,6 +48,7 @@ import MessageInput from '@/components/im/message-input.vue';
 import DetailView from '@/views/product/detail.vue';
 import DetailReviews from '@/components/product/v47-detail-reviews.vue';
 import ThemePicker from '@/components/layout/theme-picker.vue';
+import { UI_THEMES, isUiTheme } from '@/composables/use-ui-theme';
 import { provideSSRWidth } from '@vueuse/core';
 import * as addressApi from './address';
 import { Message, Modal, confirmations } from '@/lib/feedback';
@@ -659,23 +660,28 @@ describe('v47前端本地边界', () => {
     } finally { clearPrerequisiteDrafts(); clearAccessToken(); }
   });
 
-  it('配色面板重开后恢复全部分类', async () => {
-    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} });
+  it('主题按钮只在深浅两套配色间切换并保存选择', () => {
+    vi.stubGlobal('document', undefined);
+    const setItem = vi.fn();
+    vi.stubGlobal('localStorage', { setItem });
     const { app, state } = mountSubject<{
-      open:boolean; family:string;
-    }>(ThemePicker, {}, undefined, app => {
-      app.provide(routeLocationKey, { fullPath:'/' } as RouteLocationNormalizedLoaded);
-    });
+      isDark: boolean; nextTheme: 'web3-meme' | 'navy-coral'; label: string;
+      setTheme: (theme: 'web3-meme' | 'navy-coral') => void;
+    }>(ThemePicker, {});
+    const original = state.isDark ? 'web3-meme' : 'navy-coral';
     try {
-      state.open = true;
-      await nextTick();
-      state.family = '自然';
-      state.open = false;
-      await nextTick();
-      state.open = true;
-      await nextTick();
-      expect(state.family).toBe('全部');
-    } finally { app.unmount(); }
+      expect(UI_THEMES.map(theme => theme.id)).toEqual(['web3-meme', 'navy-coral']);
+      expect(isUiTheme('forest')).toBe(false);
+      state.setTheme('web3-meme');
+      expect(state.label).toBe('切换为浅色模式');
+      state.setTheme(state.nextTheme);
+      expect(state.isDark).toBe(false);
+      expect(state.label).toBe('切换为深色模式');
+      expect(setItem).toHaveBeenLastCalledWith('um.uiTheme', 'navy-coral');
+      state.setTheme(state.nextTheme);
+      expect(state.isDark).toBe(true);
+      expect(setItem).toHaveBeenLastCalledWith('um.uiTheme', 'web3-meme');
+    } finally { state.setTheme(original); app.unmount(); }
   });
 
   it('商品买手与公开评价头像保留完整首码点，匿名评价不泄露昵称首字', () => {

@@ -65,9 +65,9 @@ window.addEventListener('storage', event => {
   if (event.isTrusted && (event.key === 'um.uiTheme' || event.key === null)) event.stopImmediatePropagation();
 }, true);
 document.addEventListener('click', event => {
-  const option = event.target instanceof Element ? event.target.closest('.theme-option') : null;
-  if (!option) return;
-  const theme = UI_THEMES.find(item => item.name === option.querySelector('strong')?.textContent);
+  const toggle = event.target instanceof Element ? event.target.closest<HTMLElement>('.theme-toggle') : null;
+  if (!toggle) return;
+  const theme = UI_THEMES.find(item => item.id === toggle.dataset.themeTarget);
   if (!theme) return;
   event.preventDefault();
   event.stopImmediatePropagation();
