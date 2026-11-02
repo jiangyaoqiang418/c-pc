@@ -170,7 +170,7 @@ function onSearchKeydown(event: KeyboardEvent) {
       <template v-else>
         <p v-if="publicLoading" role="status">正在读取推荐词…</p>
         <p v-if="publicError" role="alert">{{ publicError }} <button type="button" @click="loadPublic">重试</button></p>
-        <section><h3>运营推荐</h3><div class="search-choices"><button v-for="item in promotions" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ item.keyword }}</button><span v-if="!publicLoading && !promotions.length">暂无推荐</span></div></section>
+        <section><h3>推荐商品</h3><div class="search-choices"><button v-for="item in promotions" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ item.keyword }}</button><span v-if="!publicLoading && !promotions.length">暂无推荐</span></div></section>
         <section><h3>今日热搜 <small>UTC 当日</small></h3><div class="search-choices"><button v-for="(item, index) in hot" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ index + 1 }}. {{ item.keyword }}</button><span v-if="!publicLoading && !hot.length">暂无热搜</span></div></section>
         <section><h3>搜索历史 <button v-if="history.length" type="button" @click="saveHistory([])">清空</button></h3><p v-if="historyError" role="status">{{ historyError }}</p><div class="search-choices"><span v-for="item in history" :key="item" class="history-choice"><button data-search-choice type="button" @click="submit(item)">{{ item }}</button><button type="button" :aria-label="'删除搜索历史：' + item" @click="saveHistory(history.filter(value => value !== item))">×</button></span><span v-if="!history.length">暂无搜索历史</span></div></section>
       </template>
