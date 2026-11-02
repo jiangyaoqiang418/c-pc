@@ -512,3 +512,6 @@ AI业务查询卡片展示：订单、余额、充值、转出和订单钱包直
 联调环境：C 端 5174，Java user/order/notify/admin 分别 19001/19002/19003/19004，Python worker 8020。MinIO 按用户要求使用线上存储，其他依赖为本地隔离环境。已通过原有 511 项测试、类型检查、生产构建及 Swagger 契约检查；真实模型任务已完成，线上图片上传、CORS、画布导出保存通过。该结果不等于完整生产环境验收。
 
 整页衔接优化：图片源图层增加 edgeFade（0–0.2），Konva 编辑、SVG 预览/顾客展示及导出使用一致的上下边缘背景融合。默认只对新 AI 图层启用；已有稿件可通过“统一整页衔接”主动应用并撤销，保存后更新导出图。手工图片可独立调节融合强度。SVG 样式限制到顶层画布，避免内部裁剪 SVG 被全局尺寸覆盖；编辑与预览共享避头尾标点的文字换行逻辑。
+
+
+品牌 Logo 与申请审核：复用平台 MinIO 的 BRAND_LOGO 场景，PNG/JPEG/WebP ≤5MB。后台 POST /brands/logo/upload，买手 POST /brands/apply/logo/upload 返回文件 ID 与 URL；申请提交传 logoFileId，审核通过带入正式品牌。后台保存传 logoFileId 替换、removeLogo=true 清空，两者均不传保留原图；不直接保存任意外链。后台品牌申请入口按 brand:apply:list / brand:audit 分离权限并刷新当前权限；申请图片保持原比例，上传中禁止提交。Java 发布前执行 sql/migrations/20261103_brand_logo.sql，不重放 init.sql。

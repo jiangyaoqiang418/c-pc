@@ -27,6 +27,8 @@ declare namespace Api.RealBrand {
   interface Application {
     id: Id;
     newName: string;
+    logoFileId?: Id | null;
+    logo?: string | null;
     reason: string;
     status: ApplyStatus;
     reviewComment?: string;

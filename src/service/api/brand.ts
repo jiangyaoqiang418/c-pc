@@ -35,11 +35,16 @@ export async function fetchBrandDetail(id: Api.RealBrand.Id, options: { signal?:
   return brand;
 }
 
-export function submitBrandApplication(newName: string, reason: string) {
-  return realOrderRequest.post<Api.RealBrand.Id>('/brands/apply/submit', { newName, reason }, { showError: false });
+export function submitBrandApplication(newName: string, reason: string, logoFileId?: Api.RealBrand.Id) {
+  return realOrderRequest.post<Api.RealBrand.Id>('/brands/apply/submit', { newName, reason, logoFileId }, { showError: false });
 }
 
 export async function fetchMyBrandApplications(query: { pageNo: number; pageSize: number; keyword?: string; status?: Api.RealBrand.ApplyStatus }, signal?: AbortSignal) {
   const page = await realOrderRequest.postQuery<{ records: Api.RealBrand.Application[]; total: string | number }>('/brands/apply/my/page', query, { signal, showError: false });
   return { records: requireArray<Api.RealBrand.Application>(page.records, '品牌申请'), total: toPageTotal(page.total) };
+}
+
+export function uploadBrandLogo(file: File) {
+  const body = new FormData(); body.append('file', file);
+  return realOrderRequest.post<{ id: Api.RealBrand.Id; url: string }>('/brands/apply/logo/upload', body, { showError: false });
 }

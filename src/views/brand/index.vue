@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BrandMark from '@/components/common/brand-mark.vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import UmIcon from '@/components/common/um-icon.vue';
@@ -115,14 +116,14 @@ onBeforeUnmount(() => { brandGuard.invalidate(); productGuard.invalidate(); });
 <template>
   <div class="brand-page">
     <section class="brand-hero">
-      <div><h1>{{ selected?.name || (brandId ? '品牌精选' : '品牌专区') }}</h1>
+      <div><BrandMark v-if="selected" :src="selected.logo" :name="selected.name" /><h1>{{ selected?.name || (brandId ? '品牌精选' : '品牌专区') }}</h1>
         <p>按品牌浏览在售商品</p><button type="button" class="gold" :disabled="loading || (!!brandId && !selected)" @click="exploreBrand">查看商品 <UmIcon name="arrow" /></button>
       </div><img :src="coatImage" alt="" />
     </section>
     <section class="brand-discovery" aria-labelledby="brand-discovery-title">
       <div class="brand-discovery-head"><div><h2 id="brand-discovery-title">全部品牌</h2></div><form class="brand-search" role="search" @submit.prevent="searchBrands"><label><UmIcon name="search" /><input v-model="keyword" type="search" aria-label="搜索品牌" placeholder="搜索品牌" /></label><button type="submit" class="primary" :disabled="brandLoading">{{ brandLoading ? '搜索中…' : '搜索' }}</button></form></div>
       <div class="brand-tabs" :aria-busy="brandLoading"><button type="button" :class="{ active: !brandId }" :aria-pressed="!brandId" @click="chooseBrand()">全部</button><button v-for="item in tabs" :key="item.id" type="button"
-        :class="{ active: brandId === String(item.id) }" :aria-pressed="brandId === String(item.id)" @click="chooseBrand(item.id)">{{ item.name }}</button></div>
+        :class="{ active: brandId === String(item.id) }" :aria-pressed="brandId === String(item.id)" @click="chooseBrand(item.id)"><BrandMark :src="item.logo" :name="item.name" />{{ item.name }}</button></div>
       <div v-if="brandError" class="brand-feedback" role="alert"><p>{{ brandError }}</p><button type="button" class="outline" @click="loadBrands">重新加载品牌</button></div>
       <BusinessPagination v-if="brandTotal > brandPageSize && !brandLoading && !brandError" :total="brandTotal" :current="brandPage" :page-size="brandPageSize" @change="changeBrandPage" />
     </section>
