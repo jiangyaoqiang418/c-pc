@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import ProductParameters from '@/components/product/product-parameters.vue';
 import ProductDescription from '@/components/product/product-description.vue';
 function preventImageAction(event: Event) { if (event.target instanceof HTMLImageElement) event.preventDefault(); }
@@ -601,7 +602,7 @@ function share() {
         <aside ref="purchasePanel" class="purchase-panel" aria-label="商品选购面板">
         <section class="product-info" aria-label="商品信息与规格" tabindex="0">
           <span class="eyebrow">{{ product.categoryPath }}</span>
-          <h1>{{ product.title }}</h1>
+          <h1><ProductSourceBadge :source="product.source" detail />{{ product.title }}</h1>
           <div class="rating"><span>★</span>{{ reviewSummaryLoading ? '评分读取中' : reviewSummaryError ? '评分待确认' : reviewSummary?.totalCount ? ratingText(reviewSummary.averageScore) : '暂无评分' }}<button type="button" @click="content?.showReviews()">查看评价（{{ reviewSummary?.totalCount ?? allReviewCount ?? '—' }}）</button><small>已售 {{ product.salesCount ?? '—' }}</small></div>
           <div class="detail-price">
             <span>{{ money(selectedPrice) }} <small>USDT</small></span>

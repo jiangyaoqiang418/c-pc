@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { computed, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '@/stores';
@@ -90,7 +91,7 @@ function goDetail() {
     </div>
     <div class="product-meta">
       <span>{{ product.brandName }} <small>{{ categoryCaption }}</small></span>
-      <button type="button" class="product-name" :title="product.title" @click="goDetail">{{ product.title }}</button>
+      <button type="button" class="product-name" :title="product.title" @click="goDetail"><ProductSourceBadge :source="product.source" />{{ product.title }}</button>
       <div class="product-price"><data class="product-amount" :value="String(product.price)">{{ price }}</data> <small>USDT</small><span aria-hidden="true">↗</span>
         <button type="button" class="meme-card-open" :aria-label="'选购 ' + product.title" @click="goDetail"><UmIcon name="arrow" /></button>
       </div>
@@ -108,6 +109,7 @@ function goDetail() {
 .meme-card-top > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meme-card-top > span { min-width: 0; }
 .product-name:focus-visible, .image-button:focus-visible, .meme-card-open:focus-visible { outline: 3px solid var(--gold); outline-offset: -3px; }
+.product-name { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; white-space:normal; overflow:hidden; overflow-wrap:anywhere; }
 @media (max-width:700px) {
   .product-price .product-amount { min-width:0; white-space:normal; overflow-wrap:anywhere; }
   .product-price > small { flex-shrink:0; }

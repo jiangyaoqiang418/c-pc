@@ -152,6 +152,8 @@ expectProperties(requestSchema(order, operation(order, '/demands/update', 'put')
 for (const [path, method] of [['/products/create', 'post'], ['/products/update', 'put']]) {
   const input = requestSchema(order, operation(order, path, method));
   expectProperties(input, ['categoryId', 'categoryIds', 'parameters'], '商品分类与参数');
+  expectFieldType(input, 'source', 'string', '商品来源');
+  if (input.properties.source.maxLength !== 32) throw new Error('商品来源长度限制变化');
   expectRequired(input, ['categoryId'], '商品主分类');
   expectFieldType(input, 'categoryId', 'integer', '商品主分类', 'int64');
   expectFieldType(input, 'categoryIds', 'array', '商品多分类');
@@ -162,7 +164,11 @@ for (const [document, label] of [[order, '顾客/买手商品详情'], [admin, '
   const detail = responseDataSchema(document, operation(document, '/products/detail', 'get'));
   expectProperties(detail, ['categoryId', 'categories'], label);
   expectFieldType(detail, 'categories', 'array', label);
+  expectFieldType(detail, 'source', 'string', label);
 }
+expectFieldType(order.components?.schemas?.ProductListVO, 'source', 'string', '商城列表来源');
+expectFieldType(order.components?.schemas?.ProductCardVO, 'source', 'string', '批量卡片来源');
+expectFieldType(admin.components?.schemas?.ProductSnapshotDTO, 'source', 'string', '审核快照来源');
 expectProperties(admin.components?.schemas?.ProductSnapshotDTO, ['categoryId', 'categories'], '商品审核快照');
 if (aiInput.properties.message.maxLength !== 2000 || !aiStream.responses?.['200']?.content?.['text/event-stream']) throw new Error('AI 客服流式契约变化');
 for (const path of ['/sessions/list', '/messages/list']) {

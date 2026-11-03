@@ -23,7 +23,7 @@ export function requireCurrentProduct(value: unknown): Api.Ai.CurrentProduct {
     || !['priceFrom', 'priceTo'].every(key => typeof value[key] === 'string' && /^\d+(?:\.\d+)?$/.test(value[key] as string))
     || typeof value.stock !== 'string' || !/^\d+$/.test(value.stock) || BigInt(value.stock) <= 0n
     || (value.salesCount != null && (typeof value.salesCount !== 'string' || !/^\d+$/.test(value.salesCount)))) return invalid();
-  for (const key of ['brief', 'coverImage', 'sellerName', 'afterSale']) {
+  for (const key of ['brief', 'coverImage', 'sellerName', 'afterSale', 'source']) {
     if (value[key] != null && typeof value[key] !== 'string') return invalid();
   }
   return value as unknown as Api.Ai.CurrentProduct;

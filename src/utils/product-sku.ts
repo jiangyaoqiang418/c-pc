@@ -112,7 +112,7 @@ export function productSkuEditorWrite(state: ProductSkuEditorState, originalSkus
 /** 编辑提交前回读；任一商品资料、规格或库存变化都要求用户重新核对。 */
 export function productEditSnapshot(product: Api.RealProduct.Record) {
   return JSON.stringify({ id: product.id, sellerId: product.sellerId, rawStatus: product.rawStatus, updatedAt: product.updatedAt,
-    title: product.title, categoryId: product.categoryId, categories:product.categories, parameters:product.parameters, brandId: product.brandId, price: product.price, stock: product.stock,
+    title: product.title, source: product.source, categoryId: product.categoryId, categories:product.categories, parameters:product.parameters, brandId: product.brandId, price: product.price, stock: product.stock,
     shippingFee: product.shippingFee, tax: product.tax, aftersaleType: product.aftersaleType, overseasCustoms: product.overseasCustoms,
     description: product.description, designRevisionId: product.designRevisionId, imageFiles: product.imageFiles,
     hasSku: product.hasSku, specGroups: product.specGroups, skus: product.skus });

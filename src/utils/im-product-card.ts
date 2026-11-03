@@ -10,6 +10,6 @@ export function parseProductMessageCard(content?: string | null) {
       || typeof value.title !== 'string' || !value.title.trim()
       || typeof value.price !== 'string' || !/^\d+(?:\.\d{1,8})?$/.test(value.price)) return;
     const images = Array.isArray(value.images) ? value.images.filter((url): url is string => typeof url === 'string' && /^(?:https?:\/\/|\/(?!\/))/.test(url)) : [];
-    return { productId: value.productId, title: value.title, price: value.price, image: images[0] };
+    return { productId: value.productId, source: typeof value.source === 'string' ? value.source.trim() : undefined, title: value.title, price: value.price, image: images[0] };
   } catch { return; }
 }

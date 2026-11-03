@@ -12,7 +12,7 @@ declare namespace Api.Ai {
   }
   interface ProductListCard { type: 'product_list'; items: ProductSnapshot[] }
   type CurrentProduct = { id: string; available: false } | {
-    id: string; available: true; title: string; brief?: string; coverImage?: string;
+    id: string; available: true; title: string; source?: string | null; brief?: string; coverImage?: string;
     hasSku: boolean; priceFrom: string; priceTo: string; priceLabel: string; stock: string;
     salesCount?: string; sellerName?: string; afterSale?: string;
   };

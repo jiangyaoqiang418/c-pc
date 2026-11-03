@@ -1,3 +1,4 @@
+import { normalizeProductSource } from '@/utils/product-source';
 import { realOrderRequest, RequestError } from '@/service/request';
 import { requireArray, toPageTotal } from './page';
 import { toIsoDate } from './date';
@@ -122,6 +123,7 @@ export function toProductRecord(dto: Api.RealProduct.ProductDTO): Api.RealProduc
     id,
     code: String(dto.id || ''),
     title: dto.title,
+    source: normalizeProductSource(dto.source),
     sellerId,
     sellerName: dto.sellerName || '商品买手',
     categoryId,
@@ -162,6 +164,7 @@ function toStorefrontProductRecord(dto: Api.RealProduct.StorefrontProductVO): Ap
     id: dto.id,
     code: String(dto.id || ''),
     title: dto.title,
+    source: normalizeProductSource(dto.source),
     sellerId: dto.sellerId || '',
     sellerName: dto.sellerName || '商品买手',
     categoryId: dto.categoryId || '',
@@ -300,6 +303,7 @@ function toFlashSaleProduct(dto: Api.RealProduct.FlashSaleItemVO): Api.RealProdu
     id: dto.productId,
     code: String(dto.productId || ''),
     title: dto.title,
+    source: normalizeProductSource(dto.source),
     sellerId: '',
     sellerName: '',
     categoryId: '',
@@ -423,7 +427,7 @@ export function updateProduct(params: Api.RealProduct.ProductUpdateParams) {
   if (price.value === undefined || shippingFee.value === undefined || taxFee.value === undefined) throw new Error(price.error || shippingFee.error || taxFee.error || '商品金额无法准确提交');
   const stock = skuWrite.stock ?? params.stock;
   if (!Number.isInteger(stock) || stock < 0 || stock > 2147483647) throw new Error('商品库存须为 0–2147483647 的整数');
-  return realOrderRequest.put<string, Api.RealProduct.ProductUpdateParams>('/products/update', { ...params,
+  return realOrderRequest.put<string, Api.RealProduct.ProductUpdateParams>('/products/update', { ...params, source: normalizeProductSource(params.source),
     specGroups:skuWrite.specGroups, skus:skuWrite.skus, price:price.value, shippingFee:shippingFee.value, taxFee:taxFee.value, stock });
 }
 
@@ -473,6 +477,7 @@ export async function fetchMyProducts(q: {
 export async function createProduct(p: {
   brandId?: Api.RealProduct.Id | null;
   title: string;
+  source?: string | null;
   categoryId: string | number;
   categoryIds?: Api.RealProduct.Id[];
   parameters?: Api.RealProduct.ProductParameter[];
@@ -502,6 +507,7 @@ export async function createProduct(p: {
   const id = await realOrderRequest.post<string, Api.RealProduct.ProductCreateParams>('/products/create', {
     brandId: p.brandId,
     title: p.title,
+    source: normalizeProductSource(p.source),
     categoryId: p.categoryId,
     categoryIds: p.categoryIds,
     parameters: p.parameters,

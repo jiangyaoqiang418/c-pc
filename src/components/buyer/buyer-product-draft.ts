@@ -1,8 +1,10 @@
+import { normalizeProductSource } from '@/utils/product-source';
 import type { ProductSkuEditorState } from '@/utils/product-sku';
 import { withSubmissionLock } from '@/utils/financial-submission';
 
 export interface BuyerProductDraftForm {
   title: string;
+  source?: string | null;
   categoryId?: string | number;
   categoryIds?: Api.RealProduct.Id[];
   parameters?: Api.RealProduct.ProductParameter[];
@@ -87,13 +89,14 @@ export function readBuyerProductDraft(raw: string, ownerId: string | number, pro
     || new Set(draft.imageFiles.map(image => image.url)).size !== draft.imageFiles.length) {
     throw new Error('本地草稿资料不完整或归属不符，未恢复任何内容');
   }
+  if (form.source !== undefined) normalizeProductSource(form.source);
   if (form.images.some(url => !draft.imageFiles.some(image => image.url === url))) {
     throw new Error('本地草稿缺少商品图片上传信息，请重新上传后再保存');
   }
   return {
     version: 1, ownerId: draft.ownerId, productId: draft.productId, savedAt: draft.savedAt, productSnapshot: draft.productSnapshot,
     form: {
-      title: form.title, categoryId: form.categoryId, categoryIds:form.categoryIds && [...form.categoryIds], parameters:form.parameters?.map(row => ({ groupName:row.groupName, name:row.name, value:row.value, explanation:row.explanation, highlighted:row.highlighted })), brandId: form.brandId, price: form.price, shippingFee: form.shippingFee,
+      title: form.title, ...(form.source !== undefined ? { source: normalizeProductSource(form.source) } : {}), categoryId: form.categoryId, categoryIds:form.categoryIds && [...form.categoryIds], parameters:form.parameters?.map(row => ({ groupName:row.groupName, name:row.name, value:row.value, explanation:row.explanation, highlighted:row.highlighted })), brandId: form.brandId, price: form.price, shippingFee: form.shippingFee,
       tax: form.tax, stock: form.stock, aftersaleType: form.aftersaleType, overseasCustoms: form.overseasCustoms,
       description: form.description, detailDesignJson: typeof form.detailDesignJson === 'string' ? form.detailDesignJson : undefined, designRevisionId: typeof form.designRevisionId === 'string' ? form.designRevisionId : undefined, designDocumentKey: typeof form.designDocumentKey === 'string' ? form.designDocumentKey : undefined, images: [...form.images],
       amountTexts: form.amountTexts && { price:form.amountTexts.price, shippingFee:form.amountTexts.shippingFee, tax:form.amountTexts.tax },

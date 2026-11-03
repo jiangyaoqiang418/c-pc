@@ -1,3 +1,6 @@
+import { renderToString } from 'vue/server-renderer';
+import { createSSRApp } from 'vue';
+import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchMergeSourcePages, resolvePageSize, toPageTotal } from './page';
 import { detectCarriers } from './logistics';
@@ -32,6 +35,8 @@ import * as productApi from './product';
 import { fetchBrandsPage, fetchBrandDetail } from './brand';
 import { fetchHelpPage, fetchHelpDetail, fetchAgreementCurrent, fetchAnnouncementsPage, contentReadMessage } from './content';
 import { fetchMyReviews, fetchStorefrontReviews, setReviewHelpful, validateHelpfulState } from './review';
+import { normalizeProductSource, productSourceOptions } from '@/utils/product-source';
+import { requireCurrentProduct } from '@/utils/ai-product';
 import { missingProductSkuCombinations, productEditSnapshot, productSkuEditorWrite, validateProductSkuWrite, validateProductDetails } from '@/utils/product-sku';
 import { buyerProductDraftKey, readBuyerProductDraft, saveBuyerProductDraft } from '@/components/buyer/buyer-product-draft';
 import { enrollFlashSale } from './flash-sale';
@@ -435,6 +440,51 @@ describe('v47前端本地边界', () => {
       disabled.state.clear();
       expect(changed).not.toHaveBeenCalled();
     } finally { disabled.app.unmount(); }
+  });
+
+  it.each([...productSourceOptions, '海外直采', '<b>自营</b>', null, '   '])('商品来源创建和全量编辑透传原名称或明确清空：%s', async source => {
+    const title = '原商品标题';
+    const input = {title, source, categoryId:'9007199254740993123',price:'1',shippingFee:'0',tax:'0',stock:1,aftersaleType:'none' as const,overseasCustoms:false,description:'',images:[]};
+    const post = vi.spyOn(realOrderRequest,'post').mockResolvedValue('9007199254740993124');
+    const put = vi.spyOn(realOrderRequest,'put').mockResolvedValue('9007199254740993124');
+    await productApi.createProduct(input);
+    await productApi.updateProduct({...input,id:'9007199254740993124',taxFee:'0',afterSaleType:'NONE'});
+    expect(post.mock.calls[0][1]).toMatchObject({title,source:normalizeProductSource(source)});
+    expect(put.mock.calls[0][1]).toMatchObject({title,source:normalizeProductSource(source)});
+    expect(post.mock.calls[0][1]).not.toHaveProperty('sourceId');
+  });
+  it('来源胶囊按纯文本渲染，空来源不产生胶囊', async () => {
+    const html=await renderToString(createSSRApp({render:() => h(ProductSourceBadge,{source:'<b>自营</b>',detail:true})}));
+    expect(html).toContain('&lt;b&gt;自营&lt;/b&gt;');expect(html).not.toContain('<b>自营</b>');
+    const empty=await renderToString(createSSRApp({render:() => h(ProductSourceBadge,{source:'   '})}));
+    expect(empty).not.toContain('<span');
+  });
+  it('来源清理空白但不截断，32个Unicode字符保留，33个在写入前拒绝', async () => {
+    expect(normalizeProductSource('  海外直采  ')).toBe('海外直采');
+    expect(normalizeProductSource('📦'.repeat(32))).toBe('📦'.repeat(32));
+    const post=vi.spyOn(realOrderRequest,'post');
+    await expect(productApi.createProduct({title:'商品',source:'字'.repeat(33),categoryId:'1',price:'1',shippingFee:'0',tax:'0',stock:1,aftersaleType:'none',overseasCustoms:false,description:'',images:[]})).rejects.toThrow('商品来源最多32个字符');
+    expect(post).not.toHaveBeenCalled();
+  });
+  it('详情与商城/识图列表保留来源，标题不拼接，来源变化使编辑快照失效', async () => {
+    const record=productApi.toProductRecord({id:'9007199254740993123',title:'原名',source:' 京东国际 ',price:'1',stock:1} as Api.RealProduct.ProductDTO);
+    expect(record.source).toBe('京东国际');expect(record.title).toBe('原名');
+    expect(productEditSnapshot(record)).not.toBe(productEditSnapshot({...record,source:'淘宝'}));
+    const post=vi.spyOn(realOrderRequest,'postQuery').mockResolvedValue({records:[{id:record.id,title:'原名',source:'海外直采',price:'1',stock:1}],total:1});
+    expect((await productApi.fetchStorefrontProducts({})).records[0].source).toBe('海外直采');
+    expect((await productApi.fetchStorefrontProducts({imageFileId:'9007199254740993124'})).records[0].source).toBe('海外直采');
+    expect(post.mock.calls.map(call => call[0])).toEqual(['/storefront/products/page','/storefront/search/images/page']);
+    const current={id:String(record.id),available:true,title:'原名',source:'京东',hasSku:false,priceLabel:'1 USDT',priceFrom:'1',priceTo:'1',stock:'1'};
+    expect(requireCurrentProduct(current)).toMatchObject({source:'京东'});
+    expect(requireCurrentProduct({...current,available:false})).toEqual({id:record.id,available:false});
+  });
+  it('新草稿保留自定义与明确清空，旧草稿缺字段不覆盖当前来源', () => {
+    const draft={version:1,ownerId:'owner',savedAt:1,imageFiles:[],form:{title:'商品',price:1,shippingFee:0,tax:0,stock:1,overseasCustoms:false,description:'',images:[],source:' 海外直采 '}};
+    expect(readBuyerProductDraft(JSON.stringify(draft),'owner').form.source).toBe('海外直采');
+    expect(readBuyerProductDraft(JSON.stringify({...draft,form:{...draft.form,source:null}}),'owner').form.source).toBeNull();
+    const legacy={...draft.form,source:undefined};const saved=readBuyerProductDraft(JSON.stringify({...draft,form:legacy}),'owner');
+    expect(Object.assign({source:'京东'},saved.form).source).toBe('京东');
+    expect(() => readBuyerProductDraft(JSON.stringify({...draft,form:{...draft.form,source:'字'.repeat(33)}}),'owner')).toThrow('最多32');
   });
 
   it('多分类在创建和编辑请求中同时保留主分类与全部Long原值', async () => {

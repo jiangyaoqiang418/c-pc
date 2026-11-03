@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { Icon } from '@iconify/vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { parseOrderMessageCard } from '@/utils/im';
@@ -134,7 +135,7 @@ const productCard = computed(() => isProductCard.value ? parseProductMessageCard
     <template v-else-if="isProductCard">
       <RouterLink v-if="productCard" class="im-order-card im-product-card" :to="{ name: 'product-detail', params: { id: productCard.productId } }">
         <img v-if="productCard.image" :src="productCard.image" :alt="productCard.title" class="order-cover" @error="setImageFallback" />
-        <div class="order-card-body"><div class="order-title">{{ productCard.title }}</div><div class="order-footer"><span>查看商品</span><strong>{{ productCard.price }} USDT</strong><Icon icon="lucide:arrow-up-right" width="15" /></div></div>
+        <div class="order-card-body"><div class="order-title"><ProductSourceBadge :source="productCard.source" />{{ productCard.title }}</div><div class="order-footer"><span>查看商品</span><strong>{{ productCard.price }} USDT</strong><Icon icon="lucide:arrow-up-right" width="15" /></div></div>
       </RouterLink>
       <p v-else class="bubble system">商品卡片暂不可用</p>
     </template>

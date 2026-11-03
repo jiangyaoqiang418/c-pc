@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useUserStore } from '@/stores';
 import { fetchProductDetail } from '@/service/api/product';
@@ -66,7 +67,7 @@ onBeforeUnmount(() => { disposed = true; writeVersion += 1; guard.invalidate(); 
 <template>
   <section class="consult-product" aria-label="正在咨询的商品" :aria-busy="loading || sending">
     <img v-if="product?.images[0]?.url" :src="product.images[0].url" :alt="product.title" @error="setImageFallback" />
-    <div class="consult-product-copy"><strong>{{ product?.title || '正在咨询的商品' }}</strong><p v-if="loading" role="status">正在读取商品…</p><p v-if="error" role="alert">{{ error }}<button v-if="!product && !loading" type="button" class="text-link" @click="load">重新读取</button></p><p v-else>将商品卡片发给当前买手，方便说明需求。</p></div>
+    <div class="consult-product-copy"><strong><ProductSourceBadge :source="product?.source" />{{ product?.title || '正在咨询的商品' }}</strong><p v-if="loading" role="status">正在读取商品…</p><p v-if="error" role="alert">{{ error }}<button v-if="!product && !loading" type="button" class="text-link" @click="load">重新读取</button></p><p v-else>将商品卡片发给当前买手，方便说明需求。</p></div>
     <button v-if="canSend" type="button" class="outline" :disabled="disabled || loading || sending || sent" @click="send">{{ sent ? '商品已发送' : sending ? '正在发送…' : '发送此商品' }}</button>
   </section>
 </template>

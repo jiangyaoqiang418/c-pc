@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { ref } from 'vue';
 import { productCover } from '@/utils/ai-product';
 import { setImageFallback } from '@/utils/image-placeholder';
@@ -22,7 +23,7 @@ function move(direction: number) { track.value?.scrollBy({left: direction * (tra
             <img v-if="productCover(product.coverImage)" :src="productCover(product.coverImage)" :alt="product.title" loading="lazy" @error="setImageFallback" />
             <div v-else class="product-placeholder" role="img" aria-label="暂无商品图片">暂无图片</div>
             <div class="product-info">
-              <h3><RouterLink :to="{ name: 'product-detail', params: { id: product.id } }">{{ product.title }}</RouterLink></h3>
+              <h3><RouterLink :to="{ name: 'product-detail', params: { id: product.id } }"><ProductSourceBadge :source="product.source" />{{ product.title }}</RouterLink></h3>
               <strong class="product-price">{{ product.priceLabel }}</strong>
               <p>库存 {{ product.stock }}<template v-if="product.salesCount"> · 已售 {{ product.salesCount }}</template></p>
               <p v-if="product.sellerName">{{ product.sellerName }}</p>

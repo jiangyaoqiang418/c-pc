@@ -27,6 +27,7 @@ declare namespace Api.RealProduct {
   type DisplayAfterSaleType = Api.Product.AftersaleType | 'unknown';
   type Record = Omit<Api.Product.ProductRecord, 'id' | 'sellerId' | 'categoryId' | 'aftersaleType' | 'salesCount' | 'viewCount' | 'favoriteCount' | 'shippingFee' | 'tax'> & {
     id: Id;
+    source?: string | null;
     sellerId: Id;
     categoryId: Id;
     aftersaleType: DisplayAfterSaleType;
@@ -48,7 +49,7 @@ declare namespace Api.RealProduct {
     imageFiles?: ProductImageDTO[];
   } & ProductSkuFields;
 
-  type DisplayRecord = (Api.Product.ProductRecord | Record) & ProductSkuFields;
+  type DisplayRecord = (Api.Product.ProductRecord | Record) & ProductSkuFields & { source?: string | null };
 
   type AfterSaleType = 'SEVEN_DAY_NO_REASON' | 'NONE' | 'SHOP_WARRANTY' | 'NATIONAL_WARRANTY';
   type ProductStatus = 'REVIEWING' | 'REJECTED' | 'ON_SALE' | 'OFF_SHELF' | 'FROZEN';
@@ -63,6 +64,7 @@ declare namespace Api.RealProduct {
     sellerId: string;
     sellerName?: string;
     title: string;
+    source?: string | null;
     categoryId: string;
     categoryName?: string;
     categories?: ProductCategory[];
@@ -97,6 +99,7 @@ declare namespace Api.RealProduct {
     brand?: Api.RealBrand.BrandDTO | null;
     id: string;
     title: string;
+    source?: string | null;
     coverImage?: string;
     price?: string | number;
     salesCount?: string | number;
@@ -150,6 +153,7 @@ declare namespace Api.RealProduct {
     specGroups?: ProductSpecGroup[];
     skus?: ProductSkuSaveParams[];
     title: string;
+    source?: string | null;
     categoryId: string | number;
     categories?: ProductCategory[];
     categoryIds?: Id[];
@@ -205,6 +209,7 @@ declare namespace Api.RealProduct {
   interface FlashSaleItemVO {
     productId: string;
     title: string;
+    source?: string | null;
     image?: string;
     price?: string | number;
     flashPrice?: string | number;
