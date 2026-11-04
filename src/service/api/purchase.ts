@@ -191,7 +191,7 @@ export async function cancelPurchase(id: string | number) {
   return { ok: true, message: '' };
 }
 
-export async function claimRequest(id: string | number) {
-  await realOrderRequest.post<string, { id: string | number }>('/demands/grab', { id });
+export async function claimRequest(id: string | number, selection: { productId?:string; skuId?:string } = {}) {
+  await realOrderRequest.post<string>('/demands/grab', { id, ...selection });
   return { ok: true, message: '' };
 }

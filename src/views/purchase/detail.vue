@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DemandProductPicker from "@/components/purchase/demand-product-picker.vue";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Icon } from '@iconify/vue';
 import DescriptionList from '@/components/common/description-list.vue';
@@ -17,6 +18,7 @@ import { sameBusinessId } from '@/utils/im';
 import { formatDateValue } from '@/utils/date-range';
 
 const route = useRoute();
+const productPicker = ref<InstanceType<typeof DemandProductPicker>>();
 const router = useRouter();
 const userStore = useUserStore();
 
@@ -114,7 +116,9 @@ async function claim() {
     && sameBusinessId(request.value?.id, requestedRequestId);
   claiming.value = true;
   try {
-    const r = await purchaseApi.claimRequest(requestedRequestId);
+    const selection = await productPicker.value?.choose();
+    if (!selection || !isCurrentWrite()) return;
+    const r = await purchaseApi.claimRequest(requestedRequestId, selection);
     if (!isCurrentWrite()) return;
     if (r.ok) {
       Message.success('接单成功');
@@ -188,6 +192,7 @@ watch([id, () => userStore.currentUser?.id, () => userStore.sessionVersion], () 
 </script>
 
 <template>
+  <DemandProductPicker ref="productPicker" />
 
   <div class="purchase-detail-page paper narrow">
     <nav class="breadcrumb" aria-label="面包屑"><RouterLink :to="userStore.canSwitchToBuyer ? '/purchase/hall' : '/purchase'">{{ userStore.canSwitchToBuyer ? '求购大厅' : '我的求购' }}</RouterLink><span>/</span><span>{{ request?.code || '求购详情' }}</span></nav>

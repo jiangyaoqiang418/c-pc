@@ -7,6 +7,7 @@ import { getOrderCapabilities } from '@/utils/order';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { formatUsdt } from '@shared/utils/currency';
 import { Message } from '@/lib/feedback';
+import OrderProductAccess from '@/components/order/order-product-access.vue';
 import AmountInput from '@/components/common/amount-input.vue';
 
 const props = defineProps<{ orderId: string | number; revision?: string; compact?: boolean; aftersaleOnly?: boolean }>();
@@ -88,6 +89,7 @@ onBeforeUnmount(() => { active = false; guard.invalidate(); });
 <template>
   <section class="conversation-order-bar" :class="{ compact }" aria-label="当前订单" :aria-busy="loading">
     <button v-if="!aftersaleOnly" type="button" class="order-entry" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })"><strong :title="order?.productTitle">{{ order?.productTitle || '查看当前订单' }}</strong><span v-if="order" :title="order.code + ' · ' + formatUsdt(order.totalAmount)">{{ order.code }} · {{ formatUsdt(order.totalAmount) }}</span></button>
+    <OrderProductAccess v-if="order && !aftersaleOnly" :order="order" compact />
     <button v-if="canEdit && !aftersaleOnly" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="edit">修改价格</button>
     <button v-if="canOpenAftersale" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="openAftersale">{{ openingAftersale ? '正在核对售后…' : hasAftersale || capabilities.viewAftersale ? '查看售后' : '申请售后' }}</button>
     <button v-if="error" type="button" class="text-link" @click="load">{{ error }}，重试</button>

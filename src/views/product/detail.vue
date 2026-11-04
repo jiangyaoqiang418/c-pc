@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SellerReviews from "@/components/review/seller-reviews.vue";
 import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import ProductParameters from '@/components/product/product-parameters.vue';
 import ProductDescription from '@/components/product/product-description.vue';
@@ -629,6 +630,7 @@ function share() {
           <p v-if="isOwnProduct" class="status-banner">这是您本人出售的商品，不可购买或加入购物袋。</p>
           <div class="product-benefits"><span><UmIcon name="shield" />{{ aftersaleMeta?.label || '售后信息待确认' }}</span><button type="button" @click="startPurchase">发起求购 ↗</button><button type="button" :disabled="consulting || isOwnProduct" @click="consultSeller"><UmIcon name="headset" />{{ consulting ? '正在连接买手…' : '咨询买手' }}</button></div>
           <button type="button" class="seller-card" :disabled="consulting || isOwnProduct" @click="consultSeller"><span class="avatar">{{ sellerInitial }}</span><span><b>{{ product.sellerName || '商品买手' }}<span v-if="sellerQualification?.verifiedBuyer" class="seller-verified"><UmIcon name="shield" />已认证买手</span></b><small v-if="sellerScoreLoading || sellerScoreError">{{ sellerScoreLoading ? '正在加载买手评分…' : '买手评分加载失败' }}</small></span><span class="score">{{ sellerScore ? ratingText(sellerScore.averageScore) : '—' }}<UmIcon name="star" /></span><UmIcon name="chevron" /></button>
+          <SellerReviews v-if="product.sellerId && !previewProduct" :seller-id="product.sellerId" />
           <button v-if="sellerScoreError" type="button" class="text-link seller-score-retry" :disabled="sellerScoreLoading" @click="loadSellerRating">重新加载买手评分</button>
           <button v-if="sellerQualificationError" type="button" class="text-link seller-score-retry" @click="loadSellerQualification">重新核对买手资格</button>
         </section>

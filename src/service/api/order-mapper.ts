@@ -88,6 +88,8 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
   return {
     id,
     orderGroupNo: dto.orderGroupNo,
+    orderType: dto.orderType,
+    demandId: dto.demandId,
     reviewEligibility: dto.reviewEligibility,
     code: dto.orderNo || String(dto.orderId || ''),
     productId,

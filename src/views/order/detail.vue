@@ -12,6 +12,7 @@ import { formatCny, formatUsdt, TAX_TOOLTIP_TEXT } from '@shared/utils/currency'
 import InfoTooltip from '@/components/common/info-tooltip.vue';
 import OrderTimeline from '@/components/order/order-timeline.vue';
 import OrderReview from '@/components/order/order-review.vue';
+import OrderProductAccess from '@/components/order/order-product-access.vue';
 import BusinessDialog from '@/components/common/business-dialog.vue';
 import OrderActions from '@/components/order/order-actions.vue';
 import OrderPaymentSelector from '@/components/order/order-payment-selector.vue';
@@ -61,13 +62,6 @@ let actionVersion = 0;
 let confirmationModal: ReturnType<typeof Modal.confirm> | undefined;
 
 const id = computed(() => String(route.params.id || ''));
-const hasProduct = computed(() => order.value?.productId !== undefined && order.value?.productId !== null && String(order.value.productId).trim() !== '');
-
-function viewProduct() {
-  if (!hasProduct.value || !order.value) return;
-  router.push({ name: 'product-detail', params: { id: String(order.value.productId) } });
-}
-
 async function loadReviewable(snapshot?: Api.RealOrder.Record) {
   const isCurrent = reviewableGuard.begin();
   const requestedId = order.value?.id;
@@ -183,10 +177,6 @@ watch([() => route.params.id, () => userStore.currentUser?.id, () => userStore.s
   void load();
 });
 
-const aftersaleMeta = computed(() => {
-  const aftersaleType = order.value?.aftersaleType;
-  return aftersaleType ? enums.AFTERSALE_TYPE_META[aftersaleType] : undefined;
-});
 const currentLogistics = computed(() => order.value && logistics.value && sameBusinessId(order.value.id, logistics.value.orderId) ? logistics.value : undefined);
 const hasRefund = computed(() => !!order.value && (order.value.refundId != null || !!order.value.refundStatus?.trim() || order.value.refundAmount != null));
 const purchaseNo = computed(() => currentLogistics.value?.purchaseNo || order.value?.purchaseNo);
@@ -428,7 +418,7 @@ function contactShopper() {
       <section class="paper order-detail-main">
         <div class="order-progress"><span :class="{ active:!!order.createdAt }">订单已创建</span><UmIcon name="arrow" /><span :class="{ active:!!order.paidAt }">付款已确认</span><UmIcon name="arrow" /><span :class="{ active:!!order.shippedAt }">商品已发货</span><UmIcon name="arrow" /><span :class="{ active:!!order.deliveredAt }">确认收货</span></div>
         <div class="info-columns"><div><h3>收货信息</h3><p>{{ order.receiverName }} {{ order.receiverPhone }}<br />{{ order.shippingAddress }}<template v-if="order.postalCode"><br />邮编 {{ order.postalCode }}</template></p></div><div><h3>订单信息</h3><p>编号 {{ order.code }}<br />{{ formatTime(order.createdAt) }}<br />买手 {{ order.shopperName }}<br />订单状态：{{ enums.ORDER_STATUS_META[order.status]?.label || '状态待核对' }}</p></div></div>
-        <div class="order-detail-items"><h3 class="order-block-title">商品信息</h3><div class="checkout-item"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" @error="setImageFallback" /><div><h3><button v-if="hasProduct" type="button" @click="viewProduct">{{ order.productTitle }}</button><span v-else>{{ order.productTitle }}</span></h3><p><template v-if="aftersaleMeta">{{ aftersaleMeta.label }} · </template>数量 {{ order.quantity ?? '待核对' }}<template v-if="order.overseasCustoms"> · 海外直邮</template></p></div><b>{{ formatAmount(order.price) }} USDT</b></div></div>
+        <div class="order-detail-items"><h3 class="order-block-title">商品信息</h3><OrderProductAccess :order="order" /></div>
         <aside class="order-detail-summary"><h3 class="order-block-title">金额明细</h3><div class="money-row"><span>成交单价</span><b>{{ formatAmount(order.price) }} USDT</b></div><div class="money-row"><span>运费</span><b>{{ formatAmount(order.shippingFee) }} USDT</b></div><div class="money-row"><span>税费 <InfoTooltip :text="TAX_TOOLTIP_TEXT" :size="13" /></span><b>{{ formatAmount(order.tax) }} USDT</b></div><div class="money-row"><span>订单总额</span><b>{{ formatAmount(order.totalAmount) }} USDT</b></div><p v-if="order.paymentBizNo" class="payment-reference">支付凭证 {{ order.paymentBizNo }}</p><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen || loading" variant="detail" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @review="goReview" @aftersale="goAftersale" @cs="contactShopper" @logistics="viewLogistics" /><div v-if="permissions.procure || permissions.ship || permissions.confirmAftersale" class="button-row"><button v-if="permissions.procure" type="button" class="primary" @click="router.push({ name: 'buyer-orders', query: { action: 'procure', orderId: String(order.id) } })">完成采购</button><button v-if="permissions.ship" type="button" class="primary" @click="router.push({ name: 'buyer-orders', query: { action: 'shipping', orderId: String(order.id) } })">填写发货</button><button v-if="permissions.confirmAftersale" type="button" class="primary" @click="goAftersale">确认售后意见</button></div></aside>
       </section>
       <section v-if="purchaseNo || purchaseVouchers.length" class="paper order-production-section"><h2>采购信息</h2><p v-if="purchaseNo">采购单号 {{ purchaseNo }}</p><div v-if="purchaseVouchers.length" class="voucher-list"><span class="voucher-label">采购凭证</span><button v-for="(url,index) in purchaseVouchers" :key="url" type="button" class="voucher-button" :aria-label="`查看采购凭证 ${index + 1}`" @click="purchasePreviewIndex = index; purchasePreviewOpen = true"><img :src="url" alt="采购凭证" @error="setImageFallback" /><UmIcon name="eye" /></button></div></section>

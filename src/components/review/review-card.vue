@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SellerReviews from "@/components/review/seller-reviews.vue";
 import { computed, ref, watch } from 'vue';
 import ImagePreview from '@/components/common/image-preview.vue';
 import { setImageFallback } from '@/utils/image-placeholder';
@@ -53,6 +54,7 @@ watch(() => props.review.reviewId, () => { deleteVisible.value = false; previewO
   <article class="review-card" :class="{ hidden:isHidden }">
     <header class="review-person"><span class="review-avatar" :class="`tone-${review.productScore % 3}`" aria-hidden="true">{{ displayName.slice(0,1) }}</span><div><h3>{{ displayName }}</h3><small>{{ audience === 'sent' ? '我的评价' : '顾客评价' }}</small></div><span class="review-origin">{{ statusMeta.label }}</span></header>
     <div class="review-rating-line"><span class="review-stars" :aria-label="`${review.productScore} 分，满分 5 分`"><span v-for="n in 5" :key="n" :class="{ filled:n <= review.productScore }" aria-hidden="true">{{ n <= review.productScore ? '★' : '☆' }}</span></span><time>{{ formatDateValue(review.createdAt) }}</time></div>
+    <p v-if="!review.productId" class="review-variant">求购成交评价</p><SellerReviews v-if="review.sellerId" :seller-id="review.sellerId" />
     <p v-if="review.productTitle" class="review-variant">{{ review.productTitle }}</p>
     <div v-if="isHidden" class="status-banner"><strong>{{ review.status === 'REJECTED' ? '该评价已被平台驳回' : '该评价已被平台隐藏' }}</strong><span v-if="review.rejectReason">{{ review.rejectReason }}</span><span v-else-if="review.appealStatus === 'PENDING'">申诉处理中…</span></div>
     <template v-else>

@@ -142,3 +142,9 @@ export async function setReviewHelpful(reviewId: string | number, helpful: boole
   if (state.helpful !== helpful) throw new Error('评价帮助状态未更新，请重新核对');
   return state;
 }
+
+export async function fetchSellerReviews(sellerId: string | number, pageNo: number, signal?: AbortSignal) {
+  const page = await realOrderRequest.postQuery<Api.RealReview.PageResult<Api.RealReview.SellerReview>>(
+    "/storefront/reviews/seller/page", { sellerId, pageNo, pageSize:10 }, { signal, showError:false });
+  return normalizePage(page);
+}

@@ -213,3 +213,10 @@ AI 会话增量以 2026-10-27 新文档和实时 user/admin OpenAPI 为准：C-P
 - 聊天新增 `entryPoint=guide|support` 和 `newTopic`，Java 签名后透传。客服支持新话题，导购也可普通咨询，人工接待优先级不变。
 - 搜索联想返回 `keyword/source`，不返回商品 ID；`source=KEYWORD|MODEL|QUERY`，关键词最长50字。选中补全搜索栏并搜索商品列表，支持上下键与 Enter。同词再次搜索会刷新结果。推广词和热搜接口不变。
 - 本次类型检查、生产构建及532项测试通过。新接口部署状态以本次交付为准，不沿用旧联想的浏览器验收结论。
+
+### 订单商品入口与求购评价
+
+- 订单详情和三方群共用商品入口：关联商品可打开商品页，不可用时保留成交信息；求购单提供成交快照及原求购入口。OrderDTO 的 orderType/demandId 完整映射，ID保持字符串。
+- POST /storefront/reviews/seller/page：sellerId、pageNo、pageSize，返回公开评价，不返回订单号、订单ID、用户ID；覆盖无productId的求购成交评价。商品页、订单评价、评价中心提供买手全部评价入口。
+- POST /demands/grab：可选productId/skuId，仅关联本人在售商品及有效规格；无商品时正常接单。有规格须明确选择，仍按求购预算成交，不占商城库存。
+- 本地536项前端测试、类型检查及生产构建通过；后端定向测试覆盖关联归属、预算、库存回补和公开评价脱敏。上线状态以本次交付说明为准。

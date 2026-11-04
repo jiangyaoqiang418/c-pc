@@ -1,5 +1,7 @@
 import { renderToString } from 'vue/server-renderer';
 import { createSSRApp } from 'vue';
+import OrderProductAccess from '@/components/order/order-product-access.vue';
+import DemandProductPicker from '@/components/purchase/demand-product-picker.vue';
 import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchMergeSourcePages, resolvePageSize, toPageTotal } from './page';
@@ -714,6 +716,43 @@ describe('v47前端本地边界', () => {
       expect(push).toHaveBeenCalledTimes(2);
     } finally { mounted.app.unmount(); }
   });
+describe('订单商品与求购接单入口', () => {
+  function mountAccess(order: Partial<Api.RealOrder.Record>) {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    const pinia = createPinia(); setActivePinia(pinia);
+    const push = vi.fn().mockResolvedValue(undefined);
+    const mounted = mountSubject<{ viewProduct:() => Promise<void>; open:boolean; unavailable:string }>(OrderProductAccess,
+      { order:{ id:'2116039434709848066', productId:'', productTitle:'求购商品', ...order } }, undefined,
+      app => { app.use(pinia); app.provide(routerKey, { push } as unknown as Router); });
+    return { ...mounted, push };
+  }
+  it('未关联商品的求购打开成交信息，不猜测商品ID', async () => {
+    const query = vi.spyOn(productApi, 'fetchProductDetail');
+    const mounted = mountAccess({ orderType:'DEMAND_FULFILL' });
+    try { await mounted.state.viewProduct(); expect(mounted.state.open).toBe(true); expect(query).not.toHaveBeenCalled(); expect(mounted.push).not.toHaveBeenCalled(); }
+    finally { mounted.app.unmount(); }
+  });
+  it('商品不可用仍可查看成交信息，不跳转商品页', async () => {
+    vi.spyOn(productApi, 'fetchProductDetail').mockRejectedValue(new Error('unavailable'));
+    const mounted = mountAccess({ productId:'9007199254740993' });
+    try { await mounted.state.viewProduct(); expect(mounted.state.open).toBe(true); expect(mounted.state.unavailable).toBeTruthy(); expect(mounted.push).not.toHaveBeenCalled(); }
+    finally { mounted.app.unmount(); }
+  });
+  it('关联商品可访问时按原始长ID跳转', async () => {
+    vi.spyOn(productApi, 'fetchProductDetail').mockResolvedValue({ id:'9007199254740993' } as Api.RealProduct.Record);
+    const mounted = mountAccess({ productId:'9007199254740993' });
+    try { await mounted.state.viewProduct(); expect(mounted.push).toHaveBeenCalledWith({ name:'product-detail', params:{id:'9007199254740993'} }); }
+    finally { mounted.app.unmount(); }
+  });
+  it('接单确认可以不关联商品，取消不会产生选择', async () => {
+    vi.stubGlobal('localStorage', { getItem:() => null });
+    const pinia = createPinia(); setActivePinia(pinia);
+    const mounted = mountSubject<{ choose:() => Promise<unknown>; confirm:() => void; finish:() => void }>(DemandProductPicker, {}, undefined, app => app.use(pinia));
+    try { const first = mounted.state.choose(); mounted.state.confirm(); await expect(first).resolves.toEqual({}); const second = mounted.state.choose(); mounted.state.finish(); await expect(second).resolves.toBeUndefined(); }
+    finally { mounted.app.unmount(); }
+  });
+});
+
   interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
   it('商品图片排序更新数组与封面顺序，禁用及上传中不重排', async () => {
     const changed = vi.fn();

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SellerReviews from "@/components/review/seller-reviews.vue";
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useUserStore } from '@/stores';
 import { fetchReviewDetail, fetchReceivedReviews } from '@/service/api/review';
@@ -71,6 +72,7 @@ onBeforeUnmount(guard.invalidate);
     <p v-if="loading" role="status">正在读取订单评价…</p>
     <div v-else-if="error" role="status"><p>{{ error }}</p><button type="button" class="outline" @click="load">重新加载评价</button></div>
     <template v-else-if="review">
+      <p v-if="!review.productId">求购成交评价 · 展示于订单及买手评价，不计入单个商城商品评价。</p><SellerReviews :seller-id="order.shopperId" />
       <div class="review-scores"><span>商品评分 <strong>{{ review.productScore }} / 5</strong></span><span>买手服务 <strong>{{ review.sellerScore }} / 5</strong></span></div>
       <p class="review-author">{{ review.anonymous ? '匿名用户' : review.userName || '顾客' }} · {{ formatDateValue(review.createdAt) }}</p>
       <template v-if="contentVisible">

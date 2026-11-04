@@ -22,6 +22,8 @@ declare namespace Api.RealOrder {
     id: Id;
     groupId?: Id;
     orderGroupNo?: string;
+    demandId?: Id | null;
+    orderType?: string;
     productId: Id;
     skuId?: Id | null;
     skuSpecs?: Api.RealProduct.ProductSkuOption[];
@@ -76,6 +78,7 @@ declare namespace Api.RealOrder {
     orderNo?: string;
     orderGroupNo?: string;
     orderType?: string;
+    demandId?: Id | null;
     status?: OrderStatus;
     statusText?: string;
     stage?: OrderStage | null;

@@ -98,3 +98,7 @@ declare namespace Api.RealReview {
   }
   interface PageResult<T> { records: T[]; total: number; current?: number; size?: number; pageNo?: number; pageSize?: number; }
 }
+
+declare namespace Api.RealReview {
+  interface SellerReview { reviewId:string; productId?:string|null; productTitle:string; authorName:string; productScore:number; sellerScore:number; content?:string; images:string[]; replyContent?:string; createdAt:string|number; }
+}

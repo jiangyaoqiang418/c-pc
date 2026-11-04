@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DemandProductPicker from "@/components/purchase/demand-product-picker.vue";
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -19,6 +20,7 @@ import * as purchaseApi from '@/service/api/purchase';
 import { useUserStore } from '@/stores';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
+const productPicker = ref<InstanceType<typeof DemandProductPicker>>();
 const router = useRouter();
 const route = useRoute();
 const userStore = useUserStore();
@@ -179,7 +181,9 @@ async function onClaim(req: Api.RealPurchase.Record) {
     && String(req.id) === String(requestedRequestId);
   claimingId.value = req.id;
   try {
-    const r = await purchaseApi.claimRequest(requestedRequestId);
+    const selection = await productPicker.value?.choose();
+    if (!selection || !isCurrentWrite()) return;
+    const r = await purchaseApi.claimRequest(requestedRequestId, selection);
     if (!isCurrentWrite()) return;
     if (r.ok) {
       Message.success('接单成功');
@@ -253,6 +257,7 @@ function selectExpectedDays(value: unknown) {
 </script>
 
 <template>
+  <DemandProductPicker ref="productPicker" />
 
   <div class="hall-page">
     <div class="page-heading compact"><h1>求购大厅</h1><button type="button" class="primary" @click="router.push('/purchase/create')">发起求购 <UmIcon name="plus" /></button></div>
