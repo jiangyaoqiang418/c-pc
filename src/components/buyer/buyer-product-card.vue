@@ -90,6 +90,7 @@ const deleteVisible = ref(false);
   .buyer-product-actions:has(> .accent) { grid-template-columns:repeat(3,minmax(0,1fr)) 32px; }
 }
 .buyer-product-body > small,.buyer-product-body h3,.buyer-rejection,.buyer-product-stats > span { overflow-wrap:anywhere; }
+.buyer-product-body h3 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; white-space:normal; overflow:hidden; }
 .buyer-product-price,.buyer-product-stats { flex-wrap:wrap; }
 .buyer-product-price b { max-width:100%; overflow-wrap:anywhere; }
 .delete-text { color:var(--muted); line-height:1.9; }

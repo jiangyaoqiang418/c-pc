@@ -67,7 +67,7 @@ function input(event: Event) {
         </ComboboxTrigger>
       </ComboboxAnchor>
       <ComboboxPortal>
-        <ComboboxContent position="popper" align="start" :side-offset="6" :collision-padding="16" class="source-menu">
+        <ComboboxContent position="popper" align="start" :side-offset="6" :collision-padding="16" class="buyer-product-source-menu">
           <ComboboxViewport>
             <ComboboxItem v-for="option in options" :key="option" :value="option" class="source-option">
               {{ option }}
@@ -89,8 +89,10 @@ function input(event: Event) {
 .source-control { display:flex; min-width:0; min-height:44px; border:1px solid var(--line); border-radius:6px; background:var(--paper); }
 .source-control:focus-within { outline:2px solid var(--green); outline-offset:2px; }
 .source-control input { flex:1; width:0; min-width:0; padding:10px 12px; border:0; background:transparent; color:var(--ink); outline:none; }
+.source-control input:focus { outline:none; box-shadow:none; }
 .source-control button { display:grid; place-items:center; flex-shrink:0; min-width:44px; min-height:44px; background:transparent; border:0; color:var(--ink); }
-.source-menu { z-index:1000; width:var(--reka-combobox-trigger-width); max-width:calc(100vw - 32px); max-height:min(320px,var(--reka-combobox-content-available-height)); overflow:auto; padding:4px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); box-shadow:var(--shadow); }
+/* ComboboxContent teleports its internal root without the caller's scope attribute. */
+:global(.buyer-product-source-menu) { z-index:1000; width:var(--reka-combobox-trigger-width); max-width:calc(100vw - 32px); max-height:min(320px,var(--reka-combobox-content-available-height)); overflow:auto; padding:4px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); box-shadow:var(--shadow); }
 .source-option { display:flex; align-items:center; min-height:44px; padding:8px 12px; overflow-wrap:anywhere; cursor:pointer; border-radius:4px; }
 .source-option[data-highlighted] { outline:none; background:var(--soft); color:var(--green); }
 .source-option[data-disabled] { opacity:.5; cursor:not-allowed; }

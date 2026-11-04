@@ -50,7 +50,7 @@ article { display:flex; flex-direction:column; flex:0 0 min(260px,85%); min-widt
 img,.product-placeholder { width:100%; height:140px; flex-shrink:0; border-radius:6px; object-fit:contain; background:var(--soft); }
 .product-placeholder { display:grid; place-items:center; color:var(--muted); }
 .product-info { min-width:0; flex:1; overflow-wrap:anywhere; }
-h3 { margin:0 0 6px; font-size:14px; white-space:pre-wrap; }
+h3 { margin:0 0 6px; font-size:14px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; white-space:normal; overflow:hidden; }
 p { margin:5px 0; color:var(--muted); white-space:pre-wrap; }
 .product-price { color:var(--yb-brand-primary,var(--green)); font-size:16px; }
 button:disabled { opacity:.6; cursor:not-allowed; }

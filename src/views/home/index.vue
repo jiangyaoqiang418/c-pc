@@ -372,4 +372,5 @@ onUnmounted(() => {
 .home-page .home-account button.account-card-action { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:44px; padding:13px 10px; border-width:1px; border-style:solid; border-radius:8px; box-sizing:border-box; font-size:14px; font-weight:600; line-height:1.6; text-align:left; }
 .home-page .home-account .account-card-action svg { width:18px; height:18px; flex-shrink:0; }
 .home-section-state { min-height: 200px; }
+.rank-grid h3 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; white-space:normal; overflow:hidden; overflow-wrap:anywhere; }
 </style>
