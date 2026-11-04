@@ -225,12 +225,12 @@ describe('搜索与评论对接边界', () => {
     expect(searchHistoryKey()).not.toBe(searchHistoryKey('2090377523934879745'));
     expect(searchHistoryKey('a')).not.toBe(searchHistoryKey('b'));
   });
-  it('商品标题联想不要求词库ID，并保留原始商品ID', async () => {
-    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue([{ keyword:'手机', productId:'2090377523934879745', promoted:false }]);
-    expect(await fetchSearchSuggestions('shou')).toEqual([{ keyword:'手机', productId:'2090377523934879745', promoted:false }]);
+  it('联想返回短搜索词而非商品，并拒绝超长建议', async () => {
+    const get = vi.spyOn(realOrderRequest, 'get').mockResolvedValue([{ keyword:'手机', source:'KEYWORD' }]);
+    expect(await fetchSearchSuggestions('shou')).toEqual([{ keyword:'手机', source:'KEYWORD' }]);
     expect(get).toHaveBeenCalledWith('/storefront/search/suggest', expect.objectContaining({ params:{ keyword:'shou' } }));
-    get.mockResolvedValueOnce([{ keyword:'手机', productId:2090377523934879745 }]);
-    await expect(fetchSearchSuggestions('shou')).rejects.toThrow('搜索词数据异常');
+    get.mockResolvedValueOnce([{ keyword:'x'.repeat(51), source:'MODEL' }]);
+    await expect(fetchSearchSuggestions('shou')).rejects.toThrow('搜索建议数据异常');
   });
   it('评论分页走公开读取，写入保留Long原文且不传后台操作人', async () => {
     const reviewId = '2090377523934879745', parentId = '2090377523934879746';
@@ -672,25 +672,47 @@ describe('v47前端本地边界', () => {
     vi.stubGlobal('localStorage', { getItem:(key: string) => values.get(key) || null, setItem:(key: string, value: string) => values.set(key, value) });
     const pinia = createPinia(); setActivePinia(pinia);
     const user = useUserStore(); user.currentUser = { id:'a' } as Api.RealSession.UserRecord;
-    const pending = new Map<string, (rows: Api.RealSearch.Keyword[]) => void>();
+    const pending = new Map<string, (rows: Api.RealSearch.Suggestion[]) => void>();
     vi.spyOn(realOrderRequest, 'get').mockImplementation((path, options) => {
       if (path === '/storefront/search/suggest') return new Promise(resolve => { pending.set(String(options?.params?.keyword), resolve); });
       return Promise.resolve([]);
     });
-    const fixture = mountSubject<{ kw:string; history:string[]; suggestions:Api.RealSearch.Keyword[]; focus:() => void }>(SearchBar, {}, undefined, app => {
+    const fixture = mountSubject<{ kw:string; history:string[]; suggestions:Api.RealSearch.Suggestion[]; focus:() => void }>(SearchBar, {}, undefined, app => {
       app.use(pinia); app.provide(routeLocationKey, { name:'home', query:{} } as unknown as RouteLocationNormalizedLoaded);
       app.provide(routerKey, { push:vi.fn() } as unknown as Router);
     });
     try {
       fixture.state.focus(); fixture.state.kw = 'sh'; await nextTick(); await vi.advanceTimersByTimeAsync(250);
       fixture.state.kw = 'ping'; await nextTick(); await vi.advanceTimersByTimeAsync(250);
-      pending.get('sh')!([{ keyword:'手机', productId:'1', promoted:false }]); await nextTick();
+      pending.get('sh')!([{ keyword:'手机', source:'MODEL' }]); await nextTick();
       expect(fixture.state.suggestions).toEqual([]);
-      pending.get('ping')!([{ keyword:'平板', productId:'2', promoted:false }]); await nextTick(); await nextTick();
+      pending.get('ping')!([{ keyword:'平板', source:'MODEL' }]); await nextTick(); await nextTick();
       expect(fixture.state.suggestions.map(row => row.keyword)).toEqual(['平板']);
       user.currentUser = { id:'b' } as Api.RealSession.UserRecord; await nextTick();
       expect(fixture.state.history).toEqual(['乙的历史']); expect(fixture.state.suggestions).toEqual([]);
     } finally { fixture.app.unmount(); vi.useRealTimers(); }
+  });
+  it('选择联想补全关键词并搜索列表，同词再次搜索仍触发刷新', async () => {
+    vi.stubGlobal('localStorage', { getItem:() => null, setItem:vi.fn() });
+    vi.spyOn(realOrderRequest, 'get').mockResolvedValue([]);
+    vi.spyOn(realOrderRequest, 'post').mockResolvedValue(null);
+    const pinia = createPinia(); setActivePinia(pinia);
+    const push = vi.fn().mockResolvedValue(undefined);
+    const route = { name:'home', query:{} as Record<string,string> };
+    const mounted = mountSubject<{ kw:string; submit:(keyword:string) => void; composing:boolean }>(SearchBar, {}, undefined, app => {
+      app.use(pinia); app.provide(routeLocationKey, route as unknown as RouteLocationNormalizedLoaded);
+      app.provide(routerKey, { push } as unknown as Router);
+    });
+    try {
+      mounted.state.kw = 'duo'; mounted.state.submit('iphone duo');
+      expect(mounted.state.kw).toBe('iphone duo');
+      expect(push).toHaveBeenLastCalledWith({ name:'product-list', query:{ keyword:'iphone duo' } });
+      route.name = 'product-list'; route.query.keyword = 'iphone duo';
+      mounted.state.submit('iphone duo');
+      expect(push.mock.lastCall?.[0]).toEqual({ name:'product-list', query:{ keyword:'iphone duo', searchRun:expect.any(String) } });
+      mounted.state.composing = true; mounted.state.submit('iphone');
+      expect(push).toHaveBeenCalledTimes(2);
+    } finally { mounted.app.unmount(); }
   });
   interface UploaderState { uploadFiles:(files: File[]) => Promise<void>; remove:(index: number) => void; failedFiles:File[]; uploading:boolean }
   it('商品图片排序更新数组与封面顺序，禁用及上传中不重排', async () => {

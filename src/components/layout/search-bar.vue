@@ -44,7 +44,8 @@ const wrap = ref<HTMLElement>();
 const opened = ref(false);
 const promotions = ref<Api.RealSearch.Keyword[]>([]);
 const hot = ref<Api.RealSearch.Keyword[]>([]);
-const suggestions = ref<Api.RealSearch.Keyword[]>([]);
+const suggestions = ref<Api.RealSearch.Suggestion[]>([]);
+const activeSuggestion = ref(-1);
 const history = ref<string[]>([]);
 const suggestionError = ref('');
 const publicError = ref('');
@@ -72,6 +73,7 @@ watch([historyKey, () => user.sessionVersion], () => {
 }, { immediate: true, flush: 'sync' });
 function cancelSuggestions() {
   if (timer) clearTimeout(timer);
+  activeSuggestion.value = -1;
   suggestionGuard.invalidate(); suggestions.value = []; suggestionError.value = ''; suggesting.value = false;
 }
 async function loadPublic() {
@@ -102,8 +104,14 @@ function scheduleSuggestions() {
 watch([kw, composing], scheduleSuggestions);
 function close() { opened.value = false; cancelSuggestions(); }
 function focusout(event: FocusEvent) { if (!wrap.value?.contains(event.relatedTarget as Node | null)) close(); }
-async function focusFirst() {
-  focus(); await nextTick(); wrap.value?.querySelector<HTMLButtonElement>('[data-search-choice]')?.focus();
+async function moveSuggestion(direction: number) {
+  focus(); await nextTick();
+  if (!kw.value.trim()) { wrap.value?.querySelector<HTMLButtonElement>('[data-search-choice]')?.focus(); return; }
+  if (!suggestions.value.length) return;
+  activeSuggestion.value = activeSuggestion.value < 0
+    ? (direction > 0 ? 0 : suggestions.value.length - 1)
+    : (activeSuggestion.value + direction + suggestions.value.length) % suggestions.value.length;
+  wrap.value?.querySelector<HTMLElement>(`[data-suggestion-index="${activeSuggestion.value}"]`)?.scrollIntoView({ block: 'nearest' });
 }
 onBeforeUnmount(() => { imageVersion++; imageAbort.abort(); cancelSuggestions(); publicGuard.invalidate(); });
 onMounted(() => { void loadPublic(); });
@@ -117,18 +125,19 @@ watch([() => route.name, () => route.query.keyword], ([name, value], previous) =
 function submit(keyword?: string) {
   if (composing.value || imageUploading.value) return;
   const query = (keyword ?? kw.value).trim() || defaultKeyword.value;
-  if (!query || query.length > 50) return;
+  if (!query) return;
+  if (query.length > 50) { Message.warning('搜索词最多50字，请缩短后重试'); return; }
   kw.value = query;
   saveHistory([query, ...history.value]);
   void trackSearch(query).catch(() => { /* 打点失败不阻断商品查询。 */ });
   close();
-  router.push({ name: 'product-list', query: { keyword: query || undefined } });
+  void router.push({ name: 'product-list', query: { keyword: query, ...(route.name === 'product-list' && route.query.keyword === query ? { searchRun: crypto.randomUUID() } : {}) } }).catch(() => Message.error('搜索页面打开失败，请重试'));
 }
 
 function onSearchKeydown(event: KeyboardEvent) {
   event.preventDefault();
   if (composing.value || event.isComposing || event.keyCode === 229) return;
-  submit();
+  submit(opened.value && activeSuggestion.value >= 0 ? suggestions.value[activeSuggestion.value]?.keyword : undefined);
 }
 </script>
 
@@ -142,12 +151,16 @@ function onSearchKeydown(event: KeyboardEvent) {
         :disabled="imageUploading"
         :placeholder="defaultKeyword || '搜索商品'"
         aria-label="搜索商品"
+        role="combobox"
+        aria-autocomplete="list"
+        :aria-activedescendant="opened && activeSuggestion >= 0 ? `${panelId}-${activeSuggestion}` : undefined"
         maxlength="50"
         autocomplete="off"
         :aria-expanded="opened"
         :aria-controls="panelId"
         @focus="focus"
-        @keydown.down.prevent="focusFirst"
+        @keydown.down.prevent="moveSuggestion(1)"
+        @keydown.up.prevent="moveSuggestion(-1)"
         @compositionstart="composing = true"
         @compositionend="composing = false"
         @keydown.enter="onSearchKeydown"
@@ -162,16 +175,16 @@ function onSearchKeydown(event: KeyboardEvent) {
     <button type="button" class="ai-guide-button" @click="close(); router.push('/ai-guide')">UMAO 导购</button>
     <div v-if="imageUploading" class="image-search-progress"><LoadingStatus :label="imageNavigating ? '图片已上传，正在打开搜索结果…' : '正在上传图片，请稍候…'" /></div>
     <div v-if="opened" :id="panelId" class="search-panel" aria-label="搜索建议">
-      <template v-if="kw.trim()">
+      <div v-if="kw.trim()" role="listbox" aria-label="搜索词联想">
         <p v-if="suggesting" role="status">正在读取联想…</p>
         <p v-else-if="suggestionError" role="alert">{{ suggestionError }} <button type="button" @click="scheduleSuggestions">重试</button></p>
         <p v-else-if="!suggestions.length">暂无联想，可直接搜索</p>
-        <button v-for="item in suggestions" :key="item.keyword + ':' + item.productId" data-search-choice type="button" class="suggestion" @click="submit(item.keyword)">{{ item.keyword }}</button>
-      </template>
+        <button v-for="(item, index) in suggestions" :id="`${panelId}-${index}`" :key="item.keyword" :data-suggestion-index="index" data-search-choice type="button" role="option" :aria-selected="activeSuggestion === index" class="suggestion" :class="{ selected: activeSuggestion === index }" @pointerdown.prevent @mouseenter="activeSuggestion = index" @click="submit(item.keyword)"><span>{{ item.keyword }}</span><span aria-hidden="true">↖</span></button>
+      </div>
       <template v-else>
         <p v-if="publicLoading" role="status">正在读取推荐词…</p>
         <p v-if="publicError" role="alert">{{ publicError }} <button type="button" @click="loadPublic">重试</button></p>
-        <section><h3>推荐商品</h3><div class="search-choices"><button v-for="item in promotions" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ item.keyword }}</button><span v-if="!publicLoading && !promotions.length">暂无推荐</span></div></section>
+        <section><h3>推荐搜索</h3><div class="search-choices"><button v-for="item in promotions" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ item.keyword }}</button><span v-if="!publicLoading && !promotions.length">暂无推荐</span></div></section>
         <section v-if="hot.length"><h3>今日热搜 <small>UTC 当日</small></h3><div class="search-choices"><button v-for="(item, index) in hot" :key="item.keyword + ':' + item.productId" data-search-choice type="button" @click="submit(item.keyword)">{{ index + 1 }}. {{ item.keyword }}</button></div></section>
         <section><h3>搜索历史 <button v-if="history.length" type="button" @click="saveHistory([])">清空</button></h3><p v-if="historyError" role="status">{{ historyError }}</p><div class="search-choices"><span v-for="item in history" :key="item" class="history-choice"><button data-search-choice type="button" @click="submit(item)">{{ item }}</button><button type="button" :aria-label="'删除搜索历史：' + item" @click="saveHistory(history.filter(value => value !== item))">×</button></span><span v-if="!history.length">暂无搜索历史</span></div></section>
       </template>
@@ -199,7 +212,7 @@ function onSearchKeydown(event: KeyboardEvent) {
 .search-choices { display:flex; flex-wrap:wrap; gap:8px; }
 .search-choices button,.suggestion { min-height:44px; padding:8px 10px; text-align:left; border-radius:4px; }
 .search-choices > button,.history-choice { border:1px solid var(--line); border-radius:4px; }
-.suggestion { display:block; width:100%; }
+.suggestion { display:flex; justify-content:space-between; gap:12px; width:100%; overflow-wrap:anywhere; }.suggestion.selected { background:var(--soft); color:var(--green); }.suggestion>span:last-child { color:var(--muted); }
 .search-panel button:hover { background:var(--line); }
 .search-panel button:focus-visible { outline:2px solid var(--green); outline-offset:2px; }
 .search-wrap .search-bar.search-box:focus-within { border-color:var(--green); }

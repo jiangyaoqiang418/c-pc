@@ -136,7 +136,7 @@ export async function streamCustomerChat(input: Api.Ai.ChatParams, signal: Abort
       // 身份只由当前 X-Access-Token 决定，游客请求不沿用浏览器遗留 Cookie。
       credentials: 'omit',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(token ? { 'X-Access-Token': token } : {}) },
-      body: JSON.stringify({ message: input.message, imageFileIds:input.imageFileIds, conversationId: input.conversationId, clientMessageId: input.clientMessageId }),
+      body: JSON.stringify({ entryPoint: input.entryPoint, newTopic: input.newTopic, message: input.message, imageFileIds:input.imageFileIds, conversationId: input.conversationId, clientMessageId: input.clientMessageId }),
       signal: combinedSignal
     });
     if (!sameIdentity()) throw new RequestError('账号已切换，请重新提问', { code: 'SESSION_CHANGED' });

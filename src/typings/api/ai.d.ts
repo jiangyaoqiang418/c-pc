@@ -19,6 +19,8 @@ declare namespace Api.Ai {
   interface HumanHandoffCard { type: 'human_handoff'; data: { label: string; reason?: string } }
   type HistoryCard = ProductListCard | HumanHandoffCard | { tool: string; data: CardData };
   interface ChatParams {
+    entryPoint?: 'guide' | 'support';
+    newTopic?: boolean;
     message?: string;
     imageFileIds?: string[];
     conversationId?: string | null;

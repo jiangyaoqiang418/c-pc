@@ -1,4 +1,5 @@
 declare namespace Api.RealSearch {
+  interface Suggestion { keyword: string; source: 'KEYWORD' | 'MODEL' | 'QUERY' }
   interface Keyword {
     id?: string;
     keyword: string;

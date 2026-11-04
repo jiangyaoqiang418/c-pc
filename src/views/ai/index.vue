@@ -88,10 +88,10 @@ function onKeydown(event: KeyboardEvent) {
 <template>
   <section class="paper chat-panel ai-page" aria-label="AI 客服">
     <div class="section-heading">
-      <div class="ai-title"><h2 aria-level="1">好物选购助手</h2><small>{{ user.isLoggedIn ? '选购咨询 · 本人订单与钱包查询' : '选购咨询 · 登录后可查询本人订单与钱包' }}</small></div>
+      <div class="ai-title"><h2 aria-level="1">UMAO 智能助手</h2><small>{{ user.isLoggedIn ? '商品选购 · 平台咨询 · 本人订单与钱包查询' : '商品选购与平台咨询 · 登录后可查询本人订单与钱包' }}</small></div>
       <div class="heading-actions">
         <Tooltip v-if="user.isLoggedIn && conversationId"><TooltipTrigger as-child><button class="history-refresh" type="button" :aria-label="historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新当前会话'" :aria-busy="historyLoading" :disabled="locked || running" @click="loadHistory()"><Icon :icon="historyLoading ? 'lucide:loader-circle' : 'lucide:refresh-cw'" :class="{ 'animate-spin motion-reduce:animate-none': historyLoading }" aria-hidden="true" /></button></TooltipTrigger><TooltipContent side="top">{{ historyLoading ? '消息加载中' : pending ? '刷新消息状态' : '刷新当前会话' }}</TooltipContent></Tooltip>
-        <button type="button" class="text-link new-conversation" :disabled="locked || !ready" @click="newConversation"><UmIcon name="plus" />新会话</button>
+        <button type="button" class="text-link new-conversation" :disabled="locked || !ready" @click="newConversation"><UmIcon name="plus" />新话题</button>
       </div>
     </div>
     <div class="ai-workspace" :class="{ 'has-history': user.isLoggedIn }">

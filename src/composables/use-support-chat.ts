@@ -65,6 +65,13 @@ export function useSupportChat(conversationId: string) {
   let syncing = false;
   const reads = new AbortController();
   let pythonId: string | undefined;
+  const newTopic = ref(false);
+  function startNewTopic() {
+    if (!live() || running.value || loading.value || handling.value) return;
+    newTopic.value = true;
+    for (const row of messages.value) row.questionConsumed = true;
+    notice.value = '已开启新话题，下一条消息不沿用之前的选购条件；聊天记录仍保留。';
+  }
   let stream: AbortController | undefined;
   const live = () => !disposed && user.sessionVersion === owner && user.isLoggedIn;
   const handling = computed(() => route.value?.interveneStatus === 'HANDLING');
@@ -134,7 +141,7 @@ export function useSupportChat(conversationId: string) {
     if (live()) notice.value = support.notice.value;
   }
   function canAnswer(row: AiDisplayMessage) {
-    return !handling.value && !!route.value && !loading.value && !running.value && row === messages.value.at(-1)
+    return !newTopic.value && !handling.value && !!route.value && !loading.value && !running.value && row === messages.value.at(-1)
       && row.state === 'COMPLETED' && !row.questionConsumed && !!row.question;
   }
   const failedSends = new Map<string, Api.RealNotify.ImSendMessageParams>();
@@ -182,7 +189,7 @@ export function useSupportChat(conversationId: string) {
       messages.value.push(reply);
       const answer = messages.value.at(-1)!;
       const aborter = new AbortController(); stream = aborter;
-      await streamCustomerChat({ message: text, imageFileIds: images.map(image => image.id), conversationId: pythonId, clientMessageId: key }, aborter.signal, event => {
+      await streamCustomerChat({ entryPoint: 'support', newTopic: newTopic.value, message: text, imageFileIds: images.map(image => image.id), conversationId: pythonId, clientMessageId: key }, aborter.signal, event => {
         if (!active()) return;
         if (event.event === 'start') {
           answer.requestId = event.data.request_id; answer.imSync = event.data.im_sync;
@@ -203,7 +210,7 @@ export function useSupportChat(conversationId: string) {
           } else answer.parts.push({ type: 'card', card: event.data.data as Api.Ai.CardData });
         } else if (event.event === 'product_cards') answer.parts.push({ type: 'products', card: { type: 'product_list', items: event.data.items } });
         else if (event.event === 'question') { answer.question = { text: event.data.text, options: event.data.options, placement: 'after_cards' }; answer.questions = event.data.options; }
-        else if (event.event === 'done') { answer.state = 'COMPLETED'; answer.progress = ''; if (event.data.im_sync) answer.imSync = event.data.im_sync; }
+        else if (event.event === 'done') { newTopic.value = false; answer.state = 'COMPLETED'; answer.progress = ''; if (event.data.im_sync) answer.imSync = event.data.im_sync; }
         else if (event.event === 'error') { answer.state = 'FAILED'; answer.progress = ''; answer.error = event.data.message; }
       });
     } catch (e) {
@@ -225,5 +232,5 @@ export function useSupportChat(conversationId: string) {
   });
   onBeforeUnmount(() => { disposed = true; stop(); reads.abort(); historySequence++; });
   void load();
-  return { route, messages, input, attachments, running, loading, applying, notice, error, routeError: support.error, hasMore, handling, canSend, canAnswer, send, sendHuman, stop, load, refresh, requestHuman };
+  return { route, messages, input, attachments, running, loading, applying, notice, error, routeError: support.error, hasMore, handling, canSend, canAnswer, startNewTopic, send, sendHuman, stop, load, refresh, requestHuman };
 }

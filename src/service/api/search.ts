@@ -12,7 +12,14 @@ async function keywords(path: string, keyword?: string, signal?: AbortSignal) {
 
 export const fetchSearchPromotions = (signal?: AbortSignal) => keywords('/storefront/search/promotions', undefined, signal);
 export const fetchSearchHot = (signal?: AbortSignal) => keywords('/storefront/search/hot', undefined, signal);
-export const fetchSearchSuggestions = (keyword: string, signal?: AbortSignal) => keywords('/storefront/search/suggest', keyword, signal);
+export async function fetchSearchSuggestions(keyword: string, signal?: AbortSignal) {
+  const rows = requireArray<Api.RealSearch.Suggestion>(await realOrderRequest.get('/storefront/search/suggest', {
+    params: { keyword }, signal, showError: false, skipAuthRedirect: true
+  }), '搜索建议');
+  if (rows.some(row => !row || typeof row.keyword !== 'string' || !row.keyword.trim() || row.keyword.length > 50
+    || !['KEYWORD', 'MODEL', 'QUERY'].includes(row.source))) throw new Error('搜索建议数据异常');
+  return rows;
+}
 export const trackSearch = (keyword: string) => realOrderRequest.post('/storefront/search/track', { keyword }, { showError: false, skipAuthRedirect: true });
 
 export function normalizeSearchHistory(rows: unknown): string[] {

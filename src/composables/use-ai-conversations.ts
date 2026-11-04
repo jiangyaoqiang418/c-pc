@@ -261,7 +261,7 @@ export function useAiConversations() {
     attachments.value = [];
     scrollBottom();
     try {
-      await streamCustomerChat({ message: question, imageFileIds:images.map(row => row.id), conversationId: conversationId.value, clientMessageId: key }, aborter.signal, event => {
+      await streamCustomerChat({ entryPoint: 'guide', message: question, imageFileIds:images.map(row => row.id), conversationId: conversationId.value, clientMessageId: key }, aborter.signal, event => {
         if (!active()) return;
         if (event.event === 'start') {
           conversationId.value = event.data.conversation_id;
