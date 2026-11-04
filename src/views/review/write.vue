@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -10,12 +11,14 @@ import * as reviewApi from '@/service/api/review';
 import ReviewForm from '@/components/review/review-form.vue';
 import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
-import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { sameBusinessId } from '@/utils/im';
 import { getOrderCapabilities } from '@/utils/order';
 import { RequestError } from '@/service/request/type';
 import { useReviewStore } from '@/stores/review';
+
+// Bundled Lucide icon data (ISC), so review controls also render without the icon CDN.
+const reviewIcons = {"message-square-heart": {"body": "<g fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/><path d=\"M7.5 9.5c0 .687.265 1.383.697 1.844l3.009 3.264a1.14 1.14 0 0 0 .407.314a1 1 0 0 0 .783-.004a1.14 1.14 0 0 0 .398-.31l3.008-3.264A2.77 2.77 0 0 0 16.5 9.5A2.5 2.5 0 0 0 12 8a2.5 2.5 0 0 0-4.5 1.5\"/></g>", "width": 24, "height": 24}};
 
 const route = useRoute();
 const router = useRouter();
@@ -25,6 +28,8 @@ const reviewStore = useReviewStore();
 const orderId = computed(() => String(route.params.orderId));
 const order = ref<Api.RealOrder.Record>();
 const loading = ref(false);
+const coverFailed = ref(false);
+watch(() => order.value?.productCover, () => { coverFailed.value = false; });
 const reviewable = ref(false);
 const eligibilityError = ref('');
 const eligibilityReason = ref('');
@@ -220,11 +225,11 @@ function handleEmptyAction() {
 </script>
 
 <template>
-  <div class="review-write-page"><div class="review-content paper narrow" :aria-busy="loading">
+  <div class="review-write-page"><div class="review-content paper" :aria-busy="loading">
     <template v-if="order">
       <nav class="breadcrumb" aria-label="面包屑"><RouterLink to="/order">我的订单</RouterLink><span>/</span><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">{{ order.code }}</RouterLink><span>/</span><strong>写评价</strong></nav>
-      <h1>写评价</h1>
-      <section class="checkout-item review-order"><img :src="order.productCover || PRODUCT_IMAGE_PLACEHOLDER" :alt="order.productTitle || '商品图片'" class="cover" @error="setImageFallback" /><div class="info"><h2>{{ order.productTitle }}</h2><small>买手 {{ order.shopperName }} · 总额 U {{ formatAmount(order.totalAmount) }}</small></div></section>
+      <header class="review-heading"><div><span class="review-eyebrow">YOUR EXPERIENCE MATTERS</span><h1>好物，值得你的真实评价<span>。</span></h1><p>分享使用感受，帮下一位顾客选到心仪好物。</p></div><div class="review-emblem" aria-hidden="true"><Icon :icon="reviewIcons['message-square-heart']" width="32" /></div></header>
+      <section class="review-order"><img v-if="order.productCover && !coverFailed" :src="order.productCover" :alt="order.productTitle || '订单商品图片'" class="cover" @error="coverFailed = true" /><div v-else class="cover cover-empty">暂无商品图片</div><div class="info"><h2>{{ order.productTitle }}</h2><small>买手 · {{ order.shopperName }}</small></div><div class="review-amount"><small>订单总额</small><strong>{{ formatAmount(order.totalAmount) }} <small>USDT</small></strong></div></section>
       <Alert v-if="submissionIssue" class="notice"><AlertDescription>{{ submissionIssue }}</AlertDescription><button v-if="existingReviewConflict" type="button" class="outline" @click="router.push('/review')">查看已有评价</button></Alert>
       <Alert v-if="submissionUnknown && !existingReviewConflict" class="notice"><AlertDescription>本次评价结果尚未确认，原内容保留在当前登录会话中。可查看已提交评价后返回重试；刷新或退出登录会清除本地快照，不会撤销已发出的请求。</AlertDescription><div class="notice-actions"><button type="button" class="outline"  :disabled="submissionInFlight || confirmationOpen" @click="retryPendingReview">按原评价重试</button><button type="button" class="outline"  @click="router.push('/review')">查看我的评价</button></div></Alert>
       <Alert v-else-if="pendingOperation?.state === 'submitting'" class="notice"><AlertDescription>原评价正在提交，离开页面不会取消请求，请勿重复提交。</AlertDescription></Alert>
@@ -239,5 +244,20 @@ function handleEmptyAction() {
 </template>
 
 <style scoped>
-.review-order { margin:20px 0; }.info { min-width:0; }.info h2 { font-size:17px; overflow-wrap:anywhere; }.info small { color:var(--muted); font-size:13px; }.notice { margin:18px 0; display:grid; gap:14px; }.notice-actions { display:flex; flex-wrap:wrap; gap:12px; }.skeletons { display:grid; gap:18px; }
+.review-write-page { padding:24px 0 48px; }
+.review-content.paper { width:100%; max-width:900px; margin:0 auto; padding:36px; border:1px solid var(--line); border-radius:24px; background:var(--paper); color:var(--ink); overflow:hidden; }
+.breadcrumb { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 32px; font-size:12px; overflow-wrap:anywhere; }
+.review-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:28px; }
+.review-eyebrow { color:var(--muted); font-size:10px; letter-spacing:2px; font-weight:600; }
+.review-heading h1 { margin:10px 0; font-size:28px; line-height:1.4; letter-spacing:-.8px; font-weight:700; }
+.review-heading h1 span { color:var(--green); }
+.review-heading p { color:var(--muted); font-size:13px; line-height:1.7; margin:0; }
+.review-emblem { display:grid; place-items:center; width:70px; height:70px; flex-shrink:0; border:1px solid color-mix(in srgb, var(--green) 25%, var(--line)); border-radius:22px; color:var(--green); background:color-mix(in srgb, var(--green) 9%, var(--paper)); transform:rotate(-8deg); }
+.review-order { display:flex; gap:18px; align-items:center; margin:0 0 28px; padding:20px; background:var(--soft); border:1px solid var(--line); border-radius:16px; }
+.review-order .cover { width:76px; height:76px; object-fit:contain; border-radius:12px; background:var(--paper); flex-shrink:0; }
+.cover-empty { display:grid; place-items:center; padding:8px; text-align:center; font-size:11px; color:var(--muted); border:1px dashed var(--line); }
+.info { min-width:0; flex:1; }.info h2 { margin:0 0 8px; font-size:16px; line-height:1.5; overflow-wrap:anywhere; }.info small,.review-amount small { color:var(--muted); font-size:12px; }
+.review-amount { display:grid; gap:8px; text-align:right; flex-shrink:0; }.review-amount strong { font-size:19px; font-variant-numeric:tabular-nums; }.review-amount strong small { font-size:10px; }
+.notice { margin:18px 0; display:grid; gap:14px; }.notice-actions { display:flex; flex-wrap:wrap; gap:12px; }.skeletons { display:grid; gap:18px; }
+@media(max-width:600px) { .review-write-page { padding:12px 0 24px; }.review-content.paper { padding:22px 16px; border-radius:18px; }.breadcrumb { margin-bottom:24px; font-size:11px; }.review-heading h1 { font-size:23px; }.review-emblem { display:none; }.review-order { padding:14px; gap:12px; flex-wrap:wrap; }.review-order .cover { width:64px; height:64px; }.info h2 { font-size:14px; }.review-amount { width:100%; display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--line); padding-top:12px; }.review-amount strong { font-size:17px; } }
 </style>
