@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import { onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -48,22 +49,22 @@ async function submit() {
   <section class="auth-form paper register-page" :aria-busy="submitting">
     <h1>注册账户</h1>
     <p>使用邮箱注册，完成后返回登录。</p>
-    <form novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
+    <form v-required-feedback novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
       <div class="field">
         <Label for="register-email">邮箱</Label>
-        <Input id="register-email" v-model="form.email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com" />
+        <Input id="register-email" v-model="form.email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com"  required />
       </div>
       <div class="field">
         <Label for="register-nickname">昵称</Label>
-        <Input id="register-nickname" v-model="form.nickname" autocomplete="nickname" placeholder="我们该怎么称呼你" />
+        <Input id="register-nickname" v-model="form.nickname" autocomplete="nickname" placeholder="我们该怎么称呼你"  required />
       </div>
       <div class="field">
         <Label for="register-password">密码</Label>
-        <PasswordInput id="register-password" v-model="form.password" :max-length="64" autocomplete="new-password" placeholder="请输入 6–64 位密码" />
+        <PasswordInput id="register-password" v-model="form.password" :max-length="64" autocomplete="new-password" placeholder="请输入 6–64 位密码"  required />
       </div>
       <div class="field">
         <Label for="register-confirm">确认密码</Label>
-        <PasswordInput id="register-confirm" v-model="form.confirm" :max-length="64" autocomplete="new-password" placeholder="请再次输入密码" />
+        <PasswordInput id="register-confirm" v-model="form.confirm" :max-length="64" autocomplete="new-password" placeholder="请再次输入密码"  required />
       </div>
       <Button type="submit" class="primary full auth-submit" :disabled="submitting">
         {{ submitting ? '正在注册' : '注册账户' }}

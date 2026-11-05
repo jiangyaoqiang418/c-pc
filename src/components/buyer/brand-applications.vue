@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import BrandMark from '@/components/common/brand-mark.vue';
 import { onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Button } from '@/components/ui/button';
@@ -80,12 +81,12 @@ onBeforeUnmount(() => { emit('busy', false); alive = false; guard.invalidate(); 
 <template>
   <Button type="button" variant="outline" :disabled="disabled" @click="open = true">申请新增品牌 / 查看申请</Button>
   <a-modal v-model:visible="open" title="品牌申请" :footer="false" :mask-closable="!submitting && !uploading" :closable="!submitting && !uploading">
-    <div class="brand-applications">
+    <div v-required-feedback class="brand-applications">
       <p>品牌独立于分类，审核通过后才能用于商品。</p>
-      <label>品牌名称<Input v-model="form.newName" maxlength="64" :disabled="submitting || uploading" /></label>
+      <label>品牌名称<Input required v-model="form.newName" maxlength="64" :disabled="submitting || uploading" /></label>
       <div class="logo-field"><span>品牌Logo（可选）</span><BrandMark v-if="form.logo" :src="form.logo" :name="form.newName || '品牌'" class="brand-logo-image" /><label class="logo-upload">{{ uploading ? '上传中…' : form.logo ? '替换Logo' : '上传Logo' }}<input type="file" accept="image/png,image/jpeg,image/webp" :disabled="submitting || uploading" @change="uploadLogo" /></label><Button v-if="form.logo" variant="outline" :disabled="submitting || uploading" @click="form.logo = ''; form.logoFileId = undefined">移除</Button><small>PNG / JPEG / WebP，最多5MB。推荐方形或透明背景。</small></div>
-      <label>申请理由<Textarea v-model="form.reason" maxlength="500" :disabled="submitting || uploading" /></label>
-      <Button type="button" :disabled="submitting || uploading" @click="submit">{{ submitting ? '提交中…' : '提交申请' }}</Button>
+      <label>申请理由<Textarea required v-model="form.reason" maxlength="500" :disabled="submitting || uploading" /></label>
+      <Button type="button" :disabled="submitting || uploading" data-validate-required @click="submit">{{ submitting ? '提交中…' : '提交申请' }}</Button>
       <form class="filters" @submit.prevent="pageNo = 1; load()"><Input v-model="filter.keyword" aria-label="搜索品牌申请" placeholder="搜索品牌申请" /><select v-model="filter.status" aria-label="品牌申请状态"><option value="">全部状态</option><option v-for="(label, status) in labels" :key="status" :value="status">{{ label }}</option></select><Button type="submit" variant="outline" :disabled="loading">刷新</Button></form>
       <p v-if="error" role="alert">{{ error }}</p><p v-if="loading" role="status">正在读取申请…</p>
       <article v-for="row in rows" :key="String(row.id)"><BrandMark :src="row.logo" :name="row.newName" class="brand-logo-image" /><strong>{{ row.newName }}</strong><span>{{ labels[row.status] }}</span><p>{{ row.reason }}</p><p>审核意见：{{ row.reviewComment || '—' }}</p><small>申请时间：{{ time(row.createdAt) }} · 审核时间：{{ time(row.reviewedAt) }}</small><Button v-if="row.status === 'APPROVED' && row.createdBrandId != null" type="button" variant="outline" @click="choose(row)">选用此品牌</Button><Button v-if="row.status === 'REJECTED'" type="button" variant="outline" :disabled="submitting || uploading" @click="form.newName = row.newName; form.reason = row.reason; form.logo = row.logo || ''; form.logoFileId = row.logoFileId ?? undefined">重新填写</Button></article>

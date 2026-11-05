@@ -465,7 +465,8 @@ onBeforeUnmount(() => {
         <PopoverPortal>
           <PopoverContent class="im-emoji-panel" side="top" align="start" :side-offset="8" :collision-padding="12" aria-label="聊天表情" @close-auto-focus="onEmojiCloseAutoFocus">
             <header class="emoji-panel-header"><h3>聊天表情</h3><PopoverClose as-child><button type="button" class="emoji-panel-close" aria-label="关闭聊天表情"><Icon icon="lucide:x" aria-hidden="true" /></button></PopoverClose></header>
-            <input v-model="emojiSearch" class="emoji-search" type="search" aria-label="搜索表情" placeholder="搜索表情，如笑哭、点赞、猫" />
+            <div class="emoji-search-field"><Icon icon="lucide:search" aria-hidden="true" /><input v-model="emojiSearch" class="emoji-search" type="search" aria-label="搜索表情" placeholder="搜索 Emoji，如笑哭、点赞、猫" /></div>
+            <h3 class="brand-stickers-title">Umaomao 表情</h3><div class="brand-stickers" role="group" aria-label="Umaomao 图片表情"><button v-for="label in brandStickerLabels" :key="label" type="button" :aria-label="'发送贴纸：' + label" :title="label" :disabled="disabled || submitting || mediaBusy" @click="sendSticker(label)"><img :src="brandCat" alt="" /><span>{{ label }}</span></button></div>
             <nav class="emoji-categories" aria-label="表情分类"><button v-for="group in emojiGroups" :key="group.label" type="button" :aria-pressed="!emojiSearch.trim() && emojiCategory === group.label" @click="emojiCategory = group.label; emojiSearch = ''">{{ group.label }}</button></nav>
             <p v-if="emojiLibraryLoading" class="emoji-library-status" role="status">正在读取表情…</p>
             <p v-if="emojiLibraryError" class="emoji-library-status" role="alert">表情库读取失败<button type="button" class="text-link" @click="loadEmojiLibrary">重试</button></p>
@@ -475,7 +476,6 @@ onBeforeUnmount(() => {
               <p v-if="!visibleEmoji.length && !emojiLibraryLoading && !emojiLibraryError" class="emoji-library-status">没有找到相关表情，换个词试试</p>
             </div>
             <p v-if="emojiTotal" class="emoji-library-count">{{ emojiSearch.trim() ? '找到 ' + filteredEmoji.length : '共 ' + emojiTotal }} 个表情</p>
-            <h3 class="brand-stickers-title">Umaomao 表情</h3><div class="brand-stickers" role="group" aria-label="Umaomao 图片表情"><button v-for="label in brandStickerLabels" :key="label" type="button" :aria-label="'发送贴纸：' + label" :title="label" :disabled="disabled || submitting || mediaBusy" @click="sendSticker(label)"><img :src="brandCat" alt="" /><span>{{ label }}</span></button></div>
           </PopoverContent>
         </PopoverPortal>
       </PopoverRoot>
@@ -508,9 +508,11 @@ onBeforeUnmount(() => {
 .emoji-panel-header h3,.brand-stickers-title { margin:0; font-size:13px; font-weight:600; line-height:1.5; }
 .emoji-panel-close { display:grid; place-items:center; width:28px; height:28px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--muted); }
 .emoji-panel-close svg { width:18px; height:18px; }
-.emoji-search { width:100%; min-width:0; height:34px; margin-bottom:8px; padding:6px 10px; border:1px solid var(--line); border-radius:7px; background:var(--paper); color:var(--ink); font-size:12px; }
+.emoji-search-field { position:relative; margin-bottom:12px; }
+.emoji-search-field > svg { position:absolute; top:50%; left:10px; width:16px; height:16px; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+.emoji-search { display:block; box-sizing:border-box; width:100%; min-width:0; height:36px; margin:0; padding:6px 10px 6px 34px; border:1px solid var(--line); border-radius:7px; background:var(--soft); color:var(--ink); font-size:12px; }
 .emoji-search:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
-.emoji-categories { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:3px; margin-bottom:8px; padding:3px; border-radius:8px; background:var(--soft); }
+.emoji-categories { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:3px; margin-top:12px; margin-bottom:8px; padding:3px; border-radius:8px; background:var(--soft); }
 .emoji-categories button { min-width:0; min-height:30px; padding:4px 2px; border-radius:6px; background:transparent; color:var(--muted); font-size:12px; }
 .emoji-categories button[aria-pressed="true"] { background:var(--paper); color:var(--green); font-weight:600; box-shadow:0 1px 3px #00000012; }
 .emoji-results { max-height:188px; overflow-y:auto; overscroll-behavior:contain; margin-bottom:8px; }

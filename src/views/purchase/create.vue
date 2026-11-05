@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -268,16 +269,16 @@ function selectAftersale(value: unknown) {
     <h1>{{ editId ? '修改求购' : '发起求购' }}</h1>
     <p v-if="editLoading" role="status">正在加载求购资料…</p>
     <p v-if="editError" role="alert">{{ editError }} <button type="button" @click="loadEdit">重新加载</button></p>
-    <form @submit.prevent @keydown.enter.capture="preventImplicitSubmit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
+    <form novalidate v-required-feedback="{ '#request-category': !form.categoryId && '请选择商品分类', '#request-aftersale': !form.aftersaleType && '请选择售后类型' }" @submit.prevent @keydown.enter.capture="preventImplicitSubmit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
       <fieldset :disabled="submitting || confirmationOpen || !editReady || editLoading" class="form-fields">
         <section class="request-fields">
-          <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input maxlength="128" id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen" /></div>
+          <div class="field"><label for="request-title">商品标题 <em>*</em></label><Input maxlength="128" id="request-title" v-model="form.productTitle" placeholder="填写商品名称、规格、版本与颜色" :disabled="submitting || confirmationOpen"  required /></div>
           <div class="field"><label for="request-category">商品分类 <em>*</em></label><CategoryPicker id="request-category" v-model="form.categoryId" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting || confirmationOpen" placeholder="请选择商品分类" /><p v-if="categoryLoadError" class="error" role="alert">{{ categoryLoadError }}<button class="text-link" type="button" :disabled="categoryLoading" @click="reloadCategories">重新加载</button></p></div>
           <div class="field"><span class="field-label">收货地址 <em>*</em></span><AddressSelector :key="`${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-if="userStore.currentUser" v-model="form.addressId" :user-id="userStore.currentUser.id" @validity="addressValid = $event" @initialized="acceptAutomaticField('addressId', $event)" /></div>
           <div class="field"><label for="request-description">商品描述 <small>可选</small></label><Textarea id="request-description" v-model="form.productDescription" :rows="3" placeholder="详细描述商品规格、版本、颜色等" /></div>
         </section>
         <section class="request-fields"><div class="form-grid">
-          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" v-model:raw-value="form.budgetAmount" preserve-input :precision="8" :aria-invalid="!!budgetError" aria-describedby="request-budget-error" placeholder="请输入预算金额" /><p v-if="budgetError" id="request-budget-error" class="error" role="alert">{{ budgetError }}</p><p class="hint" :title="usdtCnyRateLabel()">≈ ¥{{ budgetCny }} · {{ referenceRate === undefined ? '参考汇率暂不可用' : '1 USDT = ¥' + referenceRate.toFixed(4) }}<br>参考估算 · 获取时间见页顶，以 USDT 结算</p></div>
+          <div class="field"><label for="request-budget">预算 · USDT <em>*</em></label><AmountInput id="request-budget" v-model:raw-value="form.budgetAmount" preserve-input :precision="8" :aria-invalid="!!budgetError" aria-describedby="request-budget-error" placeholder="请输入预算金额"  required /><p v-if="budgetError" id="request-budget-error" class="error" role="alert">{{ budgetError }}</p><p class="hint" :title="usdtCnyRateLabel()">≈ ¥{{ budgetCny }} · {{ referenceRate === undefined ? '参考汇率暂不可用' : '1 USDT = ¥' + referenceRate.toFixed(4) }}<br>参考估算 · 获取时间见页顶，以 USDT 结算</p></div>
           <div class="field"><label for="request-expected-days">期望发货天数 <em>*</em></label><AmountInput id="request-expected-days" :model-value="form.expectedDays" :min="1" :max="2147483647" :precision="0" placeholder="期望发货天数" @update:model-value="form.expectedDays = $event ?? NaN" /><p class="hint">请填写大于 0 的整数天数。</p></div>
         </div></section>
         <section class="request-fields">
@@ -287,7 +288,7 @@ function selectAftersale(value: unknown) {
           <div class="field"><span class="field-label">参考图片 <small>可选，最多 4 张</small></span><AftersaleEvidenceUploader :key="`${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`" v-model="form.evidenceUrls" scene="DEMAND" :max="4" :disabled="submitting || confirmationOpen" @uploading="uploading = $event" /></div>
         </section>
       </fieldset>
-      <div class="button-row actions"><button class="outline" type="button"  :disabled="submitting || confirmationOpen || uploading" @click="cancelCreate">取消</button><button class="gold full" type="button" :disabled="submitting || confirmationOpen || uploading || !addressValid || !editReady || editLoading" @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting || confirmationOpen ? '提交中…' : editId ? '修改后重新提交' : '提交求购' }}<Icon v-if="!submitting && !confirmationOpen" icon="lucide:arrow-right" width="16" /></button></div>
+      <div class="button-row actions"><button class="outline" type="button"  :disabled="submitting || confirmationOpen || uploading" @click="cancelCreate">取消</button><button class="gold full" type="button" :disabled="submitting || confirmationOpen || uploading || !addressValid || !editReady || editLoading" data-validate-required @click="submit"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting || confirmationOpen ? '提交中…' : editId ? '修改后重新提交' : '提交求购' }}<Icon v-if="!submitting && !confirmationOpen" icon="lucide:arrow-right" width="16" /></button></div>
     </form>
   </div>
 

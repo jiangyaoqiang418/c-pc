@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -393,10 +394,10 @@ watch([orderGroupNo, () => userStore.currentUser?.id, () => userStore.sessionVer
         <Alert v-else-if="pay.status === 'FAILED'" class="notice"><AlertDescription>链上转账未完成本次订单支付。转入资金按平台规则处理，请核对订单和钱包余额，勿重复转账。</AlertDescription></Alert>
         <Alert v-if="transferAmountInsufficient" class="notice"><AlertDescription>已识别转入金额低于应付金额，到账后可能存入平台余额；最终付款结果以支付单状态为准。</AlertDescription></Alert>
         <dl class="spec-table pay-details">
-          <div><dt>订单组号</dt><dd>{{ pay.orderGroupNo }}</dd></div><div><dt>支付单号</dt><dd>{{ pay.payNo }}</dd></div>
+          <div><dt>订单组号</dt><dd><CopyValue :value="pay.orderGroupNo" label="订单组号" /></dd></div><div><dt>支付单号</dt><dd><CopyValue :value="pay.payNo" label="支付单号" /></dd></div>
           <div class="address-detail"><dt>收款地址</dt><dd>{{ pay.toAddress }}</dd></div><div><dt>USDT 合约</dt><dd>{{ pay.tokenContract }}</dd></div>
           <div><dt>有效期至</dt><dd>{{ formatExpiry(pay.expireAt) }}</dd></div><div><dt>钱包账户</dt><dd>{{ walletAccount || progress?.fromAddress || '尚未连接' }}</dd></div>
-          <div v-if="pay.txHash || progress?.txHash"><dt>交易哈希</dt><dd>{{ pay.txHash || progress?.txHash }}</dd></div>
+          <div v-if="pay.txHash || progress?.txHash"><dt>交易哈希</dt><dd><CopyValue :value="pay.txHash || progress?.txHash" label="交易哈希" /></dd></div>
           <div v-if="pay.chainTx"><dt>链上进度</dt><dd>{{ chainProgressText }}</dd></div><div v-if="pay.chainTx?.blockHeight"><dt>区块高度</dt><dd>{{ pay.chainTx.blockHeight }}</dd></div><div v-if="pay.chainTx?.transferAmount"><dt>已识别转入</dt><dd>{{ pay.chainTx.transferAmount }} USDT</dd></div>
         </dl>
         <div v-if="(pay.status === 'PENDING' && !progress?.started || chainRetryable) && !recoveryBlocked" class="pay-operations">

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -193,11 +194,11 @@ watch([() => userStore.currentUser?.id, () => userStore.sessionVersion, () => us
       <dl class="buyer-dl"><dt>姓名</dt><dd>{{ application.realName }}</dd><dt>联系方式</dt><dd>{{ application.contact }}</dd><dt>申请说明</dt><dd>{{ application.reason }}</dd><dt>审核时间</dt><dd>{{ formatTime(application.reviewedAt) }}</dd></dl>
       <RouterLink v-if="application.status === 'APPROVED' && userStore.currentUser?.isBuyer" to="/buyer/dashboard" class="primary">进入买手工作台 →</RouterLink>
     </section>
-    <form v-else class="paper buyer-application apply-form" @submit.prevent="submit">
+    <form v-required-feedback v-else class="paper buyer-application apply-form" @submit.prevent="submit">
       <Alert v-if="application?.status === 'REJECTED'" variant="destructive"><AlertDescription>{{ statusMeta.text }}</AlertDescription></Alert>
-      <div class="buyer-field"><Label for="buyer-real-name">真实姓名 <span>*</span></Label><Input id="buyer-real-name" v-model="form.realName" maxlength="64" autocomplete="name" placeholder="请输入真实姓名" :disabled="submitting || !canApply" /></div>
-      <div class="buyer-field"><Label for="buyer-contact">联系方式 <span>*</span></Label><Input id="buyer-contact" v-model="form.contact" maxlength="64" placeholder="请输入手机号或常用联系方式" :disabled="submitting || !canApply" /></div>
-      <div class="buyer-field"><Label for="buyer-reason">申请说明 <span>*</span></Label><Textarea id="buyer-reason" v-model="form.reason" maxlength="500" :rows="6" placeholder="至少 10 个字" :disabled="submitting || !canApply" /><small class="counter">{{ form.reason.length }}/500</small><p class="helper">请说明您的采购经验、可服务的品类或地区。</p></div>
+      <div class="buyer-field"><Label for="buyer-real-name">真实姓名 <span>*</span></Label><Input id="buyer-real-name" v-model="form.realName" maxlength="64" autocomplete="name" placeholder="请输入真实姓名" :disabled="submitting || !canApply"  required /></div>
+      <div class="buyer-field"><Label for="buyer-contact">联系方式 <span>*</span></Label><Input id="buyer-contact" v-model="form.contact" maxlength="64" placeholder="请输入手机号或常用联系方式" :disabled="submitting || !canApply"  required /></div>
+      <div class="buyer-field"><Label for="buyer-reason">申请说明 <span>*</span></Label><Textarea id="buyer-reason" v-model="form.reason" maxlength="500" :rows="6" placeholder="至少 10 个字" :disabled="submitting || !canApply"  required /><small class="counter">{{ form.reason.length }}/500</small><p class="helper">请说明您的采购经验、可服务的品类或地区。</p></div>
       <Button type="submit" class="full primary" :disabled="!canApply || submitting">{{ submitting ? '正在提交…' : '提交申请' }}</Button>
     </form>
   </div>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -130,7 +131,7 @@ async function submit() {
     <div v-if="loadError" class="status-banner security-notice" :role="saved ? 'status' : 'alert'"><UmIcon name="shield" /><span>{{ loadError }}</span><button type="button" class="outline" :disabled="loading || submitting" @click="loadState(saved)">重新加载</button></div>
     <div v-if="loading" class="security-skeletons"><Skeleton class="h-10" /><Skeleton class="h-16" /><Skeleton class="h-16" /></div>
     <template v-else-if="!loadError && userStore.needsLoginPassword">
-      <form novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
+      <form v-required-feedback novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
         <div v-if="needsEmail" class="field"><Label for="set-login-email">登录邮箱 <span aria-hidden="true">*</span></Label><Input id="set-login-email" v-model="form.email" :disabled="submitting || saved" autocomplete="email" placeholder="请输入邮箱" :aria-invalid="!!emailError" aria-describedby="login-email-help" required /><p id="login-email-help" class="security-hint" :class="{ 'error-text': emailError }">{{ emailError || '该邮箱将作为你的登录账号，本期不校验邮箱验证码。' }}</p></div>
         <div v-else class="field"><Label for="set-login-email">登录邮箱</Label><Input placeholder="暂无绑定邮箱" id="set-login-email" :model-value="currentEmail || ''" readonly /></div>
         <div class="field"><Label for="set-login-password">新密码 <span aria-hidden="true">*</span></Label><PasswordInput id="set-login-password" v-model="form.password" :disabled="submitting || saved" autocomplete="new-password" placeholder="请输入登录密码" :aria-invalid="!!formError" aria-describedby="login-password-help" required /><p id="login-password-help" class="security-hint" :class="{ 'error-text': formError }">{{ formError || '长度 6–64 位，不限字符类型。' }}</p></div>

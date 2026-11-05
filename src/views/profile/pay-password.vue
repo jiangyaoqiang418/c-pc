@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import UmIcon from '@/components/common/um-icon.vue';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -177,7 +178,7 @@ async function submit() {
       <div v-if="status.locked" class="status-banner security-notice" role="status"><UmIcon name="shield" /><span>支付密码已锁定，可使用平台登录密码重置。</span></div>
       <div v-if="status.hasSet" class="tabs security-modes" role="group" aria-label="支付密码操作"><button :class="{ active: mode === 'update' }" :aria-pressed="mode === 'update'" :disabled="submitting" @click="handleModeChange('update')">修改密码</button><button :class="{ active: mode === 'reset' }" :aria-pressed="mode === 'reset'" :disabled="submitting" @click="handleModeChange('reset')">忘记密码</button></div>
       <p v-if="formError" class="error-text" role="alert">{{ formError }}</p>
-      <form novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
+      <form v-required-feedback novalidate @submit.prevent="submit" @keydown.enter="(event: KeyboardEvent) => { if (event.isComposing) event.preventDefault(); }">
         <div v-if="mode !== 'update'" class="field"><Label for="security-login-password">平台登录密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-login-password" v-model="form.loginPassword" :disabled="submitting" autocomplete="current-password" placeholder="请输入平台登录密码" required /></div>
         <div v-else class="field"><Label for="security-old-pay-password">原支付密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-old-pay-password" v-model="form.oldPayPassword" :disabled="submitting" :max-length="6" placeholder="请输入原支付密码" required /></div>
         <div class="field"><Label for="security-new-pay-password">新支付密码 <span aria-hidden="true">*</span></Label><PasswordInput id="security-new-pay-password" v-model="form.payPassword" :disabled="submitting" :max-length="6" placeholder="6 位数字，支持 0 开头" required /></div>

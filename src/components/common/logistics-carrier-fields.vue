@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { ComboboxAnchor, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxItemIndicator, ComboboxPortal, ComboboxRoot, ComboboxTrigger, ComboboxViewport } from 'reka-ui';
@@ -124,8 +125,8 @@ onBeforeUnmount(() => { catalogGuard.invalidate(); cancelDetection(); emit('vali
 </script>
 
 <template>
-  <div class="logistics-fields">
-    <div class="logistics-field"><Label :for="contextKey + '-tracking'">运单号 <span>*</span></Label><Input :id="contextKey + '-tracking'" :model-value="trackingNo" :disabled="disabled || !active" :aria-describedby="contextKey + '-detect-hint'" placeholder="请输入运单号" autocomplete="off" @update:model-value="emit('update:trackingNo', String($event))" /></div>
+  <div v-required-feedback="{ ['[id$=carrier]']: !fieldDisabled && !carrierCode && '请选择物流公司' }" class="logistics-fields">
+    <div class="logistics-field"><Label :for="contextKey + '-tracking'">运单号 <span>*</span></Label><Input required :id="contextKey + '-tracking'" :model-value="trackingNo" :disabled="disabled || !active" :aria-describedby="contextKey + '-detect-hint'" placeholder="请输入运单号" autocomplete="off" @update:model-value="emit('update:trackingNo', String($event))" /></div>
     <p :id="contextKey + '-detect-hint'" class="carrier-hint" role="status"><Icon v-if="detecting" icon="lucide:loader-circle" width="15" class="animate-spin" aria-hidden="true" />{{ detectionHint }}</p>
     <div v-if="candidates.length" class="carrier-candidates" role="group" aria-label="确认识别到的物流公司"><button v-for="carrier in candidates" :key="carrier.code" class="outline" type="button" :disabled="fieldDisabled" @click="chooseCarrier(carrier.code)">{{ carrier.name }}</button></div>
     <div v-if="error" class="carrier-error" role="alert"><span>{{ error }}</span><button class="text-link" type="button" :disabled="disabled || loading" @click="loadCarriers">重新加载</button></div>
@@ -135,7 +136,7 @@ onBeforeUnmount(() => { catalogGuard.invalidate(); cancelDetection(); emit('vali
         <ComboboxPortal><ComboboxContent position="popper" align="start" :side-offset="6" :collision-padding="16" class="carrier-menu"><ComboboxViewport class="carrier-viewport"><ComboboxEmpty class="carrier-empty">没有匹配的物流公司，请更换关键词。</ComboboxEmpty><ComboboxItem v-for="carrier in carriers" :key="carrier.code" :value="carrier.code" :text-value="carrier.name + ' ' + carrier.code" class="carrier-option"><span>{{ carrier.name }}</span><span class="carrier-code">{{ carrier.code }}</span><ComboboxItemIndicator><Icon icon="lucide:check" width="16" aria-hidden="true" /></ComboboxItemIndicator></ComboboxItem></ComboboxViewport></ComboboxContent></ComboboxPortal>
       </ComboboxRoot>
     </div>
-    <div v-if="selected?.customNameRequired" class="logistics-field"><Label :for="contextKey + '-carrier-name'">承运商名称 <span>*</span></Label><Input :id="contextKey + '-carrier-name'" :model-value="carrierName" :disabled="disabled || !active" placeholder="请输入承运商名称" @update:model-value="emit('update:carrierName', String($event))" /></div>
+    <div v-if="selected?.customNameRequired" class="logistics-field"><Label :for="contextKey + '-carrier-name'">承运商名称 <span>*</span></Label><Input required :id="contextKey + '-carrier-name'" :model-value="carrierName" :disabled="disabled || !active" placeholder="请输入承运商名称" @update:model-value="emit('update:carrierName', String($event))" /></div>
   </div>
 </template>
 

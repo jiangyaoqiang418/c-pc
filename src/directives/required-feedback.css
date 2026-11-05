@@ -1,0 +1,2 @@
+.required-feedback-invalid { outline:2px solid var(--yb-danger) !important; outline-offset:2px; border-radius:4px; }
+.required-feedback-message { display:block; margin-top:6px; color:var(--yb-danger); font-size:13px; line-height:1.5; }

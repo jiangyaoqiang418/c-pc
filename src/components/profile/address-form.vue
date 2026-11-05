@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import DialogActions from '@/components/common/dialog-actions.vue';
 import { computed, onBeforeUnmount, reactive, ref, useId, watch } from 'vue';
 import { Icon } from '@iconify/vue';
@@ -124,7 +125,7 @@ function submit() {
 </script>
 
 <template>
-  <form :id="`${fieldId}-form`" class="address-form" :class="{ v47 }" novalidate :aria-busy="loading || submitting" @submit.prevent="submit" @keydown.enter="event => event.isComposing && event.preventDefault()">
+  <form v-required-feedback="{ ['[id$=country]']: !form.countryCode && '请选择国家', ['[id$=province]']: hasRegion && !form.provinceCode && '请选择省/地区', ['[id$=city]']: needCity && !form.cityCode && '请选择城市', ['[id$=district]']: needDistrict && !form.districtCode && '请选择区/县' }" :id="`${fieldId}-form`" class="address-form" :class="{ v47 }" novalidate :aria-busy="loading || submitting" @submit.prevent="submit" @keydown.enter="event => event.isComposing && event.preventDefault()">
     <Alert v-if="loadError" variant="destructive" class="notice"><AlertDescription>{{ loadError }}</AlertDescription><Button type="button" variant="outline" class="outline" size="sm" :disabled="loading || submitting" @click="reloadRegions">重新加载</Button></Alert>
     <Alert v-if="legacyAddress" class="notice"><AlertDescription>历史地址缺少区划编码，请重新选择省市区后保存。</AlertDescription></Alert>
     <div v-if="loading" class="loading-note" role="status"><Icon icon="lucide:loader-circle" class="animate-spin" width="16" />正在读取国家与地区信息</div>
@@ -152,7 +153,7 @@ function submit() {
       <div class="two-fields" :class="{ 'form-grid': v47 }"><div class="field"><Label :for="`${fieldId}-postal`">邮编</Label><Input :id="`${fieldId}-postal`" v-model="form.postalCode" autocomplete="postal-code" placeholder="邮编（选填）" /></div><div class="field"><Label :for="`${fieldId}-identity`">清关证件号</Label><Input :id="`${fieldId}-identity`" v-model="form.idCardNo" placeholder="选填，请输入清关证件号" /></div></div>
       <label class="default-field" :class="{ 'check-label': v47 }"><input v-if="v47" v-model="form.defaultFlag" type="checkbox" :disabled="submitting" /><Checkbox v-else :model-value="!!form.defaultFlag" aria-label="设为默认地址" :disabled="submitting" @update:model-value="value => form.defaultFlag = value === true" />设为默认地址</label>
     </fieldset>
-    <DialogActions><button v-if="v47" :form="`${fieldId}-form`" type="submit" class="primary" :disabled="!canSubmit || submitting">{{ submitting ? '正在保存…' : '保存地址' }}</button><Button v-else :form="`${fieldId}-form`" type="submit" :disabled="!canSubmit || submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在保存' : '保存地址' }}</Button></DialogActions>
+    <DialogActions><button v-if="v47" :form="`${fieldId}-form`" type="submit" class="primary" :disabled="loading || !!loadError || submitting">{{ submitting ? '正在保存…' : '保存地址' }}</button><Button v-else :form="`${fieldId}-form`" type="submit" :disabled="loading || !!loadError || submitting"><Icon v-if="submitting" icon="lucide:loader-circle" class="animate-spin" width="16" />{{ submitting ? '正在保存' : '保存地址' }}</Button></DialogActions>
   </form>
 </template>
 

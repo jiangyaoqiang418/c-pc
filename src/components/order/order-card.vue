@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import { computed, h, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Message, Modal } from '@/lib/feedback';
@@ -253,7 +254,7 @@ function viewLogistics() {
 
 <template>
   <article class="paper order-card" role="link" tabindex="0" :aria-label="`打开订单 ${order.code}`" @click="goDetail" @keydown.enter.self="goDetail" @keydown.space.self.prevent="goDetail">
-    <div class="order-head"><span>{{ formatDateValue(order.createdAt) }} <small>订单 {{ order.code }}</small></span><OrderStatusTag :status="order.status" plain /></div>
+    <div class="order-head"><span>{{ formatDateValue(order.createdAt) }} <small>订单 <CopyValue :value="order.code" label="订单号" /></small></span><OrderStatusTag :status="order.status" plain /></div>
     <div class="order-items"><div class="checkout-item"><img :src="cover" :alt="order.productTitle" @error="setImageFallback" /><div><h3><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }" @click.stop>{{ order.productTitle }}</RouterLink></h3><p>数量 {{ quantity ?? '待核对' }}<template v-if="order.shopperName"> · 买手 {{ order.shopperName }}</template></p></div><b><span class="unit-price-label">单价</span>{{ formatAmount(order.price) }} USDT</b></div></div>
     <div class="order-footer" @click.stop><span>合计 <b>{{ formatAmount(order.totalAmount) }} USDT</b></span><OrderActions :order="order" :reviewable="reviewable" :busy="acting || confirmationOpen" @pay="pay" @cancel="cancel" @confirm="confirm" @extend-receipt="extendReceipt" @detail="goDetail" @review="review" @aftersale="aftersale" @cs="contactShopper" @logistics="viewLogistics" /></div>
   </article>

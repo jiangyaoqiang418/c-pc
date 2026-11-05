@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback } from '@/directives/required-feedback';
 import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Message } from '@/lib/feedback';
@@ -81,14 +82,14 @@ async function submitOAuth(params: Api.RealAuth.OAuthLoginParams) {
 <template>
   <section class="auth-form paper login-page" :aria-busy="submitting">
     <h1>登录账户</h1>
-    <form novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
+    <form v-required-feedback novalidate @submit.prevent="submit" @keydown.enter="event => { if (event.isComposing || event.keyCode === 229) event.preventDefault(); }">
       <div class="field">
         <Label for="login-email">邮箱</Label>
-        <Input id="login-email" ref="emailInput" v-model="form.email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com" :aria-describedby="oauthConflictMessage ? 'oauth-conflict' : undefined" />
+        <Input id="login-email" ref="emailInput" v-model="form.email" type="email" autocomplete="username" inputmode="email" placeholder="name@example.com" :aria-describedby="oauthConflictMessage ? 'oauth-conflict' : undefined"  required />
       </div>
       <div class="field">
         <Label for="login-password">密码</Label>
-        <PasswordInput id="login-password" v-model="form.password" :max-length="64" autocomplete="current-password" placeholder="请输入 6–64 位密码" />
+        <PasswordInput id="login-password" v-model="form.password" :max-length="64" autocomplete="current-password" placeholder="请输入 6–64 位密码"  required />
       </div>
       <p v-if="oauthConflictMessage" id="oauth-conflict" class="error-text auth-error" role="alert">{{ oauthConflictMessage }}</p>
       <Button type="submit" class="primary full auth-submit" :disabled="submitting">

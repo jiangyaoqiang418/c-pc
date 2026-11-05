@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vRequiredFeedback, validateRequiredFeedback } from '@/directives/required-feedback';
 import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ const categoryLoadError = ref('');
 const categoryLoading = ref(false);
 const submitting = ref(false);
 const modalOpen = ref(false);
+const requiredRoot = ref<HTMLElement>();
 const total = ref(0);
 const current = ref(1);
 const size = ref(20);
@@ -124,6 +126,7 @@ function openSubmit() {
 }
 
 async function submit() {
+  if (!validateRequiredFeedback(requiredRoot.value)) return;
   if (submitting.value || !modalOpen.value || !userStore.isBuyerActive) return;
   if (!form.newName.trim()) {
     Message.warning('请输入新分类名称');
@@ -224,7 +227,7 @@ function selectStatus(value: string) {
     <form class="buyer-filter" @submit.prevent="current = 1; load()"><label><UmIcon name="search" /><input v-model="filter.keyword" aria-label="搜索分类名称" placeholder="搜索分类名称" /></label><button type="submit" :disabled="loading">查询</button><button type="button" @click="reset">重置</button></form>
     <div v-if="loading && !records.length" class="buyer-skeleton" aria-busy="true"><Skeleton v-for="n in 4" :key="n" class="h-20" /></div><EmptyState v-else-if="loadError" :title="loadError" action-text="重新加载" @action="load" /><template v-else-if="records.length"><article v-for="record in records" :key="record.id" class="paper buyer-category-row"><div class="buyer-section-title"><div><small>{{ record.parentPath || '顶级分类' }}</small><h3>{{ record.newName }}</h3></div><span class="buyer-status" :class="record.status">{{ statusText(record.status) }}</span></div><p>{{ record.reason }}</p><div class="buyer-category-meta"><small>申请时间 {{ formatTime(record.createdAt) }}</small><span>审核意见：{{ record.reviewComment || '—' }}</span><small>审核时间 {{ formatTime(record.reviewedAt) }}</small></div></article></template><EmptyState v-else title="暂无匹配的分类申请" description="需要新增分类时，可提交申请。" action-text="提交申请" @action="openSubmit" />
     <BusinessPagination v-if="total > size" :total="total" :current="current" :page-size="size" :loading="loading" @change="(page: number) => { current = page; load(); }" />
-    <a-modal content-class="buyer-dialog" v-model:visible="modalOpen" :key="modalVersion" title="提交分类申请" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div class="application-form"><div class="buyer-field"><Label for="category-parent">上级分类</Label><CategoryPicker id="category-parent" :model-value="form.parentId" :options="categoryOptions" :loading="categoryLoading" :disabled="submitting" placeholder="不选择则申请顶级分类" @update:model-value="form.parentId = $event === undefined ? undefined : String($event)" /><Alert v-if="categoryLoadError"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="submitting || categoryLoading" @click="loadCategories">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><Label for="category-new-name">新分类名称 <span>*</span></Label><Input id="category-new-name" v-model="form.newName" :disabled="submitting" maxlength="50" placeholder="请输入分类名称" /></div><div class="buyer-field"><Label for="category-reason">申请理由 <span>*</span></Label><Textarea id="category-reason" v-model="form.reason" :disabled="submitting" maxlength="500" :rows="5" placeholder="请说明分类申请理由" /><small class="counter">{{ form.reason.length }}/500</small></div></div></a-modal>
+    <a-modal content-class="buyer-dialog" v-model:visible="modalOpen" :key="modalVersion" title="提交分类申请" :ok-loading="submitting" :closable="!submitting" :mask-closable="!submitting" :esc-to-close="!submitting" :on-before-cancel="() => !submitting" :on-before-ok="() => { void submit(); return false; }"><div ref="requiredRoot" v-required-feedback class="application-form"><div class="buyer-field"><Label for="category-parent">上级分类</Label><CategoryPicker id="category-parent" :model-value="form.parentId" :options="categoryOptions" :loading="categoryLoading" :disabled="submitting" placeholder="不选择则申请顶级分类" @update:model-value="form.parentId = $event === undefined ? undefined : String($event)" /><Alert v-if="categoryLoadError"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="submitting || categoryLoading" @click="loadCategories">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><Label for="category-new-name">新分类名称 <span>*</span></Label><Input required id="category-new-name" v-model="form.newName" :disabled="submitting" maxlength="50" placeholder="请输入分类名称" /></div><div class="buyer-field"><Label for="category-reason">申请理由 <span>*</span></Label><Textarea required id="category-reason" v-model="form.reason" :disabled="submitting" maxlength="500" :rows="5" placeholder="请说明分类申请理由" /><small class="counter">{{ form.reason.length }}/500</small></div></div></a-modal>
   </div>
 </template>
 

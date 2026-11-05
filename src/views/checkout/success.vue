@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import UmIcon from '@/components/common/um-icon.vue';
@@ -109,7 +110,7 @@ watch([orderId, orderGroupNo, () => userStore.currentUser?.id, () => userStore.s
     <section v-else-if="order" class="success-view paper">
       <div class="success-icon" :class="{ confirmed: paymentConfirmed }"><UmIcon :name="paymentConfirmed ? 'check' : 'clock'" /></div>
       <span v-if="paymentConfirmed" class="eyebrow">THANK YOU FOR CHOOSING US</span><h1>{{ resultTitle }}</h1><p class="result-description">{{ resultDescription }}</p>
-      <div class="receipt"><span>订单编号</span><b>{{ order.code }}</b><span>{{ paymentConfirmed ? '实付金额' : '订单金额' }}</span><b>{{ formatAmount(displayAmount) }} USDT</b><span>订单状态</span><OrderStatusTag :status="order.status" plain /><template v-if="groupResult"><span>订单组</span><b>{{ groupResult.totalCount }} 笔 · 已付 {{ groupResult.paidCount }} 笔</b><template v-if="!paymentConfirmed"><span>待付金额</span><b>{{ formatAmount(groupResult.unpaidAmount) }} USDT</b></template></template></div>
+      <div class="receipt"><span>订单编号</span><b><CopyValue :value="order.code" label="订单号" /></b><span>{{ paymentConfirmed ? '实付金额' : '订单金额' }}</span><b>{{ formatAmount(displayAmount) }} USDT</b><span>订单状态</span><OrderStatusTag :status="order.status" plain /><template v-if="groupResult"><span>订单组</span><b>{{ groupResult.totalCount }} 笔 · 已付 {{ groupResult.paidCount }} 笔</b><template v-if="!paymentConfirmed"><span>待付金额</span><b>{{ formatAmount(groupResult.unpaidAmount) }} USDT</b></template></template></div>
       <div class="button-row result-actions"><button type="button" class="primary" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })">查看订单 <UmIcon name="arrow" /></button><button type="button" class="outline" @click="router.push('/')">继续购物</button></div>
       <div v-if="groupResult" class="payment-details">
         <button type="button" class="details-toggle" :aria-expanded="detailsExpanded" aria-controls="payment-details-content" @click="detailsExpanded = !detailsExpanded">{{ detailsExpanded ? '收起付款明细' : '查看付款明细' }}<UmIcon name="chevron" :class="{ expanded: detailsExpanded }" /></button>

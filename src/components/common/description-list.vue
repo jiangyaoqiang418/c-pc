@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import CopyValue from './copy-value.vue';
 withDefaults(defineProps<{
-  items: Array<{ label: string; value?: string | number | null }>;
+  items: Array<{ label: string; value?: string | number | null; copyable?: boolean }>;
   columns?: 1 | 2;
 }>(), { columns: 1 });
 </script>
 
 <template>
   <dl class="description-list" :class="{ 'two-columns': columns === 2 }">
-    <div v-for="item in items" :key="item.label"><dt>{{ item.label }}</dt><dd>{{ item.value === undefined || item.value === null || item.value === '' ? '—' : item.value }}</dd></div>
+    <div v-for="item in items" :key="item.label"><dt>{{ item.label }}</dt><dd><CopyValue v-if="item.copyable" :value="item.value" :label="item.label" /><template v-else>{{ item.value === undefined || item.value === null || item.value === '' ? '—' : item.value }}</template></dd></div>
   </dl>
 </template>
 

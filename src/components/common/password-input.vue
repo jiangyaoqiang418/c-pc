@@ -10,7 +10,7 @@ const revealed = ref(false);
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative" data-required-feedback-control>
     <Input v-bind="$attrs" :type="revealed ? 'text' : 'password'" :model-value="modelValue" :maxlength="maxLength"
       :placeholder="placeholder" :disabled="disabled" :inputmode="maxLength === 6 ? 'numeric' : undefined"
       :autocomplete="maxLength === 6 ? 'off' : String($attrs.autocomplete || 'current-password')" class="pr-11" @update:model-value="value => emit('update:modelValue', String(value))" />
