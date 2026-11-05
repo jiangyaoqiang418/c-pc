@@ -51,7 +51,7 @@ async function recognize() {
     result.value = suggestion;
     category.value = suggestion.categoryCandidates.length === 1 ? String(suggestion.categoryCandidates[0].id) : '';
     brand.value = suggestion.brandCandidates.length === 1 ? String(suggestion.brandCandidates[0].id) : '';
-    Object.assign(fields, { title: !!suggestion.title, description: !!suggestion.description, category: true, brand: true, parameters: !!suggestion.parameters.length });
+    Object.assign(fields, { title: !!suggestion.title, description: !!suggestion.description, category: !!suggestion.categoryCandidates.length, brand: !!suggestion.brandCandidates.length, parameters: !!suggestion.parameters.length });
   } catch (cause) {
     if (current()) error.value = cause instanceof Error ? cause.message : '识别失败，原表单已保留，请重试或手动填写';
   } finally {
@@ -117,5 +117,5 @@ onBeforeUnmount(clear);
 </template>
 
 <style scoped>
-.image-prefill { padding:16px; margin-bottom:20px; border:1px solid var(--line); border-radius:8px; background:var(--soft); }.image-prefill header p,.image-prefill small,.image-prefill p { color:var(--muted); font-size:12px; line-height:1.6; }.recognition-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:12px 0; }.recognition-fields>div,.suggestions { display:grid; gap:8px; min-width:0; }input[type=file] { width:100%; min-width:0; font-size:12px; }.suggestions { margin-top:16px; }.check { display:flex; align-items:center; gap:8px; font-size:13px; }.check input { width:auto; }select,textarea { width:100%; min-width:0; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink); }.button-row { flex-wrap:wrap; }dl>div { display:flex; gap:12px; font-size:13px; }dd { overflow-wrap:anywhere; }@media(max-width:700px) { .recognition-fields { grid-template-columns:1fr; } }
+.image-prefill { padding:16px; margin-bottom:20px; border:1px solid var(--line); border-radius:8px; background:var(--soft); }.image-prefill header p,.image-prefill small,.image-prefill p { color:var(--muted); font-size:12px; line-height:1.6; }.recognition-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; gap:12px; margin:12px 0; }.recognition-fields>div,.suggestions { display:grid; gap:8px; min-width:0; }input[type=file] { width:100%; min-width:0; font-size:12px; }.suggestions { margin-top:16px; }.check { display:flex; align-items:center; gap:8px; font-size:13px; }.check input { width:auto; }select,textarea { width:100%; min-width:0; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink); }.button-row { flex-wrap:wrap; }dl>div { display:flex; gap:12px; font-size:13px; }dd { overflow-wrap:anywhere; }@media(max-width:700px) { .recognition-fields { grid-template-columns:1fr; } }
 </style>
