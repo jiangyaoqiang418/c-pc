@@ -86,6 +86,16 @@ export function fetchWalletPayDetail(payNo: string, options: { signal?: AbortSig
   });
 }
 
+/** 先定位最新单，再回读详情；不能只凭页面缓存或倒计时解锁付款。 */
+export async function fetchCurrentWalletPay(orderGroupNo: string, options: { signal?: AbortSignal } = {}) {
+  const latest = await fetchLatestWalletPay(orderGroupNo, options);
+  if (!latest) return undefined;
+  const current = validateWalletPay(latest, orderGroupNo);
+  const detail = validateWalletPay(await fetchWalletPayDetail(current.payNo, options), orderGroupNo);
+  if (detail.payNo !== current.payNo) throw new Error('钱包支付单已变化，请重新核对');
+  return detail;
+}
+
 export function submitWalletPayTx(params: { payNo: string; txHash: string; fromAddress?: string }) {
   return realOrderRequest.post<WalletPayOrder, typeof params>('/orders/wallet-pay/submit-tx', params,
     { showError: false, preserveDecimals: true });

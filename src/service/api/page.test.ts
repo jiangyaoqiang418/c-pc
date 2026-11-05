@@ -82,6 +82,11 @@ import * as reviewApi from './review';
 import * as rechargeApi from './wallet';
 import { effectScope, type EffectScope } from 'vue';
 import { useRechargeReceipt, type RechargeReceiptTarget } from '@/composables/use-recharge-receipt';
+import ProductImagePrefill from '@/components/buyer/product-image-prefill.vue';
+import * as aiApi from './ai';
+import * as walletPayApi from './wallet-pay';
+import { useWalletBalancePayment, balancePaymentBlockedReason } from '@/composables/use-wallet-balance-payment';
+import { plainTextToRichText } from '@/utils/rich-text';
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -292,6 +297,112 @@ describe('v47前端本地边界', () => {
     const state = (app as unknown as { _instance:{ subTree:{ component:{ setupState:T } } } })._instance.subTree.component.setupState;
     return { app, state, properties };
   }
+
+  it('识图接口保留Long原文、等待60秒，坏响应不得当作空建议成功', async () => {
+    const suggestion = { title:'商品', description:'<b>外观</b>', categoryCandidates:[{ id:'9007199254740993123', name:'分类' }], brandCandidates:[], parameters:[] };
+    const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(suggestion);
+    const input = { fileId:'9007199254740993124', hint:'品牌型号' };
+    expect(await productApi.prefillProductImage(input)).toEqual(suggestion);
+    expect(post).toHaveBeenCalledWith('/products/images/prefill', input, expect.objectContaining({ timeoutMs:60000, numericSuccessOnly:true }));
+    post.mockResolvedValueOnce({ ...suggestion, categoryCandidates:[{ id:9007199254740992000, name:'失真ID' }] });
+    await expect(productApi.prefillProductImage(input)).rejects.toThrow('不完整');
+    await expect(productApi.prefillProductImage({ ...input, hint:'字'.repeat(121) })).rejects.toThrow('120');
+    expect(plainTextToRichText('<b>外观</b>\n第二行')).toBe('<p>&lt;b&gt;外观&lt;/b&gt;</p><p>第二行</p>');
+  });
+
+  it('识图建议不自动覆盖：单分类预选、多品牌不猜测，空描述/参数不覆盖', async () => {
+    const applied = vi.fn();
+    vi.spyOn(aiApi, 'uploadAiImage').mockResolvedValue({ id:'9007199254740993123' } as Api.Ai.UploadedImage);
+    vi.spyOn(productApi, 'prefillProductImage').mockResolvedValue({ title:'手表', description:'', categoryCandidates:[{id:'cat',name:'手表'}], brandCandidates:[{id:'a',name:'A'},{id:'b',name:'B'}], parameters:[] });
+    const fixture = mountSubject<{ chooseFile:(event:Event)=>void; recognize:()=>Promise<void>; apply:()=>void; category:string; brand:string }>(ProductImagePrefill, { contextKey:'buyer:a', onApply:applied });
+    try {
+      fixture.state.chooseFile({ target:{ files:[new File(['image'], 'watch.png', {type:'image/png'})] } } as unknown as Event);
+      await fixture.state.recognize();
+      expect(applied).not.toHaveBeenCalled();
+      expect(fixture.state.category).toBe('cat'); expect(fixture.state.brand).toBe('');
+      fixture.state.apply();
+      expect(applied).toHaveBeenCalledWith({title:'手表',category:{id:'cat',name:'手表'}});
+    } finally { fixture.app.unmount(); }
+  });
+
+  it('识图超时保留fileId手动重试，切换上下文拒绝迟到建议', async () => {
+    const applied = vi.fn();
+    const upload = vi.spyOn(aiApi, 'uploadAiImage').mockResolvedValue({ id:'original-file' } as Api.Ai.UploadedImage);
+    const suggestion = { title:'商品', description:'', categoryCandidates:[], brandCandidates:[], parameters:[] };
+    let resolve!: (value:Api.RealProduct.ImagePrefillResult)=>void;
+    const recognize = vi.spyOn(productApi, 'prefillProductImage').mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce(suggestion).mockImplementationOnce(() => new Promise(done => { resolve=done; }));
+    const fixture = mountSubject<{ chooseFile:(event:Event)=>void; recognize:()=>Promise<void>; apply:()=>void; hint:string; result:unknown; error:string; busy:boolean }>(ProductImagePrefill, {contextKey:'buyer:a',onApply:applied});
+    try {
+      fixture.state.chooseFile({target:{files:[new File(['image'],'a.png',{type:'image/png'})]}} as unknown as Event);
+      fixture.state.hint='原提示';
+      await fixture.state.recognize(); expect(fixture.state.error).toContain('timeout');
+      await fixture.state.recognize(); expect(upload).toHaveBeenCalledTimes(1);
+      expect(recognize.mock.calls.slice(0,2).map(call=>call[0])).toEqual([{fileId:'original-file',hint:'原提示'},{fileId:'original-file',hint:'原提示'}]);
+      const pending=fixture.state.recognize();
+      fixture.properties.contextKey='buyer:b'; await nextTick();
+      resolve(suggestion); await pending;
+      fixture.state.apply();
+      expect(fixture.state.result).toBeUndefined(); expect(fixture.state.busy).toBe(false); expect(applied).not.toHaveBeenCalled();
+    } finally {fixture.app.unmount();}
+  });
+
+  function balanceFixture() {
+    vi.stubGlobal('localStorage',{getItem:()=>null,setItem:()=>undefined,removeItem:()=>undefined});
+    setActivePinia(createPinia());
+    return mountSubject<ReturnType<typeof useWalletBalancePayment>>({setup:()=>useWalletBalancePayment()}, {});
+  }
+  const walletPay = (status:walletPayApi.WalletPayStatus, payNo='pay-a') => ({status,payNo,orderGroupNo:'group',statusText:status} as walletPayApi.WalletPayOrder);
+
+  it.each(['PENDING','CLOSED','FAILED'] as const)('直付%s改余额必须确认，选择页和取消不发付款请求', async status => {
+    const read = vi.spyOn(walletPayApi,'fetchCurrentWalletPay').mockResolvedValue(walletPay(status));
+    const post = vi.spyOn(realOrderRequest,'post');
+    let options!:Parameters<typeof Modal.confirm>[0];
+    vi.spyOn(Modal,'confirm').mockImplementation(value=>{options=value;return {close:()=>options.onClose?.()};});
+    const fixture=balanceFixture();
+    try {
+      const consent=fixture.state.confirmBalanceSwitch('group','20.00000001',()=>true);
+      await nextTick();
+      expect(options.content).toContain('20.00000001'); expect(post).not.toHaveBeenCalled();
+      options.onOk?.();
+      expect(await consent).toEqual({group:'group',payNo:'pay-a'});
+      read.mockResolvedValueOnce(walletPay('SUBMITTED'));
+      await expect(fixture.state.assertBalanceSwitch({group:'group',payNo:'pay-a'})).rejects.toThrow('确认');
+      expect(post).not.toHaveBeenCalled();
+    } finally {fixture.app.unmount();}
+  });
+
+  it.each(['SUBMITTED','SUCCESS'] as const)('直付%s禁止再次余额支付，不按本机倒计时放行', async status => {
+    vi.spyOn(walletPayApi,'fetchCurrentWalletPay').mockResolvedValue(walletPay(status));
+    const confirm=vi.spyOn(Modal,'confirm');
+    const fixture=balanceFixture();
+    try {
+      expect(balancePaymentBlockedReason(walletPay(status))).not.toBe('');
+      await expect(fixture.state.confirmBalanceSwitch('group','10',()=>true)).rejects.toThrow();
+      expect(confirm).not.toHaveBeenCalled();
+    } finally {fixture.app.unmount();}
+  });
+
+  it('输入密码期间出现新直付单须重新确认；切页取消确认；付款失败回查两条路径', async () => {
+    vi.spyOn(walletPayApi,'fetchCurrentWalletPay').mockResolvedValue(walletPay('PENDING','new-pay'));
+    const result=vi.spyOn(orderApi,'fetchOrderGroupPayResult').mockRejectedValue(new Error('offline'));
+    let options!:Parameters<typeof Modal.confirm>[0];
+    vi.spyOn(Modal,'confirm').mockImplementation(value=>{options=value;return {close:()=>options.onClose?.()};});
+    const fixture=balanceFixture();
+    await expect(fixture.state.assertBalanceSwitch({group:'group',payNo:'pay-a'})).rejects.toThrow('已变化');
+    const consent=fixture.state.confirmBalanceSwitch('group','10',()=>true); await nextTick();
+    expect(options).toBeDefined(); fixture.app.unmount(); expect(await consent).toBeUndefined();
+    const other=balanceFixture();
+    try {expect(await other.state.recoverBalancePayment('group')).toHaveLength(2);expect(result).toHaveBeenCalledWith('group');} finally {other.app.unmount();}
+  });
+
+  it('最新直付定位后必须查同一支付单详情，不能用旧状态或串单结果', async () => {
+    const pay={...walletPay('PENDING'),chain:'TRON',network:'nile',tokenContract:'token',toAddress:'address',rawAmount:'1000000',orderAmount:'1',payAmount:'1',expireAt:'2000000000000',decimals:6};
+    const get=vi.spyOn(realOrderRequest,'get').mockResolvedValueOnce(pay).mockResolvedValueOnce({...pay,status:'SUBMITTED'});
+    expect((await walletPayApi.fetchCurrentWalletPay('group'))?.status).toBe('SUBMITTED');
+    expect(get.mock.calls[1][1]).toMatchObject({params:{payNo:'pay-a'}});
+    get.mockResolvedValueOnce(pay).mockResolvedValueOnce({...pay,payNo:'another'});
+    await expect(walletPayApi.fetchCurrentWalletPay('group')).rejects.toThrow('已变化');
+  });
 
   it('运单变化丢弃旧识别，多候选须明确选择，识别失败仍可手选', async () => {
     vi.useFakeTimers();

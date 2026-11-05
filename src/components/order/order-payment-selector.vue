@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Modal } from '@/lib/feedback';
 import * as orderApi from '@/service/api/order';
-import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
+import { createWalletPay, fetchCurrentWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
 import { RequestError } from '@/service/request';
 import { useUserStore } from '@/stores';
 import { readPendingCheckout, pendingCheckoutStorageKey, sumPaymentAmounts, validateGroupPayResult } from '@/utils/checkout';
@@ -49,7 +49,7 @@ function askConfirmation(title: string, content: string) {
 }
 
 const groupNo = computed(() => detail.value?.orderGroupNo?.trim() || '');
-const activePay = computed(() => latestPay.value && ['PENDING', 'SUBMITTED', 'SUCCESS'].includes(latestPay.value.status));
+const activePay = computed(() => latestPay.value && ['SUBMITTED', 'SUCCESS'].includes(latestPay.value.status));
 const chainDisabledReason = computed(() => {
   if (!walletPayEntryEnabled) return '链上支付入口暂未开放';
   if (!groupNo.value) return '该订单缺少订单组号，暂不能创建链上支付单';
@@ -121,6 +121,19 @@ watch([() => props.visible, () => props.order.id, () => userStore.currentUser?.i
 }, { immediate: true });
 onBeforeUnmount(() => { writeVersion += 1; closeConfirmation(); guard.invalidate(); });
 
+watch([() => props.visible, () => latestPay.value?.status, () => userStore.sessionVersion], ([visible, status], _, cleanup) => {
+  if (!visible || status !== 'SUBMITTED') return;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const poll = async () => {
+    if (stopped) return;
+    if (!document.hidden && !submitting.value) await load();
+    if (!stopped) timer = setTimeout(poll, 4000);
+  };
+  timer = setTimeout(poll, 4000);
+  cleanup(() => { stopped = true; clearTimeout(timer); });
+});
+
 function amountAtLeast(amount: string, minimum: string | number | null) {
   if (minimum === null || minimum === undefined || minimum === '') return true;
   const [whole, fraction = ''] = sumPaymentAmounts([amount]).split('.');
@@ -180,14 +193,15 @@ async function continuePayment() {
       throw new Error('订单状态或金额已变化，请刷新后重新核对');
     }
     if (group && walletPayEntryEnabled) {
-      const existing = await fetchLatestWalletPay(group);
+      const existing = await fetchCurrentWalletPay(group);
       if (!isCurrent()) return;
       latestPay.value = existing ? validateWalletPay(existing, group) : undefined;
-      if (latestPay.value && ['PENDING', 'SUBMITTED', 'SUCCESS'].includes(latestPay.value.status)) {
+      if (latestPay.value && (['SUBMITTED', 'SUCCESS'].includes(latestPay.value.status)
+        || selectedMethod === 'chain' && latestPay.value.status === 'PENDING')) {
         await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: group } });
         return;
       }
-      if (latestPay.value && ['CLOSED', 'FAILED'].includes(latestPay.value.status)) {
+      if (selectedMethod === 'chain' && latestPay.value && ['CLOSED', 'FAILED'].includes(latestPay.value.status)) {
         const confirmed = await askConfirmation('先核对原链上支付',
           `原支付单 ${latestPay.value?.payNo} 已${latestPay.value?.statusText || latestPay.value?.status}。旧交易仍可能延迟到账；请先在钱包和平台核对原交易，确认后再选择新的付款。`);
         if (!confirmed || !isCurrent()) return;
@@ -300,6 +314,7 @@ async function continuePayment() {
       <template v-if="detail">
         <div class="order-summary"><span>订单 {{ detail.code }}</span><strong>U {{ detail.totalAmount }}</strong></div>
         <Alert v-if="activePay" class="notice"><AlertDescription>此订单组已有钱包支付单（{{ latestPay?.statusText || latestPay?.status }}），请先核对原支付进度，勿重复付款。</AlertDescription><button type="button" class="outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: groupNo } })">查看支付进度</button></Alert>
+        <Alert v-else-if="latestPay?.status === 'PENDING'" class="notice"><AlertDescription>原直付单仍待转账。已广播时请先核对钱包活动并上报原交易哈希；明确选择余额并再次确认后，才会在实际付款时切换。</AlertDescription><button type="button" class="outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: groupNo } })">核对原交易</button></Alert>
         <Alert v-else-if="latestPay && ['CLOSED', 'FAILED'].includes(latestPay.status)" class="notice"><AlertDescription>此前的链上支付单已{{ latestPay.statusText || latestPay.status }}。再次发起前请先核对原交易是否到账。</AlertDescription></Alert>
         <fieldset class="method-choices payment-options" :disabled="!!activePay || !!error || loading || submitting"><legend class="sr-only">付款方式</legend>
           <label class="method-option" :class="{ active: method === 'balance' }"><input type="radio" :name="paymentMethodId" :checked="method === 'balance'" @change="method = 'balance'" /><UmIcon name="wallet" /><span><strong>站内钱包余额支付</strong><small>下一步输入支付密码</small></span></label>

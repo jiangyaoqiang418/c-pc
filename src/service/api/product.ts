@@ -8,6 +8,22 @@ import { sumPaymentAmounts } from '@/utils/checkout';
 import { compareDecimalAmount, exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { validateProductSkuWrite } from '@/utils/product-sku';
 
+/** 识图只返回建议，不调用商品写接口；超时后由用户用原 fileId 手动重试。 */
+export async function prefillProductImage(params: Api.RealProduct.ImagePrefillParams, signal?: AbortSignal) {
+  const validId = (id: unknown) => typeof id === 'string' ? !!id.trim() : typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
+  if (!validId(params.fileId) || (params.hint !== undefined && params.hint.length > 120)) throw new Error('请上传图片，识别提示不能超过120字');
+  const result = await realOrderRequest.post<Api.RealProduct.ImagePrefillResult>('/products/images/prefill', params,
+    { signal, timeoutMs: 60_000, showError: false, numericSuccessOnly: true });
+  const candidates = (items: Api.RealProduct.ImagePrefillCandidate[]) => Array.isArray(items)
+    && items.every(item => item && validId(item.id) && typeof item.name === 'string' && !!item.name.trim());
+  if (!result || typeof result.title !== 'string' || result.title.length > 128 || typeof result.description !== 'string'
+    || !candidates(result.categoryCandidates) || !candidates(result.brandCandidates) || !Array.isArray(result.parameters)
+    || result.parameters.some(item => !item || typeof item.name !== 'string' || typeof item.value !== 'string')) {
+    throw new Error('商品识别建议不完整，请重试或手动填写，原表单已保留');
+  }
+  return result;
+}
+
 export function toAfterSaleType(value?: string): Api.RealProduct.DisplayAfterSaleType {
   if (value === 'SEVEN_DAY_NO_REASON') return '7day-no-reason';
   if (value === 'NONE') return 'none';

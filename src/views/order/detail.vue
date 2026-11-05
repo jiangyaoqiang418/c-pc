@@ -21,6 +21,7 @@ import EmptyState from '@/components/common/empty-state.vue';
 import { useUserStore } from '@/stores';
 import * as orderApi from '@/service/api/order';
 import { requestPayPassword } from '@/utils/pay-password';
+import { useWalletBalancePayment } from '@/composables/use-wallet-balance-payment';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 import { PRODUCT_IMAGE_PLACEHOLDER, setImageFallback } from '@/utils/image-placeholder';
 import { sameBusinessId } from '@/utils/im';
@@ -32,6 +33,7 @@ import { readPendingCheckout, sumPaymentAmounts } from '@/utils/checkout';
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+const { confirmBalanceSwitch, assertBalanceSwitch, recoverBalancePayment } = useWalletBalancePayment();
 const order = ref<Api.RealOrder.Record>();
 const walletPay = ref<WalletPayOrder>();
 const walletPayError = ref('');
@@ -57,6 +59,9 @@ const loading = ref(false);
 const loadError = ref('');
 const acting = ref(false);
 const paymentOpen = ref(false);
+watch([() => route.query.payment, () => order.value?.id, loading], ([choice, , reading]) => {
+  if (choice === 'choose' && !reading && permissions.value.pay) paymentOpen.value = true;
+});
 const confirmationOpen = ref(false);
 const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 let actionVersion = 0;
@@ -200,25 +205,10 @@ function pay() {
 async function payBalance() {
   if (!permissions.value.pay) return;
   if (!order.value || acting.value) return;
-  if (walletPayEntryEnabled && walletPayError.value) { Message.warning(walletPayError.value); return; }
-  if (walletPayEntryEnabled && walletGroupNo.value) {
-    const group = walletGroupNo.value;
-    const userId = userStore.currentUser?.id;
-    const orderId = order.value.id;
-    try {
-      const latest = await fetchLatestWalletPay(group);
-      if (String(userStore.currentUser?.id) !== String(userId) || !sameBusinessId(order.value?.id, orderId) || walletGroupNo.value !== group) return;
-      walletPay.value = latest ? validateWalletPay(latest, group) : undefined;
-      if (walletPay.value && ['PENDING', 'SUBMITTED'].includes(walletPay.value.status)) {
-        Message.warning('该订单组已有钱包支付单，请先核对原支付进度，勿重复付款');
-        await router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: group } });
-        return;
-      }
-    } catch { Message.warning('无法核对钱包支付状态，暂不可重复付款'); return; }
-  }
   const requestedUserId = userStore.currentUser?.id;
   const requestedOrderId = order.value.id;
   const requestedAmount = String(order.value.totalAmount);
+  const group = order.value.orderGroupNo;
   if (requestedUserId === undefined) return;
   const operation = ++actionVersion;
   const isCurrentAction = () => operation === actionVersion
@@ -226,6 +216,8 @@ async function payBalance() {
     && sameBusinessId(order.value?.id, requestedOrderId);
   acting.value = true;
   try {
+    const consent = await confirmBalanceSwitch(group, requestedAmount, isCurrentAction);
+    if (!consent || !isCurrentAction()) return;
     const payPassword = await requestPayPassword(route.fullPath);
     if (!payPassword || !isCurrentAction()) return;
     const r = await orderApi.withOrderPayment(requestedUserId, [requestedOrderId], undefined, async payment => {
@@ -234,18 +226,17 @@ async function payBalance() {
         || sumPaymentAmounts([latestOrder.totalAmount]) !== sumPaymentAmounts([requestedAmount])) {
         throw new Error('订单状态或金额已变化，请刷新后重新核对');
       }
-      if (latestOrder.orderGroupNo) {
-        const latestPay = await fetchLatestWalletPay(latestOrder.orderGroupNo);
-        if (latestPay && ['PENDING', 'SUBMITTED', 'SUCCESS'].includes(validateWalletPay(latestPay, latestOrder.orderGroupNo).status)) {
-          throw new Error('该订单组已有链上支付单，请先核对支付进度，勿重复付款');
-        }
-      }
+      if (latestOrder.orderGroupNo !== group) throw new Error('订单组已变化，请重新核对');
+      await assertBalanceSwitch(consent);
+      if (!isCurrentAction()) return;
       return payment.payOrder(requestedOrderId, String(latestOrder.totalAmount), payPassword, { showError: false });
     });
     if (!isCurrentAction()) return;
-    if (r.ok) { Message.success('支付成功'); await load(); }
-    else Message.error(r.message || '支付失败');
+    if (r?.ok) { Message.success('支付成功'); await load(); }
+    else Message.error(r?.message || '支付失败');
   } catch (error) {
+    if (!isCurrentAction()) return;
+    await recoverBalancePayment(group);
     if (isCurrentAction()) {
       Message.error(error instanceof Error ? error.message : '支付结果未确认，请核对订单');
       await load();

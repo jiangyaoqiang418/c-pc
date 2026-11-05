@@ -497,6 +497,24 @@ operation(admin, '/review-discussions/reports/page', 'post');
 expectRequired(requestSchema(admin, operation(admin, '/review-discussions/reports/handle', 'put')), ['id', 'accepted', 'reason'], '处理举报');
 expectRequired(requestSchema(admin, operation(admin, '/review-discussions/remove', 'put')), ['reviewId', 'reason'], '违规内容移除');
 
+// SHOP-94 / 1、2、7：审核专用读取、识图建议与既有付款接口的切换语义。
+for (const path of ['/kyc/review-identity', '/buyer-applications/review-identity']) {
+  const read = operation(admin, path, 'get');
+  expectParameters(read, ['id'], path);
+  expectProperties(responseDataSchema(admin, read), ['idNo', 'phone'], path);
+}
+const prefill = requestSchema(order, operation(order, '/products/images/prefill', 'post'));
+expectRequired(prefill, ['fileId'], '商品识图预填');
+expectProperties(prefill, ['hint'], '商品识图提示');
+if (prefill.properties.hint.maxLength !== 120) throw new Error('商品识图提示长度契约变化');
+const suggestion = responseDataSchema(order, operation(order, '/products/images/prefill', 'post'));
+expectProperties(suggestion, ['title', 'description', 'categoryCandidates', 'brandCandidates', 'parameters'], '商品识图建议');
+for (const name of ['categoryCandidates', 'brandCandidates']) expectProperties(resolveSchema(order, suggestion.properties[name].items), ['id', 'name'], name);
+for (const path of ['/orders/pay', '/orders/group/pay']) {
+  const pay = operation(order, path, 'post');
+  if (!['PENDING', 'SUBMITTED', '-305'].every(text => pay.description?.includes(text))) throw new Error(`${path} 缺少直付切换语义`);
+}
+
 for (const [name, document] of Object.entries({ admin, user, order })) {
   if (!document) continue;
   const schemas = Object.keys(document.components?.schemas || {}).length;

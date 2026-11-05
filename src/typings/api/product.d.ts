@@ -2,6 +2,22 @@ declare namespace Api.RealProduct {
   type Id = string | number;
   interface ProductCategory { id: Id; name: string }
   interface ProductParameter { groupName?: string; name: string; value: string; explanation?: string; highlighted?: boolean }
+  interface ImagePrefillCandidate { id: Id; name: string }
+  interface ImagePrefillParams { fileId: Id; hint?: string }
+  interface ImagePrefillResult {
+    title: string;
+    description: string;
+    categoryCandidates: ImagePrefillCandidate[];
+    brandCandidates: ImagePrefillCandidate[];
+    parameters: ProductParameter[];
+  }
+  interface ImagePrefillSelection {
+    title?: string;
+    description?: string;
+    category?: ImagePrefillCandidate;
+    brand?: ImagePrefillCandidate;
+    parameters?: ProductParameter[];
+  }
 
   interface ProductSpecGroup { name: string; options: string[] }
   interface ProductSkuOption { name: string; value: string }

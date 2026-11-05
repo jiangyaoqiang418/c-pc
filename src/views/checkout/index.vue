@@ -10,7 +10,7 @@ import PaymentMethodSelector from '@/components/order/payment-method-selector.vu
 import { Message, Modal } from '@/lib/feedback';
 import { TAX_TOOLTIP_TEXT } from '@shared/utils/currency';
 import * as realOrderApi from '@/service/api/order';
-import { createWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
+import { createWalletPay, fetchCurrentWalletPay, fetchLatestWalletPay, fetchWalletPayChains, validateWalletPay, type WalletPayChain, type WalletPayOrder } from '@/service/api/wallet-pay';
 import * as realWalletApi from '@/service/api/wallet';
 import * as productApi from '@/service/api/product';
 import { readCheckoutIntent, clearCheckoutIntent, prepareCheckoutPayment, canDiscardRejectedCheckout, cleanupPaidCheckout,
@@ -27,6 +27,7 @@ import { createLatestRequestGuard } from '@/utils/latest-request';
 import { getOrderCapabilities } from '@/utils/order';
 import OrderStatusTag from '@/components/order/order-status-tag.vue';
 import { requestPayPassword } from '@/utils/pay-password';
+import { useWalletBalancePayment } from '@/composables/use-wallet-balance-payment';
 import { exactTransactionAmount } from '@/components/wallet/decimal-amount';
 import { walletPayEntryEnabled } from '@/utils/wallet-pay-feature';
 import { getAccessToken } from '@/service/request/token';
@@ -36,6 +37,7 @@ const route = useRoute();
 const contextId = computed(() => typeof route.query.contextId === 'string' ? route.query.contextId : '');
 const contextItems = ref<Array<{ productId: string | number; quantity: number; skuId?: string | number; confirmedUnitPrice?: string }>>([]);
 const userStore = useUserStore();
+const { confirmBalanceSwitch, assertBalanceSwitch } = useWalletBalancePayment();
 const cart = useCartStore();
 const requestGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
 const walletGuard = createLatestRequestGuard(() => `${String(userStore.currentUser?.id)}:${userStore.sessionVersion}`);
@@ -48,6 +50,19 @@ const walletChainsError = ref('');
 const paymentMethod = ref<'balance' | 'wallet'>('balance');
 const selectedChain = ref('');
 const latestWalletPay = ref<WalletPayOrder>();
+
+watch(() => latestWalletPay.value?.status, (status, _, cleanup) => {
+  if (status !== 'SUBMITTED') return;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const poll = async () => {
+    if (stopped) return;
+    if (!document.hidden && !submitting.value) await load();
+    if (!stopped) timer = setTimeout(poll, 4000);
+  };
+  timer = setTimeout(poll, 4000);
+  cleanup(() => { stopped = true; clearTimeout(timer); });
+});
 
 const addressId = ref<string | number>();
 const addressValid = ref(false);
@@ -129,6 +144,7 @@ const pendingDisabledReason = computed(() => {
   if (unpaidOrders.value.length && exactTransactionAmount(pendingTotal.value).error) return '待付总额超出交易金额范围，请联系平台核对';
   if (submitting.value || loading.value) return '正在读取或处理订单，请稍候';
   if (loadError.value) return loadError.value;
+  if (latestWalletPay.value && ['SUBMITTED', 'SUCCESS'].includes(latestWalletPay.value.status)) return '请核对原钱包付款进度，暂不可再次付款';
   if (!agreed.value) return '请先核对上述订单及待付金额';
   if (walletSelected.value && !selectedWalletChain(pendingTotal.value)) return '请选择当前可用且满足最低支付金额的链';
   return '';
@@ -269,13 +285,6 @@ async function payPendingOrders() {
       if (!isCurrent()) return;
       const stored = readPendingCheckout(userId);
       if (!stored || stored.idempotencyKey !== pending.idempotencyKey) throw new Error('结算记录已在其他页面变化，请重新加载已有订单');
-      if (walletPayEntryEnabled && stored.orderGroupNo) {
-        const walletPay = await fetchLatestWalletPay(stored.orderGroupNo);
-        if (!isCurrent()) return;
-        if (walletPay && ['PENDING', 'SUBMITTED'].includes(validateWalletPay(walletPay, stored.orderGroupNo).status)) {
-          throw new Error('该订单组已有钱包支付单，请先到钱包支付页核对，勿重复付款');
-        }
-      }
       const paid = await payCheckoutOrders(pending, userId, isCurrent, latest => {
         const payment = prepareCheckoutPayment(confirmedOrders, latest, userId, pending.orderGroupNo);
         pendingOrders.value = latest;
@@ -541,8 +550,12 @@ async function payCheckoutOrders(pending: PendingCheckout, userId: string | numb
     }, latest, userId);
     const payable = prepare(latest);
     if (!payable || !isCurrent()) return;
+    const consent = await confirmBalanceSwitch(pending.orderGroupNo, sumPaymentAmounts(payable.map(order => order.totalAmount)), isCurrent);
+    if (!consent || !isCurrent()) return;
     const payPassword = await requestPayPassword(route.fullPath);
     if (!payPassword || !isCurrent()) return;
+    await assertBalanceSwitch(consent);
+    if (!isCurrent()) return;
     if (pending.orderGroupNo) {
       await payGroup(pending, payable, payPassword, isCurrent, payment);
     } else {
@@ -659,7 +672,7 @@ async function load() {
         savePendingCheckout(pending);
         if (walletPayEntryEnabled) {
           try {
-            const walletPay = await fetchLatestWalletPay(pending.orderGroupNo, { signal: isCurrent.signal });
+            const walletPay = await fetchCurrentWalletPay(pending.orderGroupNo, { signal: isCurrent.signal });
             if (!isCurrent()) return;
             latestWalletPay.value = walletPay ? validateWalletPay(walletPay, pending.orderGroupNo) : undefined;
           } catch { if (isCurrent()) walletChainsError.value = '钱包支付进度暂时无法读取，请勿重复付款'; }

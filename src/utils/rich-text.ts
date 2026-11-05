@@ -2,6 +2,11 @@ import DOMPurify from 'dompurify';
 
 const ALLOWED_TAGS = ['p', 'div', 'span', 'br', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'figure', 'figcaption', 'a'];
 
+/** 外部识别描述始终按纯文本插入，不能把其中的标签当作编辑器 HTML。 */
+export function plainTextToRichText(value: string): string {
+  return value ? value.split(/\r?\n/).map(line => `<p>${escapeHtml(line) || '<br>'}</p>`).join('') : '';
+}
+
 export function sanitizeRichText(value?: string): string {
   if (!value) return '';
   const source = /<[^>]+>/.test(value) ? value : value.split(/\r?\n/).map(line => `<p>${escapeHtml(line) || '<br>'}</p>`).join('');

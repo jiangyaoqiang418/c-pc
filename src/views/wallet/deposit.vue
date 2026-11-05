@@ -45,7 +45,7 @@ async function selectAsset(value: Api.RealWallet.Asset) {
 function goHistory() { void router.push({ path: '/wallet/history', query: { asset: asset.value } }); }
 const activeTab = ref<'create' | 'address' | 'wallet'>('create');
 const depositMethod = ref<'address' | 'wallet' | 'amount'>('address');
-const operationView = ref<'form' | 'records' | 'created'>('form');
+const operationView = ref<'form' | 'records' | 'created'>(route.query.view === 'records' ? 'records' : 'form');
 const walletReturn = computed(() => userStore.isBuyerActive ? '/buyer/wallet' : '/wallet');
 function closeOperation() { if (!submitting.value && !directBusy.value) void router.replace({ path: walletReturn.value, query: { asset: asset.value } }); }
 function canChangeOperation() { if (submitting.value || directBusy.value) { Message.warning('正在处理本次充值，请稍候'); return false; } }
@@ -784,7 +784,7 @@ watch([asset, chain, selectedChain], ([nextAsset, nextChain], [previousAsset, pr
     directAmount.value = '';
     directWriteVersion += 1;
     closeDirectConfirmation();
-    operationView.value = 'form';
+    if (operationView.value !== 'records' || previousChain !== undefined || nextAsset !== previousAsset) operationView.value = 'form';
     activeTab.value = 'create';
   }
   walletKey.value = undefined;
