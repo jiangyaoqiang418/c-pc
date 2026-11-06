@@ -407,7 +407,7 @@ describe('v47 交易契约边界', () => {
     const prepared = prepareWithdrawal(params, '9007199254740993.123456', config);
     expect(prepared.error).toBe('');
     expect(prepared.params.amount).toBe('0.123456');
-    await createWithdraw({ ...prepared.params, payPassword: '123456' });
+    await createWithdraw({ ...prepared.params, quoteId: 'quote-1', payPassword: '123456' });
     expect(post.mock.calls[1][1]).toMatchObject({ asset: 'USDC', amount: '0.123456', idempotencyKey: 'wd-original' });
     expect(prepareWithdrawal({ ...params, amount: '0.12345601' }, '1', config).error).toContain('6 位');
     expect(prepareWithdrawal({ ...params, amount: '0.09' }, '1', config).error).toContain('0.1 USDC');
@@ -422,11 +422,13 @@ describe('v47 交易契约边界', () => {
     expect((await fetchWithdrawChains('USDC'))[0].estimatedNetworkFee).toBeNull();
     expect(get.mock.calls[0][1]?.params).toEqual({ asset: 'USDC' });
     const quote = { chain: 'BSC', tokenSymbol: 'USDC', platformId: 'BSC-01', fromAddress: '0xsource', estimatedNetworkFee: '0.000000000000000001',
-      networkFeeSymbol: 'BNB', feeLimitAtomic: null, expiresAt: '1792300030000', isEstimate: true };
+      networkFeeSymbol: 'BNB', quoteId: 'quote-1', platformFeeUsdt: '0.023456', chargedFuelFeeUsdt: '0.1', totalFeeUsdt: '0.123456', requestedAmount: '9007199254740993.123456', estimatedReceiveAmount: '9007199254740993', feeLimitAtomic: null, expiresAt: '1792300030000', isEstimate: true };
     const post = vi.spyOn(realUserRequest, 'post').mockResolvedValue(quote);
     const params = { chain: 'BSC' as const, tokenSymbol: 'USDC' as const, toAddress: '0x' + '2'.repeat(40), amount: '9007199254740993.123456' };
     expect(await fetchWithdrawFeePreview(params)).toBe(quote);
     expect(post.mock.calls[0][1]).toEqual(params);
+    post.mockResolvedValue({ ...quote, estimatedReceiveAmount: '9007199254740993.000001' });
+    await expect(fetchWithdrawFeePreview(params)).rejects.toThrow('预览不完整');
     post.mockResolvedValue({ ...quote, networkFeeSymbol: 'USDC' });
     await expect(fetchWithdrawFeePreview(params)).rejects.toThrow('预览不完整');
   });

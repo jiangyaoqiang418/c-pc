@@ -142,6 +142,7 @@ declare namespace Api.RealWallet {
   }
 
   interface WithdrawCreateParams {
+    quoteId?: string;
     asset?: Asset;
     idempotencyKey?: string;
     chain: 'ETH' | 'TRON' | 'BSC';
@@ -174,6 +175,19 @@ declare namespace Api.RealWallet {
     platformId: string;
     fromAddress: string;
     estimatedNetworkFee: string | number | null;
+    quoteId: string;
+    platformFeeUsdt: string;
+    chargedFuelFeeUsdt: string;
+    estimatedFuelFeeUsdt: string;
+    totalFeeUsdt: string;
+    requestedAmount: string;
+    estimatedReceiveAmount: string;
+    nativeAssetUsdtPrice: string;
+    priceSource: string;
+    priceSources: string[];
+    priceAt: string | number;
+    walletId: string | null;
+    walletVersion: string | number | null;
     networkFeeSymbol: 'ETH' | 'BNB' | 'TRX';
     feeLimitAtomic: string | null;
     expiresAt: string | number;
@@ -188,6 +202,7 @@ declare namespace Api.RealWallet {
   }
 
   interface WithdrawVO {
+    feeQuote: WithdrawFeePreviewVO;
     id: string | number;
     asset?: string;
     chain: string;

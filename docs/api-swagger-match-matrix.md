@@ -2,6 +2,10 @@
 
 > 本矩阵仅维护契约、API/类型、页面调用和真实验证四层；当前问题、责任方及后续验收统一见 [接口接入计划](api-integration-plan.md)。旧日期流水账及已被替代的缺口由Git追溯，不作为当前事实。
 
+提现预览（本地契约）：POST /withdraw/fee-preview 返回 quoteId、chargedFuelFeeUsdt、platformFeeUsdt、totalFeeUsdt、estimatedReceiveAmount；提现 create 必传 quoteId；detail.feeQuote 保存原报价，fee 为总手续费，actualAmount 为原报价到账额。USDC 与 USDT 按相同数值扣费。
+
+PC/H5 的费用预览及详情已用 Chrome 隔离请求核对，报价ID随原幂等请求保留；不以响应丢失或报价过期创建替代单。 发布需同步升级Java与客户端，并按用户决定先清理存量终态提现测试单；待处理任务必须查清状态。真实链上额度联调需先登记并激活 PAYOUT_HOT 版本钱包，未进行真实出款验收。
+
 ## SHOP-94 第1、2、7项
 
 | 能力 | 契约确认 | API与逻辑 | 页面接入 | 真实验证 |
@@ -139,7 +143,7 @@ AI 会话增量以 2026-10-27 新文档和实时 user/admin OpenAPI 为准：C-P
 | 8 我的经营统计 | stats/mine，时间为含边界毫秒；比率已为百分数 | BusinessStatsDTO 已适配 | 工作台已接入，保留 >100% 的合法口径与独立错误区域 | Chrome 实际评价率 12.50%、客诉率 33.33%、平均发货 0.87 小时，完成 8/评价 1/售后 4；范围边界、>100% 及错误分支尚未真实验收 |
 | AML/CMS 历史不可用页 | 本行保留旧内容页验收范围，AI 本次独立接入见下一行 | 不为 AI 改造扩展其他模块 | 公告/帮助/协议沿用现状 | 旧页面返回与隐私 query 结果仅适用于原验收范围 |
 | AI 选购客服 | POST /ai/customer-service/chat/stream，message/conversationId、SSE start/status/delta/card/done/error；以 10-20 文档为准 | 分块解析、请求/序号校验、120 秒期限、会话/Token 隔离；身份只用当前 token，显式 omit Cookie；非成功卡片允许缺 kind/rows，畸形成功卡片拒绝，无自动重放 | /ai-guide 按事件顺序交错展示文本及多卡片；支持 products/旧 product、order/balance/recharge/withdraw/order_pay；done/error/断流/停止独立处理；404 清会话并保留原问题或新草稿 | 类型、生产构建、实时 Swagger、358 项现有测试通过；Chrome 两名真实用户 USDT AI 六桶及 total 各自与钱包一致，退出/在途退出清私人内容，换号无旧卡片；Cookie 修正后二人复验及游客登录引导通过。受控响应已验增量、顺序、纯文本/规格、error/EOF/停止/404/429，桌面及手机可见宽360无溢出；真实 USDC 非空卡片及实机系统行为待验 |
-| 多资产提现 | /withdraw/chains、/withdraw/fee-preview 及 create/detail/page/by-key 资产字段已确认 | 动态精度/限额、字符串金额、只读网络费、原键原资产恢复、提交前复核网络 | 桌面/同仓手机选择币种及网络、报价失效/过期、原单独立资产详情 | 自动回归覆盖精度/限额/报价资产/原单保护；Chrome 已验 6 位精度/拒绝第 7 位非零小数、BNB 网络费预览及原精度确认；真实创建、审核退回和链上到账尚未验 |
+| 多资产提现 | /withdraw/chains、/withdraw/fee-preview 及 create/detail/page/by-key 资产字段已确认 | 动态精度/限额、字符串金额、燃料费/平台费/总费/到账报价、原键原资产原quoteId恢复、提交前复核网络 | 桌面/同仓手机选择币种及网络、报价失效/过期、原单独立资产详情 | 自动回归覆盖精度/限额/报价资产/原单保护；Chrome 已验 6 位精度/拒绝第 7 位非零小数、BNB 网络费预览及原精度确认；真实创建、审核退回和链上到账尚未验 |
 
 ## 10-31 图片、商品与求购增量
 

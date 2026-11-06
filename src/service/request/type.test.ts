@@ -59,7 +59,7 @@ describe('三类资金幂等恢复', () => {
   }
   it.each(['withdraw', 'recharge', 'finance-subscribe:9007199254740993'] as const)('%s 未知结果跨刷新保留原键原参，null 后才同键重试', async action => {
     storage();
-    const snapshot = action.startsWith('finance') ? { amount: '0.10', productId: '9007199254740993' } : { amount: 20, chain: 'TRON', ...(action === 'withdraw' ? { toAddress: 'qa-address' } : {}) };
+    const snapshot = action.startsWith('finance') ? { amount: '0.10', productId: '9007199254740993' } : { amount: 20, chain: 'TRON', ...(action === 'withdraw' ? { toAddress: 'qa-address', quoteId: 'quote-1' } : {}) };
     const submit = vi.fn().mockRejectedValueOnce(new Error('timeout')).mockResolvedValue('9007199254740999');
     const lookup = vi.fn().mockResolvedValue(null);
     await expect(submitKeyedFinancialOperation('u', action, snapshot, { submit, lookup })).rejects.toThrow('timeout');
@@ -95,7 +95,7 @@ describe('三类资金幂等恢复', () => {
   });
   it('跨资产回查不能解除原 USDC 申请，原金额和原键完整保留', async () => {
     storage();
-    const snapshot = { asset: 'USDC' as const, amount: '99999999999999999999999999.123456', chain: 'BSC', toAddress: '0x1111111111111111111111111111111111111111' };
+    const snapshot = { quoteId: 'quote-1', asset: 'USDC' as const, amount: '99999999999999999999999999.123456', chain: 'BSC', toAddress: '0x1111111111111111111111111111111111111111' };
     const submit = vi.fn().mockRejectedValue(new RequestError('链节点不可用', { code: '-309' }));
     const lookup = vi.fn();
     await expect(submitKeyedFinancialOperation('u', 'withdraw', snapshot, { submit, lookup })).rejects.toThrow('链节点不可用');
@@ -108,7 +108,7 @@ describe('三类资金幂等恢复', () => {
     }
     lookup.mockImplementationOnce(async (_key, copy) => {
       copy.asset = 'USDT';
-      return { ...snapshot, id: '90071992547409931' };
+      return { ...snapshot, feeQuote: { quoteId: snapshot.quoteId }, id: '90071992547409931' };
     });
     expect(await submitKeyedFinancialOperation('u', 'withdraw', undefined, { submit, lookup }, true)).toBe('90071992547409931');
     expect(lookup.mock.calls[0]).toEqual([key, snapshot]);
@@ -152,7 +152,7 @@ describe('三类资金幂等恢复', () => {
     const values = storage();
     const key = `cpc:financial-pending:u:${action}`;
     const snapshot = action.startsWith('finance') ? { amount: '0.10', productId: '9007199254740993' }
-      : { amount: 20, chain: 'TRON', ...(action === 'withdraw' ? { toAddress: 'qa-address' } : {}) };
+      : { amount: 20, chain: 'TRON', ...(action === 'withdraw' ? { toAddress: 'qa-address', quoteId: 'quote-1' } : {}) };
     const submit = vi.fn().mockResolvedValue('9007199254740999'), lookup = vi.fn();
     for (const raw of ['', 'null', 'false', '0', '{}', '[]', '{broken',
       JSON.stringify({ receipt: 'old-receipt' }),

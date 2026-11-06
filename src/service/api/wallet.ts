@@ -491,6 +491,12 @@ export async function fetchWithdrawFeePreview(params: Api.RealWallet.WithdrawFee
   if (!result || result.chain !== params.chain || result.tokenSymbol !== params.tokenSymbol
     || result.networkFeeSymbol !== feeAsset || typeof result.platformId !== 'string' || !result.platformId.trim()
     || typeof result.fromAddress !== 'string' || !result.fromAddress.trim() || result.isEstimate !== true
+    || typeof result.quoteId !== 'string' || !result.quoteId
+    || [result.platformFeeUsdt, result.chargedFuelFeeUsdt, result.totalFeeUsdt, result.estimatedReceiveAmount, result.requestedAmount]
+      .some(value => typeof value !== 'string' || optionalAmount(value) == null)
+    || compareDecimalAmount(result.requestedAmount, amount.value) !== 0
+    || compareDecimalAmount(sumPaymentAmounts([result.platformFeeUsdt, result.chargedFuelFeeUsdt]), result.totalFeeUsdt) !== 0
+    || compareDecimalAmount(sumPaymentAmounts([result.totalFeeUsdt, result.estimatedReceiveAmount]), amount.value) !== 0
     || (result.estimatedNetworkFee !== null && optionalAmount(result.estimatedNetworkFee) === undefined)
     || !/^\d+$/.test(String(result.expiresAt))
     || (result.feeLimitAtomic !== null && (typeof result.feeLimitAtomic !== 'string' || !/^\d+$/.test(result.feeLimitAtomic)))) {
@@ -520,6 +526,7 @@ export function prepareWithdrawal(params: Omit<Api.RealWallet.WithdrawCreatePara
 }
 
 export function createWithdraw(params: Api.RealWallet.WithdrawCreateParams, options: { showError?: boolean } = {}) {
+  if (!params.quoteId) throw new Error('请先核对提现费用');
   const asset = requireAsset(params.asset ?? 'USDT');
   const amount = exactAssetAmount(params.amount);
   if (amount.error || amount.value === undefined) throw new Error(amount.error);

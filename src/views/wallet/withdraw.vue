@@ -125,6 +125,17 @@ const now = ref(Date.now());
 let feeClock: ReturnType<typeof setInterval> | undefined;
 let feeDebounce: ReturnType<typeof setTimeout> | undefined;
 const feeExpired = computed(() => !!feePreview.value && Number(feePreview.value.expiresAt) <= now.value);
+const previewItems = computed(() => {
+  const quote = feePreview.value;
+  if (!quote) return [];
+  return [
+    { label: '预估网络费', value: formatMoney(quote.estimatedNetworkFee ?? undefined, quote.networkFeeSymbol) },
+    { label: '燃料费', value: formatMoney(quote.chargedFuelFeeUsdt, quote.tokenSymbol) },
+    { label: '平台手续费（VIP 减免后）', value: formatMoney(quote.platformFeeUsdt, quote.tokenSymbol) },
+    { label: '总手续费', value: formatMoney(quote.totalFeeUsdt, quote.tokenSymbol) },
+    { label: '预计到账金额', value: formatMoney(quote.estimatedReceiveAmount, quote.tokenSymbol) }
+  ];
+});
 function clearFeePreview() {
   feeGuard.invalidate();
   feePreview.value = undefined;
@@ -151,7 +162,7 @@ async function previewFee() {
     now.value = Date.now();
     feeClock = setInterval(() => { now.value = Date.now(); }, 1000);
   } catch (error) {
-    if (current()) feeError.value = error instanceof Error ? error.message : '网络费暂不可用，请重试';
+    if (current()) feeError.value = error instanceof Error ? error.message : '提现费用暂不可用，请重试';
   } finally {
     if (current()) feeLoading.value = false;
   }
@@ -180,7 +191,7 @@ function createWithdrawalIntentApi(payPassword: string, isCurrentWrite: () => bo
       const amount = exactAssetAmount(snapshot.amount);
       if (amount.value === undefined) throw new Error('原转出金额无法准确提交，请联系平台核对');
       return realWalletApi.createWithdraw({
-        asset: snapshot.asset ?? 'USDT', chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: amount.value, idempotencyKey, payPassword
+        asset: snapshot.asset ?? 'USDT', chain: snapshot.chain as Api.RealWallet.WithdrawCreateParams['chain'], toAddress: snapshot.toAddress!, amount: amount.value, quoteId: snapshot.quoteId, idempotencyKey, payPassword
       }, { showError: false });
     }
   };
@@ -288,13 +299,16 @@ function fillAll() {
   amountDraft.value = floorDecimalAmount(String(availableForSubmit.value ?? ''), Math.min(8, selectedChain.value.decimals));
 }
 
-function openConfirm() {
+async function openConfirm() {
   refreshSubmissionIssue();
   if (!canSubmit.value) {
     Message.warning(submissionIssue.value || errMsg.value || '请完善表单');
     return;
   }
+  if (!feePreview.value || Number(feePreview.value.expiresAt) <= Date.now()) await previewFee();
+  if (!canSubmit.value || !feePreview.value || Number(feePreview.value.expiresAt) <= Date.now()) return;
   confirmedParams.value = realWalletApi.prepareWithdrawal(form, availableForSubmit.value, selectedChain.value).params;
+  confirmedParams.value.quoteId = feePreview.value.quoteId;
   modalOpen.value = true;
 }
 
@@ -324,6 +338,10 @@ async function confirm() {
     if (!latest) throw new Error('所选网络已变化，请重新加载后确认');
     const validation = realWalletApi.prepareWithdrawal(prepared.params, availableForSubmit.value, latest);
     if (validation.error) throw new Error(validation.error);
+    if (!feePreview.value || Number(feePreview.value.expiresAt) <= Date.now()) {
+      modalOpen.value = false;
+      throw new Error('费用预览已过期，请重新核对');
+    }
     const id = await submitKeyedFinancialOperation(requestedUserId, 'withdraw', prepared.params, createWithdrawalIntentApi(payPassword, isCurrentWrite));
     if (!isCurrentWrite()) return;
     refreshSubmissionIssue();
@@ -501,9 +519,20 @@ const statusFilter = computed({
         <div class="field"><label for="withdraw-address">收款地址</label><input id="withdraw-address" v-model="form.toAddress" :placeholder="`请输入所选链对应的 ${asset} 地址`" :disabled="submitting" autocomplete="off"  required /></div>
         <div class="field"><label for="withdraw-amount">转出数量 · {{ asset }}</label><div class="wallet-amount-row"><input id="withdraw-amount" v-model="amountDraft" inputmode="decimal" autocomplete="off" placeholder="0.00" :disabled="submitting"  required /><button type="button" class="text-link" :disabled="submitting || !walletReady || available === undefined || !selectedChain?.enabled" @click="fillAll">全部</button></div></div>
         <p v-if="selectedChain" class="wallet-operation-note">最多 {{ Math.min(8, selectedChain.decimals) }} 位小数<span v-if="selectedChain.minAmount != null"> · 最低 {{ selectedChain.minAmount }} {{ asset }}</span><span v-if="selectedChain.maxAmount != null"> · 最高 {{ selectedChain.maxAmount }} {{ asset }}</span></p>
-        <div class="deposit-hint" aria-live="polite"><UmIcon name="info" /><span><template v-if="feeLoading">正在预览网络费…</template><template v-else-if="feePreview">预估网络费 {{ feePreview.estimatedNetworkFee == null ? '暂不可用' : `${feePreview.estimatedNetworkFee} ${feePreview.networkFeeSymbol}` }}<small>{{ feeExpired ? '报价已过期，请重新预览。' : '仅为原生币网络费预估，不含平台业务手续费，不代表已锁费或已建单。' }}</small></template><template v-else>{{ feeError || '填写网络、地址和金额后预览网络费。' }}</template><button type="button" class="text-link wallet-note-action" :disabled="!canSubmit || feeLoading" @click="previewFee">重新预览</button></span></div>
+        <div class="deposit-hint" aria-live="polite">
+          <UmIcon name="info" />
+          <div>
+            <template v-if="feeLoading">正在预览提现费用…</template>
+            <template v-else-if="feePreview">
+              <DescriptionList :items="previewItems" />
+              <small v-if="feeExpired">报价已过期，请重新预览。</small>
+            </template>
+            <template v-else>{{ feeError || '填写网络、地址和金额后查看提现费用。' }}</template>
+            <button type="button" class="text-link wallet-note-action" :disabled="!canSubmit || feeLoading" @click="previewFee">重新预览</button>
+          </div>
+        </div>
         <p v-if="errMsg" class="deposit-error" role="status">{{ errMsg }}</p>
-        <DialogActions><button type="button" class="outline wallet-dismiss" :disabled="submitting" @click="closeOperation">返回钱包</button><button type="submit" form="wallet-withdraw-form" class="gold" :disabled="!canSubmit">{{ submitting ? '正在提交…' : '核对转出信息' }}</button></DialogActions>
+        <DialogActions><button type="button" class="outline wallet-dismiss" :disabled="submitting" @click="closeOperation">返回钱包</button><button type="submit" form="wallet-withdraw-form" class="gold" :disabled="!canSubmit || feeLoading">{{ submitting ? '正在提交…' : '核对转出信息' }}</button></DialogActions>
       </form>
       <div v-if="kycTipNeeded" class="deposit-hint"><UmIcon name="shield" /><span>您尚未完成实名认证，请查看认证要求并完成认证。<button class="text-link wallet-note-action" @click="router.push({ name: 'kyc', query: { redirect: route.fullPath } })">前往实名认证</button></span></div>
       <p class="wallet-operation-note">确认申请后需输入支付密码。申请提交后进入平台审核，到账状态以平台和链上确认结果为准；请核对页面显示的手续费、限额和可用网络。</p>
@@ -518,8 +547,8 @@ const statusFilter = computed({
       <BusinessPagination v-if="recordTotal > recordSize" :total="recordTotal" :current="recordCurrent" :page-size="recordSize" :loading="loadingRecords" @change="(page: number) => { recordCurrent = page; syncRecordsQuery(); }" />
     </section>
   </WalletOperationDialog>
-  <V47VaultDialog v-model:visible="modalOpen" title="确认提交转出申请" description="请确认收款地址与所选链一致，提交后将进入平台审核。" icon="shield" :busy="submitting"><DescriptionList :items="[{ label: '网络 / 币种', value: `${confirmedParams?.chain || '—'} / ${confirmedParams?.asset || asset}` }, { label: '转出金额', value: `${confirmedParams?.amount ?? '—'} ${confirmedParams?.asset || asset}` }, { label: '收款地址', value: confirmedParams?.toAddress || '—' }]" /><DialogActions><button class="primary" :disabled="submitting" @click="confirm">{{ submitting ? '正在提交…' : '确认提交' }}</button></DialogActions></V47VaultDialog>
-  <V47VaultDialog v-model:visible="detailOpen" title="转出申请详情" description="平台审核及链上打款记录" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 6" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ copyable: true, label: '申请编号', value: String(detail.id) }, { label: '资产', value: detail.asset ?? 'USDT' }, { label: '网络', value: detail.chain }, { label: '收款地址', value: detail.toAddress }, { label: '转出金额', value: formatMoney(detail.amount, detail.asset) }, { label: '手续费', value: formatMoney(detail.fee, detail.asset) }, { label: '扣费后金额', value: formatMoney(detail.actualAmount, detail.asset) }, { label: '状态', value: withdrawalStatus(detail.status, detail.statusText) }, { label: '审核意见', value: detail.reviewComment || '—' }, { label: '失败原因', value: detail.failReason || '—' }, { copyable: true, label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '打款时间', value: formatTime(detail.paidAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTargetId !== undefined && openDetail(detailTargetId, detailExpectedSnapshot)" /></V47VaultDialog>
+  <V47VaultDialog v-model:visible="modalOpen" title="确认提交转出申请" description="请确认收款地址与所选链一致，提交后将进入平台审核。" icon="shield" :busy="submitting"><DescriptionList :items="[{ label: '网络 / 币种', value: `${confirmedParams?.chain || '—'} / ${confirmedParams?.asset || asset}` }, { label: '转出金额', value: `${confirmedParams?.amount ?? '—'} ${confirmedParams?.asset || asset}` }, { label: '收款地址', value: confirmedParams?.toAddress || '—' }, ...previewItems]" /><DialogActions><button class="primary" :disabled="submitting" @click="confirm">{{ submitting ? '正在提交…' : '确认提交' }}</button></DialogActions></V47VaultDialog>
+  <V47VaultDialog v-model:visible="detailOpen" title="转出申请详情" description="平台审核及链上打款记录" icon="wallet"><div v-if="detailLoading" class="wallet-skeletons"><Skeleton v-for="n in 6" :key="n" class="h-12" /></div><DescriptionList v-else-if="detail" :items="[{ copyable: true, label: '申请编号', value: String(detail.id) }, { label: '资产', value: detail.asset ?? 'USDT' }, { label: '网络', value: detail.chain }, { label: '收款地址', value: detail.toAddress }, { label: '转出金额', value: formatMoney(detail.amount, detail.asset) }, { label: '燃料费', value: formatMoney(detail.feeQuote.chargedFuelFeeUsdt, detail.asset) }, { label: '平台手续费（VIP 减免后）', value: formatMoney(detail.feeQuote.platformFeeUsdt, detail.asset) }, { label: '总手续费', value: formatMoney(detail.fee, detail.asset) }, { label: '实际到账金额', value: formatMoney(detail.actualAmount, detail.asset) }, { label: '状态', value: withdrawalStatus(detail.status, detail.statusText) }, { label: '审核意见', value: detail.reviewComment || '—' }, { label: '失败原因', value: detail.failReason || '—' }, { copyable: true, label: '交易哈希', value: detail.txHash || '—' }, { label: '创建时间', value: formatTime(detail.createdAt) }, { label: '打款时间', value: formatTime(detail.paidAt) }, { label: '确认时间', value: formatTime(detail.confirmedAt) }]" /><EmptyState v-else-if="detailError" :title="detailError" action-text="重新加载" @action="detailTargetId !== undefined && openDetail(detailTargetId, detailExpectedSnapshot)" /></V47VaultDialog>
   </div>
 </template>
 

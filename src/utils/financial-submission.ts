@@ -70,6 +70,7 @@ export async function submitDepositOperation(
   });
 }
 export interface FinancialSnapshot {
+  quoteId?: string;
   amount: string | number;
   /** 旧记录未携带资产时仅按 USDT 恢复，不能套用当前页面资产。 */
   asset?: 'USDT' | 'USDC';
@@ -200,7 +201,7 @@ function validateKeyedFinancialIntent(intent: KeyedFinancialIntent, userId: stri
   if (String(intent.userId) !== String(userId) || intent.action !== action || !/^[0-9a-f-]{36}$/i.test(intent.idempotencyKey)
     || !intent.snapshot || !validAmount
     || (intent.snapshot.asset !== undefined && !['USDT', 'USDC'].includes(intent.snapshot.asset))
-    || (action === 'withdraw' && (!['ETH', 'TRON', 'BSC'].includes(intent.snapshot.chain || '') || !intent.snapshot.toAddress))
+    || (action === 'withdraw' && (!['ETH', 'TRON', 'BSC'].includes(intent.snapshot.chain || '') || !intent.snapshot.toAddress || !intent.snapshot.quoteId))
     || (action === 'recharge' && !intent.snapshot.chain)
     || (action.startsWith('finance-subscribe:') && `finance-subscribe:${intent.snapshot.productId}` !== action)) {
     throw new Error('原资金操作记录不完整，请核实后再操作');
@@ -213,7 +214,7 @@ export async function submitKeyedFinancialOperation(
   action: 'withdraw' | 'recharge' | `finance-subscribe:${string}`,
   snapshot: FinancialSnapshot | undefined,
   api: {
-    lookup: (key: string, snapshot: FinancialSnapshot) => Promise<{ id: string | number; asset?: string; amount?: string | number; principal?: string | number; chain?: string; toAddress?: string; productId?: string | number } | null>;
+    lookup: (key: string, snapshot: FinancialSnapshot) => Promise<{ id: string | number; asset?: string; amount?: string | number; principal?: string | number; chain?: string; toAddress?: string; productId?: string | number; feeQuote?: { quoteId: string } } | null>;
     submit: (snapshot: FinancialSnapshot, key: string) => Promise<unknown>;
   },
   restoring = false
@@ -248,6 +249,7 @@ export async function submitKeyedFinancialOperation(
           || ((action === 'withdraw' || action === 'recharge') && (result.asset ?? 'USDT') !== (expected.asset ?? 'USDT'))
           || (expected.chain !== undefined && result.chain !== expected.chain)
           || (expected.toAddress !== undefined && result.toAddress !== expected.toAddress)
+          || (action === 'withdraw' && result.feeQuote?.quoteId !== expected.quoteId)
           || (expected.productId !== undefined && String(result.productId) !== String(expected.productId))) {
           throw new Error('原单回查参数不一致或回包不完整，暂不重发，请核实');
         }
@@ -289,7 +291,7 @@ export async function submitFinancialOperation<T>(
   snapshot?: FinancialSnapshot
 ): Promise<T> {
   // 同步复制白名单字段，锁申请期间表单变化不能改变已确认快照。
-  const confirmed = snapshot && { amount: snapshot.amount, asset: snapshot.asset, chain: snapshot.chain, toAddress: snapshot.toAddress, productId: snapshot.productId };
+  const confirmed = snapshot && { amount: snapshot.amount, asset: snapshot.asset, chain: snapshot.chain, quoteId: snapshot.quoteId, toAddress: snapshot.toAddress, productId: snapshot.productId };
   return withSubmissionLock(storageKey(userId, action), () => submitFinancialUnderLock(userId, action, submit, resultId, confirmed));
 }
 
@@ -304,7 +306,7 @@ async function submitFinancialUnderLock<T>(
   if (issue) throw new RequestError(issue, { code: 'FINANCIAL_PENDING' });
   const key = storageKey(userId, action);
   const marker = JSON.stringify({ attemptId: crypto.randomUUID(), startedAt: Date.now(),
-    snapshot: snapshot && { amount: snapshot.amount, asset: snapshot.asset, chain: snapshot.chain, toAddress: snapshot.toAddress, productId: snapshot.productId } });
+    snapshot: snapshot && { amount: snapshot.amount, asset: snapshot.asset, chain: snapshot.chain, quoteId: snapshot.quoteId, toAddress: snapshot.toAddress, productId: snapshot.productId } });
   try {
     localStorage.setItem(key, marker);
   } catch {
