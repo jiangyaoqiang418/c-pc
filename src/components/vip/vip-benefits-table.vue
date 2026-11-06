@@ -13,13 +13,13 @@ const props = defineProps<Props>();
 const LEVELS: Api.User.VipLevel[] = ['VIP0', 'VIP1', 'VIP2'];
 
 const columns = computed(() =>
-  props.audience === 'buyer' ? enums.BUYER_BENEFITS_DESC : enums.CUSTOMER_BENEFITS_DESC
+  props.configs.find(c => c.audience === props.audience)?.dimensions || []
 );
 
 interface RowItem {
   level: Api.User.VipLevel;
   label: string;
-  threshold?: number;
+  threshold?: string;
   meta: (typeof enums.VIP_META)[Api.User.VipLevel];
   values: { key: string; label: string; unit: string; value: string }[];
 }

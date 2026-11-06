@@ -4,14 +4,16 @@ declare namespace Api.RealVip {
     audience: Api.Vip.Audience;
     level: Api.Vip.Level;
     vipLevel: Api.Vip.Level;
-    points: number;
-    nextThreshold?: number;
-    pointsToNext?: number;
+    points: string;
+    nextThreshold?: string;
+    pointsToNext?: string;
     benefits: Partial<Api.Vip.CustomerBenefits> | Partial<Api.Vip.BuyerBenefits>;
     config?: LevelConfig;
   }
 
-  type LevelConfig = Omit<Api.Vip.LevelConfig, 'customerBenefits' | 'buyerBenefits'> & {
+  type LevelConfig = Omit<Api.Vip.LevelConfig, 'customerBenefits' | 'buyerBenefits' | 'threshold'> & {
+    threshold: string;
+    dimensions: { key: string; label: string; unit: string }[];
     customerBenefits?: Partial<Api.Vip.CustomerBenefits>;
     buyerBenefits?: Partial<Api.Vip.BuyerBenefits>;
   };

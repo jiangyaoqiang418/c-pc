@@ -87,7 +87,8 @@ watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => u
 
 const progressPct = computed(() => {
   if (!vipStatus.value?.nextThreshold) return undefined;
-  const percentage = vipStatus.value.points / vipStatus.value.nextThreshold * 100;
+  const total = BigInt(vipStatus.value.nextThreshold);
+  const percentage = total > 0n ? Number(BigInt(vipStatus.value.points) * 10000n / total) / 100 : 0;
   return Number.isFinite(percentage) ? Math.max(0, Math.min(100, percentage)) : undefined;
 });
 

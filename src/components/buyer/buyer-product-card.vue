@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { ref } from 'vue';
+import { RouterLink } from 'vue-router';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { computed } from 'vue';
 import { Message } from '@/lib/feedback';
@@ -75,6 +76,7 @@ const deleteVisible = ref(false);
   <article class="buyer-product">
     <div class="buyer-product-image"><img :src="cover" :alt="product.title" @error="setImageFallback" /><span class="buyer-status" :class="rawStatus || product.status">{{ product.status === 'NORMAL' ? shelfMeta.label : statusMeta.label }}</span></div>
     <div class="buyer-product-body"><small>{{ product.categoryPath }} · {{ aftersaleMeta.label }}</small><h3 :title="product.title"><ProductSourceBadge :source="product.source" />{{ product.title }}</h3><div class="buyer-product-price"><b>{{ formatUsdt(product.price).replace(/^U /, '') }} <small>USDT</small></b><span>库存 {{ product.stock }}</span></div><div class="buyer-product-stats"><span>销量 {{ product.salesCount ?? '—' }}</span><span>浏览 {{ product.viewCount ?? '—' }}</span><span>收藏 {{ product.favoriteCount ?? '—' }}</span></div><p v-if="product.status === 'REJECTED' && product.draftAuditOpinion" class="buyer-rejection">驳回原因：{{ product.draftAuditOpinion }}</p><p v-else class="buyer-inline-hint">{{ rawStatus === 'ON_SALE' ? '编辑前需先下架，快捷改价立即生效。' : ['IN_AUDIT','PENDING_AUDIT'].includes(product.status) ? '审核期间商品保持下架。' : product.status === 'FROZEN' ? '商品已冻结，详情请联系平台。' : '修改后需要重新提交平台审核。' }}</p>
+      <RouterLink class="buyer-view-link" :to="{ name: 'product-preview', query: { ownerProduct: String(product.id) } }">查看商品页 →</RouterLink>
       <div class="buyer-product-actions"><Tooltip><TooltipTrigger as-child><span class="action-trigger" :tabindex="editDisabledReason ? 0 : undefined" :aria-label="editDisabledReason || undefined"><button type="button" :disabled="!!editDisabledReason" @click="emit('edit', product)">编辑</button></span></TooltipTrigger><TooltipContent v-if="editDisabledReason">{{ editDisabledReason }}</TooltipContent></Tooltip><Tooltip><TooltipTrigger as-child><span class="action-trigger" :tabindex="priceDisabledReason ? 0 : undefined" :aria-label="priceDisabledReason || undefined"><button type="button" :disabled="!!priceDisabledReason" @click="emit('price', product)">改价</button></span></TooltipTrigger><TooltipContent v-if="priceDisabledReason">{{ priceDisabledReason }}</TooltipContent></Tooltip><button v-if="product.status === 'NORMAL'" type="button" class="accent" :disabled="shelving || deleting || busy" @click="toggleShelf">{{ shelving ? '处理中…' : product.shelfStatus === 'on-shelf' ? '下架' : '上架' }}</button><button type="button" class="danger-text" :disabled="deleting || shelving || busy" :aria-label="'删除 ' + product.title" @click="deleteVisible = true"><UmIcon :name="deleting ? 'clock' : 'trash'" /></button></div>
     </div>
     <a-modal content-class="buyer-dialog" v-model:visible="deleteVisible" title="确认删除商品？" :ok-loading="deleting" :closable="!deleting" :mask-closable="!deleting" :esc-to-close="!deleting" :on-before-cancel="() => !deleting" @ok="emit('delete', product)"><p class="delete-text">{{ product.status === 'IN_AUDIT' ? '审核中的商品删除后无法恢复，确认删除吗？' : '商品删除后无法恢复，确认删除吗？' }}</p><strong class="delete-product">{{ product.title }}</strong></a-modal>
@@ -82,6 +84,7 @@ const deleteVisible = ref(false);
 </template>
 
 <style scoped>
+.buyer-view-link { display:block; padding:12px 0; color:var(--ink); font-weight:600; }
 .action-trigger { display:flex; flex:1; min-width:0; }
 .action-trigger:focus-visible { outline:3px solid var(--gold); outline-offset:3px; }
 .action-trigger :deep(button) { flex:1; min-width:0; width:100%; }

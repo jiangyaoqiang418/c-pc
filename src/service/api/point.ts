@@ -15,6 +15,13 @@ export function readPointNumber(value: unknown, label: string, options: { intege
   return parsed;
 }
 
+export function readPointInteger(value: unknown, label: string, optional = false): string | undefined {
+  if ((value === undefined || value === null) && optional) return undefined;
+  if ((typeof value !== 'string' && typeof value !== 'number') || !/^-?\d+$/.test(String(value))
+    || (typeof value === 'number' && !Number.isSafeInteger(value))) throw pointDataError(label);
+  return BigInt(String(value)).toString();
+}
+
 export function pointDataError(label: string) {
   return new RequestError(`${label}尚未确认，请重新读取`, { code: 'POINT_DATA_UNCONFIRMED' });
 }

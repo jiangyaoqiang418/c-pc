@@ -313,7 +313,8 @@ watch(() => route.fullPath, () => {
 const user = computed(() => userStore.currentUser);
 const progressPct = computed(() => {
   if (!vipStatus.value?.nextThreshold) return undefined;
-  const value = vipStatus.value.points / vipStatus.value.nextThreshold * 100;
+  const total = BigInt(vipStatus.value.nextThreshold);
+  const value = total > 0n ? Number(BigInt(vipStatus.value.points) * 10000n / total) / 100 : 0;
   return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : undefined;
 });
 

@@ -1,6 +1,6 @@
 import { realUserRequest } from '@/service/request';
 import { requireArray } from './page';
-import { pointDataError, readPointNumber } from './point';
+import { pointDataError, readPointNumber, readPointInteger } from './point';
 
 const benefitCodeMap: Record<string, keyof Api.Vip.CustomerBenefits | keyof Api.Vip.BuyerBenefits> = {
   interestRateBonus: 'interestRateBonus',
@@ -62,7 +62,8 @@ export async function fetchVipConfigs(options: { signal?: AbortSignal } = {}) {
       const benefits = toBenefits(row.benefits, audience);
       return {
         audience, level, label: level,
-        threshold: readPointNumber(row.threshold, 'VIP 积分阈值', { integer: true, minimum: 0 })!,
+        threshold: readPointInteger(row.threshold, 'VIP 积分阈值')!,
+        dimensions: (row.benefits || []).map(b => ({ key: benefitCodeMap[b.code], label: b.name || b.code, unit: ['C_RATE_BONUS', 'C_WITHDRAW_FEE_DISCOUNT', 'B_TRADE_FEE_DISCOUNT'].includes(b.code) ? '个百分点' : b.unit || '' })).filter(b => !!b.key),
         customerBenefits: audience === 'customer' ? benefits : undefined,
         buyerBenefits: audience === 'buyer' ? benefits : undefined
       };
@@ -80,10 +81,10 @@ export async function fetchMyVipStatus(userId: string | number, options: { signa
   const current = audience === 'buyer' ? account.buyer : account.customer;
   if (!current || normalizeAudience(current.role) !== audience) throw pointDataError('当前视角 VIP 角色');
   const level = normalizeLevel(current.level);
-  const nextThreshold = readPointNumber(current.nextThreshold, 'VIP 下一等级阈值', { integer: true, minimum: 0, optional: true });
-  const points = readPointNumber(account.points, '当前积分', { integer: true })!;
-  const pointsToNext = nextThreshold !== undefined ? Math.max(0, nextThreshold - points) : undefined;
-  if (pointsToNext !== undefined && !Number.isSafeInteger(pointsToNext)) throw pointDataError('升级剩余积分');
+  const nextThreshold = readPointInteger(current.nextThreshold, 'VIP 下一等级阈值', true);
+  const points = readPointInteger(account.points, '当前积分')!;
+  const difference = nextThreshold === undefined ? undefined : BigInt(nextThreshold) - BigInt(points);
+  const pointsToNext = difference === undefined ? undefined : (difference > 0n ? difference : 0n).toString();
 
   return {
     userId: account.userId,

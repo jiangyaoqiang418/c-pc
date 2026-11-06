@@ -60,11 +60,11 @@ export function formatAmount(value: string | number | null | undefined, opts: Fo
 /**
  * 积分整数 + 千分位
  */
-export function formatPoints(value: number | null | undefined, fallback = '0'): string {
+export function formatPoints(value: number | string | null | undefined, fallback = '0'): string {
   if (value === undefined || value === null) return fallback;
-  return Math.floor(value)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const integer = typeof value === 'string' ? value : Math.floor(value).toString();
+  if (!/^[+-]?\d+$/.test(integer)) return fallback;
+  return integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 /**

@@ -2657,3 +2657,13 @@ describe('SHOP-77 识图搜索参数边界', () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe('VIP exact integer values', () => {
+  it('retains thresholds beyond Number precision', async () => {
+    const { readPointInteger } = await import('./point');
+    expect(readPointInteger('9223372036854775807', 'threshold')).toBe('9223372036854775807');
+    expect(() => readPointInteger(9007199254740992, 'threshold')).toThrow();
+    expect(readPointInteger(undefined, 'threshold', true)).toBeUndefined();
+  });
+});

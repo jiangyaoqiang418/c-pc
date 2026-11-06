@@ -1,5 +1,7 @@
 # Swagger 真实接口匹配矩阵
 
+本次对接：VIP 门槛和当前积分按字符串保留，权益名称/单位读取目录；减免按百分点展示，不重复计算实际费用。买手商品卡增加只读商品页预览，复用本人商品详情接口。详情生成支持自动参考主题，参考采用说明仅在编辑助手展示。
+
 > 本矩阵仅维护契约、API/类型、页面调用和真实验证四层；当前问题、责任方及后续验收统一见 [接口接入计划](api-integration-plan.md)。旧日期流水账及已被替代的缺口由Git追溯，不作为当前事实。
 
 提现预览（本地契约）：POST /withdraw/fee-preview 返回 quoteId、chargedFuelFeeUsdt、platformFeeUsdt、totalFeeUsdt、estimatedReceiveAmount；提现 create 必传 quoteId；detail.feeQuote 保存原报价，fee 为总手续费，actualAmount 为原报价到账额。USDC 与 USDT 按相同数值扣费。
