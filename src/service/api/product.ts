@@ -13,7 +13,7 @@ export async function prefillProductImage(params: Api.RealProduct.ImagePrefillPa
   const validId = (id: unknown) => typeof id === 'string' ? !!id.trim() : typeof id === 'number' && Number.isSafeInteger(id) && id > 0;
   if (!validId(params.fileId) || (params.hint !== undefined && params.hint.length > 120)) throw new Error('请上传图片，识别提示不能超过120字');
   const result = await realOrderRequest.post<Api.RealProduct.ImagePrefillResult>('/products/images/prefill', params,
-    { signal, timeoutMs: 60_000, showError: false, numericSuccessOnly: true });
+    { signal, timeoutMs: 110_000, showError: false, numericSuccessOnly: true });
   const candidates = (items: Api.RealProduct.ImagePrefillCandidate[]) => Array.isArray(items)
     && items.every(item => item && validId(item.id) && typeof item.name === 'string' && !!item.name.trim());
   if (!result || typeof result.title !== 'string' || result.title.length > 128 || (result.description != null && typeof result.description !== 'string')

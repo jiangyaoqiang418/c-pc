@@ -2,6 +2,7 @@
 import { vRequiredFeedback } from '@/directives/required-feedback';
 import ProductSourceSelect from './product-source-select.vue';
 import ProductImagePrefill from './product-image-prefill.vue';
+import { fetchDetailCapability } from '@/service/api/detail-studio';
 import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { normalizeProductSource } from '@/utils/product-source';
 import BrandMark from '@/components/common/brand-mark.vue';
@@ -107,6 +108,14 @@ const draftAudience = userStore.currentAudience;
 const draftSession = userStore.sessionVersion;
 const draftKey = draftOwnerId === undefined ? undefined : buyerProductDraftKey(draftOwnerId, draftProductId);
 const active = ref(true);
+const aiCapability = ref<Api.DetailStudio.Capability>();
+let capabilityRequest: Promise<Api.DetailStudio.Capability> | undefined;
+async function loadAiCapability() {
+  const value = await (capabilityRequest ||= fetchDetailCapability());
+  if (!currentContext.value) return { enabled: false } as Api.DetailStudio.Capability;
+  aiCapability.value = value;
+  return value;
+}
 const currentContext = computed(() => active.value && draftOwnerId !== undefined
   && userStore.sessionVersion === draftSession
   && String(userStore.currentUser?.id) === String(draftOwnerId)
@@ -307,6 +316,7 @@ function beforeUnload(event: BeforeUnloadEvent) {
 onBeforeRouteLeave(confirmLeave);
 onBeforeRouteUpdate((to,from) => JSON.stringify(to.params) === JSON.stringify(from.params) ? true : confirmLeave());
 watch([() => userStore.currentUser?.id, () => userStore.currentAudience, () => userStore.sessionVersion], () => {
+  aiCapability.value = undefined;
   brandSelectOpen.value = false;
   savedDraft.value = undefined;
   canvasEnabled.value = !!form.detailDesignJson || !form.description;
@@ -317,6 +327,7 @@ defineExpose({ markSaved, markSubmitted, reloadCategories });
 
 onMounted(async () => {
   readDraft();
+  void loadAiCapability().catch(() => {});
   window.addEventListener('beforeunload', beforeUnload);
   await reloadCategories();
   await loadBrands();
@@ -505,7 +516,7 @@ const previewCategory = computed(() => {
     <div v-if="savedDraft" class="buyer-draft"><span>发现一份本地草稿</span><button type="button" :disabled="draftBlocked" @click="restoreDraft">恢复草稿 →</button></div>
     <p v-if="draftError" class="buyer-rejection" role="alert">{{ draftError }}</p>
     <section class="paper"><header class="buyer-number-heading"><span>01</span><div><h2>商品信息</h2><p>清晰的图片与准确的信息，让选择更容易。</p></div></header>
-      <ProductImagePrefill :key="draftRevision" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || savingDraft || uploadStates.product || uploadStates.description || uploadStates.details || uploadStates.skus || uploadStates.brand || !currentContext" @busy="uploadStates.prefill = $event" @apply="applyImagePrefill" />
+      <ProductImagePrefill v-if="currentContext && aiCapability?.enabled" :key="draftRevision" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || savingDraft || uploadStates.product || uploadStates.description || uploadStates.details || uploadStates.skus || uploadStates.brand || !currentContext" @busy="uploadStates.prefill = $event" @apply="applyImagePrefill" />
       <div class="buyer-field"><Label for="product-title">商品标题 <span>*</span></Label><Input id="product-title" v-model="form.title" maxlength="128" :disabled="submitting" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛"  required /></div>
       <div class="buyer-field"><ProductSourceSelect v-model="form.source" :disabled="draftBlocked" /></div>
       <div class="buyer-two-cols buyer-category-fields"><div class="buyer-field"><Label for="product-category">商品分类 <span>*</span></Label><div class="category-row"><CategoryPicker id="product-category" v-model="form.categoryId" v-model:model-values="form.categoryIds" multiple :max="20" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting" /><Button class="outline" type="button" variant="outline" :disabled="categoryLoading || submitting" @click="reloadCategories(true)">{{ categoryLoading ? '读取中…' : '刷新分类' }}</Button></div><Alert v-if="categoryLoadError" variant="destructive"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="categoryLoading" @click="reloadCategories()">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><span class="text-sm font-medium leading-none">没有合适的分类？</span><Button class="outline" type="button" variant="outline" :disabled="draftBlocked" @click="router.push('/buyer/categories/apply')">申请新增分类 →</Button></div></div>
@@ -520,7 +531,7 @@ const previewCategory = computed(() => {
       <label class="buyer-switch" for="product-overseas"><span><b>海外直邮</b><small>海外过关后不可退，购买时向顾客提示。</small></span><input id="product-overseas" v-model="form.overseasCustoms" type="checkbox" role="switch" :disabled="submitting" /></label>
     </section>
     <section class="paper detail-editor-section"><header class="buyer-number-heading"><span>03</span><div><h2>商品详情</h2><p>AI 设计或手工制作，保存后仍可编辑每个图层。</p></div></header>
-      <DetailEditor v-if="canvasEnabled" :key="draftRevision" ref="studio" :model-value="form.detailDesignJson" :revision-id="form.designRevisionId" :document-key="form.designDocumentKey" :title="form.title" :product-images="[...form.images, ...skuEditor.skus.map(s => s.image).filter(Boolean)]" :product-parameters="form.parameters" :product-context="{ category: previewCategory, brand: brands.find(b => String(b.id) === String(form.brandId))?.name || suggestedBrand?.name || initialProduct?.brand?.name || '', specGroups: skuEditor.enabled ? skuEditor.groups : [], skuSpecs: skuEditor.skus.map(s => ({ specs: s.specs, image: s.image })) }" :disabled="submitting || !currentContext" @busy="uploadStates.details = $event" @change="updateDesign" />
+      <DetailEditor :load-capability="loadAiCapability" v-if="canvasEnabled" :key="draftRevision" ref="studio" :model-value="form.detailDesignJson" :revision-id="form.designRevisionId" :document-key="form.designDocumentKey" :title="form.title" :product-images="[...form.images, ...skuEditor.skus.map(s => s.image).filter(Boolean)]" :product-parameters="form.parameters" :product-context="{ category: previewCategory, brand: brands.find(b => String(b.id) === String(form.brandId))?.name || suggestedBrand?.name || initialProduct?.brand?.name || '', specGroups: skuEditor.enabled ? skuEditor.groups : [], skuSpecs: skuEditor.skus.map(s => ({ specs: s.specs, image: s.image })) }" :disabled="submitting || !currentContext" @busy="uploadStates.details = $event" @change="updateDesign" />
       <template v-else><p>当前商品使用富文本详情，原内容保持可编辑。</p><button type="button" class="outline" @click="canvasEnabled = true">创建画布详情（保存后替换原描述）</button><RichTextEditor :model-value="form.description" @update:model-value="updateDescription" :disabled="submitting || !currentContext" @uploading="uploadStates.description = $event" @uploaded="onUploaded" /><BuyerDetailImages :model-value="form.description" @update:model-value="updateDescription" :context="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || !currentContext" @uploading="uploadStates.details = $event" @uploaded="onUploaded" /></template>
     </section>
     <p v-if="uploading" class="buyer-inline-hint" role="status">{{ uploadStates.prefill ? '正在识别商品信息，请稍候。' : '图片正在上传，请稍候。' }}</p>

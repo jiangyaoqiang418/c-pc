@@ -305,7 +305,7 @@ describe('v47前端本地边界', () => {
     expect(await productApi.prefillProductImage(input)).toEqual({ ...suggestion, specGroups: [] });
     post.mockResolvedValueOnce({ ...suggestion, description:null });
     expect((await productApi.prefillProductImage(input)).description).toBe('');
-    expect(post).toHaveBeenCalledWith('/products/images/prefill', input, expect.objectContaining({ timeoutMs:60000, numericSuccessOnly:true }));
+    expect(post).toHaveBeenCalledWith('/products/images/prefill', input, expect.objectContaining({ timeoutMs:110000, numericSuccessOnly:true }));
     post.mockResolvedValueOnce({ ...suggestion, categoryCandidates:[{ id:9007199254740992000, name:'失真ID' }] });
     await expect(productApi.prefillProductImage(input)).rejects.toThrow('不完整');
     await expect(productApi.prefillProductImage({ ...input, hint:'字'.repeat(121) })).rejects.toThrow('120');

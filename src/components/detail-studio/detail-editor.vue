@@ -8,7 +8,7 @@ import { blankPage, newDocument, palette, parseScene, textLines, uid } from './s
 import * as api from '@/service/api/detail-studio';
 import { uploadFile } from '@/service/api/product';
 
-const props = defineProps<{ modelValue?: string; revisionId?: string; documentKey?: string; title: string; productImages?: string[]; productParameters?: Api.RealProduct.ProductParameter[]; productContext?: Record<string, unknown>; disabled?: boolean }>();
+const props = defineProps<{ loadCapability?: () => Promise<Api.DetailStudio.Capability>; modelValue?: string; revisionId?: string; documentKey?: string; title: string; productImages?: string[]; productParameters?: Api.RealProduct.ProductParameter[]; productContext?: Record<string, unknown>; disabled?: boolean }>();
 const emit = defineEmits<{ change: [value: { sourceJson: string; designRevisionId?: string; designDocumentKey: string; description?: string }]; busy: [value: boolean] }>();
 const doc = ref(parseScene(props.modelValue) || newDocument());
 const documentKey = ref(props.documentKey || uid());
@@ -145,7 +145,7 @@ onMounted(async () => {
   observer = new ResizeObserver(entries => scale.value = Math.min(1, Math.max(.25, (entries[0].contentRect.width - 24) / 750))); if (canvasHost.value) observer.observe(canvasHost.value);
   const epoch = taskEpoch;
   try {
-    capability.value = await api.fetchDetailCapability();
+    capability.value = await (props.loadCapability ? props.loadCapability() : api.fetchDetailCapability());
     if (props.revisionId) { const r = await api.fetchDetailRevision(props.revisionId); if (!alive || epoch !== taskEpoch) return; documentKey.value = r.documentKey; }
     const binding = doc.value.generationTask;
     if (capability.value.enabled && binding && binding.documentKey === documentKey.value && binding.productTitle === props.title.trim()) {
