@@ -57,6 +57,9 @@ declare namespace Api.RealOrder {
     canProcure?: boolean;
     canShip?: boolean;
     canConfirmAftersale?: boolean;
+    canApplyAftersale?: boolean;
+    aftersaleUnavailableReason?: string;
+    availableAftersaleTypes?: Api.RealRefund.RefundType[];
     refundType?: string;
     refundPreferredType?: Api.RealRefund.RefundType;
   };
@@ -73,6 +76,9 @@ declare namespace Api.RealOrder {
   type LogisticsStatus = 'PENDING_SHIPMENT' | 'SHIPPED' | 'IN_TRANSIT' | 'DELIVERING' | 'SIGNED' | 'EXCEPTION' | 'RETURNED';
 
   interface OrderDTO {
+    canApplyAftersale?: boolean;
+    aftersaleUnavailableReason?: string;
+    availableAftersaleTypes?: Api.RealRefund.RefundType[];
     reviewEligibility?: ReviewEligibility | null;
     orderId: string;
     orderNo?: string;

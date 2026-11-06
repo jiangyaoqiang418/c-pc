@@ -302,7 +302,9 @@ describe('v47前端本地边界', () => {
     const suggestion = { title:'商品', description:'<b>外观</b>', categoryCandidates:[{ id:'9007199254740993123', name:'分类' }], brandCandidates:[], parameters:[] };
     const post = vi.spyOn(realOrderRequest, 'post').mockResolvedValue(suggestion);
     const input = { fileId:'9007199254740993124', hint:'品牌型号' };
-    expect(await productApi.prefillProductImage(input)).toEqual(suggestion);
+    expect(await productApi.prefillProductImage(input)).toEqual({ ...suggestion, specGroups: [] });
+    post.mockResolvedValueOnce({ ...suggestion, description:null });
+    expect((await productApi.prefillProductImage(input)).description).toBe('');
     expect(post).toHaveBeenCalledWith('/products/images/prefill', input, expect.objectContaining({ timeoutMs:60000, numericSuccessOnly:true }));
     post.mockResolvedValueOnce({ ...suggestion, categoryCandidates:[{ id:9007199254740992000, name:'失真ID' }] });
     await expect(productApi.prefillProductImage(input)).rejects.toThrow('不完整');
@@ -321,7 +323,7 @@ describe('v47前端本地边界', () => {
       expect(applied).not.toHaveBeenCalled();
       expect(fixture.state.category).toBe('cat'); expect(fixture.state.brand).toBe('');
       fixture.state.apply();
-      expect(applied).toHaveBeenCalledWith({title:'手表',category:{id:'cat',name:'手表'}});
+      expect(applied).toHaveBeenCalledWith({title:'手表',category:{id:'cat',name:'手表'},overwrite:false});
     } finally { fixture.app.unmount(); }
   });
 

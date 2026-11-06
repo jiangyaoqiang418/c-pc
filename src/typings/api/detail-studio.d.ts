@@ -12,5 +12,5 @@ declare namespace Api.DetailStudio {
   interface Document { generationTask?: { id: string; documentKey: string; productTitle: string }; targetPageId?: string; schemaVersion: 1; theme: 'dark' | 'light' | 'warm'; mode: 'mixed' | 'image'; pages: Page[] }
   interface Revision { id: string; documentKey: string; sourceJson: string; description: string }
   interface Capability { enabled: boolean; keyConfigured: boolean; reasoningModel?: string; imageModel?: string }
-  interface Task { id: string; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'; progress: number; resultJson?: string; errorMessage?: string }
+  interface Task { id: string; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'PARTIAL' | 'NEEDS_INPUT'; progress: number; resultJson?: string; errorMessage?: string }
 }

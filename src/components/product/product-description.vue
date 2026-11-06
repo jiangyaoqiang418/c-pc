@@ -9,7 +9,7 @@ const scene = computed(() => parseScene(props.detailDesignJson));
 
 <template>
   <section class="product-description">
-    <h2>商品详情</h2><slot /><DetailScene v-if="scene?.mode === 'mixed'" :document="scene" /><RichTextContent v-else :content="description" />
+    <h2>商品详情</h2><slot /><DetailScene v-if="scene?.mode === 'mixed'" :document="scene" /><RichTextContent v-else :content="description" /><slot name="system" />
   </section>
 </template>
 

@@ -20,7 +20,7 @@ export const refundTypes: { value: Api.RealRefund.RefundType; label: string }[] 
 export const refundStatusLabels: Record<string, string> = {
   CONFIRMING: '待处理', APPLYING: '待平台审核', RETURNING: '待买家退货',
   RETURN_RECEIVING: '待退货收货', EXCHANGING: '待换货发货', EXCHANGE_RECEIVING: '待买家确认换货收货',
-  PAYING: '赔偿支付中', COMPLETED: '售后完成', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销'
+  PAYING: '售后支付中', COMPLETED: '售后完成', AGREED: '已同意退款', REJECTED: '已驳回', CANCELED: '已撤销'
 };
 export const refundStatusDefs = [
   { key: 'all', label: '全部' }, ...Object.entries(refundStatusLabels).map(([key, label]) => ({ key, label }))

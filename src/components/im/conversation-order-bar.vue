@@ -36,8 +36,8 @@ async function openAftersale() {
   try {
     await load();
     if (!active || !sameContext(id, owner, session) || !order.value || !canOpenAftersale.value) return;
-    if (order.value.refundId) await router.push({ name: 'aftersale-detail', params: { id: String(order.value.refundId) } });
-    else if (capabilities.value.refund) await router.push({ name: 'aftersale-create', params: { orderId: String(id) } });
+    if (capabilities.value.refund) await router.push({ name: 'aftersale-create', params: { orderId: String(id) } });
+    else if (order.value.refundId) await router.push({ name: 'aftersale-detail', params: { id: String(order.value.refundId) } });
     else Message.warning('售后单信息尚未取得，请重新加载订单');
   } finally { if (sameContext(id, owner, session)) openingAftersale.value = false; }
 }
@@ -91,7 +91,7 @@ onBeforeUnmount(() => { active = false; guard.invalidate(); });
     <button v-if="!aftersaleOnly" type="button" class="order-entry" @click="router.push({ name: 'order-detail', params: { id: String(orderId) } })"><strong :title="order?.productTitle">{{ order?.productTitle || '查看当前订单' }}</strong><span v-if="order" :title="order.code + ' · ' + formatUsdt(order.totalAmount)">{{ order.code }} · {{ formatUsdt(order.totalAmount) }}</span></button>
     <OrderProductAccess v-if="order && !aftersaleOnly" :order="order" compact />
     <button v-if="canEdit && !aftersaleOnly" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="edit">修改价格</button>
-    <button v-if="canOpenAftersale" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="openAftersale">{{ openingAftersale ? '正在核对售后…' : hasAftersale || capabilities.viewAftersale ? '查看售后' : '申请售后' }}</button>
+    <button v-if="canOpenAftersale" type="button" class="outline" :disabled="loading || submitting || openingAftersale" @click="openAftersale">{{ openingAftersale ? '正在核对售后…' : capabilities.refund ? '申请售后' : '查看售后' }}</button>
     <button v-if="error" type="button" class="text-link" @click="load">{{ error }}，重试</button>
     <span v-else-if="loading" role="status">正在核对订单</span>
   </section>

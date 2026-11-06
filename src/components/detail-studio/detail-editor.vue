@@ -8,7 +8,7 @@ import { blankPage, newDocument, palette, parseScene, textLines, uid } from './s
 import * as api from '@/service/api/detail-studio';
 import { uploadFile } from '@/service/api/product';
 
-const props = defineProps<{ modelValue?: string; revisionId?: string; documentKey?: string; title: string; productImages?: string[]; productParameters?: Api.RealProduct.ProductParameter[]; disabled?: boolean }>();
+const props = defineProps<{ modelValue?: string; revisionId?: string; documentKey?: string; title: string; productImages?: string[]; productParameters?: Api.RealProduct.ProductParameter[]; productContext?: Record<string, unknown>; disabled?: boolean }>();
 const emit = defineEmits<{ change: [value: { sourceJson: string; designRevisionId?: string; designDocumentKey: string; description?: string }]; busy: [value: boolean] }>();
 const doc = ref(parseScene(props.modelValue) || newDocument());
 const documentKey = ref(props.documentKey || uid());
@@ -26,7 +26,9 @@ let replaceImageId = '';
 function chooseImage(replace = false) { replaceImageId = replace ? selectedId.value : ''; fileInput.value?.click(); }
 const capability = ref<Api.DetailStudio.Capability>();
 const task = ref<Api.DetailStudio.Task | null>();
-const facts = ref(''), brief = ref('旗舰店风格，突出商品卖点，简洁清晰。符合品牌设计语言和设计美学'), language = ref('简体中文'), count = ref(4);
+const taskStatusLabels: Record<Api.DetailStudio.Task['status'], string> = { QUEUED: '排队中', RUNNING: '生成中', COMPLETED: '已完成', FAILED: '暂未完成', CANCELLED: '已中止', PARTIAL: '部分完成，可应用已生成内容', NEEDS_INPUT: '待补充资料' };
+const referenceLinks = ref(''), referenceImages = ref<string[]>([]);
+const brief = ref('旗舰店风格，突出商品卖点，简洁清晰。符合品牌设计语言和设计美学'), language = ref('简体中文'), count = ref(4);
 const brush = ref('#b9c8ff'), brushSize = ref(8);
 const taskMatchesProduct = computed(() => !!task.value && doc.value.generationTask?.id === task.value.id && doc.value.generationTask.documentKey === documentKey.value && doc.value.generationTask.productTitle === props.title.trim());
 let taskEpoch = 0;
@@ -69,6 +71,17 @@ async function upload(event: Event) {
   const files = Array.from((event.target as HTMLInputElement).files || []); (event.target as HTMLInputElement).value = '';
   await run(async () => { remember(); for (const file of (replaceImageId ? files.slice(0, 1) : files)) { const result = await uploadFile(file, 'PRODUCT'); const uploadedImage = new Image(); uploadedImage.src = result.url; await uploadedImage.decode(); const imageHeight = Math.min(page.value.height - 240, 670 * uploadedImage.height / uploadedImage.width); if (!alive) return; const replacing = page.value.nodes.find(n => n.id === replaceImageId); if (replacing) { replacing.src = result.url; replacing.cropX = replacing.cropY = 0; replacing.cropWidth = replacing.cropHeight = 1; continue; } page.value.nodes.push({ id: uid(), type: 'image', x: 40, y: 220, width: Math.min(670, imageHeight * uploadedImage.width / uploadedImage.height), height: imageHeight, rotation: 0, fill: 'transparent', src: result.url }); } publish(); }).catch(() => {});
 }
+async function uploadReferences(event: Event) {
+  const files = Array.from((event.target as HTMLInputElement).files || []);
+  (event.target as HTMLInputElement).value = '';
+  await run(async () => {
+    for (const file of files.slice(0, 3 - referenceImages.value.length)) {
+      if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) throw new Error('参考图须为 PNG/JPEG/WebP，单张最多8MB');
+      const uploaded = await uploadFile(file, 'PRODUCT');
+      if (alive) referenceImages.value.push(uploaded.url);
+    }
+  }).catch(() => {});
+}
 async function exportDescription(): Promise<string> {
   // Raster output uses the exact same SVG renderer as storefront and preview.
   const host = document.createElement('div'); document.body.appendChild(host);
@@ -110,7 +123,7 @@ async function generate(scope: 'all' | 'screen' | 'text' = 'all') {
   task.value = null;
   delete doc.value.generationTask;
   publish();
-  await run(async () => { const created = await api.createDetailTask({ requestKey: uid(), inputJson: JSON.stringify({ name: props.title, facts: [facts.value, ...(props.productParameters || []).map(p => `${p.name}：${p.value}${p.explanation ? '（' + p.explanation + '）' : ''}`)].join('\n').slice(0, 18000), brief: brief.value, language: language.value, count: scope === 'all' ? count.value : 1, action: scope === 'text' ? 'edit_text' : 'generate', targetPageId: scope === 'all' ? undefined : page.value.id, targetNodeId: scope === 'text' ? selectedId.value : undefined, currentPage: scope === 'text' ? page.value : undefined, theme: doc.value.theme, mode: doc.value.mode, images: [...new Set(props.productImages || [])].slice(0, 3) }) }); if (!alive || epoch !== taskEpoch) return; doc.value.generationTask = { id: created.id, documentKey: key, productTitle }; task.value = created; publish(); schedulePoll(); }).catch(() => {});
+  await run(async () => { const created = await api.createDetailTask({ requestKey: uid(), inputJson: JSON.stringify({ name: props.title, facts: [JSON.stringify(props.productContext || {}), ...(props.productParameters || []).map(p => `${p.name}：${p.value}${p.explanation ? '（' + p.explanation + '）' : ''}`)].join('\n').slice(0, 18000), brief: brief.value, referenceLinks: referenceLinks.value.split(/\s+/).filter(Boolean).slice(0, 3), referenceImages: referenceImages.value, language: language.value, count: scope === 'all' ? count.value : 1, action: scope === 'text' ? 'edit_text' : 'generate', targetPageId: scope === 'all' ? undefined : page.value.id, targetNodeId: scope === 'text' ? selectedId.value : undefined, currentPage: scope === 'text' ? page.value : undefined, theme: doc.value.theme, mode: doc.value.mode, images: [...new Set(props.productImages || [])].slice(0, 6) }) }); if (!alive || epoch !== taskEpoch) return; doc.value.generationTask = { id: created.id, documentKey: key, productTitle }; task.value = created; publish(); schedulePoll(); }).catch(() => {});
 }
 function schedulePoll() { if (timer) clearTimeout(timer); if (alive && generating.value) timer = setTimeout(poll, 2000); }
 watch(taskMatchesProduct, () => schedulePoll());
@@ -171,9 +184,10 @@ defineExpose({ save });
         <p v-else>选择图层后编辑。文字建议不小于 28px，保证手机可读。</p>
       </aside>
     </div>
-    <details v-if="capability?.enabled" class="ai-panel" :inert="busy || disabled" open><summary>智能详情页设计助手</summary><p>自动引用商品主图和商品参数，保持真实外观。每屏出图后检查颜色与形态，不合格最多自动校正一次，会增加模型用量。</p><div class="ai-fields"><label>商品资料<textarea v-model="facts" placeholder="填写具体属性、卖点，也可粘贴官网链接" /></label><label>设计要求<textarea v-model="brief" /></label><label>语言<input v-model="language" /></label><label>屏数<input v-model.number="count" type="number" min="1" max="12" /></label></div><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('all')">一键生成商品详情</button><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('screen')">只重新生成当前屏</button><button v-if="selected?.type === 'text'" type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('text')">按设计要求改写选中文字</button><button v-if="generating" type="button" @click="cancel">中止任务</button><p v-if="taskMatchesProduct && task">任务 {{ task.status }} · 已完成 {{ task.progress }} 屏 {{ task.errorMessage }}</p><button v-if="taskMatchesProduct && task?.resultJson" type="button" :disabled="!!generating || busy || disabled" @click="applyResult">将生成结果应用到画布（替换当前内容，可撤销）</button><p>生成在后台执行，离开页面不会中止。生成结果不会自动覆盖你正在编辑的画布。</p></details>
+    <details v-if="capability?.enabled" class="ai-panel" :inert="busy || disabled" open><summary>智能详情页设计助手</summary><p>自动引用商品主图和商品参数，保持真实外观。每屏出图后检查颜色与形态，不合格最多自动校正一次，会增加模型用量。</p><p>已自动读取当前商品名称、品牌、分类、参数、规格和商品图，无需重复填写。</p><label>版式参考截图（选填，最多3张）<input type="file" accept="image/png,image/jpeg,image/webp" multiple :disabled="busy || !!generating" @change="uploadReferences" /></label><div class="reference-thumbnails"><button v-for="(url, i) in referenceImages" :key="url" type="button" :disabled="busy || !!generating" @click="referenceImages.splice(i, 1)"><img :src="url" alt="版式参考图" width="80" />移除</button></div><div class="ai-fields"><label>参考链接（选填）<textarea v-model="referenceLinks" placeholder="官网或商品参数链接，不填则自动检索" /></label><label>设计要求<textarea v-model="brief" /></label><label>语言<input v-model="language" /></label><label>屏数<input v-model.number="count" type="number" min="1" max="12" /></label></div><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('all')">一键生成商品详情</button><button type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('screen')">只重新生成当前屏</button><button v-if="selected?.type === 'text'" type="button" :disabled="!capability?.enabled || busy || disabled || !!generating" @click="generate('text')">按设计要求改写选中文字</button><button v-if="generating" type="button" @click="cancel">中止任务</button><p v-if="taskMatchesProduct && task">任务 {{ taskStatusLabels[task.status] }} · 已完成 {{ task.progress }} 屏 {{ task.errorMessage }}</p><button v-if="taskMatchesProduct && task?.resultJson" type="button" :disabled="!!generating || busy || disabled" @click="applyResult">将生成结果应用到画布（替换当前内容，可撤销）</button><p>生成在后台执行，离开页面不会中止。生成结果不会自动覆盖你正在编辑的画布。</p></details>
   </div>
 </template>
 <style scoped>
+.reference-thumbnails { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }.reference-thumbnails button { display:grid; gap:4px; }.reference-thumbnails img { width:80px; height:80px; object-fit:contain; }
 .studio{border:1px solid var(--line,#ddd);border-radius:14px;overflow:hidden;background:var(--paper,#fff)}.studio-header,.controls,.tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px;border-bottom:1px solid var(--line,#ddd)}.studio-header>div{flex:1}.studio-header small{display:block;margin-top:6px;color:var(--muted,#777)}button,select,input,textarea{border:1px solid var(--line,#ddd);border-radius:7px;padding:8px;background:var(--paper,#fff);color:inherit}button{cursor:pointer;font-size:12px}button:disabled{opacity:.45;cursor:not-allowed}button.active{background:#d9e5f6;color:#162c46}.workspace{display:grid;grid-template-columns:110px minmax(200px,1fr) 170px}.pages,.properties{padding:12px;display:flex;flex-direction:column;gap:10px;border-right:1px solid var(--line,#ddd)}.properties{border-left:1px solid var(--line,#ddd);border-right:0}label{display:flex;flex-direction:column;gap:6px;font-size:12px}label input,label textarea{min-width:0;width:100%}.canvas-host{min-width:0;max-height:850px;overflow:auto;background:#e5e7eb;padding-bottom:20px}.canvas-host :deep(.konvajs-content){margin:12px auto;box-shadow:0 8px 24px #0002}.tools{position:sticky;top:0;background:var(--paper,#fff);z-index:2;padding:8px}.properties textarea{min-height:110px}.properties p,.ai-panel p{font-size:12px;color:var(--muted,#777);line-height:1.7}.scene-preview{max-width:750px;margin:20px auto}.scene-preview.mobile{width:375px;max-width:100%}.error{padding:12px;color:#9c2020;background:#fff0ed}.ai-panel{padding:18px;border-top:1px solid var(--line,#ddd)}.ai-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.ai-fields textarea{min-height:100px}.ai-panel button{margin-right:10px}.controls span{font-size:12px;color:#777}.controls label{flex-direction:row;align-items:center}@media(max-width:800px){.workspace{grid-template-columns:1fr}.pages{flex-direction:row;overflow:auto}.properties{display:grid;grid-template-columns:1fr 1fr}.ai-fields{grid-template-columns:1fr}}
 </style>

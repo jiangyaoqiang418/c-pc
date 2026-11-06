@@ -645,7 +645,7 @@ function share() {
           <template v-if="tab === '商品详情'">
             <ProductDescription :description="product.description" :detail-design-json="product.detailDesignJson">
               <ProductParameters :parameters="product.parameters || []" />
-              <dl class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl>
+              <template #system><dl class="spec-table"><dt>品牌</dt><dd><RouterLink v-if="product.brand?.enabled" :to="{ path:'/brand', query:{ brandId:String(product.brand.id) } }">{{ product.brand.name }}</RouterLink><template v-else>{{ product.brand?.name || '品牌信息未提供' }}</template></dd><dt>商品名称</dt><dd>{{ product.title }}</dd><template v-for="group in product.specGroups" :key="group.name"><dt>{{ group.name }}</dt><dd>{{ group.options.join(' / ') }}</dd></template><template v-if="!product.hasSku"><dt>规格</dt><dd>标准规格</dd></template><dt>库存</dt><dd>{{ product.stock }} 件</dd><dt>售后服务</dt><dd>{{ aftersaleMeta?.label || '—' }}</dd><dt>配送方式</dt><dd>{{ product.overseasCustoms ? '海外直邮' : '普通配送' }}</dd><dt>所属分类</dt><dd>{{ product.categoryPath || '未提供分类名称' }}</dd><dt>上架时间</dt><dd>{{ formatDateValue(product.publishedAt || product.createdAt, true) }}</dd><dt>收藏数量</dt><dd>{{ favoriteCountError ? '待刷新' : product.favoriteCount ?? '—' }}</dd></dl></template>
             </ProductDescription>
             <p class="purchase-hint">请核对当前商品资料、包装清单、配送与售后信息后购买。</p>
           </template>
@@ -687,7 +687,7 @@ function share() {
 .detail-skeleton { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:54px; margin:20px 0 48px; }
 .buy-actions > .action-wrap { display:flex; flex:1; min-width:0; }
 .buy-actions > .action-wrap > button { width:100%; height:auto; }
-.product-description > .spec-table { margin:0 0 28px; }
+.product-description > .spec-table { margin:28px 0 0; }
 .spec-capability-note { font-size:13px; line-height:1.6; color:var(--muted); margin-top:12px; }
 .detail-panel :deep(.rich-content) { min-width:0; }
 .seller-card > span:nth-child(2) { min-width:0; }

@@ -10,8 +10,11 @@ declare namespace Api.RealProduct {
     categoryCandidates: ImagePrefillCandidate[];
     brandCandidates: ImagePrefillCandidate[];
     parameters: ProductParameter[];
+    specGroups?: ProductSpecGroup[];
   }
   interface ImagePrefillSelection {
+    specGroups?: ProductSpecGroup[];
+    overwrite?: boolean;
     title?: string;
     description?: string;
     category?: ImagePrefillCandidate;

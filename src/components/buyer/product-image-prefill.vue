@@ -15,12 +15,13 @@ const fileInput = ref<HTMLInputElement>();
 const file = ref<File>();
 const fileId = ref<Api.RealProduct.Id>();
 const hint = ref('');
+const overwrite = ref(false);
 const busy = ref(false);
 const error = ref('');
 const result = ref<Api.RealProduct.ImagePrefillResult>();
 const category = ref('');
 const brand = ref('');
-const fields = reactive({ title: true, description: true, category: true, brand: true, parameters: true });
+const fields = reactive({ title: true, description: false, category: true, brand: true, parameters: true, specs: false });
 const requests = createLatestRequestGuard(() => props.contextKey);
 
 function chooseFile(event: Event) {
@@ -51,7 +52,7 @@ async function recognize() {
     result.value = suggestion;
     category.value = suggestion.categoryCandidates.length === 1 ? String(suggestion.categoryCandidates[0].id) : '';
     brand.value = suggestion.brandCandidates.length === 1 ? String(suggestion.brandCandidates[0].id) : '';
-    Object.assign(fields, { title: !!suggestion.title, description: !!suggestion.description, category: !!suggestion.categoryCandidates.length, brand: !!suggestion.brandCandidates.length, parameters: !!suggestion.parameters.length });
+    Object.assign(fields, { title: !!suggestion.title, description: false, category: !!suggestion.categoryCandidates.length, brand: !!suggestion.brandCandidates.length, parameters: !!suggestion.parameters.length, specs: false });
   } catch (cause) {
     if (current()) error.value = cause instanceof Error ? cause.message : '识别失败，原表单已保留，请重试或手动填写';
   } finally {
@@ -63,6 +64,8 @@ function apply() {
   const suggestion = result.value;
   if (props.disabled || busy.value || !suggestion) return;
   emit('apply', {
+    overwrite: overwrite.value,
+    ...(fields.specs ? { specGroups: suggestion.specGroups } : {}),
     ...(fields.title && suggestion.title ? { title: suggestion.title } : {}),
     ...(fields.description && suggestion.description ? { description: suggestion.description } : {}),
     ...(fields.category && category.value ? { category: suggestion.categoryCandidates.find(item => String(item.id) === category.value) } : {}),
@@ -100,7 +103,7 @@ onBeforeUnmount(clear);
       <h4>确认需要填入的字段</h4>
       <label class="check"><input v-model="fields.title" type="checkbox" :disabled="disabled || !result.title" />商品标题</label>
       <Input v-model="result.title" maxlength="128" :disabled="disabled" aria-label="识别建议标题" />
-      <label class="check"><input v-model="fields.description" type="checkbox" :disabled="disabled || !result.description" />外观描述（替换原画布或富文本详情）</label>
+      <label class="check"><input v-model="fields.description" type="checkbox" :disabled="disabled || !result.description" />外观描述（仅填入空白详情，不覆盖画布）</label>
       <textarea v-model="result.description" rows="3" :disabled="disabled" aria-label="识别建议外观描述" />
       <label class="check"><input v-model="fields.category" type="checkbox" :disabled="disabled || !result.categoryCandidates.length" />主分类</label>
       <select v-if="result.categoryCandidates.length" v-model="category" :disabled="disabled" aria-label="识别建议分类"><option value="">保留原分类，稍后手动选择</option><option v-for="item in result.categoryCandidates" :key="String(item.id)" :value="String(item.id)">{{ item.name }}</option></select>
@@ -110,7 +113,8 @@ onBeforeUnmount(clear);
       <small v-else>未匹配到品牌，请在表单中手动选择。</small>
       <label class="check"><input v-model="fields.parameters" type="checkbox" :disabled="disabled || !result.parameters.length" />商品展示参数</label>
       <dl v-if="result.parameters.length"><div v-for="(item, index) in result.parameters" :key="index"><dt>{{ item.name }}</dt><dd>{{ item.value }}</dd></div></dl><small v-else>没有识别到参数，保留已有输入。</small>
-      <p>确认后将覆盖勾选字段的现有内容，其他字段保留。SKU、价格、库存、运费、税费、售后及图片请自行核对填写。</p>
+      <label v-if="result.specGroups?.length" class="check"><input v-model="fields.specs" type="checkbox" />补充销售规格（仅空白规格表）</label><p v-for="group in result.specGroups" :key="group.name">{{ group.name }}：{{ group.options.join(' / ') }}</p>
+      <label class="check"><input v-model="overwrite" type="checkbox" />允许替换已有标题、品牌、分类和同名参数</label><p>默认只补充空字段，已有画布始终保留。规格建议不包含价格和库存，填入后请在下方生成组合并填写。</p>
       <div class="button-row"><button type="button" class="primary" :disabled="disabled" @click="apply">确认填入所选字段</button><button type="button" class="outline" @click="result = undefined">放弃建议</button></div>
     </div>
   </section>

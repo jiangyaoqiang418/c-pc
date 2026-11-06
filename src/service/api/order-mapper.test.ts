@@ -1301,3 +1301,14 @@ describe('SHOP-64 订单详情展示', () => {
     } finally { app.unmount(); }
   });
 });
+
+
+describe('已完成订单售后权限', () => {
+  it('仅顾客且后端明确允许时展示申请入口', () => {
+    const record = toOrderRecord({ orderId:'9007199254740999', status:'COMPLETED', customerId:'buyer', sellerId:'seller', totalAmount:'78', canApplyAftersale:true, availableAftersaleTypes:['RETURN_REFUND'] });
+    expect(getOrderCapabilities(record, 'buyer').refund).toBe(true);
+    expect(getOrderCapabilities(record, 'seller').refund).toBe(false);
+    expect(getOrderCapabilities({ ...record, canApplyAftersale:false }, 'buyer').refund).toBe(false);
+    expect(record.availableAftersaleTypes).toEqual(['RETURN_REFUND']);
+  });
+});

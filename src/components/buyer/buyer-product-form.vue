@@ -371,19 +371,22 @@ function applyImagePrefill(suggestion: Api.RealProduct.ImagePrefillSelection) {
     if (suggestion.category && !isSelectableCategory(cascaderOptions.value, suggestion.category.id)) {
       throw new Error('建议分类不在当前可选目录中，请刷新分类后重新识别或手动选择');
     }
-    const categoryIds = suggestion.category
+    const categoryIds = suggestion.category && (suggestion.overwrite || !form.categoryId)
       ? [suggestion.category.id, ...form.categoryIds.filter(id => String(id) !== String(suggestion.category!.id))] : form.categoryIds;
     validateProductDetails(includeCategoryParents(cascaderOptions.value, categoryIds), []);
-    if (suggestion.title !== undefined) form.title = suggestion.title;
-    if (suggestion.category) { form.categoryId = suggestion.category.id; form.categoryIds = categoryIds; }
-    if (suggestion.brand) { suggestedBrand.value = suggestion.brand; form.brandId = suggestion.brand.id; }
-    if (suggestion.parameters?.length) form.parameters = suggestion.parameters.map(item => ({ ...item }));
-    if (description !== undefined) {
+    if (suggestion.title !== undefined && (suggestion.overwrite || !form.title.trim())) form.title = suggestion.title;
+    if (suggestion.category && (suggestion.overwrite || !form.categoryId)) { form.categoryId = suggestion.category.id; form.categoryIds = categoryIds; }
+    if (suggestion.brand && (suggestion.overwrite || !form.brandId)) { suggestedBrand.value = suggestion.brand; form.brandId = suggestion.brand.id; }
+    if (suggestion.parameters?.length) {
+      if (suggestion.overwrite) form.parameters = form.parameters.filter(p => !suggestion.parameters!.some(s => s.name.trim() === p.name.trim()));
+      const existing = new Set(form.parameters.map(p => p.name.trim()));
+      form.parameters.push(...suggestion.parameters.filter(p => !existing.has(p.name.trim())).map(p => ({ ...p })));
+    }
+    if (description !== undefined && !form.detailDesignJson && !form.description?.trim()) {
       form.description = description;
-      form.detailDesignJson = undefined;
-      form.designRevisionId = undefined;
-      form.designDocumentKey = undefined;
-      canvasEnabled.value = false;
+    }
+    if (suggestion.specGroups?.length && !skuEditor.value.groups.length && !skuEditor.value.skus.length) {
+      skuEditor.value = { enabled: true, groups: suggestion.specGroups.map(g => ({ name: g.name, options: [...g.options] })), skus: [] };
     }
     Message.success('已填入所选建议，请核对商品信息后提交');
   } catch (cause) { Message.warning(cause instanceof Error ? cause.message : '建议暂不能填入，原表单已保留'); }
@@ -517,7 +520,7 @@ const previewCategory = computed(() => {
       <label class="buyer-switch" for="product-overseas"><span><b>海外直邮</b><small>海外过关后不可退，购买时向顾客提示。</small></span><input id="product-overseas" v-model="form.overseasCustoms" type="checkbox" role="switch" :disabled="submitting" /></label>
     </section>
     <section class="paper detail-editor-section"><header class="buyer-number-heading"><span>03</span><div><h2>商品详情</h2><p>AI 设计或手工制作，保存后仍可编辑每个图层。</p></div></header>
-      <DetailEditor v-if="canvasEnabled" :key="draftRevision" ref="studio" :model-value="form.detailDesignJson" :revision-id="form.designRevisionId" :document-key="form.designDocumentKey" :title="form.title" :product-images="form.images" :product-parameters="form.parameters" :disabled="submitting || !currentContext" @busy="uploadStates.details = $event" @change="updateDesign" />
+      <DetailEditor v-if="canvasEnabled" :key="draftRevision" ref="studio" :model-value="form.detailDesignJson" :revision-id="form.designRevisionId" :document-key="form.designDocumentKey" :title="form.title" :product-images="[...form.images, ...skuEditor.skus.map(s => s.image).filter(Boolean)]" :product-parameters="form.parameters" :product-context="{ category: previewCategory, brand: brands.find(b => String(b.id) === String(form.brandId))?.name || suggestedBrand?.name || initialProduct?.brand?.name || '', specGroups: skuEditor.enabled ? skuEditor.groups : [], skuSpecs: skuEditor.skus.map(s => ({ specs: s.specs, image: s.image })) }" :disabled="submitting || !currentContext" @busy="uploadStates.details = $event" @change="updateDesign" />
       <template v-else><p>当前商品使用富文本详情，原内容保持可编辑。</p><button type="button" class="outline" @click="canvasEnabled = true">创建画布详情（保存后替换原描述）</button><RichTextEditor :model-value="form.description" @update:model-value="updateDescription" :disabled="submitting || !currentContext" @uploading="uploadStates.description = $event" @uploaded="onUploaded" /><BuyerDetailImages :model-value="form.description" @update:model-value="updateDescription" :context="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || !currentContext" @uploading="uploadStates.details = $event" @uploaded="onUploaded" /></template>
     </section>
     <p v-if="uploading" class="buyer-inline-hint" role="status">{{ uploadStates.prefill ? '正在识别商品信息，请稍候。' : '图片正在上传，请稍候。' }}</p>
