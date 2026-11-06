@@ -10,7 +10,7 @@ export function parseScene(source?: string): Api.DetailStudio.Document | undefin
 }
 export function textLines(node: Api.DetailStudio.Node): string[] {
   const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d')!;
-  ctx.font = `${node.fontSize || 32}px Arial, sans-serif`;
+  ctx.font = `${node.fontStyle === 'bold' ? 'bold ' : ''}${node.fontSize || 32}px Arial, sans-serif`;
   const lines: string[] = [];
   for (const paragraph of (node.text || '').split('\n')) {
     let line = '';

@@ -2,7 +2,7 @@ declare namespace Api.DetailStudio {
   interface Node {
     id: string; type: 'text' | 'image' | 'rect' | 'path';
     x: number; y: number; width: number; height: number; rotation: number;
-    fill: string; text?: string; fontSize?: number; fontFamily?: string;
+    fill: string; text?: string; fontSize?: number; fontFamily?: string; fontStyle?: 'normal' | 'bold';
     align?: 'left' | 'center' | 'right'; src?: string; points?: number[];
     stroke?: string; strokeWidth?: number; locked?: boolean;
     cropX?: number; cropY?: number; cropWidth?: number; cropHeight?: number;

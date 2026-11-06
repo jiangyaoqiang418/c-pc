@@ -15,7 +15,7 @@ defineProps<{ document: Api.DetailStudio.Document }>();
         </template>
         <rect v-else-if="node.type === 'rect'" :width="node.width" :height="node.height" :fill="node.fill" rx="16" />
         <polyline v-else-if="node.type === 'path'" :points="node.points?.reduce((out, v, i) => out + (i % 2 ? ',' : ' ') + v, '')" fill="none" :stroke="node.stroke" :stroke-width="node.strokeWidth" stroke-linecap="round" stroke-linejoin="round" />
-        <svg v-else :width="node.width" :height="node.height" overflow="hidden"><text :fill="node.fill" :font-size="node.fontSize || 32" font-family="Arial, sans-serif" :text-anchor="node.align === 'center' ? 'middle' : node.align === 'right' ? 'end' : 'start'">
+        <svg v-else :width="node.width" :height="node.height" overflow="hidden"><text :fill="node.fill" :font-size="node.fontSize || 32" :font-weight="node.fontStyle === 'bold' ? 700 : 400" font-family="Arial, sans-serif" :text-anchor="node.align === 'center' ? 'middle' : node.align === 'right' ? 'end' : 'start'">
           <tspan v-for="(line, i) in textLines(node)" :key="i" :x="node.align === 'center' ? node.width / 2 : node.align === 'right' ? node.width : 0" :y="(node.fontSize || 32) * (.9 + i * 1.25)">{{ line }}</tspan>
         </text></svg>
       </g>
