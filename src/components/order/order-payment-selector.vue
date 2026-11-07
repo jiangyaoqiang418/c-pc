@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import DialogActions from '@/components/common/dialog-actions.vue';
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -312,7 +313,7 @@ async function continuePayment() {
       <Alert v-if="error" variant="destructive" class="notice"><AlertDescription>{{ error }}</AlertDescription><button type="button" class="outline" :disabled="submitting || loading" @click="load">重新核对</button></Alert>
       <Skeleton v-if="loading && !detail" class="payment-skeleton" />
       <template v-if="detail">
-        <div class="order-summary"><span>订单 {{ detail.code }}</span><strong>U {{ detail.totalAmount }}</strong></div>
+        <div class="order-summary"><span>订单 <CopyValue :value="detail.code" label="订单号" /></span><strong>U {{ detail.totalAmount }}</strong></div>
         <Alert v-if="activePay" class="notice"><AlertDescription>此订单组已有钱包支付单（{{ latestPay?.statusText || latestPay?.status }}），请先核对原支付进度，勿重复付款。</AlertDescription><button type="button" class="outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: groupNo } })">查看支付进度</button></Alert>
         <Alert v-else-if="latestPay?.status === 'PENDING'" class="notice"><AlertDescription>原直付单仍待转账。已广播时请先核对钱包活动并上报原交易哈希；明确选择余额并再次确认后，才会在实际付款时切换。</AlertDescription><button type="button" class="outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: groupNo } })">核对原交易</button></Alert>
         <Alert v-else-if="latestPay && ['CLOSED', 'FAILED'].includes(latestPay.status)" class="notice"><AlertDescription>此前的链上支付单已{{ latestPay.statusText || latestPay.status }}。再次发起前请先核对原交易是否到账。</AlertDescription></Alert>

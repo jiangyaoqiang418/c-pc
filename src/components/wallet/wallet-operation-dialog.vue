@@ -10,6 +10,7 @@ function update(value: boolean) { if (!value && !props.busy) emit('dismiss'); }
   <BusinessDialog :visible="visible" :title="title" :width="490" :footer="false" :content-class="deposit ? 'wallet-operation-dialog deposit-dialog' : 'wallet-operation-dialog'" :closable="!busy" :mask-closable="!busy" :esc-to-close="!busy" @update:visible="update">
     <p class="wallet-operation-description">{{ description }}</p>
     <slot />
+    <template v-if="$slots.footer" #footer><slot name="footer" /></template>
   </BusinessDialog>
 </template>
 

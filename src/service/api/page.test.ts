@@ -327,6 +327,27 @@ describe('v47前端本地边界', () => {
     } finally { fixture.app.unmount(); }
   });
 
+  it('正式商品图识图失败后重试只上传一次；成功后只自动补全可确定字段', async () => {
+    const onApply = vi.fn(), onProductImage = vi.fn();
+    const asset = { url:'/gallery/watch.png', bucket:'gallery', filePath:'watch.png' } as Api.RealProduct.FileUploadResult;
+    const gallery = vi.spyOn(productApi, 'uploadFile').mockResolvedValue(asset);
+    const vision = vi.spyOn(aiApi, 'uploadAiImage').mockResolvedValue({ id:'vision-file' } as Api.Ai.UploadedImage);
+    vi.spyOn(productApi, 'prefillProductImage').mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce({
+      title:'手表', description:'待确认', categoryCandidates:[{ id:'cat', name:'手表' }],
+      brandCandidates:[{ id:'a', name:'A' },{ id:'b', name:'B' }], parameters:[]
+    });
+    const fixture = mountSubject<{ chooseFile:(e:Event, combined:boolean)=>Promise<void>; recognize:()=>Promise<void> }>(
+      ProductImagePrefill, { contextKey:'buyer:a', imageCount:0, onApply, onProductImage });
+    try {
+      await fixture.state.chooseFile({target:{files:[new File(['image'],'watch.png',{type:'image/png'})]}} as unknown as Event,true);
+      expect(onProductImage).toHaveBeenCalledWith(asset); expect(onApply).not.toHaveBeenCalled();
+      await fixture.state.recognize();
+      expect(gallery).toHaveBeenCalledTimes(1); expect(vision).toHaveBeenCalledTimes(1);
+      expect(onProductImage).toHaveBeenCalledTimes(1);
+      expect(onApply).toHaveBeenCalledWith({ title:'手表', category:{id:'cat',name:'手表'}, overwrite:false });
+    } finally { fixture.app.unmount(); }
+  });
+
   it('识图超时保留fileId手动重试，切换上下文拒绝迟到建议', async () => {
     const applied = vi.fn();
     const upload = vi.spyOn(aiApi, 'uploadAiImage').mockResolvedValue({ id:'original-file' } as Api.Ai.UploadedImage);

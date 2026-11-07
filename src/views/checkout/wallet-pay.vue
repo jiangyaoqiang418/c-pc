@@ -403,19 +403,21 @@ async function transfer() {
 async function returnToPaymentMethods() {
   const current = pay.value;
   const userId = userStore.currentUser?.id;
-  if (!current || busy.value || userId === undefined) return;
+  const group = orderGroupNo.value;
+  if (!group || busy.value || userId === undefined) return;
   const version = generation;
   const session = getAccessToken();
-  const isCurrent = () => currentContext(version, userId, session, current.payNo);
+  const isCurrent = () => currentContext(version, userId, session, current?.payNo) && orderGroupNo.value === group;
   busy.value = true;
   stopPolling();
   try {
     const pending = readPendingCheckout(userId);
-    if (pending?.orderGroupNo === current.orderGroupNo && pending.orderIds?.length) {
-      if (isCurrent()) await router.push({ name: 'checkout' });
+    if (pending?.orderGroupNo === group && pending.orderIds?.length) {
+      if (isCurrent()) await router.push({ name: 'checkout', query: { reselectGroup: group } });
       return;
     }
-    const result = await readGroupResult(current);
+    const raw = await fetchOrderGroupPayResult(group);
+    const result = validateGroupPayResult(raw, group, raw?.items?.map(item => item.orderId) || []);
     if (!isCurrent()) return;
     groupResult.value = result;
     const orderId = result.items.find(item => item.status === 'CREATED')?.orderId || result.items[0]?.orderId;
@@ -491,14 +493,15 @@ watch([orderGroupNo, () => userStore.currentUser?.id, () => userStore.sessionVer
         </div>
         <div v-if="progress?.txHash && (pay.status === 'PENDING' || chainRetryable && progress.txHash !== pay.txHash)" class="retry-report"><button type="button" class="outline"  :disabled="busy" @click="retryReport"><Icon v-if="busy" icon="lucide:loader-circle" width="16" class="animate-spin" />重试上报同一交易</button></div>
         <Alert v-if="resultError" variant="destructive" class="notice"><AlertDescription>{{ resultError }}</AlertDescription></Alert>
-        <section v-if="groupResult || pay.payResult" class="group-results" aria-label="逐单付款结果"><h2>逐单付款结果</h2><p>仍待付：{{ (groupResult || pay.payResult)!.unpaidAmount }} USDT。取消订单单独展示，不计为已付款。</p><div v-for="item in (groupResult || pay.payResult)!.items" :key="String(item.orderId)"><RouterLink :to="{ name: 'order-detail', params: { id: String(item.orderId) } }">{{ item.orderNo || item.orderId }}</RouterLink> · {{ item.amount }} USDT · <OrderStatusTag :status="statusMap[item.status]" /><p v-if="item.message">{{ item.message }}</p></div></section>
-        <button type="button" v-if="pay.status !== 'SUCCESS'" class="restart outline" :disabled="busy || loading" @click="returnToPaymentMethods">返回付款方式选择</button>
+        <section v-if="groupResult || pay.payResult" class="group-results" aria-label="逐单付款结果"><h2>逐单付款结果</h2><p>仍待付：{{ (groupResult || pay.payResult)!.unpaidAmount }} USDT。取消订单单独展示，不计为已付款。</p><div v-for="item in (groupResult || pay.payResult)!.items" :key="String(item.orderId)"><RouterLink :to="{ name: 'order-detail', params: { id: String(item.orderId) } }">查看订单</RouterLink> <CopyValue v-if="item.orderNo" :value="item.orderNo" label="订单号" /> · {{ item.amount }} USDT · <OrderStatusTag :status="statusMap[item.status]" /><p v-if="item.message">{{ item.message }}</p></div></section>
+
         <button type="button" v-if="pay.status === 'CLOSED'" class="restart outline" :disabled="busy || loading" @click="restartClosed">核对后重新发起钱包支付</button>
         <p v-if="pay.status === 'SUBMITTED'" class="hint">可返回查看订单，链上确认完成前不可再次付款。</p>
         <div v-if="pay.status === 'CLOSED' || pay.status === 'FAILED'" class="button-row"><RouterLink :to="{ name: 'wallet-deposit', query: { view: 'records' } }">核对充值记录</RouterLink><RouterLink :to="{ name: 'wallet' }">查看钱包余额</RouterLink></div>
         <p v-if="pay.failReason" class="failure-reason">{{ pay.failReason }}</p>
       </template>
       <EmptyState v-else-if="!loading && !errorMessage" title="暂无钱包支付单" />
+      <button type="button" v-if="orderGroupNo && pay?.status !== 'SUCCESS'" class="restart outline" :disabled="busy || loading" @click="returnToPaymentMethods">返回付款方式选择</button>
       <footer class="button-row actions"><button type="button" class="outline"  :disabled="loading || busy" @click="pay ? refreshDetail() : load()"><Icon icon="lucide:refresh-cw" width="16" />刷新状态</button><button type="button" class="text-link"  @click="router.push({ name: 'order-list' })">查看我的订单</button></footer>
     </section>
   </div>

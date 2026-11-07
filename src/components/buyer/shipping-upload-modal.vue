@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -100,7 +101,7 @@ function submit() {
 
 <template>
   <a-modal content-class="buyer-dialog buyer-dialog-wide" :visible="visible" :title="procurement ? '完成采购' : '填写发货信息'" :width="740" :ok-loading="props.submitting" :ok-button-props="{ disabled: uploading || (!procurement && !carrierValid) }" :closable="!submitting && !uploading" :mask-closable="!submitting && !uploading" :esc-to-close="!submitting && !uploading" :on-before-cancel="() => !submitting && !uploading" :ok-text="procurement ? '确认采购完成' : '确认发货'" @update:visible="(value: boolean) => emit('update:visible', value)" :on-before-ok="submit">
-    <template v-if="order"><p class="order-hint">订单 {{ order.code }} · {{ order.productTitle }}</p><Alert class="shipping-note"><AlertDescription>{{ procurement ? '提交真实采购单号和凭证后，订单进入待发货阶段。采购完成后不能更换这套凭证。' : '填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹。' }}</AlertDescription></Alert>
+    <template v-if="order"><p class="order-hint">订单 <CopyValue :value="order.code" label="订单号" /> · {{ order.productTitle }}</p><Alert class="shipping-note"><AlertDescription>{{ procurement ? '提交真实采购单号和凭证后，订单进入待发货阶段。采购完成后不能更换这套凭证。' : '填写真实物流信息后订单状态变为「运输中」，平台将开始拉取物流轨迹。' }}</AlertDescription></Alert>
       <div class="shipping-form">
         <LogisticsCarrierFields v-if="!procurement" v-model:tracking-no="form.trackingNumber" v-model:carrier-code="form.carrier" v-model:carrier-name="form.carrierName" :context-key="'shipping:' + uploadContext" :active="visible && !procurement" :disabled="submitting" @valid="carrierValid = $event" />
         <div v-if="!procurement" class="buyer-field"><Label for="shipping-eta">预计送达时间</Label><DateTimeInput hour-only id="shipping-eta" v-model="form.eta" :disabled="submitting" /></div>

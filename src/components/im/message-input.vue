@@ -465,8 +465,8 @@ onBeforeUnmount(() => {
         <PopoverPortal>
           <PopoverContent class="im-emoji-panel" side="top" align="start" :side-offset="8" :collision-padding="12" aria-label="聊天表情" @close-auto-focus="onEmojiCloseAutoFocus">
             <header class="emoji-panel-header"><h3>聊天表情</h3><PopoverClose as-child><button type="button" class="emoji-panel-close" aria-label="关闭聊天表情"><Icon icon="lucide:x" aria-hidden="true" /></button></PopoverClose></header>
-            <div class="emoji-search-field"><Icon icon="lucide:search" aria-hidden="true" /><input v-model="emojiSearch" class="emoji-search" type="search" aria-label="搜索表情" placeholder="搜索 Emoji，如笑哭、点赞、猫" /></div>
             <h3 class="brand-stickers-title">Umaomao 表情</h3><div class="brand-stickers" role="group" aria-label="Umaomao 图片表情"><button v-for="label in brandStickerLabels" :key="label" type="button" :aria-label="'发送贴纸：' + label" :title="label" :disabled="disabled || submitting || mediaBusy" @click="sendSticker(label)"><img :src="brandCat" alt="" /><span>{{ label }}</span></button></div>
+            <div class="emoji-search-field"><Icon icon="lucide:search" aria-hidden="true" /><input v-model="emojiSearch" class="emoji-search" type="search" aria-label="搜索表情" placeholder="搜索 Emoji，如笑哭、点赞、猫" /></div>
             <nav class="emoji-categories" aria-label="表情分类"><button v-for="group in emojiGroups" :key="group.label" type="button" :aria-pressed="!emojiSearch.trim() && emojiCategory === group.label" @click="emojiCategory = group.label; emojiSearch = ''">{{ group.label }}</button></nav>
             <p v-if="emojiLibraryLoading" class="emoji-library-status" role="status">正在读取表情…</p>
             <p v-if="emojiLibraryError" class="emoji-library-status" role="alert">表情库读取失败<button type="button" class="text-link" @click="loadEmojiLibrary">重试</button></p>

@@ -260,3 +260,5 @@ AI 会话增量以 2026-10-27 新文档和实时 user/admin OpenAPI 为准：C-P
 - 识图返回 parameters 和 specGroups，description 为空仍接受其他建议；默认补空，替换已有字段须勾选，始终保留已有画布，规格不含价格及库存。
 - 顾客商品页及预览：手填重点/基本参数 → 画布或富文本 → 系统规格表。
 - OrderDTO 新增 canApplyAftersale、aftersaleUnavailableReason、availableAftersaleTypes。订单、三方群和申请页以服务端权限为准；已完成订单可申请，退款审核通过后先 PAYING，钱包成功后再完成。
+
+2026-11-07：上述交互复用商品图片上传、私有 AI 图片上传、识图预填以及订单组付款结果查询接口，无新增请求字段。聊天卡片复制业务订单号，不以数据库主键代替。

@@ -5,14 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { uploadAiImage } from '@/service/api/ai';
-import { prefillProductImage } from '@/service/api/product';
+import { prefillProductImage, uploadFile } from '@/service/api/product';
 import { createLatestRequestGuard } from '@/utils/latest-request';
 
-const props = defineProps<{ disabled?: boolean; contextKey: string }>();
-const emit = defineEmits<{ apply: [value: Api.RealProduct.ImagePrefillSelection]; busy: [value: boolean] }>();
+const props = defineProps<{ disabled?: boolean; imageCount?: number; contextKey: string }>();
+const emit = defineEmits<{ apply: [value: Api.RealProduct.ImagePrefillSelection]; busy: [value: boolean]; productImage: [value: Api.RealProduct.FileUploadResult] }>();
 const id = useId();
 const fileInput = ref<HTMLInputElement>();
 const file = ref<File>();
+const combined = ref(false);
+const mainUploaded = ref(false);
 const fileId = ref<Api.RealProduct.Id>();
 const hint = ref('');
 const overwrite = ref(false);
@@ -24,12 +26,19 @@ const brand = ref('');
 const fields = reactive({ title: true, description: false, category: true, brand: true, parameters: true, specs: false });
 const requests = createLatestRequestGuard(() => props.contextKey);
 
-function chooseFile(event: Event) {
+function chooseFile(event: Event, asProduct = false) {
+  const input = event.target as HTMLInputElement;
+  if (!input.files?.length || busy.value || props.disabled) return;
+  combined.value = asProduct;
+  overwrite.value = false;
+  mainUploaded.value = false;
   requests.invalidate();
   file.value = (event.target as HTMLInputElement).files?.[0];
   fileId.value = undefined;
   result.value = undefined;
   error.value = '';
+  input.value = '';
+  if (asProduct) return recognize();
 }
 
 async function recognize() {
@@ -42,6 +51,14 @@ async function recognize() {
   error.value = '';
   result.value = undefined;
   try {
+    if (combined.value && !mainUploaded.value) {
+      if ((props.imageCount ?? 0) >= 6) throw new Error('已达到 6 张商品图上限');
+      if (!['image/jpeg','image/png','image/webp'].includes(file.value.type) || file.value.size > 5 * 1024 * 1024) throw new Error('请选择不超过 5 MiB 的 JPG、PNG 或 WebP 图片');
+      const image = await uploadFile(file.value, 'PRODUCT');
+      if (!current()) return;
+      emit('productImage', image);
+      mainUploaded.value = true;
+    }
     if (fileId.value === undefined) {
       const uploaded = await uploadAiImage(file.value, current.signal);
       if (!current()) return;
@@ -56,7 +73,10 @@ async function recognize() {
   } catch (cause) {
     if (current()) error.value = cause instanceof Error ? cause.message : '识别失败，原表单已保留，请重试或手动填写';
   } finally {
-    if (current()) { busy.value = false; emit('busy', false); }
+    if (current()) {
+      busy.value = false; emit('busy', false);
+      if (combined.value && result.value) { overwrite.value = false; apply(); }
+    }
   }
 }
 
@@ -76,6 +96,7 @@ function apply() {
 
 function clear() {
   requests.invalidate();
+  combined.value = false; mainUploaded.value = false;
   file.value = undefined;
   if (fileInput.value) fileInput.value.value = '';
   fileId.value = undefined;
@@ -91,16 +112,17 @@ onBeforeUnmount(clear);
 
 <template>
   <section class="image-prefill" :aria-busy="busy" aria-label="识图填写商品">
-    <header><h3>识图填写</h3><p>上传一张商品图片，获取可编辑的信息建议。</p></header>
+    <header><h3>识图填写</h3><p>选一张商品图，自动补全空白标题、参数和唯一匹配的品牌、分类。原有内容保留。</p></header>
+    <label class="combined-upload">上传商品图并识图填写<input type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled || busy || (imageCount ?? 0) >= 6" @change="chooseFile($event, true)" /></label>
     <div class="recognition-fields">
-      <div><Label :for="id + '-file'">识别图片</Label><input :id="id + '-file'" ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled || busy" @change="chooseFile" /><small>JPG、PNG、WebP，最多 5 MiB、2000 万像素。正式商品图片仍需在下方上传。</small></div>
+      <div><Label :for="id + '-file'">仅作识别参考（选填）</Label><input :id="id + '-file'" ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" :disabled="disabled || busy" @change="chooseFile" /><small>JPG、PNG、WebP，最多 5 MiB、2000 万像素。参考图不会加入商品相册。</small></div>
       <div><Label :for="id + '-hint'">识别提示（选填）</Label><Input :id="id + '-hint'" v-model="hint" maxlength="120" :disabled="disabled || busy" placeholder="如：识别品牌、型号和外观" /></div>
     </div>
-    <button type="button" class="outline" :disabled="disabled || busy || !file" @click="recognize"><Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ busy ? '正在识别，预计最多60秒…' : fileId ? '重新识别（复用已上传图片）' : '识别商品信息' }}</button>
+    <button type="button" class="outline" :disabled="disabled || busy || !file" @click="recognize"><Icon v-if="busy" icon="lucide:loader-circle" class="animate-spin" />{{ busy ? '正在识别，请稍候…' : fileId ? '重新识别（复用已上传图片）' : '识别商品信息' }}</button>
     <p v-if="busy" role="status">正在生成建议，已填内容会保留，请等待结果。</p>
-    <Alert v-if="error" variant="destructive"><AlertDescription>{{ error }}。可重试或继续手动填写。</AlertDescription></Alert>
+    <Alert v-if="error" variant="destructive"><AlertDescription>{{ error }}。{{ mainUploaded ? '商品图已保留；重试不会再次添加。' : '可重试或继续手动填写。' }}</AlertDescription></Alert>
     <div v-if="result" class="suggestions">
-      <h4>确认需要填入的字段</h4>
+      <h4>核对识别建议</h4>
       <label class="check"><input v-model="fields.title" type="checkbox" :disabled="disabled || !result.title" />商品标题</label>
       <Input v-model="result.title" maxlength="128" :disabled="disabled" aria-label="识别建议标题" />
       <label class="check"><input v-model="fields.description" type="checkbox" :disabled="disabled || !result.description" />外观描述（仅填入空白详情，不覆盖画布）</label>

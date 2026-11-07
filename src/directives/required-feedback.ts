@@ -11,7 +11,7 @@ const controls = 'input:not([type="hidden"]),textarea,select,[role="combobox"],[
 function errors(root: HTMLElement, state: State) {
   const result = new Map<HTMLElement, string>();
   root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input[required],textarea[required],select[required]').forEach(control => {
-    if (control.matches(':disabled') || control.type === 'hidden') return;
+    if (control.matches(':disabled') || control.type === 'hidden' || control.closest('[hidden],[inert]')) return;
     if (control.validity.valueMissing || ((control.type === 'password' || !!control.closest('[data-required-feedback-control]')) ? !control.value : !control.value.trim())) {
       const labelNode = control.labels?.[0]?.cloneNode(true) as HTMLElement | undefined;
       labelNode?.querySelectorAll('.required-feedback-message').forEach(note => note.remove());
@@ -21,7 +21,7 @@ function errors(root: HTMLElement, state: State) {
   });
   for (const [selector, message] of Object.entries(state.rules)) {
     const target = root.querySelector<HTMLElement>(selector);
-    if (message && target && !target.matches(':disabled')) result.set(target, message);
+    if (message && target && !target.matches(':disabled') && !target.closest('[hidden],[inert]')) result.set(target, message);
   }
   return result;
 }
@@ -60,7 +60,7 @@ export function validateRequiredFeedback(root: HTMLElement | undefined | null) {
   state.attempted = true;
   const missing = paint(root, state);
   if (!missing.size) return true;
-  const first = missing.keys().next().value!;
+  const first = [...missing.keys()].sort((a, b) => a === b ? 0 : (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1)[0]!;
   const focus = first.matches(controls) ? first : first.querySelector<HTMLElement>(controls);
   (focus || first).focus(); first.scrollIntoView({ block:'center', behavior:'auto' });
   return false;

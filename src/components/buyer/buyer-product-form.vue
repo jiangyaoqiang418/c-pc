@@ -380,7 +380,8 @@ function applyImagePrefill(suggestion: Api.RealProduct.ImagePrefillSelection) {
     if (issue) throw new Error(issue);
     if (suggestion.parameters) validateProductDetails([], suggestion.parameters);
     if (suggestion.category && !isSelectableCategory(cascaderOptions.value, suggestion.category.id)) {
-      throw new Error('建议分类不在当前可选目录中，请刷新分类后重新识别或手动选择');
+      suggestion = { ...suggestion, category: undefined };
+      Message.warning('建议分类不可选，请手动选择；其余信息继续填入');
     }
     const categoryIds = suggestion.category && (suggestion.overwrite || !form.categoryId)
       ? [suggestion.category.id, ...form.categoryIds.filter(id => String(id) !== String(suggestion.category!.id))] : form.categoryIds;
@@ -487,6 +488,11 @@ function updateDesign(value: { sourceJson: string; designRevisionId?: string; de
 function updateDescription(value: string) {
   if (currentContext.value && !props.submitting) form.description = value;
 }
+function addRecognizedProductImage(item: Api.RealProduct.FileUploadResult) {
+  if (!currentContext.value || props.submitting || form.images.length >= 6) return;
+  onUploaded([item]);
+  updateProductImages([...new Set([...form.images, item.url || item.filePath])]);
+}
 function updateProductImages(value: string[]) {
   if (currentContext.value && !props.submitting) form.images = value;
 }
@@ -511,17 +517,17 @@ const previewCategory = computed(() => {
 </script>
 
 <template>
-  <form v-required-feedback="{ '#product-category': !form.categoryId && '请选择商品分类', '#product-aftersale': !form.aftersaleType && '请选择售后类型', '[data-product-images]': !form.images.length && '至少上传 1 张商品图' }" novalidate class="buyer-editor" @submit.prevent="submit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
+  <form v-required-feedback="{ '#product-category': !form.categoryId && '请选择商品分类', '#product-aftersale': !form.aftersaleType && '请选择售后类型', '[data-add-spec]': skuEditor.enabled && !skuEditor.groups.length && '请添加规格组', '[data-generate-skus]': skuEditor.enabled && !!skuEditor.groups.length && !skuEditor.skus.length && '请添加或生成规格组合', '[data-product-images]': !form.images.length && '至少上传 1 张商品图' }" novalidate class="buyer-editor" @submit.prevent="submit" @pointerdown.capture="markInteracted" @keydown.capture="markInteracted" @focusin.capture="markInteracted">
     <div class="buyer-editor-fields">
     <div v-if="savedDraft" class="buyer-draft"><span>发现一份本地草稿</span><button type="button" :disabled="draftBlocked" @click="restoreDraft">恢复草稿 →</button></div>
     <p v-if="draftError" class="buyer-rejection" role="alert">{{ draftError }}</p>
     <section class="paper"><header class="buyer-number-heading"><span>01</span><div><h2>商品信息</h2><p>清晰的图片与准确的信息，让选择更容易。</p></div></header>
-      <ProductImagePrefill v-if="currentContext && aiCapability?.enabled" :key="draftRevision" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || savingDraft || uploadStates.product || uploadStates.description || uploadStates.details || uploadStates.skus || uploadStates.brand || !currentContext" @busy="uploadStates.prefill = $event" @apply="applyImagePrefill" />
       <div class="buyer-field"><Label for="product-title">商品标题 <span>*</span></Label><Input id="product-title" v-model="form.title" maxlength="128" :disabled="submitting" placeholder="如 iPhone 16 Pro Max 256GB 沙漠钛"  required /></div>
       <div class="buyer-field"><ProductSourceSelect v-model="form.source" :disabled="draftBlocked" /></div>
       <div class="buyer-two-cols buyer-category-fields"><div class="buyer-field"><Label for="product-category">商品分类 <span>*</span></Label><div class="category-row"><CategoryPicker id="product-category" v-model="form.categoryId" v-model:model-values="form.categoryIds" multiple :max="20" :options="cascaderOptions" :loading="categoryLoading" :disabled="submitting" /><Button class="outline" type="button" variant="outline" :disabled="categoryLoading || submitting" @click="reloadCategories(true)">{{ categoryLoading ? '读取中…' : '刷新分类' }}</Button></div><Alert v-if="categoryLoadError" variant="destructive"><AlertDescription>{{ categoryLoadError }}<Button type="button" variant="ghost" size="sm" :disabled="categoryLoading" @click="reloadCategories()">重新加载</Button></AlertDescription></Alert></div><div class="buyer-field"><span class="text-sm font-medium leading-none">没有合适的分类？</span><Button class="outline" type="button" variant="outline" :disabled="draftBlocked" @click="router.push('/buyer/categories/apply')">申请新增分类 →</Button></div></div>
       <div class="buyer-field"><Label for="product-brand">商品品牌</Label><div class="category-row"><Input v-model="brandKeyword" :disabled="submitting || brandLoading" placeholder="搜索品牌名称" @keydown.enter="onBrandSearchEnter" /><Button class="outline" type="button" variant="outline" :disabled="submitting || brandLoading" @click="loadBrands(false, true)">{{ brandLoading ? '读取中…' : '搜索品牌' }}</Button></div><Select v-model:open="brandSelectOpen" :model-value="form.brandId == null ? '__none__' : String(form.brandId)" :disabled="submitting" @update:model-value="selectBrand"><SelectTrigger id="product-brand"><SelectValue :placeholder="selectedBrandLabel || '可选，未关联品牌'">{{ form.brandId == null ? '未关联品牌' : selectedBrandLabel || '当前关联品牌' }}</SelectValue></SelectTrigger><SelectContent><SelectItem value="__none__">未关联品牌</SelectItem><SelectItem v-if="suggestedBrand && !brands.some(brand => String(brand.id) === String(suggestedBrand!.id))" :value="String(suggestedBrand.id)" :text-value="suggestedBrand.name">{{ suggestedBrand.name }}</SelectItem><SelectItem v-if="form.brandId != null && String(form.brandId) !== String(suggestedBrand?.id) && !brands.some(brand => String(brand.id) === String(form.brandId))" :value="String(form.brandId)" disabled>{{ selectedBrandLabel || '当前关联品牌' }}{{ initialProduct?.brand?.enabled === false ? '（已停用）' : '' }}</SelectItem><SelectItem v-if="!brands.length && !brandLoading" value="__empty__" disabled>未找到可选品牌，可调整关键词或申请新增品牌</SelectItem><SelectItem v-for="brand in brands" :key="String(brand.id)" :value="String(brand.id)" :text-value="brand.name" :disabled="!brand.enabled"><BrandMark :src="brand.logo" :name="brand.name" />{{ brand.name }}</SelectItem></SelectContent></Select><p v-if="brandError" class="error-text" role="alert">{{ brandError }}</p><Button v-if="brands.length < brandTotal" type="button" class="outline" variant="outline" :disabled="brandLoading || submitting" @click="loadBrands(true, true)">加载更多品牌</Button><BrandApplications :disabled="draftBlocked" @busy="uploadStates.brand = $event" @selected="brand => { form.brandId = brand.id; brands = [brand, ...brands.filter(row => String(row.id) !== String(brand.id))]; }" /></div>
-      <div class="buyer-field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader :key="draftRevision" class="buyer-upload-grid" data-product-images tabindex="-1" :model-value="form.images" @update:model-value="updateProductImages" :cover-mode="true" scene="PRODUCT" :max="6" :disabled="submitting || uploadStates.description || uploadStates.details || uploadStates.skus || !currentContext" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
+      <div class="buyer-field"><Label>商品图片 <span>*</span></Label><p class="helper">至少 1 张，最多 6 张。</p><AftersaleEvidenceUploader :key="draftRevision" class="buyer-upload-grid" data-product-images tabindex="-1" :model-value="form.images" @update:model-value="updateProductImages" :cover-mode="true" scene="PRODUCT" :max="6" :disabled="submitting || uploadStates.prefill || uploadStates.description || uploadStates.details || uploadStates.skus || !currentContext" @uploading="uploadStates.product = $event" @uploaded="onUploaded" /></div>
+      <ProductImagePrefill v-if="currentContext && aiCapability?.enabled" :key="draftRevision" :image-count="form.images.length" @product-image="addRecognizedProductImage" :context-key="(draftKey || 'no-owner') + ':' + draftRevision" :disabled="submitting || savingDraft || uploadStates.product || uploadStates.description || uploadStates.details || uploadStates.skus || uploadStates.brand || !currentContext" @busy="uploadStates.prefill = $event" @apply="applyImagePrefill" />
     </section>
     <BuyerProductDetails v-model:parameters="form.parameters" :disabled="draftBlocked" />
     <section class="paper"><header class="buyer-number-heading"><span>02</span><div><h2>价格与配送</h2><p>按 USDT 结算，运费与税费单独展示。</p></div></header>

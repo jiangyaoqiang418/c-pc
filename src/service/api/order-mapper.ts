@@ -91,7 +91,7 @@ export function toOrderRecord(dto: Api.RealOrder.OrderDTO): Api.RealOrder.Record
     orderType: dto.orderType,
     demandId: dto.demandId,
     reviewEligibility: dto.reviewEligibility,
-    code: dto.orderNo || String(dto.orderId || ''),
+    code: dto.orderNo || '',
     productId,
     skuId: dto.skuId,
     skuSpecs: dto.skuSpecs,

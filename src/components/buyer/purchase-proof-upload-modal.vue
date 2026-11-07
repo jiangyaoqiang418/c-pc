@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import { ref, watch } from 'vue';
 import { Message } from '@/lib/feedback';
 import AftersaleEvidenceUploader from '@/components/aftersale/aftersale-evidence-uploader.vue';
@@ -50,7 +51,7 @@ function submit() {
     @ok="submit"
   >
     <template v-if="order">
-      <div class="hint">订单 {{ order.code }} · {{ order.productTitle }}</div>
+      <div class="hint">订单 <CopyValue :value="order.code" label="订单号" /> · {{ order.productTitle }}</div>
       <Alert class="alert"><AlertDescription>
         请上传向商家下单的截图作为采购凭证；上传后订单将变为「已采购待发货」
       </AlertDescription></Alert>

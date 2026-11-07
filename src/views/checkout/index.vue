@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
@@ -653,7 +654,7 @@ async function load() {
     pendingCheckout.value = undefined;
     pendingCheckout.value = readPendingCheckout(userId!);
     if (walletPayEntryEnabled && pendingCheckout.value?.walletPayAttempt) {
-      paymentMethod.value = 'wallet';
+      paymentMethod.value = route.query.reselectGroup === pendingCheckout.value.orderGroupNo ? 'balance' : 'wallet';
       selectedChain.value = pendingCheckout.value.walletPayAttempt.chain;
     }
     if (pendingCheckout.value?.orderIds?.length) {
@@ -996,7 +997,7 @@ async function doSubmit(method: 'balance' | 'wallet', chain: string, expectedSig
       <p class="section-description">以下为上次下单生成的订单，商品、地址和金额以上次下单时为准。已付款或已结束的订单不会再次付款。</p>
       <Skeleton v-if="loading && !pendingOrders.length" class="orders-skeleton" />
       <div class="pending-orders" :class="{ reading: loading }">
-        <article v-for="order in pendingOrders" :key="String(order.id)" class="pending-order"><div class="order-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">订单 {{ order.code }}</RouterLink><OrderStatusTag :status="order.status" /></div><p>{{ order.productTitle }}<template v-if="order.skuSpecs?.length"> · {{ order.skuSpecs.map(spec => `${spec.name}：${spec.value}`).join(' / ') }}</template> · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p><p class="muted">收货地址：{{ order.shippingAddress }}</p></article>
+        <article v-for="order in pendingOrders" :key="String(order.id)" class="pending-order"><div class="order-heading"><RouterLink :to="{ name: 'order-detail', params: { id: String(order.id) } }">查看订单</RouterLink><CopyValue :value="order.code" label="订单号" /><OrderStatusTag :status="order.status" /></div><p>{{ order.productTitle }}<template v-if="order.skuSpecs?.length"> · {{ order.skuSpecs.map(spec => `${spec.name}：${spec.value}`).join(' / ') }}</template> · 数量 {{ order.quantity ?? '待核对' }} · U {{ order.totalAmount }}</p><p class="muted">收货地址：{{ order.shippingAddress }}</p></article>
       </div>
       <div class="pending-total">本次待付款 <strong>{{ unpaidOrders.length }} 笔 · U {{ pendingTotal || '待核对' }}</strong></div>
       <Alert v-if="latestWalletPay && ['PENDING', 'SUBMITTED', 'CLOSED'].includes(latestWalletPay.status)" class="notice"><AlertDescription>钱包支付单 {{ latestWalletPay.payNo }}：{{ latestWalletPay.statusText || latestWalletPay.status }}。</AlertDescription><button type="button"  class="notice-action outline" @click="router.push({ name: 'checkout-wallet-pay', params: { orderGroupNo: latestWalletPay.orderGroupNo } })">查看支付进度</button></Alert>

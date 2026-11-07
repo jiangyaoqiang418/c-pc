@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CopyValue from '@/components/common/copy-value.vue';
 import ProductSourceBadge from '@/components/common/product-source-badge.vue';
 import { Icon } from '@iconify/vue';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
@@ -110,14 +111,14 @@ const productCard = computed(() => isProductCard.value ? parseProductMessageCard
   <div v-if="msg.recalled" class="msg-row center"><div class="bubble system"><Icon icon="lucide:undo-2" width="13" />消息已撤回</div></div>
   <div v-else-if="isSystem" class="msg-row center"><div class="bubble system">{{ systemContent }}</div></div>
   <div v-else-if="isOrderCard" class="msg-row center order-message">
-    <button v-if="orderCard" type="button" class="im-order-card" @click="orderCard.orderId && emit('open-order', orderCard.orderId)">
+    <div v-if="orderCard" class="im-order-card">
       <img v-if="orderCard.productImage" :src="orderCard.productImage" alt="订单商品" class="order-cover" />
       <div class="order-card-body">
         <div class="order-title" :title="orderCard.productTitle || '订单卡片'">{{ orderCard.productTitle || '订单卡片' }}</div>
-        <div class="im-order-meta">订单号 {{ orderCard.orderNo || '—' }}</div>
-        <div class="order-footer"><span>{{ orderCard.statusText || '查看订单' }}</span><strong v-if="orderCard.amount !== undefined">{{ orderCard.currency || 'USDT' }} {{ orderCard.amount }}</strong><Icon icon="lucide:arrow-up-right" width="15" /></div>
+        <div class="im-order-meta">订单号 <CopyValue :value="orderCard.orderNo" label="订单号" /></div>
+        <div class="order-footer"><button type="button" class="text-link open-order-card" :disabled="!orderCard.orderId" @click="orderCard.orderId && emit('open-order', orderCard.orderId)">查看订单 · {{ orderCard.statusText || '订单详情' }}</button><strong v-if="orderCard.amount !== undefined">{{ orderCard.currency || 'USDT' }} {{ orderCard.amount }}</strong><Icon icon="lucide:arrow-up-right" width="15" /></div>
       </div>
-    </button>
+    </div>
     <ConversationOrderBar v-if="orderCard?.orderId" aftersale-only compact :order-id="orderCard.orderId" :revision="String(orderRevision)" />
     <div v-else class="bubble system">{{ msg.content || '订单卡片' }}</div>
   </div>
@@ -174,6 +175,7 @@ const productCard = computed(() => isProductCard.value ? parseProductMessageCard
 .recall-btn { color:var(--green); font-size:inherit; }.recall-btn:hover { text-decoration:underline; }
 .media-error { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; color:var(--muted); }
 .media-error>span { max-width:260px; font-size:13px; }
+.order-message .im-order-card { position:relative; }.open-order-card::after { content:""; position:absolute; inset:0; }.im-order-meta :deep(.copy-value button) { position:relative; z-index:1; }
 .im-order-card { width:390px; max-width:90%; display:flex; overflow:hidden; padding:0; text-align:left; background:var(--paper); border:1px solid var(--line); border-radius:10px; }
 .im-order-card:hover { border-color:var(--green); }
 .im-product-card { max-width:100%; text-decoration:none; }
