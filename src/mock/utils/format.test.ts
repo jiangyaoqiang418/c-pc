@@ -1,3 +1,5 @@
+import { fetchReferenceRates } from '@/service/api/reference-rates';
+import { realOrderRequest } from '@/service/request';
 import { describe, expect, it, vi } from 'vitest';
 import { formatAmount } from './format';
 import { priceSet, formatCny, RATE_SOURCE_TEXT } from './currency';
@@ -33,28 +35,45 @@ describe('金额展示', () => {
   it('参考行情在切入聊天取消后立即返回能重取，旧请求不得覆盖新报价', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('document', { hidden: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
-    const pending: { resolve: (value: unknown) => void; asset: string }[] = [];
-    vi.stubGlobal('fetch', vi.fn((url: string) => new Promise(resolve => pending.push({ resolve, asset: new URL(url).searchParams.get('currency')! }))));
+    const pending: { resolve: (value: any) => void }[] = [];
+    const read = vi.spyOn(realOrderRequest, 'get').mockImplementation(() => new Promise(resolve => pending.push({ resolve })));
+    const rows = (rate: string) => ['USDT', 'USDC'].map(asset => ({
+      asset, quoteCurrency: 'CNY', source: 'OKX', status: 'FRESH', rate,
+      fetchedAt: String(Date.now() - 2000), expiresAt: String(Date.now() + 180000)
+    }));
     const before = { USDT: { ...referenceRates.USDT }, USDC: { ...referenceRates.USDC } };
     let release: (() => void) | undefined;
     try {
       release = retainReferenceRates();
-      expect(pending).toHaveLength(2);
+      expect(pending).toHaveLength(1);
       release();
       release = retainReferenceRates();
-      expect(pending).toHaveLength(4);
-      for (const item of pending.slice(2)) item.resolve({ ok: true, json: async () => ({ data: { currency: item.asset, rates: { CNY: '6.5' } } }) });
+      expect(pending).toHaveLength(2);
+      pending[1].resolve(rows('6.5'));
       await vi.advanceTimersByTimeAsync(1);
-      for (const item of pending.slice(0, 2)) item.resolve({ ok: true, json: async () => ({ data: { currency: item.asset, rates: { CNY: '7.18' } } }) });
+      pending[0].resolve(rows('7.18'));
       await vi.advanceTimersByTimeAsync(1);
       expect(referenceRates.USDT.value).toBe(6.5);
       expect(referenceRates.USDC.value).toBe(6.5);
       expect(referenceRates.USDT.failed).toBe(false);
+      expect(referenceRates.USDT.fetchedAt).toBeLessThan(Date.now());
+      expect(read).toHaveBeenCalledWith('/reference-rates/list', expect.any(Object));
     } finally {
       release?.();
       referenceRates.USDT = before.USDT; referenceRates.USDC = before.USDC;
-      vi.unstubAllGlobals(); vi.useRealTimers();
+      read.mockRestore(); vi.unstubAllGlobals(); vi.useRealTimers();
     }
+  });
+  it('平台汇率允许明确无数据，拒绝缺币种和非正报价', async () => {
+    const row = { asset: 'USDT', quoteCurrency: 'CNY', source: 'OKX', status: 'UNAVAILABLE', rate: null };
+    const read = vi.spyOn(realOrderRequest, 'get').mockResolvedValue([row, { ...row, asset: 'USDC' }]);
+    try {
+      expect((await fetchReferenceRates(new AbortController().signal))[0].rate).toBeNull();
+      read.mockResolvedValueOnce([row]);
+      await expect(fetchReferenceRates(new AbortController().signal)).rejects.toThrow('无效');
+      read.mockResolvedValueOnce([{ ...row, status: 'FRESH', rate: '0' }, { ...row, asset: 'USDC' }]);
+      await expect(fetchReferenceRates(new AbortController().signal)).rejects.toThrow('无效');
+    } finally { read.mockRestore(); }
   });
   it('统一保留两位小数并添加千分位', () => {
     expect(formatAmount('1234567.8')).toBe('1,234,567.80');

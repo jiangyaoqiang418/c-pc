@@ -1,8 +1,8 @@
 import { reactive, ref } from 'vue';
-import { fetchReferenceRate, REFERENCE_RATE_ASSETS, type ReferenceRateAsset } from '@/service/api/reference-rates';
+import { fetchReferenceRates, REFERENCE_RATE_ASSETS, type ReferenceRateAsset } from '@/service/api/reference-rates';
 
 // Public reference quotes are shared by the ticker and all CNY estimates; never used for settlement.
-export const referenceRates = reactive<Record<ReferenceRateAsset, { value?: number; fetchedAt?: number; failed: boolean }>>({
+export const referenceRates = reactive<Record<ReferenceRateAsset, { value?: number; fetchedAt?: number; expiresAt?: number; serverStale?: boolean; failed: boolean }>>({
   USDT: { failed: false }, USDC: { failed: false }
 });
 export const referenceRateLoading = ref(false);
@@ -15,7 +15,7 @@ let cooldown: ReturnType<typeof setTimeout> | undefined;
 
 export function referenceRateStale(asset: ReferenceRateAsset) {
   const quote = referenceRates[asset];
-  return quote.value !== undefined && (quote.failed || referenceRateNow.value - (quote.fetchedAt ?? 0) > 120_000);
+  return quote.value !== undefined && (quote.failed || quote.serverStale || referenceRateNow.value >= (quote.expiresAt ?? ((quote.fetchedAt ?? 0) + 180_000)));
 }
 export function referenceRateStamp(asset: ReferenceRateAsset) {
   const at = referenceRates[asset].fetchedAt;
@@ -33,12 +33,17 @@ export async function refreshReferenceRates() {
   controller = current;
   const timeout = setTimeout(() => current.abort(), 8_000);
   try {
-    await Promise.allSettled(REFERENCE_RATE_ASSETS.map(async asset => {
-      try {
-        const value = await fetchReferenceRate(asset, current.signal);
-        if (controller === current && !current.signal.aborted) referenceRates[asset] = { value, fetchedAt: Date.now(), failed: false };
-      } catch { if (controller === current) referenceRates[asset].failed = true; }
-    }));
+    const rows = await fetchReferenceRates(current.signal);
+    if (controller === current && !current.signal.aborted) {
+      for (const row of rows) {
+        referenceRates[row.asset] = row.status === 'UNAVAILABLE' ? { failed: true } : {
+          value: Number(row.rate), fetchedAt: Number(row.fetchedAt), expiresAt: Number(row.expiresAt),
+          serverStale: row.status === 'STALE', failed: false
+        };
+      }
+    }
+  } catch {
+    if (controller === current) for (const asset of REFERENCE_RATE_ASSETS) referenceRates[asset].failed = true;
   } finally {
     clearTimeout(timeout);
     if (controller === current) {
@@ -50,6 +55,10 @@ export async function refreshReferenceRates() {
 }
 function wake() {
   referenceRateNow.value = Date.now();
+  for (const asset of REFERENCE_RATE_ASSETS) {
+    if (referenceRateNow.value - (referenceRates[asset].fetchedAt ?? referenceRateNow.value) > 86400000)
+      referenceRates[asset] = { failed: true };
+  }
   if (!document.hidden) void refreshReferenceRates();
 }
 export function retainReferenceRates() {

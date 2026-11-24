@@ -77,4 +77,4 @@ export const TAX_TOOLTIP_TEXT =
   '税费按发货地 → 收货地距离计算。中国大陆收货：多数商品无额外税费；非中国大陆收货（港澳台/海外）：可能产生清关税费，请以实际清关为准。';
 
 /** 汇率来源提示（可选显示） */
-export const RATE_SOURCE_TEXT = 'Coinbase 参考估算，获取时间见页顶，非实时成交价，以 USDT 结算';
+export const RATE_SOURCE_TEXT = 'OKX 指数与法币两周均价参考折算，获取时间见页顶，非实时成交价，以 USDT 结算';
